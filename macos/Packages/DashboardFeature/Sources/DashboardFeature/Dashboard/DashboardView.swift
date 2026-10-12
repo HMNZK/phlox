@@ -53,6 +53,7 @@ public struct DashboardView: View {
     /// プロジェクトごとのターミナルタブ。App が寿命を持つ。
     private let sessionTerminals: ProjectTerminalStore?
     private let simulatorHub: SimulatorHub?
+    private let initialSidebarWidth: CGFloat?
 
     public init(
         viewModel: DashboardViewModel,
@@ -61,7 +62,9 @@ public struct DashboardView: View {
         newChatDraftStore: NewChatDraftStore = NewChatDraftStore(),
         agentConsoleWindowID: String? = nil,
         sessionTerminals: ProjectTerminalStore? = nil,
-        simulatorHub: SimulatorHub? = nil
+        simulatorHub: SimulatorHub? = nil,
+        initialSidebarWidth: CGFloat? = nil,
+        initiallyExpandedProjectIDs: Set<ProjectID> = []
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
@@ -70,6 +73,8 @@ public struct DashboardView: View {
         self.agentConsoleWindowID = agentConsoleWindowID
         self.sessionTerminals = sessionTerminals
         self.simulatorHub = simulatorHub
+        self.initialSidebarWidth = initialSidebarWidth
+        _expandedProjectIDs = State(initialValue: initiallyExpandedProjectIDs)
     }
 
     private func deletionDialogTitle(for selection: SelectedSessionNode) -> String {
@@ -325,7 +330,6 @@ public struct DashboardView: View {
                     DashboardToolbar(
                         viewModel: viewModel,
                         router: router,
-                        density: ToolbarDensity.forWindowWidth(windowWidth),
                         showsSidebarToggle: !layout.showsSidebar
                     )
                     horizontalSeparator
@@ -438,7 +442,7 @@ public struct DashboardView: View {
                 }
             }
             .onAppear {
-                sidebarWidth = CGFloat(savedSidebarWidth)
+                sidebarWidth = initialSidebarWidth ?? CGFloat(savedSidebarWidth)
                 sidebarWidthAtDragStart = sidebarWidth
                 inspectorWidth = CGFloat(savedInspectorWidth)
                 inspectorWidthAtDragStart = inspectorWidth
@@ -629,15 +633,10 @@ public struct DashboardView: View {
 
     // MARK: - Columns
 
-    /// 左列。上端に信号の余白とサイドバーを隠すボタン、下端に設定とエージェント管理（01 A1）。
+    /// 左列。上端は中央のタイトルバーと高さをそろえる余白、下端に設定とエージェント管理。
     private var sidebarColumn: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                SidebarToggleButton(router: router)
-            }
-            .padding(.horizontal, DSSpacing.m)
-            .frame(height: DSLayout.toolbarHeight)
+            Color.clear.frame(height: DSLayout.toolbarHeight)
             DashboardSidebarView(
                 viewModel: viewModel,
                 router: router,
@@ -668,24 +667,20 @@ public struct DashboardView: View {
                         .font(DSFont.row)
                     Text("新規チャット", bundle: localizationBundle)
                         .font(DSFont.auxiliary.weight(.medium))
+                    Spacer(minLength: 0)
                     Text(verbatim: "⌘N")
-                        .font(.system(size: 10.5))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.textTertiary)
                 }
                 .foregroundStyle(DSColor.textPrimary)
                 .padding(.horizontal, 10)
-                .frame(height: 26)
-                // PhloxSidebar.dc.html:169: --ctl の面、0.5pt の --ctlBorder、影 0 0.5 1。
-                .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: DSRadius.row))
-                .overlay(RoundedRectangle(cornerRadius: DSRadius.row).strokeBorder(DSColor.controlBorder, lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.08), radius: 0.5, y: 0.5)
+                .frame(maxWidth: .infinity, minHeight: 26, maxHeight: 26)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .fixedSize()
+            .frame(maxWidth: .infinity)
             .help(Text("新規チャット", bundle: localizationBundle) + Text(verbatim: "（⌘N）"))
             .accessibilityLabel(Text("新規チャット", bundle: localizationBundle) + Text(verbatim: "（⌘N）"))
-            Spacer(minLength: 0)
             if let agentConsoleWindowID {
                 footerIconButton(systemImage: "slider.horizontal.3", label: "エージェント管理（⇧⌘,）") {
                     openWindow(id: agentConsoleWindowID)

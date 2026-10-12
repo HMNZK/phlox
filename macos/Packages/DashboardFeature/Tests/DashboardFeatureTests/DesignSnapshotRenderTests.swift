@@ -11,6 +11,25 @@ import Testing
 import WebKit
 @testable import DashboardFeature
 
+private final class Stage8SnapshotClients: @unchecked Sendable {
+    private let lock = NSLock()
+    private var clients: [EventYieldingStructuredClient] = []
+
+    func make() -> EventYieldingStructuredClient {
+        lock.lock()
+        defer { lock.unlock() }
+        let client = EventYieldingStructuredClient()
+        clients.append(client)
+        return client
+    }
+
+    func client(at index: Int) -> EventYieldingStructuredClient? {
+        lock.lock()
+        defer { lock.unlock() }
+        return clients.indices.contains(index) ? clients[index] : nil
+    }
+}
+
 /// 実画面を表示せず、比較用の部品画像を明示指定時だけ書き出す。
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
@@ -775,9 +794,9 @@ struct DesignSnapshotRenderTests {
                 id: id,
                 kind: .claudeCode,
                 workingDirectory: project.directoryPath,
-                name: ["調査を続ける", "設計を確認する", "修正内容をまとめる"][index % 3],
+                name: ["README の英語版を、今の仕様に合わせて更新してください。", "PaneTree 正規化の修正", "承認ダイアログの文言を統一"][index % 3],
                 projectID: project.id,
-                startedAt: Date(timeIntervalSince1970: 2_000 + Double(index)),
+                startedAt: Date().addingTimeInterval(index == 2 ? -2 * 60 * 60 : -10 * 60),
                 command: "/usr/bin/false",
                 args: [],
                 env: [:],
@@ -787,37 +806,72 @@ struct DesignSnapshotRenderTests {
             )
         }
         let sessions = InMemorySessionStore(descriptors)
+        let snapshotClients = Stage8SnapshotClients()
+        let agentBinaryPaths: [AgentKind: String]
+        if frame.id == "10-M1-dark-ja" {
+            agentBinaryPaths = [.claudeCode: "/bin/true", .codex: "/bin/true", .cursor: "/bin/true"]
+        } else if frame.id == "10-M2-light-en" {
+            agentBinaryPaths = [.claudeCode: "/bin/true", .codex: "/bin/true"]
+        } else if frame.id.contains("-R") {
+            agentBinaryPaths = [:]
+        } else {
+            agentBinaryPaths = [.codex: "/bin/true"]
+        }
         let dashboard = DashboardViewModel(environment: makeTestEnvironment(
             pty: MockPTYManager(),
             hookStream: AsyncStream { $0.finish() },
             projects: projectStore,
             sessions: sessions,
             workspaceDirectory: root,
-            appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }
+            agentBinaryPaths: agentBinaryPaths,
+            appServerClientFactory: { _, _, _, _, _ in snapshotClients.make() }
         ))
         await dashboard.start()
+        if sessionCount >= 3 {
+            for node in dashboard.sessionNodes {
+                if case .appServer(let session) = node { session.userNotificationGate = { _ in false } }
+            }
+            snapshotClients.client(at: 0)?.yield(.turnStarted)
+            if case .appServer(let session) = dashboard.sessionNodes[1] {
+                session.enterAwaitingApproval(prompt: "snapshot approval")
+            }
+            for _ in 0..<5 { await Task.yield() }
+        }
 
         let defaults = UserDefaults(suiteName: "phlox.design-snapshot.\(UUID().uuidString)")!
         let draftStore = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
         let draft = draftStore.draft(for: project.id)
+        draft.selectHarness(.builtin(.codex))
         draft.settings = CodexAppServerSessionSettings(
-            selectedModel: AgentModelCatalog.defaultModel(for: .claudeCode),
+            selectedModel: AgentModelCatalog.defaultModel(for: .codex),
             selectedEffort: "high",
-            selectedPermissionProfile: "bypassPermissions"
+            selectedPermissionProfile: ":danger-full-access"
         )
         let router = AppRouter(viewMode: .single, sidebarVisible: frame.id != "11-T12-dark")
         router.selectedProjectID = project.id
 
         let lowRemaining = frame.id.contains("U4") || frame.id.contains("U8")
         let now = Date()
+        let fiveHour = frame.english ? "5h" : "5時間"
+        let weekly = frame.english ? "Weekly" : "週次"
         let claude = CLIUsage(kind: .claudeCode, state: .ok([
-            UsageBucket(id: "5h", label: "5h", usedPercent: lowRemaining ? 96 : 34),
-            UsageBucket(id: "weekly", label: "7d", usedPercent: lowRemaining ? 88 : 56),
+            UsageBucket(id: "5h", label: fiveHour, usedPercent: lowRemaining ? 88 : 28,
+                        resetsAt: now.addingTimeInterval(lowRemaining ? 38 * 60 : 2 * 60 * 60)),
+            UsageBucket(id: "weekly", label: weekly, usedPercent: 60,
+                        resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60)),
         ]), updatedAt: now)
         let codex: CLIUsage = lowRemaining
             ? CLIUsage(kind: .codex, state: .unavailable(reason: "fixture unavailable"), updatedAt: now)
-            : CLIUsage(kind: .codex, state: .ok([UsageBucket(id: "weekly", label: "7d", usedPercent: 43)]), updatedAt: now)
-        let cursor = CLIUsage(kind: .cursor, state: .ok([UsageBucket(id: "cursor", label: "Cursor", usedPercent: 21)]), updatedAt: now)
+            : CLIUsage(kind: .codex, state: .ok([
+                UsageBucket(id: "5h", label: fiveHour, usedPercent: 1, resetsAt: now.addingTimeInterval(4 * 60 * 60)),
+                UsageBucket(id: "weekly", label: weekly, usedPercent: 15, resetsAt: now.addingTimeInterval(5 * 24 * 60 * 60)),
+            ]), updatedAt: now)
+        let cursor: CLIUsage = lowRemaining
+            ? CLIUsage(kind: .cursor, state: .unavailable(reason: "fixture unavailable"), updatedAt: now)
+            : CLIUsage(kind: .cursor, state: .ok([
+                UsageBucket(id: "auto", label: "Auto", usedPercent: 20),
+                UsageBucket(id: "api", label: "API", usedPercent: 5),
+            ]), updatedAt: now)
         let usageMonitor = UsageMonitor(providers: [
             .claudeCode: DesignSnapshotUsageProvider(kind: .claudeCode, usage: claude),
             .codex: DesignSnapshotUsageProvider(kind: .codex, usage: codex),
@@ -828,9 +882,15 @@ struct DesignSnapshotRenderTests {
                            draftStore: draftStore, draft: draft, usageMonitor: usageMonitor, sessionIDs: sessionIDs)
     }
 
-    private func dashboard(_ scene: Stage8Scene) -> DashboardView {
+    private func dashboard(
+        _ scene: Stage8Scene,
+        initialSidebarWidth: CGFloat? = nil,
+        initiallyExpandedProjectIDs: Set<ProjectID> = []
+    ) -> DashboardView {
         DashboardView(viewModel: scene.dashboard, router: scene.router, usageMonitor: scene.usageMonitor,
-                      newChatDraftStore: scene.draftStore)
+                      newChatDraftStore: scene.draftStore,
+                      initialSidebarWidth: initialSidebarWidth,
+                      initiallyExpandedProjectIDs: initiallyExpandedProjectIDs)
     }
 
     private func renderStage8NewChat(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
@@ -845,7 +905,8 @@ struct DesignSnapshotRenderTests {
             scene.draft.text = "この変更を要約してください"
         }
         scene.router.showNewChat(projectID: scene.project.id)
-        let content = dashboard(scene)
+        let sidebarWidth = frame.width <= 720 ? DSLayout.sidebarWidth.min : nil
+        let content = dashboard(scene, initialSidebarWidth: sidebarWidth)
             .environment(\.newChatSendButtonInitiallyFocused, isFocusedSend)
             .environment(\.newChatModelMenuInitiallyOpen, hasOpenMenu)
         do {
@@ -907,10 +968,10 @@ struct DesignSnapshotRenderTests {
         let chats = scene.sessionIDs.map(ProjectTab.chat)
         var layout = ProjectTabLayout()
         for chat in chats { layout.open(chat) }
-        layout.open(.newChat)
-        layout.open(.changes)
-        layout.open(.file("README.md"))
+        layout.open(.terminal(TerminalTabID()))
+        layout.open(.file("DashboardView.swift"))
         let selectsNewChat = frame.id.contains("T3")
+        if selectsNewChat { layout.open(.newChat) }
         if let first = scene.sessionIDs.first {
             layout.select(selectsNewChat ? .newChat : .chat(first))
             scene.router.selectedSession = selectsNewChat ? nil : first
@@ -919,8 +980,10 @@ struct DesignSnapshotRenderTests {
         }
         scene.router.tabs.updateLayout(for: scene.project.id) { $0 = layout }
         let hideSidebarAfterMount = frame.id == "11-T12-dark"
+        let sidebarWidth = frame.width <= 720 ? DSLayout.sidebarWidth.min : nil
         do {
-            try await capture(dashboard(scene), frame: frame, output: output,
+            try await capture(dashboard(scene, initialSidebarWidth: sidebarWidth,
+                                        initiallyExpandedProjectIDs: [scene.project.id]), frame: frame, output: output,
                               afterMount: { if hideSidebarAfterMount { scene.router.sidebarVisible = false } })
         } catch {
             for session in scene.dashboard.sessions { await session.kill() }
@@ -933,8 +996,9 @@ struct DesignSnapshotRenderTests {
     private func renderStage8Usage(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
         let scene = try await makeStage8Scene(frame, fixtures: fixtures)
         scene.router.showNewChat(projectID: scene.project.id)
+        let sidebarWidth = frame.width <= 720 ? DSLayout.sidebarWidth.min : nil
         do {
-            try await capture(dashboard(scene), frame: frame, output: output)
+            try await capture(dashboard(scene, initialSidebarWidth: sidebarWidth), frame: frame, output: output)
         } catch {
             for session in scene.dashboard.sessions { await session.kill() }
             throw error

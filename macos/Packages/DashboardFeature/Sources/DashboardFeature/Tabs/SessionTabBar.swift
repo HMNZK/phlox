@@ -102,6 +102,18 @@ struct TabBarOverflowLayout: Equatable {
     let visibleIndices: [Int]
     let itemWidth: CGFloat
     let overflowCount: Int
+    private let itemWidths: [CGFloat]
+
+    init(visibleIndices: [Int], itemWidth: CGFloat, overflowCount: Int, itemWidths: [CGFloat] = []) {
+        self.visibleIndices = visibleIndices
+        self.itemWidth = itemWidth
+        self.overflowCount = overflowCount
+        self.itemWidths = itemWidths
+    }
+
+    func width(for index: Int) -> CGFloat {
+        itemWidths.indices.contains(index) ? itemWidths[index] : itemWidth
+    }
 
     static func make(
         itemCount: Int,
@@ -141,6 +153,45 @@ struct TabBarOverflowLayout: Equatable {
         let selected = selectedIndex.flatMap { (0..<itemCount).contains($0) ? $0 : nil } ?? 0
         let width = max(0, availableWidth - addButtonWidth - overflowButtonWidth)
         return Self(visibleIndices: [selected], itemWidth: width, overflowCount: itemCount - 1)
+    }
+
+    static func make(
+        contentWidths: [CGFloat],
+        selectedIndex: Int?,
+        availableWidth: CGFloat,
+        maxItemWidth: CGFloat,
+        addButtonWidth: CGFloat,
+        overflowButtonWidth: CGFloat
+    ) -> Self {
+        guard !contentWidths.isEmpty else { return Self(visibleIndices: [], itemWidth: 0, overflowCount: 0) }
+
+        var widths = contentWidths.map { min(max(0, $0), maxItemWidth) }
+        let allIndices = Array(widths.indices)
+        if widths.reduce(addButtonWidth, +) <= availableWidth {
+            return Self(visibleIndices: allIndices, itemWidth: 0, overflowCount: 0, itemWidths: widths)
+        }
+
+        let selected = selectedIndex.flatMap { widths.indices.contains($0) ? $0 : nil } ?? 0
+        var visible = Array(Set([0, selected])).sorted()
+        let itemsWidth = max(0, availableWidth - addButtonWidth - overflowButtonWidth)
+        let visibleWidth = visible.reduce(CGFloat.zero, { $0 + widths[$1] })
+        if visibleWidth > itemsWidth {
+            visible = [selected]
+            widths[selected] = min(widths[selected], itemsWidth)
+        } else {
+            for index in allIndices where !visible.contains(index) {
+                let nextWidth = visible.reduce(CGFloat.zero, { $0 + widths[$1] }) + widths[index]
+                guard nextWidth <= itemsWidth else { break }
+                visible.append(index)
+            }
+            visible.sort()
+        }
+        return Self(
+            visibleIndices: visible,
+            itemWidth: 0,
+            overflowCount: widths.count - visible.count,
+            itemWidths: widths
+        )
     }
 }
 

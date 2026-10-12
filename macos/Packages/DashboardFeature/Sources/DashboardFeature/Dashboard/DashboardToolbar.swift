@@ -23,7 +23,6 @@ enum ToolbarDensity: Equatable {
 struct DashboardToolbar: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
-    let density: ToolbarDensity
     /// サイドバーが見えていないとき、信号の右にサイドバー開閉を出す。
     let showsSidebarToggle: Bool
 
@@ -37,11 +36,7 @@ struct DashboardToolbar: View {
                 SidebarToggleButton(router: router, attentionCount: viewModel.attentionEntries.count)
             }
             Spacer(minLength: DSSpacing.s)
-            ViewModeToggle(mode: $router.viewMode, showsText: density != .minimal)
-            Rectangle()
-                .fill(DSColor.separator)
-                .frame(width: 1, height: 18)
-                .padding(.horizontal, DSSpacing.xxs)
+            ViewModeToggle(mode: $router.viewMode)
             inspectorToggleButton
         }
         // PhloxWindow.dc.html: padding 0 10 0 14、gap 8。
@@ -144,7 +139,6 @@ struct CountBadge: View {
 /// 単体/グリッドの 2 セグメント。淡いトラックの上で、選択セグメントだけを面で示す。
 struct ViewModeToggle: View {
     @Binding var mode: ViewMode
-    let showsText: Bool
     @Environment(\.locale) private var locale
 
     var body: some View {
@@ -162,7 +156,7 @@ struct ViewModeToggle: View {
         ModeSegmentButton(
             identifier: "view-mode-\(value.rawValue)",
             symbol: symbol,
-            title: showsText ? title : nil,
+            title: nil,
             help: String(format: AppLocalizedString.string("%@（%@）", locale: locale), title, key),
             isOn: mode == value,
             action: { mode = value }

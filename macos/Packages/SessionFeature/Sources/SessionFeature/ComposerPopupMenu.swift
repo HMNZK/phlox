@@ -9,9 +9,15 @@ struct ComposerChipLabel: View {
     var isOpen = false
     var isBranch = false
     var trailing: AnyView? = nil
+    var leadingSystemImage: String? = nil
 
     var body: some View {
         HStack(spacing: 5) {
+            if let leadingSystemImage {
+                Image(systemName: leadingSystemImage)
+                    .font(DSFont.meta)
+                    .accessibilityHidden(true)
+            }
             // モデル名や effort は省略せず全文を出す（入らない幅では「…」へ移す）。
             // ブランチ名だけは長くなりうるので中央を省略する。
             Text(verbatim: title)
@@ -29,7 +35,7 @@ struct ComposerChipLabel: View {
         .fixedSize(horizontal: !isBranch, vertical: false)
         .foregroundStyle(DSColor.textPrimary)
         .padding(.horizontal, 8)
-        .frame(height: 22)
+        .frame(height: leadingSystemImage == nil ? 22 : 28)
         .background(background, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
             if isOpen {

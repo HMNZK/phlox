@@ -53,13 +53,29 @@ struct UsageBottomBarAcceptanceTests {
         )
         #expect(UsageDisplay.bottomBarBucketText(
             bucket, showsLabel: true, showsReset: true, now: now, locale: japanese
-        ) == "5時間 72%（2h0m）")
+        ) == "5時間 72%（2時間後）")
         #expect(UsageDisplay.bottomBarBucketText(
             bucket, showsLabel: true, showsReset: false, now: now, locale: japanese
         ) == "5時間 72%")
         #expect(UsageDisplay.bottomBarBucketText(
             bucket, showsLabel: false, showsReset: false, now: now, locale: japanese
         ) == "72%")
+    }
+
+    @Test("モックの使用量バーと同じ幅で表示段階を切り替える")
+    func usesReferenceStages() {
+        #expect(UsageDisplay.bottomBarStage(forWidth: 1_100) == .full)
+        #expect(UsageDisplay.bottomBarStage(forWidth: 1_099) == .compact)
+        #expect(UsageDisplay.bottomBarStage(forWidth: 600) == .compact)
+        #expect(UsageDisplay.bottomBarStage(forWidth: 599) == .percentageOnly)
+    }
+
+    @Test("週次のリセットは日本語と英語の残り日数で示す")
+    func formatsWeeklyResetForBottomBar() {
+        let bucket = UsageBucket(id: "weekly", label: "Weekly", usedPercent: 60,
+                                 resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60))
+        #expect(UsageDisplay.bottomBarResetText(for: bucket, now: now, locale: japanese) == "3日後")
+        #expect(UsageDisplay.bottomBarResetText(for: bucket, now: now, locale: Locale(identifier: "en")) == "in 3d")
     }
 
     @Test("残り20%未満は読み上げに残りわずかを含める")

@@ -151,15 +151,18 @@ public struct ComposerSettingChip: View {
     public let selection: String?
     public let onSelect: (String?) -> Void
     public let accessibilityIdentifier: String
+    public let leadingSystemImage: String?
 
     @Environment(\.locale) private var locale
 
     public init(title: String, options: [ComposerSettingOption], selection: String?,
-                accessibilityIdentifier: String, onSelect: @escaping (String?) -> Void) {
+                accessibilityIdentifier: String, leadingSystemImage: String? = nil,
+                onSelect: @escaping (String?) -> Void) {
         self.title = title
         self.options = options
         self.selection = selection
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.leadingSystemImage = leadingSystemImage
         self.onSelect = onSelect
     }
 
@@ -182,7 +185,7 @@ public struct ComposerSettingChip: View {
                 .disabled(!option.isEnabled)
             }
         } label: {
-            ComposerChipLabel(title: title, isOpen: false)
+            ComposerChipLabel(title: title, isOpen: false, leadingSystemImage: leadingSystemImage)
         }
         .menuStyle(.borderlessButton)
         .accessibilityLabel(Text(verbatim: title))

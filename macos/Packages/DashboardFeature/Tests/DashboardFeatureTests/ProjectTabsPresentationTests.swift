@@ -55,6 +55,25 @@ import DesignSystem
         #expect(overflow.itemWidth >= 96)
     }
 
+    @Test func childTabsUseContentWidthsAndFoldTheTrailingRunIntoOverflow() {
+        let fitted = TabBarOverflowLayout.make(
+            contentWidths: [80, 120, 60], selectedIndex: 1, availableWidth: 300,
+            maxItemWidth: 200, addButtonWidth: 26, overflowButtonWidth: 70
+        )
+        #expect(fitted.visibleIndices == [0, 1, 2])
+        #expect(fitted.width(for: 0) == 80)
+        #expect(fitted.width(for: 1) == 120)
+
+        let overflow = TabBarOverflowLayout.make(
+            contentWidths: [150, 150, 100, 90, 150], selectedIndex: 0, availableWidth: 450,
+            maxItemWidth: 200, addButtonWidth: 26, overflowButtonWidth: 70
+        )
+        #expect(overflow.visibleIndices == [0, 1])
+        #expect(overflow.overflowCount == 3)
+        #expect(overflow.width(for: 0) == 150)
+        #expect(overflow.width(for: 1) == 150)
+    }
+
     @Test func tabAccessibilityIdentifiersUseTheSpecifiedNames() {
         #expect(TabAccessibilityIdentifier.project(1) == "tabs.project.1")
         #expect(TabAccessibilityIdentifier.projectAdd == "tabs.project.add")

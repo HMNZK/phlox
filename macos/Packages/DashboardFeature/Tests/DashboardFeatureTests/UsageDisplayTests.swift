@@ -92,7 +92,7 @@ import Testing
     let now = Date(timeIntervalSince1970: 100)
     let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 28, resetsAt: now.addingTimeInterval(7200))
 
-    #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: true, showsReset: true, now: now, locale: Locale(identifier: "ja")) == "5時間 72%（2h0m）")
+    #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: true, showsReset: true, now: now, locale: Locale(identifier: "ja")) == "5時間 72%（2時間後）")
     #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: true, showsReset: false, now: now, locale: Locale(identifier: "ja")) == "5時間 72%")
     #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: false, showsReset: false, now: now, locale: Locale(identifier: "ja")) == "72%")
 }

@@ -193,13 +193,13 @@ struct ChildTabBar: View {
         GeometryReader { geometry in
             let tabs = layout.tabs(chats: chats)
             let selected = layout.selected ?? chats.first
+            let maximumWidth: CGFloat = geometry.size.width < 700 ? 150 : 200
             let overflowLayout = TabBarOverflowLayout.make(
-                itemCount: tabs.count,
+                contentWidths: tabs.map { tabWidth($0, selected: selected == $0, shown: layout.isShown($0), maximum: maximumWidth) },
                 selectedIndex: selected.flatMap { tabs.firstIndex(of: $0) },
                 availableWidth: max(0, geometry.size.width - 16),
-                maxItemWidth: 200,
-                minItemWidth: 96,
-                addButtonWidth: 30,
+                maxItemWidth: maximumWidth,
+                addButtonWidth: 26,
                 overflowButtonWidth: 70
             )
             HStack(spacing: 0) {
@@ -217,7 +217,7 @@ struct ChildTabBar: View {
                             else { _ = router.requestClose(.tab(tab)) }
                         }
                     )
-                    .frame(width: overflowLayout.itemWidth, height: 26)
+                    .frame(width: overflowLayout.width(for: index), height: 26)
                     .accessibilityIdentifier(TabAccessibilityIdentifier.item(index + 1))
                 }
                 if overflowLayout.overflowCount > 0 {
@@ -276,15 +276,25 @@ struct ChildTabBar: View {
 
     /// 文言は画面のロケール（アプリ内の言語設定）で引くため Text で返す。
     private func title(for tab: ProjectTab) -> Text {
+        Text(verbatim: titleText(for: tab))
+    }
+
+    private func titleText(for tab: ProjectTab) -> String {
         switch tab {
-        case .chat(let id): Text(verbatim: viewModel.sessionNode(id: id)?.displayName ?? "会話")
-        case .newChat: Text("新規チャット", bundle: localizationBundle)
-        case .terminal: Text("ターミナル", bundle: localizationBundle)
-        case .simulator: Text("シミュレーター")
-        case .browser: Text("ブラウザ")
-        case .changes: changeCount > 0 ? Text("変更 \(changeCount)") : Text("tab.changes")
-        case .file(let path): Text(verbatim: (path as NSString).lastPathComponent)
+        case .chat(let id): viewModel.sessionNode(id: id)?.displayName ?? "会話"
+        case .newChat: AppLocalizedString.string("新規チャット", locale: locale, bundle: localizationBundle)
+        case .terminal: AppLocalizedString.string("ターミナル", locale: locale, bundle: localizationBundle)
+        case .simulator: "シミュレーター"
+        case .browser: "ブラウザ"
+        case .changes: changeCount > 0 ? "変更 \(changeCount)" : AppLocalizedString.string("tab.changes", locale: locale, bundle: localizationBundle)
+        case .file(let path): (path as NSString).lastPathComponent
         }
+    }
+
+    private func tabWidth(_ tab: ProjectTab, selected: Bool, shown: Bool, maximum: CGFloat) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 12, weight: selected ? .semibold : .regular) // DSFont.auxiliary
+        let textWidth = ceil((titleText(for: tab) as NSString).size(withAttributes: [.font: font]).width)
+        return min(maximum, textWidth + 16 + (shown || selected ? 20 : 0))
     }
 
     private func isDirty(_ tab: ProjectTab) -> Bool {

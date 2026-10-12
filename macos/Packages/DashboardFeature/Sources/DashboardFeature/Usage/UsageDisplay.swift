@@ -39,6 +39,14 @@ enum UsageDisplay {
         var id: AgentKind { kind }
     }
 
+    enum BottomBarStage {
+        case full, compact, percentageOnly
+    }
+
+    static func bottomBarStage(forWidth width: CGFloat) -> BottomBarStage {
+        width >= 1_100 ? .full : width >= 600 ? .compact : .percentageOnly
+    }
+
     /// 下部バーのハーネスと全バケットを AgentKind 順で返す。
     static func bottomBarGroups(
         usages: [AgentKind: CLIUsage]
@@ -69,11 +77,26 @@ enum UsageDisplay {
     ) -> String {
         let remaining = Int(round(100 - max(0, min(100, bucket.usedPercent))))
         var text = showsLabel ? "\(bucket.label) \(remaining)%" : "\(remaining)%"
-        if showsReset, let reset = sidebarResetDisplay(for: bucket, now: now) {
+        if showsReset, let reset = bottomBarResetText(for: bucket, now: now, locale: locale) {
             let isEnglish = locale.language.languageCode?.identifier == "en"
-            text += isEnglish ? " (\(reset.text))" : "（\(reset.text)）"
+            text += isEnglish ? " (\(reset))" : "（\(reset)）"
         }
         return text
+    }
+
+    static func bottomBarResetText(for bucket: UsageBucket, now: Date, locale: Locale) -> String? {
+        guard let resetsAt = bucket.resetsAt else { return nil }
+        let isEnglish = locale.language.languageCode?.identifier == "en"
+        let minutes = max(1, Int(ceil(resetsAt.timeIntervalSince(now) / 60)))
+        if bucket.id == "weekly", minutes > 24 * 60 {
+            let days = Int(ceil(Double(minutes) / (24 * 60)))
+            return isEnglish ? "in \(days)d" : "\(days)日後"
+        }
+        if minutes >= 60 {
+            let hours = Int(ceil(Double(minutes) / 60))
+            return isEnglish ? "in \(hours)h" : "\(hours)時間後"
+        }
+        return isEnglish ? "in \(minutes)m" : "\(minutes)分後"
     }
 
     static func bottomBarAccessibilityLabel(groups: [BottomBarGroup], now: Date, locale: Locale, bundle: Bundle = .main) -> String {

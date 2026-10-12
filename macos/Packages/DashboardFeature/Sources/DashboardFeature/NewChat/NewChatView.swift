@@ -37,6 +37,7 @@ struct NewChatView: View {
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     @State private var greeting = NewChatGreetings.random()
     @State private var modelSearch = ""
+    @State private var keyboardModelID: String?
     @State private var modelPickerPresented = false
     @FocusState private var modelSearchFocused: Bool
     @FocusState private var sendButtonFocused: Bool
@@ -210,12 +211,12 @@ struct NewChatView: View {
             if newChatModelMenuInitiallyOpen {
                 GeometryReader { geometry in
                     let menuWidth: CGFloat = 318
-                    let menuHeight: CGFloat = 398
+                    let menuHeight: CGFloat = 418
                     let buttonX = max(0, (geometry.size.width - min(geometry.size.width, 760)) / 2 + 75)
                     let menuCenterX = max(menuWidth / 2 + 8, min(buttonX, geometry.size.width - menuWidth / 2 - 8))
                     let menuCenterY = min(geometry.size.height - menuHeight / 2, geometry.size.height * 0.28)
                     modelPickerMenu
-                        .frame(width: 310, height: 390)
+                        .frame(width: 310, height: 410)
                         .padding(4)
                         .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 8))
                         .dsShadow(DSShadow.popover)
@@ -244,8 +245,8 @@ struct NewChatView: View {
             .accessibilityIdentifier("newChat.composer")
             if let reason = sendUnavailableReason {
                 Text(verbatim: reason)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(DSColor.textSecondary)
+                    .font(DSFont.row)
+                    .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
                     .padding(.horizontal, 12)
                     .padding(.top, 2)
@@ -273,7 +274,7 @@ struct NewChatView: View {
             }
             .padding(.horizontal, 10)
             .padding(.top, 3)
-            .padding(.bottom, 8)
+            .padding(.bottom, 14)
         }
         .background {
             let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -326,10 +327,9 @@ struct NewChatView: View {
             .foregroundStyle(DSColor.textPrimary)
             .padding(.horizontal, 7)
             .frame(height: 28)
-            .background(DSColor.fillSubtle.opacity(modelPickerPresented ? 1 : 0), in: RoundedRectangle(cornerRadius: 6))
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
-        .buttonStyle(HoverableSoftButtonStyle())
+        .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row, hoverFill: DSColor.fillSubtle, hoverBorderColor: .clear))
         .popover(isPresented: $modelPickerPresented, arrowEdge: .top) { modelPickerMenu }
         .accessibilityLabel(Text(verbatim: harnessAccessibility.role))
         .accessibilityValue(Text(verbatim: harnessAccessibility.value))
@@ -338,46 +338,92 @@ struct NewChatView: View {
     }
 
     var modelPickerMenu: some View {
-        VStack(spacing: 6) {
-            TextField(localized("モデルを絞り込む"), text: $modelSearch)
-                .textFieldStyle(.roundedBorder)
-                .focused($modelSearchFocused)
-                .padding(.horizontal, 8)
-                .padding(.top, 8)
-                .accessibilityIdentifier("newChat.modelSearch")
-            List {
-                ForEach(filteredModelSections) { section in
-                    Section {
-                        if section.isDetected {
-                            ForEach(section.models, id: \.id) { model in
-                                Button { selectModel(model, for: section) } label: {
-                                    modelRow(model, section: section)
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(DSFont.meta)
+                    .foregroundStyle(DSColor.textTertiary)
+                    .accessibilityHidden(true)
+                TextField(localized("モデルを絞り込む"), text: $modelSearch)
+                    .font(DSFont.auxiliary)
+                    .textFieldStyle(.plain)
+                    .focused($modelSearchFocused)
+                    .onKeyPress(.downArrow) { moveModelSelection(by: 1) }
+                    .onKeyPress(.upArrow) { moveModelSelection(by: -1) }
+                    .onKeyPress(.return) { chooseKeyboardSelectedModel() }
+                    .onKeyPress(.escape) { handleModelMenuEscape() }
+                    .onChange(of: modelSearch) { _, _ in selectFirstFilteredModel() }
+                    .accessibilityIdentifier("newChat.modelSearch")
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(DSColor.fieldBackground, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.fieldBorder, lineWidth: 1))
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 5)
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(filteredModelSections) { section in
+                            VStack(spacing: 0) {
+                                HStack(spacing: 6) {
+                                    AgentBrandIcon(kind: section.kind, size: 13)
+                                    Text(verbatim: section.name)
+                                        .font(DSFont.meta.weight(.semibold))
+                                        .foregroundStyle(DSColor.textSecondary)
+                                    Spacer(minLength: 0)
                                 }
-                                .buttonStyle(.plain)
+                                .padding(.horizontal, 8)
+                                .frame(height: 24)
+
+                                if section.isDetected {
+                                    ForEach(section.models, id: \.id) { model in
+                                        Button { selectModel(model, for: section) } label: {
+                                            modelRow(model, section: section)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .id(modelSelectionID(model, in: section))
+                                    }
+                                } else {
+                                    HStack(spacing: 6) {
+                                        Text(localized("未検出"))
+                                            .foregroundStyle(DSColor.textTertiary)
+                                        Text(String(format: localized("%@ が見つかりません。インストールすると選べます"), section.name))
+                                            .font(DSFont.meta)
+                                            .foregroundStyle(DSColor.textSecondary)
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .frame(height: 40, alignment: .leading)
+                                }
                             }
-                        } else {
-                            HStack(spacing: 6) {
-                                Text(localized("未検出"))
-                                    .foregroundStyle(DSColor.textTertiary)
-                                Text(String(format: localized("%@ が見つかりません。インストールすると選べます"), section.name))
-                                    .font(DSFont.meta)
-                                    .foregroundStyle(DSColor.textSecondary)
-                            }
-                            .disabled(true)
-                        }
-                    } header: {
-                        HStack(spacing: 6) {
-                            AgentBrandIcon(kind: section.kind, size: 13)
-                            Text(verbatim: section.name)
                         }
                     }
                 }
+                .scrollIndicators(.visible)
+                .frame(height: 340)
+                .onChange(of: keyboardModelID) { _, id in
+                    if let id { proxy.scrollTo(id, anchor: .center) }
+                }
             }
-            .listStyle(.plain)
-            .frame(width: 310, height: 340)
+
+            Text(locale.language.languageCode?.identifier == "en"
+                 ? "↑↓ Move · ↩ Select · Type to filter · Esc Close"
+                 : "↑↓ 移動 · ↩ 決定 · 文字入力で絞り込み · Esc 閉じる")
+                .font(DSFont.meta)
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 6)
+                .padding(.top, 7)
+                .padding(.bottom, 3)
+                .overlay(alignment: .top) { Rectangle().fill(DSColor.separator).frame(height: 1).padding(.horizontal, 2) }
         }
-        .frame(width: 310, height: 390)
-        .onAppear { modelSearchFocused = true }
+        .frame(width: 310, height: 410)
+        .onAppear {
+            modelSearchFocused = true
+            selectCurrentModel()
+        }
         .onDisappear { modelSearchFocused = false }
         .accessibilityIdentifier("newChat.modelMenu")
     }
@@ -386,30 +432,89 @@ struct NewChatView: View {
         let query = modelSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !query.isEmpty else { return modelSections }
         return modelSections.compactMap { section in
-            let models = section.models.filter { $0.id.lowercased().contains(query) || $0.displayName.lowercased().contains(query) }
-            guard section.name.lowercased().contains(query) || !models.isEmpty else { return nil }
+            let matchesSection = section.name.lowercased().contains(query)
+            let models = matchesSection ? section.models : section.models.filter {
+                $0.id.lowercased().contains(query) || $0.displayName.lowercased().contains(query)
+            }
+            guard matchesSection || !models.isEmpty else { return nil }
             return NewChatModelMenuSection(kind: section.kind, name: section.name, isDetected: section.isDetected,
                                            models: models, defaultModel: section.defaultModel)
         }
     }
 
+    private var selectableModels: [(section: NewChatModelMenuSection, model: ControlModelOption)] {
+        filteredModelSections.filter(\.isDetected).flatMap { section in
+            section.models.map { (section: section, model: $0) }
+        }
+    }
+
+    private func modelSelectionID(_ model: ControlModelOption, in section: NewChatModelMenuSection) -> String {
+        "\(section.kind.rawValue):\(model.id)"
+    }
+
+    private func selectCurrentModel() {
+        keyboardModelID = selectableModels.first {
+            $0.section.kind == selectedKind && $0.model.id == draft.settings.selectedModel
+        }.map { modelSelectionID($0.model, in: $0.section) } ?? selectableModels.first.map {
+            modelSelectionID($0.model, in: $0.section)
+        }
+    }
+
+    private func selectFirstFilteredModel() {
+        let options = selectableModels
+        keyboardModelID = options.first.map { modelSelectionID($0.model, in: $0.section) }
+    }
+
+    private func moveModelSelection(by offset: Int) -> KeyPress.Result {
+        let options = selectableModels
+        guard !options.isEmpty else { return .handled }
+        let current = options.firstIndex { modelSelectionID($0.model, in: $0.section) == keyboardModelID }
+            ?? (offset > 0 ? -1 : options.count)
+        let index = min(options.count - 1, max(0, current + offset))
+        keyboardModelID = modelSelectionID(options[index].model, in: options[index].section)
+        return .handled
+    }
+
+    private func chooseKeyboardSelectedModel() -> KeyPress.Result {
+        guard let option = selectableModels.first(where: {
+            modelSelectionID($0.model, in: $0.section) == keyboardModelID
+        }) else { return .ignored }
+        selectModel(option.model, for: option.section)
+        return .handled
+    }
+
+    private func handleModelMenuEscape() -> KeyPress.Result {
+        if !modelSearch.isEmpty { modelSearch = "" }
+        else { modelPickerPresented = false }
+        return .handled
+    }
+
     private func modelRow(_ model: ControlModelOption, section: NewChatModelMenuSection) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: draft.agentRef.builtinKind == section.kind && draft.settings.selectedModel == model.id ? "checkmark" : "")
+        let id = modelSelectionID(model, in: section)
+        let isSelected = selectedKind == section.kind && draft.settings.selectedModel == model.id
+        return HStack(spacing: 8) {
+            Image(systemName: isSelected ? "checkmark" : "")
                 .font(DSFont.meta.weight(.semibold))
                 .frame(width: 12)
             Text(verbatim: model.displayName)
+                .font(DSFont.row)
                 .foregroundStyle(DSColor.textPrimary)
             Spacer(minLength: 8)
             if model.id == section.defaultModel {
                 Text(localized("既定"))
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(DSFont.meta.weight(.medium))
                     .foregroundStyle(DSColor.textSecondary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 4))
             }
         }
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28, alignment: .leading)
+        .background(
+            isSelected || keyboardModelID == id ? DSColor.fillSelected : Color.clear,
+            in: RoundedRectangle(cornerRadius: DSRadius.row)
+        )
         .contentShape(Rectangle())
     }
 
@@ -419,6 +524,7 @@ struct NewChatView: View {
             options: effortOptions,
             selection: draft.settings.selectedEffort,
             accessibilityIdentifier: "newChat.effortPicker",
+            leadingSystemImage: "gauge",
             onSelect: { draft.settings.selectedEffort = $0 }
         )
         .accessibilityLabel(Text(verbatim: effortAccessibility.role))
@@ -431,6 +537,7 @@ struct NewChatView: View {
             options: permissionOptions,
             selection: selectedPermissionSelection,
             accessibilityIdentifier: "newChat.permissionPicker",
+            leadingSystemImage: "shield",
             onSelect: selectPermission
         )
         .accessibilityLabel(Text(verbatim: permissionAccessibility.role))
@@ -528,7 +635,7 @@ struct NewChatView: View {
                     .font(DSFont.meta)
             }
         } label: {
-            footerLabel(icon: draft.usesWorktree ? "arrow.triangle.branch" : "folder", title: draft.usesWorktree
+            footerLabel(icon: draft.usesWorktree ? "arrow.triangle.branch" : "externaldrive", title: draft.usesWorktree
                 ? localized("新しい worktree")
                 : localized("既存ディレクトリ"), compact: isCompact)
         }
@@ -584,14 +691,24 @@ struct NewChatView: View {
                     draft.appendSuggestion(suggestion.text)
                     focusToken &+= 1
                 } label: {
-                    Text(verbatim: localized(suggestion.title))
-                        .font(DSFont.auxiliary.weight(.medium))
-                        .foregroundStyle(DSColor.textSecondary)
-                        .padding(.horizontal, 10)
-                        .frame(height: 28)
-                        .background(DSColor.fillSubtle.opacity(0.65), in: Capsule())
+                    HStack(spacing: 6) {
+                        Image(systemName: suggestion.symbol)
+                            .font(DSFont.meta)
+                            .accessibilityHidden(true)
+                        Text(verbatim: localized(suggestion.title))
+                            .font(DSFont.auxiliary.weight(.medium))
+                    }
+                    .foregroundStyle(DSColor.textSecondary)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .contentShape(Capsule())
                 }
-                .buttonStyle(HoverableSoftButtonStyle())
+                .buttonStyle(HoverableSurfaceButtonStyle(
+                    cornerRadius: DSRadius.l,
+                    borderColor: DSColor.controlBorder,
+                    hoverBorderColor: DSColor.controlBorder
+                ))
+                .clipShape(Capsule())
                 .accessibilityIdentifier("newChat.suggestion.\(index + 1)")
             }
         }
@@ -788,11 +905,11 @@ enum NewChatGreetings {
 }
 
 private enum NewChatSuggestions {
-    static let all: [(title: String, text: String)] = [
-        ("コードレビュー", "未コミットの変更をレビューして、問題点を重要度順に挙げてください。"),
-        ("バグ修正", "次の不具合を調べて、根本原因を直してください: "),
-        ("テスト追加", "次の機能にテストを追加してください: "),
-        ("コードの説明", "このプロジェクトの構成と主な処理の流れを説明してください。"),
-        ("リファクタ", "次のコードを、振る舞いを変えずに読みやすく整理してください: "),
+    static let all: [(title: String, text: String, symbol: String)] = [
+        ("コードレビュー", "未コミットの変更をレビューして、問題点を重要度順に挙げてください。", "magnifyingglass"),
+        ("バグ修正", "次の不具合を調べて、根本原因を直してください: ", "ladybug"),
+        ("テスト追加", "次の機能にテストを追加してください: ", "checkmark.circle"),
+        ("コードの説明", "このプロジェクトの構成と主な処理の流れを説明してください。", "book"),
+        ("リファクタ", "次のコードを、振る舞いを変えずに読みやすく整理してください: ", "arrow.triangle.2.circlepath"),
     ]
 }

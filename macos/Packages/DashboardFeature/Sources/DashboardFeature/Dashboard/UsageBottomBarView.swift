@@ -21,14 +21,12 @@ struct UsageBottomBarView: View {
                             router.showUsageInInspector()
                         }
                     } label: {
-                        ViewThatFits(in: .horizontal) {
-                            row(groups, showsLabels: true, showsResets: true, now: context.date).fixedSize()
-                            row(groups, showsLabels: true, showsResets: false, now: context.date).fixedSize()
-                            row(groups, showsLabels: false, showsResets: false, now: context.date).fixedSize()
+                        GeometryReader { geometry in
+                            row(groups, width: geometry.size.width, now: context.date)
+                                .padding(.horizontal, 12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(height: 24)
-                        .padding(.horizontal, 12)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -43,16 +41,27 @@ struct UsageBottomBarView: View {
         }
     }
 
-    private func row(_ groups: [UsageDisplay.BottomBarGroup], showsLabels: Bool, showsResets: Bool, now: Date) -> some View {
-        HStack(spacing: 18) {
+    private func row(_ groups: [UsageDisplay.BottomBarGroup], width: CGFloat, now: Date) -> some View {
+        let stage = UsageDisplay.bottomBarStage(forWidth: width)
+        return HStack(spacing: 18) {
             ForEach(groups) { group in
                 HStack(spacing: 7) {
                     AgentBrandIcon(kind: group.kind, size: 12)
                         .accessibilityHidden(true)
                     if let buckets = group.buckets {
-                        HStack(spacing: 9) {
-                            ForEach(buckets) { bucket in
-                                bucketText(bucket, showsLabel: showsLabels, showsReset: showsResets, now: now)
+                        HStack(spacing: 0) {
+                            ForEach(Array(buckets.enumerated()), id: \.offset) { index, bucket in
+                                if index > 0 {
+                                    Text(verbatim: locale.language.languageCode?.identifier == "en" ? " · " : "・")
+                                        .font(DSFont.meta)
+                                        .foregroundStyle(DSColor.textSecondary)
+                                }
+                                bucketText(
+                                    bucket,
+                                    showsLabel: stage != .percentageOnly,
+                                    showsReset: stage == .full,
+                                    now: now
+                                )
                             }
                         }
                     } else {

@@ -85,7 +85,10 @@ struct ComposerOverflowLayoutTests {
     @MainActor
     private func accessibilitySnapshot<Content: View>(_ content: Content, width: CGFloat, height: CGFloat) async throws -> FooterAccessibilitySnapshot {
         _ = NSApplication.shared
-        NSApp.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        let enhancedUI = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previousEnhancedUI = NSApp.accessibilityAttributeValue(enhancedUI)
+        NSApp.accessibilitySetValue(true, forAttribute: enhancedUI)
+        defer { NSApp.accessibilitySetValue(previousEnhancedUI ?? false, forAttribute: enhancedUI) }
         let hosting = NSHostingView(rootView: content.environment(\.locale, Locale(identifier: "ja_JP")))
         let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: width, height: height), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false

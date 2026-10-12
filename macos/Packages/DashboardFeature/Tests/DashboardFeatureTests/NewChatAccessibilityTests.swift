@@ -50,6 +50,51 @@ struct NewChatAccessibilityTests {
         #expect(view.workspaceAccessibility == NewChatAccessibilityCopy(role: "作業場所", value: "新しい worktree"))
     }
 
+    @Test func pickerSelectionsUpdateTheirAccessibleValues() async throws {
+        let suite = "phlox.new-chat-picker-values.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let first = Project(name: "Aster", directoryPath: "/tmp/aster", createdAt: Date(), isManagedDirectory: false)
+        let second = Project(name: "Cedar", directoryPath: "/tmp/cedar", createdAt: Date(), isManagedDirectory: false)
+        let projects = InMemoryProjectStore()
+        try await projects.save([first, second])
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(
+            pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() }, projects: projects
+        ))
+        await dashboard.start()
+        let router = AppRouter()
+        let store = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
+        let draft = store.draft(for: first.id)
+        let view = NewChatView(
+            viewModel: dashboard, router: router, draftStore: store, draft: draft,
+            project: first, onLaunchFailure: { _, _ in }
+        )
+
+        let section = try #require(NewChatModelMenuSection.make(availableHarnessIDs: [AgentRef.builtin(.claudeCode).id])
+            .first { $0.kind == .claudeCode })
+        let model = try #require(section.models.first)
+        view.selectModel(model, for: section)
+        #expect(view.harnessAccessibility.value == "Claude Code \(model.displayName)")
+
+        view.selectEffort("low")
+        #expect(view.effortAccessibility.value == "低")
+        view.selectPermission("acceptEdits")
+        #expect(view.permissionAccessibility.value == UIWording.permission(
+            agent: .claude, kind: .claudePermissionMode, value: "acceptEdits", languageCode: "ja"
+        ).title)
+
+        view.selectProject(second.id)
+        #expect(router.selectedProjectID == second.id)
+        let secondView = NewChatView(
+            viewModel: dashboard, router: router, draftStore: store, draft: store.draft(for: second.id),
+            project: second, onLaunchFailure: { _, _ in }
+        )
+        #expect(secondView.projectAccessibility.value == second.name)
+        secondView.selectWorkspace(true)
+        #expect(secondView.workspaceAccessibility.value == "新しい worktree")
+    }
+
     @Test func messageInputAnnouncesItsRoleAndCurrentText() {
         let text = "差分の危険な箇所を調べてください"
         let input = ComposerDraftInput(

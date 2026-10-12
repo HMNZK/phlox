@@ -48,6 +48,15 @@ import DesignSystem
         #expect(router.tabRequest == .confirmProjectDeletion(project))
     }
 
+    @Test func closingAnOverflowChatTabUsesTheExistingSessionConfirmationRoute() {
+        let session = SessionID()
+        let router = AppRouter(selectedSession: session)
+
+        ProjectTab.chat(session).requestClose(in: router)
+
+        #expect(router.tabRequest == .confirmSessionDeletion(session))
+    }
+
     @Test func overflowingRowsShrinkBeforeHidingAndKeepTheSelectionVisible() {
         let single = TabBarOverflowLayout.make(
             itemCount: 1, selectedIndex: 0, availableWidth: 100,
@@ -134,10 +143,13 @@ import DesignSystem
         #expect(tabs.contains("ForEach(layout.visibleIndices"))
         #expect(tabs.contains("let project = viewModel.projects[index]"))
         #expect(tabs.contains(".accessibilityIdentifier(TabAccessibilityIdentifier.project(index + 1))"))
+        let projectTabs = try packageSource("Sources/DashboardFeature/Tabs/ProjectTabs.swift")
+        #expect(projectTabs.contains("if case .chat(let id) = self { _ = router.requestClose(.session(id)) }"))
         let childTabs = try packageSource("Sources/DashboardFeature/Tabs/SessionTabsContainer.swift")
         #expect(childTabs.contains("layout.tabs(chats: chats)"))
         #expect(childTabs.contains(".accessibilityIdentifier(TabAccessibilityIdentifier.item(index + 1))"))
-        #expect(childTabs.contains("router.requestClose(.session(id))"))
+        #expect(childTabs.contains("onClose: { tab.requestClose(in: router) }"))
+        #expect(childTabs.contains("tab.requestClose(in: router)"))
         #expect(childTabs.contains("worktree で実行中"))
         #expect(childTabs.contains(".frame(width: 440)"))
         #expect(childTabs.contains("[.newChat, .terminal, .changes, .file, .browser, .simulator]"))

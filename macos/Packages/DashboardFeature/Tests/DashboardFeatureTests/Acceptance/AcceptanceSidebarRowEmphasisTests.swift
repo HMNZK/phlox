@@ -16,11 +16,12 @@ struct AcceptanceSidebarRowEmphasisTests {
         #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: true, isHovering: true)).fill == DSColor.fillSelected)
     }
 
-    @Test("選択はグレー、質問待ちは注意色、未読はアクセント面を使わない")
+    @Test("選択・ホバーは共通のグレー面、質問待ちは注意色、未読はアクセント面を使わない")
     func sessionFillPriority() {
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: false, state: .idle)).fill == DSColor.fillSelected)
-        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: true, state: .idle)).fill == DSColor.fillSelected)
+        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: true, state: .idle)).fill == DSColor.fillSubtle)
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .doneUnread)).fill == Color.clear)
+        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: true, state: .doneUnread)).fill == DSColor.fillSubtle)
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: true, state: .question)).fill == DSColor.attentionTint(.question))
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .done)).fill == Color.clear)
     }

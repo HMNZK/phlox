@@ -36,10 +36,10 @@ struct SidebarRowEmphasis: Equatable {
             let fill: Color
             if state == .question {
                 fill = DSColor.attentionTint(.question)
-            } else if state == .doneUnread {
-                fill = Color.clear
-            } else if isCurrent || isHovering {
+            } else if isCurrent {
                 fill = DSColor.fillSelected
+            } else if isHovering {
+                fill = DSColor.fillSubtle
             } else {
                 fill = Color.clear
             }

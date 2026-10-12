@@ -117,7 +117,7 @@ struct BrowserTabView: View {
                     Text(verbatim: "\(Int((model.pageZoom * 100).rounded()))%").font(DSFont.meta).padding(.horizontal, 4)
                         .frame(height: 20)
                 }
-                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5, baseFill: DSColor.fillSelected, hoverFill: DSColor.fillSelected))
+                .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: 5, baseFill: DSColor.fillSelected, hoverFill: DSColor.fillSubtle))
                 .dsHoverTip(Text("倍率を元に戻す"))
                 .accessibilityLabel("倍率を元に戻す")
                 .accessibilityIdentifier("browser-zoom")

@@ -35,6 +35,21 @@ public enum ProjectTab: Hashable, Codable, Sendable {
     }
 }
 
+extension ProjectTab {
+    @MainActor func requestClose(in router: AppRouter) {
+        if case .chat(let id) = self { _ = router.requestClose(.session(id)) }
+        else { _ = router.requestClose(.tab(self)) }
+    }
+
+    var closeAccessibilityLabel: String {
+        switch self {
+        case .chat: "セッションを削除…"
+        case .newChat: "外す（下書きは残ります）"
+        default: "閉じる"
+        }
+    }
+}
+
 public struct ProjectTabLayout: Codable, Equatable, Sendable {
     public var items: [ProjectTab] = []
     public var left: ProjectTab?

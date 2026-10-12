@@ -259,7 +259,7 @@ final class UnifiedNewChatUITests: XCTestCase {
         try typeUsingKeyboard("worktree の変更確認", into: input, app: app)
         let workspace = app.descendants(matching: .any)["newChat.workspacePicker"]
         workspace.click()
-        let choice = app.menuItems["新しい worktree"].firstMatch
+        let choice = app.buttons["新しい worktree"].firstMatch
         try requireExists(choice, "作業場所のメニューが開かない")
         XCTAssertTrue(choice.isEnabled)
         choice.click()
@@ -365,7 +365,7 @@ final class UnifiedNewChatUITests: XCTestCase {
         try focusUsingKeyboard(app.buttons["newChat.harnessModelPicker"], app: app)
         for _ in 0..<4 { app.typeKey(.tab, modifierFlags: []) }
         app.typeKey(.space, modifierFlags: [])
-        let choice = app.menuItems["新しい worktree"].firstMatch
+        let choice = app.buttons["新しい worktree"].firstMatch
         try requireExists(choice, "Spaceで作業場所のメニューを開けない")
         app.typeKey(.escape, modifierFlags: [])
         try requireClosed(choice, "Escで作業場所のメニューを閉じられない")

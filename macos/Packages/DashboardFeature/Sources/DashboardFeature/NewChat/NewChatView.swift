@@ -37,9 +37,6 @@ struct NewChatView: View {
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     @State private var greeting = NewChatGreetings.random()
     @State private var modelSearch = ""
-    @State private var keyboardModelID: String?
-    @State private var modelPickerPresented = false
-    @FocusState private var modelSearchFocused: Bool
     @FocusState private var sendButtonFocused: Bool
     @FocusState private var harnessPickerFocused: Bool
     @State private var inputFocused = false
@@ -171,9 +168,8 @@ struct NewChatView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 12)
                 HStack(spacing: 10) {
-                    AppIconBadge(showsCaution: false, size: 30)
                     Text(verbatim: localized(greeting))
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(DSFont.heroTitle)
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(2)
                 }
@@ -318,7 +314,19 @@ struct NewChatView: View {
     }
 
     private var harnessModelPicker: some View {
-        Button { modelPickerPresented = true } label: {
+        SelectablePopoverButton(
+            options: modelPickerOptions,
+            selectedID: selectedModelMenuID,
+            accessibilityLabel: harnessAccessibility.role,
+            accessibilityValue: harnessAccessibility.value,
+            accessibilityIdentifier: "newChat.harnessModelPicker",
+            help: "\(selectedSection?.name ?? "")：\(selectedModelTitle)",
+            width: 310,
+            maxHeight: 420,
+            footer: modelPickerFooter,
+            searchText: $modelSearch,
+            onSelect: { selectModel(id: $0.id) }
+        ) { _ in
             HStack(spacing: 6) {
                 if let selectedKind { AgentBrandIcon(kind: selectedKind, size: 14) }
                 Text(verbatim: selectedModelTitle)
@@ -332,200 +340,62 @@ struct NewChatView: View {
             .frame(height: 28)
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
-        .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row, hoverFill: DSColor.fillSubtle, hoverBorderColor: .clear))
-        .focusable()
         .focused($harnessPickerFocused)
-        .onKeyPress(keys: [.space, .return], phases: .down) { _ in
-            modelPickerPresented = true
-            return .handled
-        }
-        .popover(isPresented: $modelPickerPresented, arrowEdge: .top) { modelPickerMenu }
-        .accessibilityLabel(Text(verbatim: harnessAccessibility.role))
-        .accessibilityValue(Text(verbatim: harnessAccessibility.value))
-        .accessibilityIdentifier("newChat.harnessModelPicker")
-        .help(Text(verbatim: "\(selectedSection?.name ?? "")：\(selectedModelTitle)"))
     }
 
-    var modelPickerMenu: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(DSFont.meta)
-                    .foregroundStyle(DSColor.textTertiary)
-                    .accessibilityHidden(true)
-                TextField(localized("モデルを絞り込む"), text: $modelSearch)
-                    .font(DSFont.auxiliary)
-                    .textFieldStyle(.plain)
-                    .focused($modelSearchFocused)
-                    .onKeyPress(.downArrow) { moveModelSelection(by: 1) }
-                    .onKeyPress(.upArrow) { moveModelSelection(by: -1) }
-                    .onKeyPress(.return) { chooseKeyboardSelectedModel() }
-                    .onKeyPress(.escape) { handleModelMenuEscape() }
-                    .onChange(of: modelSearch) { _, _ in selectFirstFilteredModel() }
-                    .accessibilityIdentifier("newChat.modelSearch")
-            }
-            .padding(.horizontal, 8)
-            .frame(height: 28)
-            .background(DSColor.fieldBackground, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.fieldBorder, lineWidth: 1))
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
-            .padding(.bottom, 5)
+    private var modelPickerFooter: String {
+        locale.language.languageCode?.identifier == "en"
+            ? "↑↓ Move · ↩ Select · Type to filter · Esc Close"
+            : "↑↓ 移動 · ↩ 決定 · 文字入力で絞り込み · Esc 閉じる"
+    }
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(filteredModelSections) { section in
-                            VStack(spacing: 0) {
-                                HStack(spacing: 6) {
-                                    AgentBrandIcon(kind: section.kind, size: 13)
-                                    Text(verbatim: section.name)
-                                        .font(DSFont.meta.weight(.semibold))
-                                        .foregroundStyle(DSColor.textSecondary)
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.horizontal, 8)
-                                .frame(height: 24)
-
-                                if section.isDetected {
-                                    ForEach(section.models, id: \.id) { model in
-                                        Button { selectModel(model, for: section) } label: {
-                                            modelRow(model, section: section)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .id(modelSelectionID(model, in: section))
-                                    }
-                                } else {
-                                    HStack(spacing: 6) {
-                                        Text(localized("未検出"))
-                                            .foregroundStyle(DSColor.textTertiary)
-                                        Text(String(format: localized("%@ が見つかりません。インストールすると選べます"), section.name))
-                                            .font(DSFont.meta)
-                                            .foregroundStyle(DSColor.textSecondary)
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .frame(height: 40, alignment: .leading)
-                                }
-                            }
-                        }
-                    }
-                }
-                .scrollIndicators(.visible)
-                .frame(height: 340)
-                .onChange(of: keyboardModelID) { _, id in
-                    if let id { proxy.scrollTo(id, anchor: .center) }
+    private var modelPickerOptions: [SelectablePopoverOption] {
+        modelSections.flatMap { section in
+            if section.isDetected {
+                return section.models.map { model in
+                    SelectablePopoverOption(
+                        id: modelSelectionID(model, in: section),
+                        value: model.id,
+                        title: model.displayName,
+                        sectionTitle: section.name,
+                        sectionAgent: section.kind,
+                        badge: model.id == section.defaultModel ? localized("既定") : nil,
+                        isSelected: section.kind == selectedKind && model.id == draft.settings.selectedModel
+                    )
                 }
             }
-
-            Text(locale.language.languageCode?.identifier == "en"
-                 ? "↑↓ Move · ↩ Select · Type to filter · Esc Close"
-                 : "↑↓ 移動 · ↩ 決定 · 文字入力で絞り込み · Esc 閉じる")
-                .font(DSFont.meta)
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 6)
-                .padding(.top, 7)
-                .padding(.bottom, 3)
-                .overlay(alignment: .top) { Rectangle().fill(DSColor.separator).frame(height: 1).padding(.horizontal, 2) }
-        }
-        .frame(width: 310, height: 410)
-        .onAppear {
-            modelSearchFocused = true
-            selectCurrentModel()
-        }
-        .onDisappear { modelSearchFocused = false }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("newChat.modelMenu")
-    }
-
-    private var filteredModelSections: [NewChatModelMenuSection] {
-        let query = modelSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return modelSections }
-        return modelSections.compactMap { section in
-            let matchesSection = section.name.lowercased().contains(query)
-            let models = matchesSection ? section.models : section.models.filter {
-                $0.id.lowercased().contains(query) || $0.displayName.lowercased().contains(query)
-            }
-            guard matchesSection || !models.isEmpty else { return nil }
-            return NewChatModelMenuSection(kind: section.kind, name: section.name, isDetected: section.isDetected,
-                                           models: models, defaultModel: section.defaultModel)
+            return [SelectablePopoverOption(
+                id: "missing:\(section.kind.rawValue)",
+                title: localized("未検出"),
+                sectionTitle: section.name,
+                sectionAgent: section.kind,
+                detail: String(format: localized("%@ が見つかりません。インストールすると選べます"), section.name),
+                isEnabled: false,
+                isSelectable: false
+            )]
         }
     }
 
-    private var selectableModels: [(section: NewChatModelMenuSection, model: ControlModelOption)] {
-        filteredModelSections.filter(\.isDetected).flatMap { section in
-            section.models.map { (section: section, model: $0) }
-        }
+    private var selectedModelMenuID: String? {
+        guard let selectedSection, let selectedModelOption else { return nil }
+        return modelSelectionID(selectedModelOption, in: selectedSection)
     }
 
     private func modelSelectionID(_ model: ControlModelOption, in section: NewChatModelMenuSection) -> String {
         "\(section.kind.rawValue):\(model.id)"
     }
 
-    private func selectCurrentModel() {
-        keyboardModelID = selectableModels.first {
-            $0.section.kind == selectedKind && $0.model.id == draft.settings.selectedModel
-        }.map { modelSelectionID($0.model, in: $0.section) } ?? selectableModels.first.map {
-            modelSelectionID($0.model, in: $0.section)
-        }
-    }
-
-    private func selectFirstFilteredModel() {
-        let options = selectableModels
-        keyboardModelID = options.first.map { modelSelectionID($0.model, in: $0.section) }
-    }
-
-    private func moveModelSelection(by offset: Int) -> KeyPress.Result {
-        let options = selectableModels
-        guard !options.isEmpty else { return .handled }
-        let current = options.firstIndex { modelSelectionID($0.model, in: $0.section) == keyboardModelID }
-            ?? (offset > 0 ? -1 : options.count)
-        let index = min(options.count - 1, max(0, current + offset))
-        keyboardModelID = modelSelectionID(options[index].model, in: options[index].section)
-        return .handled
-    }
-
-    private func chooseKeyboardSelectedModel() -> KeyPress.Result {
-        guard let option = selectableModels.first(where: {
-            modelSelectionID($0.model, in: $0.section) == keyboardModelID
-        }) else { return .ignored }
-        selectModel(option.model, for: option.section)
-        return .handled
-    }
-
-    private func handleModelMenuEscape() -> KeyPress.Result {
-        if !modelSearch.isEmpty { modelSearch = "" }
-        else { modelPickerPresented = false }
-        return .handled
-    }
-
-    private func modelRow(_ model: ControlModelOption, section: NewChatModelMenuSection) -> some View {
-        let id = modelSelectionID(model, in: section)
-        let isSelected = selectedKind == section.kind && draft.settings.selectedModel == model.id
-        return HStack(spacing: 8) {
-            Image(systemName: isSelected ? "checkmark" : "")
-                .font(DSFont.meta.weight(.semibold))
-                .frame(width: 12)
-            Text(verbatim: model.displayName)
-                .font(DSFont.row)
-                .foregroundStyle(DSColor.textPrimary)
-            Spacer(minLength: 8)
-            if model.id == section.defaultModel {
-                Text(localized("既定"))
-                    .font(DSFont.meta.weight(.medium))
-                    .foregroundStyle(DSColor.textSecondary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 4))
-            }
-        }
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28, alignment: .leading)
-        .background(
-            isSelected || keyboardModelID == id ? DSColor.fillSelected : Color.clear,
-            in: RoundedRectangle(cornerRadius: DSRadius.row)
+    private var modelPickerMenu: some View {
+        SelectablePopover(
+            options: modelPickerOptions,
+            selectedID: selectedModelMenuID,
+            width: 310,
+            maxHeight: 420,
+            footer: modelPickerFooter,
+            searchText: $modelSearch,
+            accessibilityIdentifier: "newChat.modelMenu",
+            onSelect: { selectModel(id: $0.id) }
         )
-        .contentShape(Rectangle())
     }
 
     private var effortPicker: some View {
@@ -535,7 +405,7 @@ struct NewChatView: View {
             selection: draft.settings.selectedEffort,
             accessibilityIdentifier: "newChat.effortPicker",
             leadingSystemImage: "gauge",
-            onSelect: { draft.settings.selectedEffort = $0 }
+            onSelect: selectEffort
         )
         .accessibilityLabel(Text(verbatim: effortAccessibility.role))
         .accessibilityValue(Text(verbatim: effortAccessibility.value))
@@ -555,117 +425,121 @@ struct NewChatView: View {
     }
 
     private var compactSettingsMenu: some View {
-        Menu {
-            if !effortOptions.isEmpty {
-                Menu(localized("推論の深さ")) {
-                    ForEach(effortOptions) { option in
-                        settingMenuButton(option, selected: draft.settings.selectedEffort == option.value) {
-                            draft.settings.selectedEffort = option.value
-                        }
-                    }
-                }
-            }
-            Menu(localized(selectedKind == .cursor ? "mode" : "権限")) {
-                ForEach(permissionOptions) { option in
-                    settingMenuButton(option, selected: selectedPermissionSelection == option.value) {
-                        selectPermission(option.value)
-                    }
-                }
-            }
-        } label: {
+        SelectablePopoverButton(
+            options: compactSettingsOptions,
+            selectedID: compactSettingsSelectedID,
+            accessibilityLabel: localized("設定"),
+            accessibilityValue: "\(effortAccessibility.value)、\(permissionAccessibility.value)",
+            accessibilityIdentifier: "newChat.settingsOverflow",
+            width: 248,
+            onSelect: selectCompactSetting
+        ) { _ in
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 14))
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(width: 24, height: 28)
                 .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .accessibilityLabel(Text("設定"))
-        .accessibilityIdentifier("newChat.settingsOverflow")
     }
 
-    private func settingMenuButton(_ option: ComposerSettingOption, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: selected ? "checkmark" : "").frame(width: 12)
-                Text(verbatim: option.title)
-            }
+    private var compactSettingsOptions: [SelectablePopoverOption] {
+        let efforts = effortOptions.map { option in
+            SelectablePopoverOption(
+                id: "effort:\(option.id)", value: option.value, title: option.title,
+                sectionTitle: localized("推論の深さ"), isSelected: draft.settings.selectedEffort == option.value,
+                isEnabled: option.isEnabled
+            )
         }
-        .disabled(!option.isEnabled)
+        let permissions = permissionOptions.map { option in
+            SelectablePopoverOption(
+                id: "permission:\(option.id)", value: option.value, title: option.title,
+                sectionTitle: localized(selectedKind == .cursor ? "mode" : "権限"),
+                isSelected: selectedPermissionSelection == option.value, isEnabled: option.isEnabled
+            )
+        }
+        return efforts + permissions
+    }
+
+    private var compactSettingsSelectedID: String? {
+        if let option = effortOptions.first(where: { $0.value == draft.settings.selectedEffort }) { return "effort:\(option.id)" }
+        if let option = permissionOptions.first(where: { $0.value == selectedPermissionSelection }) { return "permission:\(option.id)" }
+        return nil
+    }
+
+    private func selectCompactSetting(_ option: SelectablePopoverOption) {
+        if option.id.hasPrefix("effort:") { selectEffort(option.value) }
+        else { selectPermission(option.value) }
     }
 
     private func projectPicker(isCompact: Bool) -> some View {
-        Menu {
-            ForEach(viewModel.projects) { item in
-                Button {
-                    router.showNewChat(projectID: item.id)
-                } label: {
-                    HStack {
-                        if project?.id == item.id { Image(systemName: "checkmark") }
-                        Text(verbatim: item.name)
-                        if draftStore.hasDraft(for: item.id) {
-                            Text(localized("下書きあり"))
-                                .font(.system(size: 10.5, weight: .medium))
-                                .foregroundStyle(DSColor.textSecondary)
-                        }
-                    }
+        SelectablePopoverButton(
+            options: viewModel.projects.map { item in
+                SelectablePopoverOption(
+                    id: item.id.description,
+                    value: item.id.description,
+                    title: item.name,
+                    badge: draftStore.hasDraft(for: item.id) ? localized("下書きあり") : nil,
+                    isSelected: project?.id == item.id
+                )
+            },
+            selectedID: project?.id.description,
+            accessibilityLabel: projectAccessibility.role,
+            accessibilityValue: projectAccessibility.value,
+            accessibilityIdentifier: "newChat.projectPicker",
+            width: 280,
+            footer: localized("本文と添付はプロジェクトごとに保たれます"),
+            isEnabled: !viewModel.projects.isEmpty,
+            onSelect: { option in
+                if let selectedProject = viewModel.projects.first(where: { $0.id.description == option.id }) {
+                    selectProject(selectedProject.id)
                 }
             }
-            Text(localized("本文と添付はプロジェクトごとに保たれます"))
-                .font(.system(size: 10.5))
-                .foregroundStyle(DSColor.textSecondary)
-        } label: {
-            footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact)
+        ) { isOpen in
+            footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact, isOpen: isOpen)
         }
-        .menuStyle(.borderlessButton)
-        .disabled(viewModel.projects.isEmpty)
-        .accessibilityLabel(Text(verbatim: projectAccessibility.role))
-        .accessibilityValue(Text(verbatim: projectAccessibility.value))
-        .accessibilityIdentifier("newChat.projectPicker")
     }
 
     private func workspacePicker(isCompact: Bool) -> some View {
-        Menu {
-            Button {
-                draft.usesWorktree = false
-            } label: {
-                if !draft.usesWorktree { Label(localized("既存ディレクトリ"), systemImage: "checkmark") }
-                else { Text(localized("既存ディレクトリ")) }
-            }
-            Button {
-                draft.usesWorktree = true
-            } label: {
-                if draft.usesWorktree { Label(localized("新しい worktree"), systemImage: "checkmark") }
-                else { Text(localized("新しい worktree")) }
-            }
-            .disabled(isGitRepository != true)
-            .accessibilityHint(Text(isGitRepository == true ? "" : localized("git リポジトリではないため worktree を作れません")))
-            if isGitRepository == false {
-                Text(localized("git リポジトリではないため worktree を作れません"))
-                    .font(DSFont.meta)
-            }
-        } label: {
-            footerLabel(icon: draft.usesWorktree ? "arrow.triangle.branch" : "externaldrive", title: draft.usesWorktree
-                ? localized("新しい worktree")
-                : localized("既存ディレクトリ"), compact: isCompact)
+        let reason = localized("git リポジトリではないため worktree を作れません")
+        return SelectablePopoverButton(
+            options: [
+                SelectablePopoverOption(
+                    id: "directory", value: "false", title: localized("既存ディレクトリ"),
+                    leadingSystemImage: "externaldrive", isSelected: !draft.usesWorktree
+                ),
+                SelectablePopoverOption(
+                    id: "worktree", value: "true", title: localized("新しい worktree"),
+                    detail: isGitRepository == false ? reason : nil,
+                    leadingSystemImage: "arrow.triangle.branch", isSelected: draft.usesWorktree,
+                    isEnabled: isGitRepository == true, accessibilityHint: isGitRepository == true ? nil : reason
+                ),
+            ],
+            selectedID: draft.usesWorktree ? "worktree" : "directory",
+            accessibilityLabel: workspaceAccessibility.role,
+            accessibilityValue: workspaceAccessibility.value,
+            accessibilityIdentifier: "newChat.workspacePicker",
+            isEnabled: project != nil,
+            onSelect: { selectWorkspace($0.value == "true") }
+        ) { isOpen in
+            footerLabel(
+                icon: draft.usesWorktree ? "arrow.triangle.branch" : "externaldrive",
+                title: draft.usesWorktree ? localized("新しい worktree") : localized("既存ディレクトリ"),
+                compact: isCompact,
+                isOpen: isOpen
+            )
         }
-        .menuStyle(.borderlessButton)
-        .disabled(project == nil)
-        .accessibilityLabel(Text(verbatim: workspaceAccessibility.role))
-        .accessibilityValue(Text(verbatim: workspaceAccessibility.value))
-        .accessibilityIdentifier("newChat.workspacePicker")
     }
 
-    private func footerLabel(icon: String, title: String, compact: Bool) -> some View {
+    private func footerLabel(icon: String, title: String, compact: Bool, isOpen: Bool) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon).font(DSFont.auxiliary)
             if !compact {
                 Text(verbatim: title)
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(DSFont.auxiliary.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+            Image(systemName: isOpen ? "chevron.up" : "chevron.down").font(DSFont.iconTiny.weight(.semibold))
         }
         .foregroundStyle(DSColor.textSecondary)
         .padding(.horizontal, compact ? 5 : 7)
@@ -771,21 +645,41 @@ struct NewChatView: View {
         }
     }
 
-    private func selectModel(_ model: ControlModelOption, for section: NewChatModelMenuSection) {
+    func selectModel(id: String) {
+        for section in modelSections {
+            if let model = section.models.first(where: { modelSelectionID($0, in: section) == id }) {
+                selectModel(model, for: section)
+                return
+            }
+        }
+    }
+
+    func selectModel(_ model: ControlModelOption, for section: NewChatModelMenuSection) {
         draft.selectHarness(.builtin(section.kind))
         draft.settings.selectedModel = model.id
         draft.settings.selectedEffort = model.defaultReasoningEffort ?? (section.kind == .claudeCode && model.id != "haiku" ? "high" : nil)
         modelSearch = ""
-        modelPickerPresented = false
     }
 
-    private func selectPermission(_ value: String?) {
+    func selectEffort(_ value: String?) {
+        draft.settings.selectedEffort = value
+    }
+
+    func selectPermission(_ value: String?) {
         if value == Self.planSelection {
             draft.settings.isPlanMode = true
         } else {
             draft.settings.isPlanMode = false
             draft.settings.selectedPermissionProfile = value
         }
+    }
+
+    func selectProject(_ id: ProjectID) {
+        router.showNewChat(projectID: id)
+    }
+
+    func selectWorkspace(_ usesWorktree: Bool) {
+        draft.usesWorktree = usesWorktree
     }
 
     private func cycleEffort() -> Bool {

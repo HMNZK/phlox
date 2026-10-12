@@ -160,8 +160,6 @@ public struct ComposerSettingChip: View {
     public let accessibilityIdentifier: String
     public let leadingSystemImage: String?
 
-    @Environment(\.locale) private var locale
-
     public init(title: String, options: [ComposerSettingOption], selection: String?,
                 accessibilityIdentifier: String, leadingSystemImage: String? = nil,
                 onSelect: @escaping (String?) -> Void) {
@@ -174,30 +172,25 @@ public struct ComposerSettingChip: View {
     }
 
     public var body: some View {
-        Menu {
-            ForEach(options) { option in
-                Button {
-                    onSelect(option.value)
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: selection == option.value ? "checkmark" : "")
-                            .frame(width: 12)
-                        Text(option.title)
-                        if option.isDefault {
-                            Spacer(minLength: 10)
-                            Text("既定").foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .disabled(!option.isEnabled)
-            }
-        } label: {
-            ComposerChipLabel(title: title, isOpen: false, leadingSystemImage: leadingSystemImage)
+        SelectablePopoverButton(
+            options: options.map { option in
+                SelectablePopoverOption(
+                    id: option.id.isEmpty ? "__default" : option.id,
+                    value: option.value,
+                    title: option.title,
+                    badge: option.isDefault ? "既定" : nil,
+                    isSelected: selection == option.value,
+                    isEnabled: option.isEnabled
+                )
+            },
+            selectedID: options.first(where: { $0.value == selection }).map { $0.id.isEmpty ? "__default" : $0.id },
+            accessibilityLabel: title,
+            accessibilityValue: options.first(where: { $0.value == selection })?.title ?? "",
+            accessibilityIdentifier: accessibilityIdentifier,
+            help: title,
+            onSelect: { onSelect($0.value) }
+        ) { isOpen in
+            ComposerChipLabel(title: title, isOpen: isOpen, leadingSystemImage: leadingSystemImage)
         }
-        .menuStyle(.borderlessButton)
-        .accessibilityLabel(Text(verbatim: title))
-        .accessibilityValue(Text(verbatim: options.first(where: { $0.value == selection })?.title ?? ""))
-        .accessibilityIdentifier(accessibilityIdentifier)
-        .help(Text(verbatim: title))
     }
 }

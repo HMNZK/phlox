@@ -231,7 +231,7 @@ struct FileTreeView: View {
             .frame(minHeight: DSLayout.listRowHeight)
             .hoverableControlSurface(cornerRadius: DSRadius.row,
                                      baseFill: rowFill(row),
-                                     hoverFill: isKeyboardRow(row) ? DSColor.textPrimary.opacity(0.16) : DSColor.fillSubtle,
+                                     hoverFill: DSColor.fillSubtle,
                                      borderColor: .clear, hoverBorderColor: .clear)
             .contentShape(Rectangle())
             .onTapGesture {

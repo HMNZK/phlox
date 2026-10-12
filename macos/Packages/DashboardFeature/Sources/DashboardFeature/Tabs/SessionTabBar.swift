@@ -1,6 +1,7 @@
 import SwiftUI
 import AgentDomain
 import DesignSystem
+import SessionFeature
 
 /// 上段のプロジェクトタブ。並びはサイドバーの `viewModel.projects` と同じ。
 struct SessionTabBar: View {
@@ -38,21 +39,34 @@ struct SessionTabBar: View {
                     .accessibilityIdentifier(TabAccessibilityIdentifier.project(index + 1))
                 }
                 if layout.overflowCount > 0 {
-                    Menu {
-                        ForEach(hiddenProjects(in: layout), id: \.id) { project in
-                            Button(project.name) { router.selectProjectFromSidebar(project.id) }
+                    let hidden = hiddenProjects(in: layout)
+                    SelectablePopoverButton(
+                        options: hidden.map { project in
+                            SelectablePopoverOption(
+                                id: project.id.description,
+                                value: project.id.description,
+                                title: project.name,
+                                isSelected: project.id == selectedProjectID
+                            )
+                        },
+                        selectedID: selectedProjectID?.description,
+                        accessibilityLabel: "ほか \(layout.overflowCount)",
+                        accessibilityValue: "",
+                        accessibilityIdentifier: TabAccessibilityIdentifier.overflow,
+                        help: "ほかのタブ",
+                        width: 248,
+                        onSelect: { option in
+                            if let project = hidden.first(where: { $0.id.description == option.id }) {
+                                router.selectProjectFromSidebar(project.id)
+                            }
                         }
-                    } label: {
+                    ) { _ in
                         (Text("ほか \(layout.overflowCount)") + Text(verbatim: " ⌄"))
-                        .font(DSFont.auxiliary)
-                        .foregroundStyle(DSColor.textSecondary)
-                        .frame(width: 70, height: 26)
-                        .contentShape(Rectangle())
+                            .font(DSFont.auxiliary)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .frame(width: 70, height: 26)
+                            .contentShape(Rectangle())
                     }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .help(Text("ほかのタブ"))
-                    .accessibilityIdentifier(TabAccessibilityIdentifier.overflow)
                 }
                 projectAddButton
             }
@@ -218,7 +232,10 @@ private struct ProjectTabButton: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(.leading, 12)
                 .padding(.trailing, 28)
-                .background(isSelected ? DSColor.windowBackground : Color.clear)
+                .background(
+                    isSelected ? DSColor.windowBackground : (isHovering ? DSColor.fillSubtle : .clear),
+                    in: RoundedRectangle(cornerRadius: DSRadius.row)
+                )
                 .overlay(alignment: .top) {
                     if isSelected { Rectangle().fill(DSColor.separator).frame(height: 1) }
                 }

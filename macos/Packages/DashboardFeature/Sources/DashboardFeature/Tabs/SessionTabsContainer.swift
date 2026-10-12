@@ -237,31 +237,46 @@ struct ChildTabBar: View {
                         isSelected: selected == tab,
                         isDirty: isDirty(tab),
                         onSelect: { router.selectTab(tab, in: project.id) },
-                        onClose: {
-                            if case .chat(let id) = tab { _ = router.requestClose(.session(id)) }
-                            else { _ = router.requestClose(.tab(tab)) }
-                        }
+                        onClose: { tab.requestClose(in: router) }
                     )
                     .frame(width: overflowLayout.width(for: index), height: 26)
                     .accessibilityIdentifier(TabAccessibilityIdentifier.item(index + 1))
                 }
                 if overflowLayout.overflowCount > 0 {
-                    Menu {
-                        ForEach(tabs.indices.filter { !overflowLayout.visibleIndices.contains($0) }, id: \.self) { index in
-                            let tab = tabs[index]
-                            Button { router.selectTab(tab, in: project.id) } label: { title(for: tab) }
+                    let hiddenTabs = tabs.indices.filter { !overflowLayout.visibleIndices.contains($0) }.map { tabs[$0] }
+                    SelectablePopoverButton(
+                        options: hiddenTabs.map { tab in
+                            SelectablePopoverOption(
+                                id: tab.dragPayload,
+                                value: tab.dragPayload,
+                                title: titleText(for: tab),
+                                closeAccessibilityLabel: tab.closeAccessibilityLabel,
+                                isSelected: selected == tab
+                            )
+                        },
+                        selectedID: selected?.dragPayload,
+                        accessibilityLabel: "ほか \(overflowLayout.overflowCount)",
+                        accessibilityValue: "",
+                        accessibilityIdentifier: TabAccessibilityIdentifier.overflow,
+                        help: "ほかのタブ",
+                        width: 248,
+                        onSelect: { option in
+                            if let tab = hiddenTabs.first(where: { $0.dragPayload == option.id }) {
+                                router.selectTab(tab, in: project.id)
+                            }
+                        },
+                        onClose: { option in
+                            if let tab = hiddenTabs.first(where: { $0.dragPayload == option.id }) {
+                                tab.requestClose(in: router)
+                            }
                         }
-                    } label: {
+                    ) { _ in
                         (Text("ほか \(overflowLayout.overflowCount)") + Text(verbatim: " ⌄"))
-                        .font(DSFont.auxiliary)
-                        .foregroundStyle(DSColor.textSecondary)
-                        .frame(width: 70, height: 26)
-                        .contentShape(Rectangle())
+                            .font(DSFont.auxiliary)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .frame(width: 70, height: 26)
+                            .contentShape(Rectangle())
                     }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .help(Text("ほかのタブ"))
-                    .accessibilityIdentifier(TabAccessibilityIdentifier.overflow)
                 }
                 addButton
             }
@@ -353,7 +368,7 @@ private struct ChildTabButton: View {
         .padding(.trailing, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
-            isSelected ? DSColor.fillSelected : (isShown ? DSColor.fillSubtle : Color.clear),
+            isSelected ? DSColor.fillSelected : (isShown || isHovering ? DSColor.fillSubtle : Color.clear),
             in: RoundedRectangle(cornerRadius: DSRadius.row)
         )
         .contentShape(Rectangle())
@@ -392,11 +407,7 @@ private struct ChildTabButton: View {
     }
 
     private var closeHelp: String {
-        switch tab {
-        case .chat: "セッションを削除…"
-        case .newChat: "外す（下書きは残ります）"
-        default: "閉じる"
-        }
+        tab.closeAccessibilityLabel
     }
 }
 

@@ -224,7 +224,9 @@ public func launchNewChat(_ request: NewChatLaunchRequest,
 
 GUI 以外（Control API・子セッション）は `keepsRowOnLaunchFailure == false` で今のまま。
 
-> **実装との差（2026-10-12 時点のコード）**: 再起動は `DashboardViewModel.restartNewChat(_:onRowAppended:)`（失敗した要求は `failedNewChatRequests` に持つ）まで実装済みだが、本番コードに呼び出し元が無く、失敗した行の「再起動」「閉じる」ボタンは画面につながっていない（要件 FR-10 は未達。テストでの確認は未検証）。また `restartNewChat` は履歴再開でない限り `usesWorktree: false` で起動し直すため、「同じ作業場所で」という要件との整合は未確認。
+- 実装: 再起動は `DashboardViewModel.restartNewChat(_:onRowAppended:)`（失敗した要求は `failedNewChatRequests` に持つ）。失敗した行の「再起動」「閉じる」は `DashboardDetailView` から会話のエラー行に渡す。同じ失敗行の再起動は 1 回だけ受け付け、実行中はボタンを無効にする。本文・添付の移管は 1 回だけ（起動完了後に入れ直さない）。
+- 作業場所は元の要求の選択肢を引き継ぐ。「新しい worktree」なら新しい worktree を作り直し、古い worktree は行を閉じるときの今の後始末（強制しない `git worktree remove`。未コミットの変更があれば残す）で片付く。
+- 本文・添付を入力欄へ戻すとき（起動前の失敗・初回ターンの失敗・再起動）、入力欄が空ならそのまま戻し、空でなければ戻す本文を今の本文の前に空行 1 つで連結し、添付は前に足す（重複は除く）。どちらの入力も消さない。
 
 ### 5.4 初回メッセージ `CVM.sendFirstMessage(_:attachments:)`（新規）
 
@@ -298,7 +300,7 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 | 起動カード | `AgentStartCards.swift` 一式・`AgentStartProjectHeader`・`AgentStartCardSelection`・`agentStartEntries`（他に使う所が無ければ） |
 | プレースホルダ | `SelectProjectPlaceholderView`・`StartAreaPolicy.selectProjectPlaceholder` |
 | 既定の開き方 | `DefaultSessionBackendPreference`・設定画面の分節ボタン（`App/SettingsView.swift:37,54,158-165`）・`spawnNewSessionUsingDefaultProject`（`DVM:525`） |
-| 使われていない起動関数 | `spawnNewClaudeCodeSession`（`DVM`）。**2026-10-12 時点で未削除**（`DashboardViewModel.swift` に残り、テスト 5 ファイルが呼ぶ。`Packages/*/Sources` と `App` に呼び出し元は無い） |
+| 使われていない起動関数 | `spawnNewClaudeCodeSession`（`DVM`。消した。テストは `spawnNewSession(kind: .claudeCode)` に置き換えた） |
 | `DashboardView` の状態 | `isCreating`・`creatingRef`・`spawnGuard` の衝突ケース（`createSession` は新規チャットの送信処理と §8 の依頼処理に分かれる） |
 | 文言 | 確認ダイアログの 4 キー・未使用の 1 キー（要件 §8.1）、表・起動カード・既定の開き方の文言 |
 | ハーネスの色（要件 FR-30） | `AppTheme.agentColors`・`DSColor.agentColor(for:)`・`agentInitialFill`・`AgentDescriptor.colorRGB` と、それを渡している所（要件 §8.5）。`AgentBrandIcon.fallbackIcon` はカスタムの廃止で不要になるので消す |

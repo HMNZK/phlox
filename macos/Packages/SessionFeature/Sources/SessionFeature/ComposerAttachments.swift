@@ -144,6 +144,46 @@ public final class ComposerAttachmentStore {
         lastError = nil
     }
 
+    /// 復元元の番号を保ち、後続の下書きの番号と本文参照を一緒に振り直す。
+    public static func mergingDrafts(
+        text: String, attachments: [ComposerAttachment],
+        nextText: String, nextAttachments: [ComposerAttachment]
+    ) -> (text: String, attachments: [ComposerAttachment]) {
+        var seen: Set<UUID> = []
+        let attachments = attachments.filter { seen.insert($0.id).inserted }
+        var merged = attachments
+        var byID = Dictionary(uniqueKeysWithValues: attachments.map { ($0.id, $0.number) })
+        var used = Set(attachments.map(\.number))
+        var nextNumber = ComposerImagePlaceholder.nextNumber(after: (attachments + nextAttachments).map(\.number))
+        var renumbering: [Int: Int] = [:]
+        for attachment in nextAttachments {
+            if let number = byID[attachment.id] {
+                renumbering[attachment.number] = number
+                continue
+            }
+            let number: Int
+            if used.contains(attachment.number) {
+                number = nextNumber
+                nextNumber += 1
+            } else {
+                number = attachment.number
+            }
+            used.insert(number)
+            byID[attachment.id] = number
+            renumbering[attachment.number] = number
+            merged.append(ComposerAttachment(id: attachment.id, number: number, data: attachment.data,
+                mediaType: attachment.mediaType, filename: attachment.filename))
+        }
+        // 一括置換して、1→2→3 のような置換の連鎖を防ぐ。
+        let pattern = /\[Image #(\d+)\]/
+        let rewritten = nextText.replacing(pattern) { match in
+            guard let old = Int(match.1), let number = renumbering[old] else { return String(match.0) }
+            return ComposerImagePlaceholder.text(for: number)
+        }
+        let combined = text.isEmpty ? rewritten : rewritten.isEmpty ? text : text + "\n\n" + rewritten
+        return (combined, merged)
+    }
+
     func clearError() {
         lastError = nil
     }

@@ -58,6 +58,47 @@ private func makeCodexViewModel(client: RecordingStructuredClient) -> ChatSessio
 
 @Suite @MainActor
 struct ControlImageSendTests {
+    @Test func ChatComposerDraftMergeDoesNotCascadeRenumberingOrDuplicateIDs() {
+        let first = ComposerAttachment(number: 1, data: tinyPNG, mediaType: "image/png")
+        let second = ComposerAttachment(number: 2, data: tinyPNG, mediaType: "image/png")
+        let third = ComposerAttachment(number: 1, data: tinyPNG, mediaType: "image/png")
+        let fourth = ComposerAttachment(number: 2, data: tinyPNG, mediaType: "image/png")
+        let merged = ComposerAttachmentStore.mergingDrafts(
+            text: "first [Image #1] [Image #2]", attachments: [first, first, second],
+            nextText: "next [Image #1] [Image #2] [Image #9]", nextAttachments: [third, fourth])
+        #expect(merged.text == "first [Image #1] [Image #2]\n\nnext [Image #3] [Image #4] [Image #9]")
+        #expect(merged.attachments.map(\.id) == [first.id, second.id, third.id, fourth.id])
+        #expect(merged.attachments.map(\.number) == [1, 2, 3, 4])
+        let sameImage = ComposerAttachment(id: first.id, number: 8, data: first.data, mediaType: first.mediaType)
+        let deduplicated = ComposerAttachmentStore.mergingDrafts(text: "", attachments: [first],
+            nextText: "same [Image #8]", nextAttachments: [sameImage])
+        #expect(deduplicated.text == "same [Image #1]")
+        #expect(deduplicated.attachments == [first])
+    }
+    @Test func firstMessageFailureRenumbersImagesAndRemovingChipKeepsOtherReference() async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            let first = ComposerAttachment(data: tinyPNG, mediaType: "image/png", filename: "first.png")
+            let next = ComposerAttachment(data: tinyPNG, mediaType: "image/png", filename: "next.png")
+            await vm.sendFirstMessage("first [Image #1]", attachments: [first])
+            vm.draft = "next [Image #1]"
+            vm.attachmentStore.restore([next])
+            client.emit(.error(message: "fake first turn failure"))
+            for _ in 0..<100 {
+                if case .error = vm.status { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(vm.draft == "first [Image #1]\n\nnext [Image #2]")
+            #expect(vm.composerAttachments.map(\.number) == [1, 2])
+            let restoredNext = try #require(vm.composerAttachments.first { $0.id == next.id })
+            vm.attachmentStore.remove(id: restoredNext.id)
+            vm.draft = ComposerImagePlaceholder.removing(number: restoredNext.number, from: vm.draft)
+            #expect(vm.draft == "first [Image #1]\n\nnext")
+            #expect(vm.composerAttachments == [first])
+        }
+    }
     @Test(arguments: ["next input", ""])
     func firstMessageAsyncFailurePreservesNextInputAndDeduplicatesAttachments(nextText: String) async throws {
         let client = RecordingStructuredClient()
@@ -76,7 +117,8 @@ struct ControlImageSendTests {
             }
             if case .error = vm.status {} else { Issue.record("error not processed") }
             #expect(vm.draft == (nextText.isEmpty ? "first input" : "first input\n\nnext input"))
-            #expect(vm.attachmentStore.attachments == [original, next])
+            #expect(vm.attachmentStore.attachments == [original, ComposerAttachment(id: next.id, number: 2,
+                data: next.data, mediaType: next.mediaType, filename: next.filename)])
             #expect(client.lastTurnStartInput?.count == 2)
         }
     }

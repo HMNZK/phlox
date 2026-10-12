@@ -6,6 +6,27 @@ import SessionFeature
 
 @Suite("New chat drafts", .serialized) @MainActor
 struct NewChatDraftStoreTests {
+    @Test func failedLaunchRenumbersCollidingImagesAndRemovingChipKeepsOtherReference() throws {
+        let (store, _, suite) = try makeStore()
+        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let project = ProjectID()
+        let draft = store.draft(for: project)
+        let first = ComposerAttachment(data: Data([1]), mediaType: "image/png")
+        let next = ComposerAttachment(data: Data([2]), mediaType: "image/png")
+        draft.text = "first [Image #1]"
+        draft.attachments.restore([first])
+        let request = try #require(draft.makeLaunchRequest(projectID: project))
+        draft.text = "next [Image #1]"
+        draft.attachments.restore([next])
+        draft.restoreLaunchDraft(from: request)
+        #expect(draft.text == "first [Image #1]\n\nnext [Image #2]")
+        #expect(draft.attachments.attachments.map(\.number) == [1, 2])
+        let restoredNext = try #require(draft.attachments.attachments.first { $0.id == next.id })
+        draft.attachments.remove(id: restoredNext.id)
+        draft.text = ComposerImagePlaceholder.removing(number: restoredNext.number, from: draft.text)
+        #expect(draft.text == "first [Image #1]\n\nnext")
+        #expect(draft.attachments.attachments == [first])
+    }
     private func makeStore() throws -> (NewChatDraftStore, LastUsedChatSettingsStore, String) {
         let suite = "phlox-new-chat-drafts-\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -115,7 +136,8 @@ struct NewChatDraftStoreTests {
         draft.restoreLaunchDraft(from: request)
 
         #expect(draft.text == "first\n\nnext")
-        #expect(draft.attachments.attachments == [first, next])
+        #expect(draft.attachments.attachments == [first, ComposerAttachment(id: next.id, number: 2,
+            data: next.data, mediaType: next.mediaType, filename: next.filename)])
         #expect(draft.usesWorktree)
     }
 

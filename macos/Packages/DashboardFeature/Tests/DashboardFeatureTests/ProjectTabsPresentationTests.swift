@@ -5,6 +5,34 @@ import DesignSystem
 @testable import DashboardFeature
 
 @Suite @MainActor struct ProjectTabsPresentationTests {
+    @Test func SessionTabTitlesUseEnglishForBrowserSimulatorAndChangeCount() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("tab-localization-\(UUID()).bundle")
+        let english = root.appendingPathComponent("en.lproj")
+        try FileManager.default.createDirectory(at: english, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let macos = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let catalog = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: macos.appendingPathComponent("App/Localizable.xcstrings"))) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        var translations: [String: String] = [:]
+        for key in ["ブラウザ", "シミュレーター", "変更 %lld", "tab.changes"] {
+            let entry = try #require(strings[key] as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            let en = try #require(localizations["en"] as? [String: Any])
+            let unit = try #require(en["stringUnit"] as? [String: Any])
+            translations[key] = try #require(unit["value"] as? String)
+        }
+        try PropertyListSerialization.data(fromPropertyList: translations, format: .xml, options: 0)
+            .write(to: english.appendingPathComponent("Localizable.strings"))
+        let bundle = try #require(Bundle(url: root))
+        let project = Project(name: "Tabs", directoryPath: "/tmp", createdAt: Date(), isManagedDirectory: false)
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() }))
+        let bar = ChildTabBar(router: AppRouter(), viewModel: dashboard, project: project,
+            layout: ProjectTabLayout(), chats: [], changeCount: 1, files: FileTabDocuments())
+        #expect(bar.titleText(for: .browser, locale: Locale(identifier: "en"), bundle: bundle) == "Browser")
+        #expect(bar.titleText(for: .simulator, locale: Locale(identifier: "en"), bundle: bundle) == "Simulator")
+        #expect(bar.titleText(for: .changes, locale: Locale(identifier: "en"), bundle: bundle) == "Changes 1")
+    }
     @Test func closeRequestsRouteToTheMatchingDeletionConfirmation() {
         let project = ProjectID()
         let session = SessionID()

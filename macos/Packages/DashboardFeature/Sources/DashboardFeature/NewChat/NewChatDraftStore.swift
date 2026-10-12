@@ -108,11 +108,10 @@ public final class NewChatDraft {
     }
 
     func restoreLaunchDraft(from request: NewChatLaunchRequest) {
-        if !request.text.isEmpty {
-            text = text.isEmpty ? request.text : request.text + "\n\n" + text
-        }
-        var seen: Set<UUID> = []
-        attachments.restore((request.attachments + attachments.attachments).filter { seen.insert($0.id).inserted })
+        let merged = ComposerAttachmentStore.mergingDrafts(text: request.text, attachments: request.attachments,
+            nextText: text, nextAttachments: attachments.attachments)
+        text = merged.text
+        attachments.restore(merged.attachments)
         usesWorktree = request.usesWorktree
     }
 

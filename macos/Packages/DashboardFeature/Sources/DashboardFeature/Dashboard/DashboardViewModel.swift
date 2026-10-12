@@ -1200,8 +1200,6 @@ public final class DashboardViewModel {
         guard let request = failedNewChatRequests[id], let vm = sessionNode(id: id)?.appServer else {
             throw ChatLaunchError.processFailed("起動に失敗したセッションが見つかりません")
         }
-        let text = vm.draft
-        let attachments = vm.composerAttachments
         let restart = NewChatLaunchRequest(projectID: request.projectID, agentRef: request.agentRef,
             settings: request.settings,
             usesWorktree: request.usesWorktree,
@@ -1209,8 +1207,10 @@ public final class DashboardViewModel {
             workingDirectoryOverride: request.workingDirectoryOverride,
             resumeHistoryID: request.resumeHistoryID)
         let newID = try await launchNewChat(restart, onRowAppended: { newID in
-            if request.resumeHistoryID == nil {
-                self.sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
+            if request.resumeHistoryID == nil, let target = self.sessionNode(id: newID)?.appServer {
+                let merged = ComposerAttachmentStore.mergingDrafts(text: vm.draft, attachments: vm.composerAttachments,
+                    nextText: target.draft, nextAttachments: target.composerAttachments)
+                target.restoreLaunchDraft(merged.text, attachments: merged.attachments)
             }
             onRowAppended?(newID)
         })

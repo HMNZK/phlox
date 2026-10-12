@@ -299,19 +299,23 @@ struct ChildTabBar: View {
         }
     }
 
-    /// 文言は画面のロケール（アプリ内の言語設定）で引くため Text で返す。
+    /// 表示と幅計算で同じ翻訳済み文字列を使う。
     private func title(for tab: ProjectTab) -> Text {
         Text(verbatim: titleText(for: tab))
     }
 
-    private func titleText(for tab: ProjectTab) -> String {
-        switch tab {
+    func titleText(for tab: ProjectTab, locale overrideLocale: Locale? = nil, bundle: Bundle? = nil) -> String {
+        let locale = overrideLocale ?? self.locale
+        let localizationBundle = bundle ?? self.localizationBundle
+        return switch tab {
         case .chat(let id): viewModel.sessionNode(id: id)?.displayName ?? "会話"
         case .newChat: AppLocalizedString.string("新規チャット", locale: locale, bundle: localizationBundle)
         case .terminal: AppLocalizedString.string("ターミナル", locale: locale, bundle: localizationBundle)
-        case .simulator: "シミュレーター"
-        case .browser: "ブラウザ"
-        case .changes: changeCount > 0 ? "変更 \(changeCount)" : AppLocalizedString.string("tab.changes", locale: locale, bundle: localizationBundle)
+        case .simulator: AppLocalizedString.string("シミュレーター", locale: locale, bundle: localizationBundle)
+        case .browser: AppLocalizedString.string("ブラウザ", locale: locale, bundle: localizationBundle)
+        case .changes: changeCount > 0
+            ? String(format: AppLocalizedString.string("変更 %lld", locale: locale, bundle: localizationBundle), changeCount)
+            : AppLocalizedString.string("tab.changes", locale: locale, bundle: localizationBundle)
         case .file(let path): (path as NSString).lastPathComponent
         }
     }

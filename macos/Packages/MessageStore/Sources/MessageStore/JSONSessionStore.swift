@@ -116,10 +116,31 @@ public actor JSONSessionStore: SessionStoreProtocol {
 
     public func save(_ sessions: [PersistedSessionDescriptor]) async throws {
         if requiresDiscardedSessionsBackup {
-            try backupSourceContainingDiscardedSessions()
-            requiresDiscardedSessionsBackup = false
+            do {
+                try backupSourceContainingDiscardedSessions()
+                requiresDiscardedSessionsBackup = false
+            } catch {
+                try saveKeepingDiscardedSessions(sessions)
+                return
+            }
         }
         try store.save(SessionsFile(schemaVersion: 1, sessions: sessions))
+    }
+
+    private func saveKeepingDiscardedSessions(_ sessions: [PersistedSessionDescriptor]) throws {
+        let source = try JSONSerialization.jsonObject(with: Data(contentsOf: fileURL))
+        guard let envelope = source as? [String: Any], let elements = envelope["sessions"] as? [Any] else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let discarded = try elements.filter { element in
+            let data = try JSONSerialization.data(withJSONObject: element, options: .fragmentsAllowed)
+            return (try? JSONDecoder().decode(PersistedSessionDescriptor.self, from: data)) == nil
+        }
+        let encoded = try JSONEncoder().encode(sessions)
+        let current = try JSONSerialization.jsonObject(with: encoded) as? [Any]
+        guard let current else { throw CocoaError(.fileWriteUnknown) }
+        let data = try JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "sessions": current + discarded], options: .sortedKeys)
+        try store.save(data: data)
     }
 
     private func backupSourceContainingDiscardedSessions() throws {

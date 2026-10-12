@@ -143,11 +143,10 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func mergeFailedFirstTurnDraft(_ text: String, attachments: [ComposerAttachment]) {
-        if !text.isEmpty {
-            draft = draft.isEmpty ? text : text + "\n\n" + draft
-        }
-        var attachmentIDs = Set<UUID>()
-        attachmentStore.restore((attachments + composerAttachments).filter { attachmentIDs.insert($0.id).inserted })
+        let merged = ComposerAttachmentStore.mergingDrafts(text: text, attachments: attachments,
+            nextText: draft, nextAttachments: composerAttachments)
+        draft = merged.text
+        attachmentStore.restore(merged.attachments)
     }
 
     public func prepareFirstMessage(_ text: String, attachments: [ComposerAttachment]) {

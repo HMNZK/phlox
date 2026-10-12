@@ -69,7 +69,7 @@ private func makeDescriptor(
 }
 
 struct JSONSessionStoreTests {
-    @Test func load_backupFailurePreservesSourceAndBlocksSaveUntilBackupSucceeds() async throws {
+    @Test func load_permanentBackupFailureKeepsDiscardedJSONAndAllowsRepeatedSave() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("sessions-backup-failure-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -95,13 +95,24 @@ struct JSONSessionStoreTests {
         let store = JSONSessionStore(fileURL: url)
         #expect(await store.load() == [retained])
         #expect(try Data(contentsOf: url) == source)
-        await #expect(throws: (any Error).self) { try await store.save([]) }
-        #expect(try Data(contentsOf: url) == source)
+        let updated = makeDescriptor(name: "Updated")
+        for sessions in [[updated], [], [retained, makeDescriptor(id: SessionID(), name: "New")]] {
+            try await store.save(sessions)
+            let reloaded = JSONSessionStore(fileURL: url)
+            #expect(await reloaded.load() == sessions)
+            let saved = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+            let elements = try #require(saved["sessions"] as? [[String: Any]])
+            #expect(elements.count == sessions.count + 1)
+            #expect(NSDictionary(dictionary: try #require(elements.last)) == NSDictionary(dictionary: legacy))
+        }
+        let sourceBeforeRecovery = try Data(contentsOf: url)
 
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         try await store.save([retained])
-        #expect(try Data(contentsOf: try #require(quarantinedSessionFiles(for: url).first)) == source)
+        #expect(try Data(contentsOf: try #require(quarantinedSessionFiles(for: url).first)) == sourceBeforeRecovery)
         #expect(await store.load() == [retained])
+        let cleaned = try JSONDecoder().decode(SessionsFileEnvelope.self, from: Data(contentsOf: url))
+        #expect(cleaned.sessions == [retained])
     }
 
     @Test func saveAndLoad_roundTrip() async throws {

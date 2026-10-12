@@ -90,7 +90,10 @@ struct JSONFileStore<File: Codable & Sendable>: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(file)
+        try save(data: data)
+    }
 
+    func save(data: Data) throws {
         // ディスク実体の現在の stat を取得する。ファイル不在・stat 取得失敗はすべて nil として
         // 扱い、以降の canSkipWrite で「判定不能→書き込む」側へ倒す（プロセス外ドリフト対策）。
         let currentDiskStat = try? readDiskStat()

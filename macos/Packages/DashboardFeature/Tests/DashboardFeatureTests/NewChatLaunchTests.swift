@@ -39,6 +39,42 @@ private actor LaunchClient: StructuredAgentClient, SpawnAgentSettingsControlling
 
 @Suite("New chat launch", .serialized) @MainActor
 final class NewChatLaunchTests {
+    @Test func restartTransfersLatestDraftAfterWaitingBeforeRowAppend() async throws {
+        let failed = LaunchClient(failsStart: true)
+        let replacement = LaunchClient()
+        let sequence = StructuredClientSequence([failed, replacement])
+        let (factoryReady, ready) = AsyncStream<Void>.makeStream()
+        let (releaseFactory, release) = AsyncStream<Void>.makeStream()
+        defer { ready.finish(); release.finish() }
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(
+            pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() },
+            agentBinaryPaths: [.claudeCode: "/bin/echo"],
+            appServerClientFactory: { _, _, _, _, _ in
+                let client = try sequence.next()
+                if await failed.starts == 1 {
+                    ready.yield(())
+                    for await _ in releaseFactory { break }
+                }
+                return client
+            }
+        ))
+        dashboard.addProject(name: "Launch", directoryPath: "/tmp")
+        let id = try await dashboard.launchNewChat(request(dashboard))
+        let old = try #require(dashboard.sessionNode(id: id)?.appServer)
+        let task = Task { try await dashboard.restartNewChat(id) }
+        for await _ in factoryReady { break }
+        #expect(dashboard.sessionNodes.count == 1)
+        let image = ComposerAttachment(data: Data([4]), mediaType: "image/png")
+        old.restoreLaunchDraft("latest edit [Image #1]", attachments: [image])
+        release.yield(())
+        let newID = try await task.value
+        let vm = try #require(dashboard.sessionNode(id: newID)?.appServer)
+        #expect(vm.draft == "latest edit [Image #1]")
+        #expect(vm.composerAttachments == [image])
+        #expect(await replacement.inputs.isEmpty)
+        #expect(dashboard.sessionNode(id: id) == nil)
+        await dashboard.removeSession(newID)
+    }
     private let defaultsSuite = "phlox-unc-launch-\(UUID())"
     deinit { UserDefaults(suiteName: defaultsSuite)?.removePersistentDomain(forName: defaultsSuite) }
     private func dashboard(_ clients: [any StructuredAgentClient], kind: AgentKind = .claudeCode,

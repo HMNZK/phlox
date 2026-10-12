@@ -121,27 +121,6 @@ enum UsageDisplay {
         return String(format: AppLocalizedString.string("使用量: %@。クリックで詳細", locale: locale, bundle: bundle), joined)
     }
 
-    /// 使用量に応じて緑→黄→赤へ段階変化（statusline の rate_color を移植）。
-    static func usageColor(for usedPercent: Double) -> Color {
-        let p = max(0, min(100, usedPercent))
-        func rgb(_ r: Double, _ g: Double, _ b: Double) -> Color {
-            Color(.sRGB, red: r / 255, green: g / 255, blue: b / 255, opacity: 1)
-        }
-        switch p {
-        case ..<40:
-            return rgb(90, 200, 130)
-        case ..<65:
-            let t = (p - 40) / 25
-            return rgb(90 + t * 150, 200 - t * 10, 130 - t * 50)
-        case ..<85:
-            let t = (p - 65) / 20
-            return rgb(240, 190 - t * 110, 80 - t * 30)
-        default:
-            let t = min((p - 85) / 15, 1)
-            return rgb(240, max(50, 80 - t * 30), 55)
-        }
-    }
-
     // MARK: - リセット残り時間
 
     /// リセット残りが「わずか」と判定する閾値（秒）。5時間枠は残り1時間、週次は残り1日。
@@ -151,7 +130,6 @@ enum UsageDisplay {
     ]
 
     /// リセットが残りわずか（5h≤1時間 / 週次≤1日）のときの警告色。
-    /// 高使用率時の赤（usageColor の最終段 rgb(240,50,55)）と統一する。
     static let urgentResetColor = Color(.sRGB, red: 240 / 255, green: 50 / 255, blue: 55 / 255, opacity: 1)
 
     /// このバケットのリセットが残りわずかか。閾値はバケット種別ごと（5h:1時間 / weekly:1日）。

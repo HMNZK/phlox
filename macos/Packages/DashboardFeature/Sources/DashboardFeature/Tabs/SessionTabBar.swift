@@ -43,17 +43,14 @@ struct SessionTabBar: View {
                             Button(project.name) { router.selectProjectFromSidebar(project.id) }
                         }
                     } label: {
-                        HStack(spacing: 3) {
-                            Text("ほか \(layout.overflowCount)")
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 8, weight: .medium))
-                        }
+                        (Text("ほか \(layout.overflowCount)") + Text(verbatim: " ⌄"))
                         .font(DSFont.auxiliary)
                         .foregroundStyle(DSColor.textSecondary)
                         .frame(width: 70, height: 26)
                         .contentShape(Rectangle())
                     }
                     .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
                     .help(Text("ほかのタブ"))
                     .accessibilityIdentifier(TabAccessibilityIdentifier.overflow)
                 }

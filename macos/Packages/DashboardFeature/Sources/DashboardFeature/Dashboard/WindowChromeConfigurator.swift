@@ -2,8 +2,7 @@ import AppKit
 import SwiftUI
 import AgentDomain
 
-/// 信号（閉じる・しまう・拡大）を 38pt のツールバーの縦中央に揃えるため、空の NSToolbar を付ける。
-/// ツールバーの中身は SwiftUI 側で描く（12 Header and Usage Bar）。
+/// SwiftUI のヘッダーをタイトルバーまで描く。空の NSToolbar は内容を覆うため付けない。
 struct WindowChromeConfigurator: NSViewRepresentable {
     @Environment(\.locale) private var locale
     var files: FileTabDocuments? = nil
@@ -41,10 +40,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             registerFiles()
-            guard let window, window.toolbar == nil else { return }
-            let toolbar = NSToolbar(identifier: "phlox.main")
-            toolbar.displayMode = .iconOnly
-            window.toolbar = toolbar
+            guard let window else { return }
             window.toolbarStyle = .unifiedCompact
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true

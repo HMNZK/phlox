@@ -22,7 +22,7 @@ struct ComposerOverflowLayoutTests {
         let size = try renderSize(footer, proposedWidth: width)
         #expect(size.width <= width + epsilon)
         #expect(size.height == 26)
-        let snapshot = accessibilitySnapshot(footer, width: width, height: size.height)
+        let snapshot = try await accessibilitySnapshot(footer, width: width, height: size.height)
         expectDenseControls(snapshot)
     }
 
@@ -33,7 +33,7 @@ struct ComposerOverflowLayoutTests {
         let size = try renderSize(footer, proposedWidth: worstCaseWidth)
         #expect(size.width <= worstCaseWidth + epsilon)
         #expect(size.height == 26)
-        let snapshot = accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height)
+        let snapshot = try await accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height)
         expectNarrowControls(snapshot)
         let overflow = try #require(snapshot.frames["ChatComposer.overflowMenu"])
         let send = try #require(snapshot.frames["ChatComposer.sendButton"])
@@ -47,7 +47,7 @@ struct ComposerOverflowLayoutTests {
         let size = try renderSize(footer, proposedWidth: worstCaseWidth)
         #expect(size.width <= worstCaseWidth + epsilon)
         #expect(size.height == 26)
-        expectNarrowControls(accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height))
+        expectNarrowControls(try await accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height))
     }
 
     @MainActor
@@ -83,14 +83,18 @@ struct ComposerOverflowLayoutTests {
     }
 
     @MainActor
-    private func accessibilitySnapshot<Content: View>(_ content: Content, width: CGFloat, height: CGFloat) -> FooterAccessibilitySnapshot {
+    private func accessibilitySnapshot<Content: View>(_ content: Content, width: CGFloat, height: CGFloat) async throws -> FooterAccessibilitySnapshot {
+        _ = NSApplication.shared
+        NSApp.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
         let hosting = NSHostingView(rootView: content.environment(\.locale, Locale(identifier: "ja_JP")))
         let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: width, height: height), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = hosting
         hosting.frame = CGRect(x: 0, y: 0, width: width, height: height)
-        hosting.layoutSubtreeIfNeeded()
         defer { window.close() }
+        // SwiftUI のマウントを待ってから AX ツリーを読む（画面外撮影と同じ手順）。
+        try await Task.sleep(for: .milliseconds(100))
+        hosting.layoutSubtreeIfNeeded()
         var snapshot = FooterAccessibilitySnapshot()
         var seen = Set<ObjectIdentifier>()
         func visit(_ element: Any) {
@@ -288,7 +292,7 @@ struct ComposerOverflowLayoutTests {
 
         #expect(size.width <= worstCaseWidth + epsilon)
         #expect(size.height == 26)
-        expectNarrowControls(accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height), actionIdentifier: "stopButton")
+        expectNarrowControls(try await accessibilitySnapshot(footer, width: worstCaseWidth, height: size.height), actionIdentifier: "stopButton")
     }
 
     /// 権限とブランチを「…」へ移すと入る幅なら、% の数字を残して 1 段に収める。
@@ -308,7 +312,7 @@ struct ComposerOverflowLayoutTests {
 
         #expect(size.width <= oneRowWidth - 20 + epsilon)
         #expect(size.height == 26)
-        expectDenseControls(accessibilitySnapshot(footer, width: oneRowWidth - 20, height: size.height), actionIdentifier: "stopButton")
+        expectDenseControls(try await accessibilitySnapshot(footer, width: oneRowWidth - 20, height: size.height), actionIdentifier: "stopButton")
     }
 
     /// モデル名や effort のチップは、狭い幅を渡されても省略せず全文の幅で描く。
@@ -358,7 +362,7 @@ struct ComposerOverflowLayoutTests {
 
         #expect(renderedSize.width <= width + epsilon)
         #expect(renderedSize.height == 26)
-        let snapshot = accessibilitySnapshot(footer, width: width, height: renderedSize.height)
+        let snapshot = try await accessibilitySnapshot(footer, width: width, height: renderedSize.height)
         if width == worstCaseWidth {
             expectNarrowControls(snapshot, actionIdentifier: "stopButton")
         } else {

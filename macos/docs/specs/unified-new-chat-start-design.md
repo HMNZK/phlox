@@ -225,7 +225,7 @@ public func launchNewChat(_ request: NewChatLaunchRequest,
 GUI 以外（Control API・子セッション）は `keepsRowOnLaunchFailure == false` で今のまま。
 
 - 実装: 再起動は `DashboardViewModel.restartNewChat(_:onRowAppended:)`（失敗した要求は `failedNewChatRequests` に持つ）。失敗した行の「再起動」「閉じる」は `DashboardDetailView` から会話のエラー行に渡す。同じ失敗行の再起動は 1 回だけ受け付け、実行中はボタンを無効にする。本文・添付の移管は 1 回だけ（起動完了後に入れ直さない）。
-- 作業場所は元の要求の選択肢を引き継ぐ。「新しい worktree」なら新しい worktree を作り直し、古い worktree は行を閉じるときの今の後始末（強制しない `git worktree remove`。未コミットの変更があれば残す）で片付く。
+- 作業場所は失敗した行と同じ場所で起動する（FR-10）。worktree で失敗した行なら、その worktree をそのまま使う（中でユーザーが直したファイルも引き継ぐ）。そのため、古い行を閉じる前に worktree の持ち主（`ownedWorkspaceDirectories` 等）を新しいセッションへ移し、古い行の後始末では worktree を消さない。再起動が失敗したときは持ち主を古い行へ戻す。
 - 本文・添付を入力欄へ戻すとき（起動前の失敗・初回ターンの失敗・再起動）、入力欄が空ならそのまま戻し、空でなければ戻す本文を今の本文の前に空行 1 つで連結し、添付は前に足す（重複は除く）。どちらの入力も消さない。
 
 ### 5.4 初回メッセージ `CVM.sendFirstMessage(_:attachments:)`（新規）

@@ -232,7 +232,7 @@ GUI 以外（Control API・子セッション）は `keepsRowOnLaunchFailure == 
 
 - 預かった添付を `attachmentStore` に入れてから、今の `sendText(_:submit:)`（`CVM:3573`）を呼ぶ。タイトル付け（`adoptTitleFromOriginalUserText` :3655）は今のまま。
 - `sendText` の黙って戻る経路（合計サイズ超過 :3605-3609、`imagesUnsupported` :3615-3619、Codex skill の再選択 :3593-3600）を、型つきの例外 `SendRejected` を投げる形に変える。どれも今は本文を `draft` に戻してから戻るので、本文は失われない。呼び出し側は `try` しているので影響は小さい。
-- 非同期のエラー（Cursor のターン失敗 `CursorChatClient.swift:171-193`、Claude の `preApprovalDenial` :338）は、ハーネスを問わず次の規則にする: **会話の最初のターンが、応答を 1 つも返さずに `.error` で終わったら、送った本文を `draft` に戻す**（`CVM:2252` のイベント処理で判定）。
+- 非同期のエラー（Cursor のターン失敗 `CursorChatClient.swift:171-193`、Claude の `preApprovalDenial` :338）は、ハーネスを問わず次の規則にする: **新規チャットから起動した会話の最初のターンが、応答を 1 つも返さずに `.error` で終わるか、プロセスが終了したら、起動の失敗として扱い（§5.3 の「再起動」「閉じる」を出す）、送った本文と添付を入力欄に戻す**（未ログイン・CLI の不具合で起動直後に落ちる場合。要件 R1）。
 - Claude の `turnStart` は `transport == nil` なら起動し直す（`ClaudeChatClient.swift:318-325`）。初回送信はこれに頼らず、§5.3 で起動の成功を確かめてから送る。
 
 ## 6. 履歴から再開

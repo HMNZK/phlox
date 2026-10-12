@@ -121,6 +121,7 @@ public struct DashboardView: View {
 
     public var body: some View {
         shellWithTabDialogs
+            .toolbar { DashboardToolbar(viewModel: viewModel, router: router) }
             .environment(\.adjustTerminalFontSize) { [viewModel] delta in
                 viewModel.adjustFontSize(by: delta, target: .terminal)
             }
@@ -327,12 +328,6 @@ public struct DashboardView: View {
                 }
 
                 VStack(spacing: 0) {
-                    DashboardToolbar(
-                        viewModel: viewModel,
-                        router: router,
-                        showsSidebarToggle: !layout.showsSidebar
-                    )
-                    horizontalSeparator
                     HStack(spacing: 0) {
                         // 表示範囲バーは中央の列の上端だけに置き、インスペクタの上には掛けない（06 PhloxGrid）。
                         VStack(spacing: 0) {
@@ -378,7 +373,7 @@ public struct DashboardView: View {
                             RoundedRectangle(cornerRadius: DSRadius.attention).strokeBorder(DSColor.separator)
                         }
                         .shadow(color: DSShadow.popover.color, radius: DSShadow.popover.radius, y: DSShadow.popover.y)
-                        .padding(.top, DSLayout.toolbarHeight + DSSpacing.s)
+                        .padding(.top, DSSpacing.s)
                         .padding(.bottom, DSSpacing.s)
                         .padding(.trailing, DSSpacing.s)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -460,9 +455,6 @@ public struct DashboardView: View {
                 await editorPanel.resolve(workspaces: editorPanelWorkspaces)
             }
         }
-        // hiddenTitleBar でも SwiftUI は上部にタイトルバー分のセーフエリアを確保するため、
-        // 上部セーフエリアを無視してツールバーとサイドバーの上端をウィンドウ最上部に揃える。
-        .ignoresSafeArea(.container, edges: .top)
         .background(WindowChromeConfigurator(files: fileTabs, fileContext: { [weak viewModel] id in
             return UnsavedFileContext(project: viewModel?.projects.first { $0.id == id }?.name ?? "")
         }, projectName: { [weak viewModel, weak router] in
@@ -633,10 +625,9 @@ public struct DashboardView: View {
 
     // MARK: - Columns
 
-    /// 左列。上端は中央のタイトルバーと高さをそろえる余白、下端に設定とエージェント管理。
+    /// 左列。下端に設定とエージェント管理。
     private var sidebarColumn: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: DSLayout.toolbarHeight)
             DashboardSidebarView(
                 viewModel: viewModel,
                 router: router,

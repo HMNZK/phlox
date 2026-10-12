@@ -135,16 +135,20 @@ struct DashboardSessionLookupTests {
 
     // MARK: - sessionNodeIndex 同期: spawn 経路
 
-    @Test @MainActor
-    func sessionNodeIndex_syncsOnAppServerSpawn() async throws {
+    @Test(arguments: [false, true]) @MainActor
+    func sessionNodeIndex_syncsOnAppServerSpawn(unregisteredProject: Bool) async throws {
         let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
-        let environment = makeTestEnvironment(pty: MockPTYManager(), hookStream: hookStream)
+        let environment = makeTestEnvironment(pty: MockPTYManager(), hookStream: hookStream,
+            appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() })
         let dashboard = DashboardViewModel(environment: environment)
         await dashboard.start()
 
-        let id = try await dashboard.spawnNewSession(kind: .claudeCode, backend: .appServer)
+        let projectID = unregisteredProject ? ProjectID() : nil
+        let id = try await dashboard.spawnNewSession(kind: .claudeCode, projectID: projectID, backend: .appServer)
 
         #expect(dashboard.sessionNode(id: id)?.appServer != nil, "spawnNewSession(.appServer) 直後に索引から引けない")
+        #expect(dashboard.sessionNode(id: id)?.projectID == projectID)
+        await dashboard.removeSession(id)
     }
 
     // MARK: - sessionNodeIndex 同期: restoreSession (.pty) 経路

@@ -58,6 +58,63 @@ private func makeCodexViewModel(client: RecordingStructuredClient) -> ChatSessio
 
 @Suite @MainActor
 struct ControlImageSendTests {
+    @Test func newChatProcessExitBeforeFirstSendRestoresPendingMessage() async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        try await withTerminatedViewModel(vm) {
+            let image = ComposerAttachment(data: tinyPNG, mediaType: "image/png")
+            vm.prepareFirstMessage("first input", attachments: [image])
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            client.emit(.processExited(exitCode: 1))
+            client.emit(.warning(message: "events processed"))
+            for _ in 0..<100 {
+                if vm.transcript.contains(where: {
+                    if case .error(_, let message, _) = $0 { message == "events processed" } else { false }
+                }) { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(vm.launchFailure != nil)
+            #expect(vm.processExit == nil)
+            #expect(vm.pendingFirstMessage == nil)
+            #expect(vm.draft == "first input")
+            #expect(vm.composerAttachments == [image])
+            #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
+            #expect(client.lastTurnStartInput == nil)
+        }
+    }
+
+    @Test(arguments: [Int32(0), Int32(1)], [false, true])
+    func newChatFirstTurnExitRestoresAttachmentsAndNextDraft(exitCode: Int32, errorFirst: Bool) async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            let first = ComposerAttachment(data: tinyPNG, mediaType: "image/png")
+            let next = ComposerAttachment(data: tinyPNG, mediaType: "image/png")
+            vm.prepareFirstMessage("first [Image #1]", attachments: [first])
+            await vm.sendFirstMessage("first [Image #1]", attachments: [first])
+            vm.restoreLaunchDraft("next [Image #1]", attachments: [next])
+            if errorFirst { client.emit(.error(message: "fake first turn failure")) }
+            client.emit(.processExited(exitCode: exitCode))
+            client.emit(.warning(message: "events processed"))
+            for _ in 0..<100 {
+                if vm.transcript.contains(where: {
+                    if case .error(_, let message, _) = $0 { message == "events processed" } else { false }
+                }) { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(vm.transcript.contains {
+                if case .error(_, let message, _) = $0 { message == "events processed" } else { false }
+            })
+            #expect(vm.launchFailure != nil)
+            #expect(vm.processExit == nil)
+            #expect(vm.draft == "first [Image #1]\n\nnext [Image #2]")
+            #expect(vm.composerAttachments.map(\.id) == [first.id, next.id])
+            #expect(vm.composerAttachments.map(\.number) == [1, 2])
+            #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
+        }
+    }
+
     @Test func ChatComposerDraftMergeDoesNotCascadeRenumberingOrDuplicateIDs() {
         let first = ComposerAttachment(number: 1, data: tinyPNG, mediaType: "image/png")
         let second = ComposerAttachment(number: 2, data: tinyPNG, mediaType: "image/png")

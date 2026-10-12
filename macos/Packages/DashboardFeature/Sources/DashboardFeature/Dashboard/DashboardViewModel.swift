@@ -1168,6 +1168,7 @@ public final class DashboardViewModel {
             isolationOverride: request.usesWorktree, initialSettings: request.settings,
             resumeHistoryEntry: historyEntry, keepsRowOnLaunchFailure: true,
             onRowAppended: { id in
+                self.failedNewChatRequests[id] = request
                 if historyEntry == nil {
                     self.sessionNode(id: id)?.appServer?.prepareFirstMessage(request.text, attachments: request.attachments)
                 }
@@ -1175,9 +1176,7 @@ public final class DashboardViewModel {
             })
         lastUsedChatSettingsStore.recordLastHarness(request.agentRef.id)
         guard let vm = sessionNode(id: id)?.appServer else { throw CancellationError() }
-        if vm.launchFailure != nil {
-            failedNewChatRequests[id] = request
-        } else if historyEntry == nil, !request.text.isEmpty || !request.attachments.isEmpty {
+        if vm.launchFailure == nil, historyEntry == nil, !request.text.isEmpty || !request.attachments.isEmpty {
             await vm.sendFirstMessage(request.text, attachments: request.attachments)
         }
         return id
@@ -1197,7 +1196,8 @@ public final class DashboardViewModel {
                                onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
         guard restartingNewChatIDs.insert(id).inserted else { throw CancellationError() }
         defer { restartingNewChatIDs.remove(id) }
-        guard let request = failedNewChatRequests[id], let vm = sessionNode(id: id)?.appServer else {
+        guard let request = failedNewChatRequests[id], let vm = sessionNode(id: id)?.appServer,
+              vm.launchFailure != nil else {
             throw ChatLaunchError.processFailed("起動に失敗したセッションが見つかりません")
         }
         let restart = NewChatLaunchRequest(projectID: request.projectID, agentRef: request.agentRef,
@@ -1263,6 +1263,7 @@ public final class DashboardViewModel {
 
         // API 経由で projectID 未指定かつ親ありのとき、親と同じワークスペース（CWD）で子を起動する。
         let resolvedProjectID = sessionSpawnService.resolveProjectID(explicit: projectID, parentSessionID: from)
+        let projectWasRegistered = resolvedProjectID.map { id in projects.contains { $0.id == id } } ?? false
 
         let sessionID = SessionID()
         let token = SessionSpawnService.makeToken()
@@ -1298,7 +1299,7 @@ public final class DashboardViewModel {
         }
 
         if let resolvedProjectID,
-           !projects.contains(where: { $0.id == resolvedProjectID })
+           (projectWasRegistered && !projects.contains(where: { $0.id == resolvedProjectID }))
             || FileTabDocumentRegistry.shared.isChangingProject(resolvedProjectID) {
             await environment.tokenStore.remove(session: sessionID)
             await cleanupOwnedWorkspace(for: sessionID)

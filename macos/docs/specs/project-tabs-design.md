@@ -102,8 +102,8 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 |---|---|
 | `DF/Tabs/SessionTabBar.swift` | 上段＝プロジェクトのタブ。✕ は選択中・ホバー中だけ出し、説明は「プロジェクトを削除…」。右クリックに「プロジェクト名を変更…」（今の `router.projectRenameRequest` を立てる。サイドバーを隠していれば出す）。右端の ＋ はプロジェクトの追加（⌘O と同じ）。入りきらなければ 180→96pt に縮め、残りを「ほか n ⌄」 |
 | `DF/Tabs/SessionTabsContainer.swift` の前半 | 下段（`ChildTabBar`）＝チャット → 項目。チャットの ✕ の説明は「セッションを削除…」、新規チャットは「外す（下書きは残ります）」、ほかは「閉じる」。＋ のメニュー（`NewTabChooser`）は 新規チャット ⌘N / ターミナル / 変更 / ファイルを開く… / ブラウザ / シミュレーター、下端に「ターミナル・変更・ファイルは <プロジェクト> のフォルダで開きます」。タブは文字幅（上限あり）で、＋ は最後のタブの直後。入りきらなければ残りを「ほか n ⌄」に畳む |
-| `DF/Dashboard/DashboardToolbar.swift` | `titleBlock`・`worktreeMenu`・`WorktreeMenuButton`を消した。残るのはサイドバーの開閉（隠しているときだけ）・`ViewModeToggle`（右寄せ。アイコンだけで、名前は読み上げとヘルプに出す）・インスペクタの開閉 |
-| `DF/Dashboard/WindowChromeConfigurator.swift` | `toolbarStyle = .unifiedCompact`。`DSLayout.toolbarHeight`（`DesignSystem/Tokens.swift`）は 38pt にした（旧 52。モックと同じ。macOS 26 での実測は未確認） |
+| `DF/Dashboard/DashboardToolbar.swift` | `titleBlock`・`worktreeMenu`・`WorktreeMenuButton`を消した。残るのはサイドバーの開閉（隠しているときだけ）・`ViewModeToggle`（右寄せ。アイコンだけで、名前は読み上げとヘルプに出す）・インスペクタの開閉。どれも SwiftUI の標準ツールバー（`ToolbarContent`。`DashboardView` の `.toolbar`）に置き、信号との縦位置はシステムが揃える |
+| `DF/Dashboard/WindowChromeConfigurator.swift` | `toolbarStyle = .unifiedCompact`。空の `NSToolbar` は付けない（SwiftUI のヘッダーを覆って描かれなくしていた）。ヘッダーの高さは標準のツールバーで決まり、2026-10-12 の実測は 40pt（モックは 38pt） |
 | 識別子 | `tabs.project.<n>`・`tabs.project.add`・`tabs.item.<n>`・`tabs.item.add`・`tabs.overflow`（モック 11） |
 
 ## 9. キーボード（PE11）

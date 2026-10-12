@@ -685,6 +685,7 @@ final class SessionSpawnService {
         sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
         registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil
     ) async throws -> ChatSessionViewModel {
+        let projectWasRegistered = projectID.map { id in projectsSnapshot().contains { $0.id == id } } ?? false
         let broker = ChatApprovalBroker()
         let client = try await environment.structuredClientFactory(
             plan.descriptor.ref,
@@ -694,7 +695,7 @@ final class SessionSpawnService {
             broker.serverRequestHandler
         )
         if registerSessionForWrite != nil, let projectID,
-           !projectsSnapshot().contains(where: { $0.id == projectID })
+           (projectWasRegistered && !projectsSnapshot().contains(where: { $0.id == projectID }))
             || FileTabDocumentRegistry.shared.isChangingProject(projectID) {
             await client.close()
             throw AgentSpawnError.unknownProject

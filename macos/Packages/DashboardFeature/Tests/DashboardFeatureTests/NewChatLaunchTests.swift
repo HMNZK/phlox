@@ -39,6 +39,76 @@ private actor LaunchClient: StructuredAgentClient, SpawnAgentSettingsControlling
 
 @Suite("New chat launch", .serialized) @MainActor
 final class NewChatLaunchTests {
+    @Test(arguments: [AgentKind.claudeCode, .codex, .cursor])
+    func processExitDuringStartDoesNotSendPendingMessage(kind: AgentKind) async throws {
+        let client = LaunchClient(holdsStart: true)
+        let dashboard = dashboard([client], kind: kind)
+        let image = ComposerAttachment(data: Data([1]), mediaType: "image/png")
+        let task = Task { try await dashboard.launchNewChat(request(dashboard, kind: kind, attachments: [image])) }
+        for _ in 0..<100 {
+            if await client.starts == 1 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(await client.starts == 1)
+        let vm = try #require(dashboard.sessionNodes.first?.appServer)
+        client.continuation.yield(.processExited(exitCode: 1))
+        try await waitUntil { vm.launchFailure != nil }
+        await client.releaseStart()
+        let id = try await task.value
+        if case .error = vm.status {} else { Issue.record("launch failure must keep error status") }
+        #expect(vm.processExit == nil)
+        #expect(vm.draft == "first message")
+        #expect(vm.composerAttachments == [image])
+        #expect(await client.inputs.isEmpty)
+        #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
+        await dashboard.removeSession(id)
+    }
+
+    @Test(arguments: [AgentKind.claudeCode, .codex, .cursor])
+    func firstTurnExitWithoutResponseRestoresDraftAndCanRestart(kind: AgentKind) async throws {
+        let client = LaunchClient()
+        let replacement = LaunchClient()
+        let dashboard = dashboard([client, replacement], kind: kind)
+        let first = ComposerAttachment(data: Data([1]), mediaType: "image/png")
+        let next = ComposerAttachment(data: Data([2]), mediaType: "image/png")
+        let id = try await dashboard.launchNewChat(request(dashboard, kind: kind))
+        let vm = try #require(dashboard.sessionNode(id: id)?.appServer)
+        // 添付を送れるモデル設定に依存せず、実送信した添付の復元は SessionFeature で検証する。
+        vm.restoreLaunchDraft("next [Image #1]", attachments: [next])
+        if kind == .cursor {
+            client.continuation.yield(.error(message: "cursor-agent exited with code 1"))
+        } else {
+            client.continuation.yield(.processExited(exitCode: 1))
+        }
+        try await waitUntil { vm.launchFailure != nil }
+        #expect(vm.draft == "first message\n\nnext [Image #1]")
+        #expect(vm.composerAttachments == [next])
+        #expect(vm.processExit == nil)
+        #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
+        vm.restoreLaunchDraft(vm.draft, attachments: [first, next])
+        let newID = try await dashboard.restartNewChat(id)
+        let restarted = try #require(dashboard.sessionNode(id: newID)?.appServer)
+        #expect(restarted.draft == "first message\n\nnext [Image #1]")
+        #expect(restarted.composerAttachments.map(\.id) == [first.id, next.id])
+        #expect(await replacement.inputs.isEmpty)
+        await dashboard.removeSession(newID)
+    }
+
+    @Test(arguments: [AgentKind.claudeCode, .codex, .cursor])
+    func firstTurnExitAfterResponseKeepsConversation(kind: AgentKind) async throws {
+        let client = LaunchClient()
+        let dashboard = dashboard([client], kind: kind)
+        let id = try await dashboard.launchNewChat(request(dashboard, kind: kind))
+        let vm = try #require(dashboard.sessionNode(id: id)?.appServer)
+        client.continuation.yield(.agentMessageDelta(itemId: "answer", "response"))
+        client.continuation.yield(.processExited(exitCode: 1))
+        try await waitUntil { vm.processExit != nil }
+        #expect(vm.launchFailure == nil)
+        #expect(vm.draft.isEmpty)
+        #expect(vm.transcript.contains { if case .userMessage = $0 { true } else { false } })
+        await dashboard.removeSession(id)
+    }
+
     @Test func restartTransfersLatestDraftAfterWaitingBeforeRowAppend() async throws {
         let failed = LaunchClient(failsStart: true)
         let replacement = LaunchClient()

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import AgentDomain
 
-/// SwiftUI のヘッダーをタイトルバーまで描く。空の NSToolbar は内容を覆うため付けない。
+/// SwiftUI の標準ツールバーをコンパクトなタイトルバーにする。
 struct WindowChromeConfigurator: NSViewRepresentable {
     @Environment(\.locale) private var locale
     var files: FileTabDocuments? = nil

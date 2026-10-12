@@ -18,35 +18,22 @@ enum ToolbarDensity: Equatable {
         return .minimal
     }
 }
-/// 中央と右インスペクタの上に渡る 38pt のツールバー。単体とグリッドで並びを変えない。
-/// 左: （サイドバーを隠しているとき）信号の右にサイドバー開閉。右: 表示モード・インスペクタ。
-struct DashboardToolbar: View {
+/// 信号と同じ標準タイトルバーに置く操作。縦位置はシステムが揃える。
+struct DashboardToolbar: ToolbarContent {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
-    /// サイドバーが見えていないとき、信号の右にサイドバー開閉を出す。
-    let showsSidebarToggle: Bool
-
-    /// 信号（閉じる・しまう・拡大）が占める幅。
-    private static let trafficLightsWidth: CGFloat = 70
-
-    var body: some View {
-        HStack(spacing: DSSpacing.s) {
-            if showsSidebarToggle {
-                Color.clear.frame(width: Self.trafficLightsWidth, height: 1)
+    var body: some ToolbarContent {
+        // サイドバーを隠しているときだけ出す（project-tabs.md P6）。
+        if !(router.sidebarVisible && !router.sidebarLacksRoom) {
+            ToolbarItem(placement: .navigation) {
                 SidebarToggleButton(router: router, attentionCount: viewModel.attentionEntries.count)
             }
-            Spacer(minLength: DSSpacing.s)
+        }
+        ToolbarItem(placement: .automatic) { Spacer() }
+        ToolbarItemGroup(placement: .primaryAction) {
             ViewModeToggle(mode: $router.viewMode)
             inspectorToggleButton
         }
-        // PhloxWindow.dc.html: padding 0 10 0 14、gap 8。
-        .padding(.leading, 14)
-        .padding(.trailing, 10)
-        .frame(height: DSLayout.toolbarHeight)
-        .frame(maxWidth: .infinity)
-        .background(DSColor.toolbarBackground)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("ツールバー"))
     }
 
     private var inspectorToggleButton: some View {

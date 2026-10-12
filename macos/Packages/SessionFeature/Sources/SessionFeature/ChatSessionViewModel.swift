@@ -133,7 +133,8 @@ public final class ChatSessionViewModel: Identifiable {
     public var draft: String = ""
     public private(set) var launchFailure: ChatLaunchError?
     public private(set) var pendingFirstMessage: ChatItem?
-    private var firstTurnInput: (text: String, attachments: [ComposerAttachment])?
+    private var firstTurnInput: (text: String, attachments: [ComposerAttachment], itemID: String)?
+    private var awaitsNewChatFirstResponse = false
 
     public var composerAttachments: [ComposerAttachment] { attachmentStore.attachments }
 
@@ -150,6 +151,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func prepareFirstMessage(_ text: String, attachments: [ComposerAttachment]) {
+        awaitsNewChatFirstResponse = true
         guard !text.isEmpty || !attachments.isEmpty else { return }
         attachmentStore.restore(attachments)
         let item = ChatItem.userMessage(id: "pending-first-\(id.rawValue)", text: text, timestamp: Date(),
@@ -161,6 +163,24 @@ public final class ChatSessionViewModel: Identifiable {
     private func removePendingFirstMessage() {
         if let pendingFirstMessage { setTranscript(transcript.filter { $0.id != pendingFirstMessage.id }) }
         pendingFirstMessage = nil
+    }
+
+    private func failUnansweredNewChatTurn(_ error: ChatLaunchError) -> Bool {
+        guard awaitsNewChatFirstResponse else { return false }
+        awaitsNewChatFirstResponse = false
+        let text: String
+        if let firstTurnInput {
+            text = firstTurnInput.text
+            mergeFailedFirstTurnDraft(text, attachments: firstTurnInput.attachments)
+            setTranscript(transcript.filter { $0.id != firstTurnInput.itemID })
+        } else if case .userMessage(_, let pendingText, _, _) = pendingFirstMessage {
+            text = pendingText
+        } else {
+            text = ""
+        }
+        self.firstTurnInput = nil
+        markLaunchFailed(error, restoringDraft: text)
+        return true
     }
 
     public func markLaunchFailed(_ error: ChatLaunchError, restoringDraft text: String) {
@@ -1078,6 +1098,7 @@ public final class ChatSessionViewModel: Identifiable {
             } catch {
                 throw (error as? ChatLaunchError) ?? ChatLaunchError.processFailed(error.localizedDescription)
             }
+            if let launchFailure { throw launchFailure }
             status = .idle
             return
         }
@@ -1106,6 +1127,7 @@ public final class ChatSessionViewModel: Identifiable {
                 reportError(error)
             }
         }
+        if let launchFailure { throw launchFailure }
     }
 
     public func restore(
@@ -2037,7 +2059,7 @@ public final class ChatSessionViewModel: Identifiable {
             approvalTask = Task { @MainActor [weak self] in
                 for await approval in approvals {
                     // プロセスが終わった後に届いた分は答えられない（broker 側は否認で決着済み）。
-                    guard self?.processExit == nil else { continue }
+                    guard self?.processExit == nil, self?.launchFailure == nil else { continue }
                     self?.pendingApprovals.append(approval)
                     self?.enterAwaitingApproval(
                         prompt: approval.prompt,
@@ -2052,7 +2074,7 @@ public final class ChatSessionViewModel: Identifiable {
             userInputTask = Task { @MainActor [weak self] in
                 for await request in userInputRequests {
                     guard let self else { return }
-                    guard self.processExit == nil else { continue }
+                    guard self.processExit == nil, self.launchFailure == nil else { continue }
                     let requestId = request.id.uuidString
                     self.codexUserInputRequestIDs[requestId] = request.id
                     self.receiveUserQuestion(
@@ -2313,11 +2335,12 @@ public final class ChatSessionViewModel: Identifiable {
     private func handle(_ event: NormalizedChatEvent) async {
         switch event {
         case .agentMessageDelta(_, let text), .reasoningDelta(_, let text):
-            if !text.isEmpty { firstTurnInput = nil }
+            if !text.isEmpty { firstTurnInput = nil; awaitsNewChatFirstResponse = false }
         case .commandExecution, .fileChange, .userQuestionRequested, .subAgentStarted:
             firstTurnInput = nil
+            awaitsNewChatFirstResponse = false
         case .taskListUpdated(let tasks):
-            if !tasks.isEmpty { firstTurnInput = nil }
+            if !tasks.isEmpty { firstTurnInput = nil; awaitsNewChatFirstResponse = false }
         default: break
         }
         let rawEvent = String(describing: event)
@@ -2371,6 +2394,7 @@ public final class ChatSessionViewModel: Identifiable {
             )
         case .turnCompleted(let nativeSessionId):
             firstTurnInput = nil
+            awaitsNewChatFirstResponse = false
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
@@ -2392,6 +2416,7 @@ public final class ChatSessionViewModel: Identifiable {
             midTurnPersistenceGate.noteExternalFlush()
         case .turnInterrupted(let nativeSessionId):
             firstTurnInput = nil
+            awaitsNewChatFirstResponse = false
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
                 updateNativeSessionId(nativeSessionId)
             }
@@ -2407,6 +2432,7 @@ public final class ChatSessionViewModel: Identifiable {
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
         case .error(let message):
+            let launchFailed = failUnansweredNewChatTurn(.processFailed(message))
             if let firstTurnInput {
                 mergeFailedFirstTurnDraft(firstTurnInput.text, attachments: firstTurnInput.attachments)
                 self.firstTurnInput = nil
@@ -2419,7 +2445,9 @@ public final class ChatSessionViewModel: Identifiable {
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
             clearRunningTurn()
-            appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
+            if !launchFailed {
+                appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
+            }
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
             status = .error(message: message)
@@ -2429,8 +2457,11 @@ public final class ChatSessionViewModel: Identifiable {
             midTurnPersistenceGate.noteExternalFlush()
         case .processExited(let exitCode):
             guard processExit == nil else { break }
+            let launchFailed = failUnansweredNewChatTurn(.processFailed(
+                exitCode.map { "process exited (exit \($0))" } ?? "process exited"))
+                || launchFailure != nil
             // 先に立てる（下の await の間に届いた承認・質問を積まないように）。
-            processExit = ChatProcessExit(exitCode: exitCode)
+            if !launchFailed { processExit = ChatProcessExit(exitCode: exitCode) }
             // 承認を待っていたプロセスはもう無いので、答えられないカードを残さない（下の await の間も出さない）。
             pendingApprovals.removeAll()
             await expireAllPendingUserQuestions()
@@ -2441,6 +2472,12 @@ public final class ChatSessionViewModel: Identifiable {
             clearRunningTurn()
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
+            if launchFailed {
+                touchOutput()
+                flushTranscriptAtTurnBoundary()
+                midTurnPersistenceGate.noteExternalFlush()
+                break
+            }
             let isAfterError: Bool = if case .error = previousStatus { true } else { false }
             if let exitCode, exitCode != 0 {
                 // PTY と同じく 0 以外はエラー。実行中でなくても終了コードを添えて知らせる。
@@ -2716,8 +2753,10 @@ public final class ChatSessionViewModel: Identifiable {
                 switch chatItem {
                 case .userMessage, .error: break
                 case .agentMessage(_, let text, _), .reasoning(_, let text, _):
-                    if !text.isEmpty { firstTurnInput = nil }
-                default: firstTurnInput = nil
+                    if !text.isEmpty { firstTurnInput = nil; awaitsNewChatFirstResponse = false }
+                default:
+                    firstTurnInput = nil
+                    awaitsNewChatFirstResponse = false
                 }
                 appendOrReplace(chatItem)
                 adoptTitleFromThreadItem(item, chatItem: chatItem)
@@ -3819,9 +3858,7 @@ extension ChatSessionViewModel: ControllableSession {
             clearRunningTurn()
             pendingInput = ""
             let sentAttachments = attachmentStore.attachments
-            if !transcript.contains(where: { if case .userMessage = $0 { true } else { false } }) {
-                firstTurnInput = (input, sentAttachments)
-            }
+            let isFirstTurn = !transcript.contains(where: { if case .userMessage = $0 { true } else { false } })
             let userAttachments = sentAttachments.map {
                 ChatUserAttachment(filename: $0.filename, mediaType: $0.mediaType)
             }
@@ -3831,6 +3868,7 @@ extension ChatSessionViewModel: ControllableSession {
                 timestamp: Date(),
                 attachments: userAttachments
             )
+            if isFirstTurn { firstTurnInput = (input, sentAttachments, item.id) }
             // 表示・store には新規入力のみを記録する（プリアンブルは載せない）。
             appendOrReplace(item)
             localOriginalUserTextByID[item.id] = input

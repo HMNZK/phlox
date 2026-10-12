@@ -618,7 +618,6 @@ struct NewChatView: View {
             footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact)
         }
         .menuStyle(.borderlessButton)
-        .nativeMenuKeyboardActivation()
         .disabled(viewModel.projects.isEmpty)
         .accessibilityLabel(Text(verbatim: projectAccessibility.role))
         .accessibilityValue(Text(verbatim: projectAccessibility.value))
@@ -651,7 +650,6 @@ struct NewChatView: View {
                 : localized("既存ディレクトリ"), compact: isCompact)
         }
         .menuStyle(.borderlessButton)
-        .nativeMenuKeyboardActivation()
         .disabled(project == nil)
         .accessibilityLabel(Text(verbatim: workspaceAccessibility.role))
         .accessibilityValue(Text(verbatim: workspaceAccessibility.value))

@@ -65,27 +65,6 @@ final class UnifiedNewChatUITests: XCTestCase {
         )
     }
 
-    func testNativeWorkspaceMenuKeyboardSelectionDiagnostic() async throws {
-        let isolated = try await launchFixture()
-        let app = try isolated.application()
-        try requireExists(app.buttons["tabs.project.1"].firstMatch, "プロジェクトなし")
-        app.buttons["tabs.project.1"].firstMatch.click()
-        app.typeKey("n", modifierFlags: .command)
-        let workspace = app.descendants(matching: .any)["newChat.workspacePicker"]
-        try requireExists(workspace, "作業場所なし")
-        workspace.click()
-        try requireExists(app.menuItems["新しい worktree"].firstMatch, "標準メニューが開かない")
-        attachWorkspaceMenuState("mouse-opened", app: app)
-        app.typeKey(.downArrow, modifierFlags: [])
-        attachWorkspaceMenuState("mouse-down-1", app: app)
-        app.typeKey(.downArrow, modifierFlags: [])
-        attachWorkspaceMenuState("mouse-down-2", app: app)
-        app.typeKey(.return, modifierFlags: [])
-        let selected = NSPredicate { _, _ in workspace.value as? String == "新しい worktree" }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: nil)], timeout: 5), .completed)
-        XCTAssertEqual(workspace.value as? String, "新しい worktree")
-    }
-
     func testKeyboardNewChatAndProjectTabSwitching() async throws {
         let isolated = try await launchFixture()
         let app = try isolated.application()
@@ -382,21 +361,25 @@ final class UnifiedNewChatUITests: XCTestCase {
     }
 
     private func selectNewWorktreeUsingKeyboard(_ workspace: XCUIElement, app: XCUIApplication) throws {
-        // Menu の AXFocused は偽陰性になるため、実証済みのハーネス焦点から実際の順で移動する。
+        // XCUITest の Menu 焦点判定は偽陰性になる。焦点枠で確認したチップ順を使う。
         try focusUsingKeyboard(app.buttons["newChat.harnessModelPicker"], app: app)
         for _ in 0..<4 { app.typeKey(.tab, modifierFlags: []) }
         app.typeKey(.space, modifierFlags: [])
         let choice = app.menuItems["新しい worktree"].firstMatch
-        try requireExists(choice, "キーボードで作業場所のメニューを開けない")
+        try requireExists(choice, "Spaceで作業場所のメニューを開けない")
+        app.typeKey(.escape, modifierFlags: [])
+        try requireClosed(choice, "Escで作業場所のメニューを閉じられない")
+        app.typeKey(.return, modifierFlags: [])
+        try requireExists(choice, "Returnで作業場所のメニューを開けない")
+        attachWorkspaceSelection("return-opened", app: app)
         guard choice.isEnabled else {
             throw NSError(domain: "UnifiedNewChatUITests", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "初期コミットのあるGit fixtureで新しいworktreeを選べない"])
         }
-        attachWorkspaceMenuState("opened", app: app)
         app.typeKey(.downArrow, modifierFlags: [])
-        attachWorkspaceMenuState("down-1", app: app)
+        attachWorkspaceSelection("down-1", app: app)
         app.typeKey(.downArrow, modifierFlags: [])
-        attachWorkspaceMenuState("down-2-before-return", app: app)
+        attachWorkspaceSelection("down-2", app: app)
         app.typeKey(.return, modifierFlags: [])
         XCTAssertEqual(workspace.value as? String, "新しい worktree", "キーボードで作業場所を選べない")
         guard workspace.value as? String == "新しい worktree" else {
@@ -405,17 +388,11 @@ final class UnifiedNewChatUITests: XCTestCase {
         }
     }
 
-    private func attachWorkspaceMenuState(_ stage: String, app: XCUIApplication) {
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "workspace-menu-\(stage)"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
-        let current = app.menuItems["既存ディレクトリ"].firstMatch
-        let worktree = app.menuItems["新しい worktree"].firstMatch
-        let state = XCTAttachment(string: "\(current.debugDescription)\n\(worktree.debugDescription)\nexisting selected=\(current.isSelected) focus=\(current.value(forKey: "hasKeyboardFocus") ?? "nil")\nworktree selected=\(worktree.isSelected) focus=\(worktree.value(forKey: "hasKeyboardFocus") ?? "nil")")
-        state.name = "workspace-menu-\(stage)-AX"
-        state.lifetime = .keepAlways
-        add(state)
+    private func attachWorkspaceSelection(_ stage: String, app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "workspace-selection-\(stage)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func sidebarSession(named name: String, app: XCUIApplication) -> XCUIElement {

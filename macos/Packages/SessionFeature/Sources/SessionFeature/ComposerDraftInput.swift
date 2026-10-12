@@ -195,7 +195,6 @@ public struct ComposerSettingChip: View {
             ComposerChipLabel(title: title, isOpen: false, leadingSystemImage: leadingSystemImage)
         }
         .menuStyle(.borderlessButton)
-        .nativeMenuKeyboardActivation()
         .accessibilityLabel(Text(verbatim: title))
         .accessibilityValue(Text(verbatim: options.first(where: { $0.value == selection })?.title ?? ""))
         .accessibilityIdentifier(accessibilityIdentifier)

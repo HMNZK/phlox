@@ -1,96 +1,29 @@
-// 実装役の白箱テスト（task-1）。契約の正本は tasks/task-1.md。
-// 受け入れテスト(HeaderUsageVisibilityAcceptanceTests)がカバーしない内部分岐を補う。
-
 import AgentDomain
 import Foundation
 import Testing
 @testable import DashboardFeature
 
-@Suite("ヘッダー使用量 whitebox（task-1）")
+@Suite("下部使用量バー whitebox")
 struct HeaderUsageWhiteboxTests {
-    private static let now = Date(timeIntervalSince1970: 2_000_000)
+    private let now = Date(timeIntervalSince1970: 2_000_000)
 
-    // MARK: - UsageSettings
-
-    @Test func showInHeaderKeyは契約どおりの文字列() {
+    @Test func showInHeaderKeyは保存互換のため維持する() {
         #expect(UsageSettings.showInHeaderKey == "phlox.usage.showInHeader")
     }
 
-    // MARK: - topBarChips: staleNote（ADR 0099）
+    @Test func 空のバケットは表示グループを作らない() {
+        let usages = Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { kind in
+            (kind, CLIUsage(kind: kind, state: .ok([]), updatedAt: now))
+        })
 
-    @Test func Claudeの実データが新鮮なら注記を出さない() throws {
-        let usages: [AgentKind: CLIUsage] = [
-            .claudeCode: CLIUsage(
-                kind: .claudeCode,
-                state: .ok([UsageBucket(id: "weekly", label: "週次", usedPercent: 10)]),
-                updatedAt: Self.now,
-                dataAsOf: Self.now.addingTimeInterval(-60) // 1分前=新鮮
-            ),
-        ]
-
-        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: false, now: Self.now)
-
-        let claude = try #require(chips.first { $0.kind == .claudeCode })
-        #expect(claude.staleNote == nil)
+        #expect(UsageDisplay.bottomBarGroups(usages: usages).isEmpty)
     }
 
-    @Test func Claudeの実データが古いと注記を出す() throws {
-        let usages: [AgentKind: CLIUsage] = [
-            .claudeCode: CLIUsage(
-                kind: .claudeCode,
-                state: .ok([UsageBucket(id: "weekly", label: "週次", usedPercent: 10)]),
-                updatedAt: Self.now,
-                dataAsOf: Self.now.addingTimeInterval(-3600) // 1時間前=stale
-            ),
-        ]
-
-        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: false, now: Self.now)
-
-        let claude = try #require(chips.first { $0.kind == .claudeCode })
-        #expect(claude.staleNote == "1 時間前に取得 · 古い可能性")
-    }
-
-    @Test func ClaudeのdataAsOfが無いと実データでも注記を出さない() throws {
-        let usages: [AgentKind: CLIUsage] = [
-            .claudeCode: CLIUsage(
-                kind: .claudeCode,
-                state: .ok([UsageBucket(id: "weekly", label: "週次", usedPercent: 10)]),
-                updatedAt: Self.now,
-                dataAsOf: nil
-            ),
-        ]
-
-        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: false, now: Self.now)
-
-        let claude = try #require(chips.first { $0.kind == .claudeCode })
-        #expect(claude.staleNote == nil)
-    }
-
-    @Test func Claude以外の実データは常に注記を持たない() throws {
-        let usages: [AgentKind: CLIUsage] = [
-            .codex: CLIUsage(
-                kind: .codex,
-                state: .ok([UsageBucket(id: "5h", label: "5時間", usedPercent: 10)]),
-                updatedAt: Self.now,
-                dataAsOf: Self.now.addingTimeInterval(-3600)
-            ),
-        ]
-
-        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: false, now: Self.now)
-
-        let codex = try #require(chips.first { $0.kind == .codex })
-        #expect(codex.staleNote == nil)
-    }
-
-    // MARK: - topBarChips: 空バケットの除外
-
-    @Test func バケットが空ならokでもチップを作らない() {
-        let usages: [AgentKind: CLIUsage] = [
-            .cursor: CLIUsage(kind: .cursor, state: .ok([]), updatedAt: Self.now),
-        ]
-
-        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: true, now: Self.now)
-
-        #expect(chips.isEmpty)
+    @Test func 未取得の値は残量ゼロと区別する() throws {
+        let usage = CLIUsage(kind: .cursor, state: .unavailable(reason: "内部理由"), updatedAt: now)
+        let groups = UsageDisplay.bottomBarGroups(usages: [.cursor: usage])
+        let group = try #require(groups.first { $0.kind == .cursor })
+        #expect(group.buckets == nil)
+        #expect(UsageDisplay.bottomBarUnavailableText(locale: Locale(identifier: "ja")) == "取得できません")
     }
 }

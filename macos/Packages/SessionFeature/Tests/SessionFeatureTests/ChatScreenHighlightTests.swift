@@ -54,12 +54,12 @@ struct ChatScreenHighlightTests {
         #expect(run("true", in: text)?.inlinePresentationIntent == nil)
     }
 
-    @Test("コードの型は青・呼び出しはアクセント色・キーワードは太字")
+    @Test("コードの型は青・呼び出しは中立色・キーワードは太字")
     @MainActor
     func codeColorsTypesCallsAndBoldKeywords() {
         let text = ChatCodeHighlighter.computeHighlight("func expireOverdue(at now: Date) {}", language: "swift")
         #expect(run("Date", in: text)?.foregroundColor == DSColor.attentionInk(.question))
-        #expect(run("expireOverdue", in: text)?.foregroundColor == DSColor.accentInk)
+        #expect(run("expireOverdue", in: text)?.foregroundColor == DSColor.chatTextSecondary)
         #expect(run("func", in: text)?.inlinePresentationIntent == .stronglyEmphasized)
     }
 

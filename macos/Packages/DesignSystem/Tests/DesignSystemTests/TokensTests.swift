@@ -26,16 +26,13 @@ import Testing
 
 @Suite(.serialized) struct DSColorThemeTokenTests {
     @Test @MainActor
-    func accentAndChatAccentUseClaudeCoral() {
+    func accentAndChatAccentUseIndigo() {
         withStandardTheme(AppTheme.phlox.id) {
-            let coral = RGB(0xD9, 0x77, 0x57).color
-            // 再設計: UI の accent はダークで #E08865（12 Design System）。会話の accent も同じ値に揃える（2026-09-24 監査）。
-            #expect(DSColor.accent == RGB(0xE0, 0x88, 0x65).color)
+            #expect(DSColor.accent == RGB(0x95, 0x9C, 0xD0).color)
             #expect(DSColor.chatAccent == DSColor.accent)
-            #expect(DSColor.accent != coral)
         }
         withStandardTheme(AppTheme.phloxLight.id) {
-            #expect(DSColor.accent == RGB(0xD9, 0x77, 0x57).color)
+            #expect(DSColor.accent == RGB(0x3B, 0x46, 0x9B).color)
             #expect(DSColor.diffAdded == RGB(0x1F, 0x7A, 0x3A).color)
         }
     }
@@ -78,14 +75,6 @@ import Testing
         withStandardTheme(AppTheme.githubLight.id) {
             #expect(DSColor.codeSyntaxString == RGB(0xC4, 0x1A, 0x16).color)
         }
-    }
-
-    @Test @MainActor
-    func agentSessionIconDoesNotShowRunningIndicator() {
-        let descriptor = AgentRegistry.descriptor(for: .claudeCode)
-        #expect(!AgentSessionIcon(descriptor: descriptor, status: .running, size: 24).showsRunningIndicator)
-        #expect(!AgentSessionIcon(descriptor: descriptor, status: .idle, size: 24).showsRunningIndicator)
-        #expect(!AgentSessionIcon(descriptor: descriptor, status: .completed(exitCode: 0), size: 24).showsRunningIndicator)
     }
 
     private func withStandardTheme(_ id: String, perform body: () -> Void) {

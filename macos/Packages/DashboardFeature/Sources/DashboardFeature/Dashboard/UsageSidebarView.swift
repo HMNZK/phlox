@@ -265,6 +265,7 @@ struct UsageCLICard: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 7) {
                 AgentBrandIcon(kind: kind, size: 14)
+                    .foregroundStyle(DSColor.textSecondary)
                 Text(verbatim: kind.displayName)
                     .font(DSFont.row.weight(.semibold))
                     .foregroundStyle(DSColor.textPrimary)

@@ -1,4 +1,4 @@
-// セッション行の強調: 未確認完了・質問待ちはオレンジ、選択はグレー。
+// セッション行の強調: 未読は文字色と太さ、質問待ちは注意色、選択はグレー。
 
 import DesignSystem
 import SwiftUI
@@ -16,12 +16,12 @@ struct AcceptanceSidebarRowEmphasisTests {
         #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: true, isHovering: true)).fill == DSColor.fillSelected)
     }
 
-    @Test("選択はグレー、未確認完了と質問待ちは選択より優先してオレンジ")
+    @Test("選択はグレー、質問待ちは注意色、未読はアクセント面を使わない")
     func sessionFillPriority() {
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: false, state: .idle)).fill == DSColor.fillSelected)
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: true, state: .idle)).fill == DSColor.fillSelected)
-        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .doneUnread)).fill == DSColor.selectionFill)
-        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: true, state: .question)).fill == DSColor.selectionFill)
+        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .doneUnread)).fill == Color.clear)
+        #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: true, state: .question)).fill == DSColor.attentionTint(.question))
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .done)).fill == Color.clear)
     }
 
@@ -29,6 +29,14 @@ struct AcceptanceSidebarRowEmphasisTests {
     func unreadCompletionIsBold() {
         let unread = SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .doneUnread))
         #expect(unread.nameWeight == .semibold)
+    }
+
+    @Test("未読の題名は主文字色、既読は副文字色で示す")
+    func unreadTitleUsesTextColor() {
+        let unread = SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .doneUnread))
+        let read = SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: false, state: .done))
+        #expect(unread.nameColor == DSColor.textPrimary)
+        #expect(read.nameColor == DSColor.textSecondary)
     }
 
     @Test("選択しただけのセッション行は太字にしない（太字は未読に割り当てた）")

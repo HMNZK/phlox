@@ -12,6 +12,19 @@ final class ViewModeAccessibilityTests: XCTestCase {
                              names: ["Single (⌃⌘1)", "Grid (⌃⌘2)"], selectedValue: "Selected")
     }
 
+    func testSessionMenuKeepsNextAttentionAndRemovesAttentionList() async throws {
+        let isolated = try await IsolatedPhloxApplication.launch(
+            in: self, arguments: ["-AppleLanguages", "(ja)", "-AppleLocale", "ja", "-phlox.appLanguage", "ja"]
+        )
+        let app = try isolated.application()
+        let sessionMenu = app.menuBars.menuBarItems["セッション"]
+        XCTAssertTrue(sessionMenu.waitForExistence(timeout: 15))
+        sessionMenu.click()
+
+        XCTAssertTrue(app.menuItems["次の対応待ちへ"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.menuItems["対応待ちの一覧"].exists)
+    }
+
     private func checkModes(language: String, heading: String, names: [String], selectedValue: String) async throws {
         let isolated = try await IsolatedPhloxApplication.launch(
             in: self, arguments: ["-AppleLanguages", "(\(language))", "-AppleLocale", language,

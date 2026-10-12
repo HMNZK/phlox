@@ -256,7 +256,7 @@ struct NewChatView: View {
     private var harnessModelPicker: some View {
         Button { modelPickerPresented = true } label: {
             HStack(spacing: 6) {
-                if let selectedKind { AgentBrandIcon(kind: selectedKind, size: 14, monochromeBuiltInMark: true) }
+                if let selectedKind { AgentBrandIcon(kind: selectedKind, size: 14) }
                 Text(verbatim: selectedModelTitle)
                     .font(DSFont.auxiliary.weight(.medium))
                     .lineLimit(1)
@@ -307,7 +307,7 @@ struct NewChatView: View {
                         }
                     } header: {
                         HStack(spacing: 6) {
-                            AgentBrandIcon(kind: section.kind, size: 13, monochromeBuiltInMark: true)
+                            AgentBrandIcon(kind: section.kind, size: 13)
                             Text(verbatim: section.name)
                         }
                     }
@@ -685,7 +685,7 @@ struct NewChatView: View {
     }
 }
 
-private enum NewChatGreetings {
+enum NewChatGreetings {
     static let all = [
         "何から始めますか？", "今日は何を進めますか？", "さあ、始めましょう", "次は何を作りますか？",
         "どこから手をつけますか？", "アイデアを形にしましょう", "今日の課題を教えてください",

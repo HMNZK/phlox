@@ -75,8 +75,6 @@ public final class AppRouter {
     public var sidebarLacksRoom = false
     /// 自動で隠れたサイドバーを中央の上に一時的に重ねて出しているか（⌃⌘S）。
     public var sidebarPeeking = false
-    /// ツールバーの「対応待ち」一覧を開いているか（⌥⌘J）。
-    public var attentionListPresented = false
     /// メニューの「プロジェクトを追加…」（⌘O）が押された。フォルダ選択を持つ DashboardView が受けて false に戻す。
     public var addProjectRequested = false
     /// 新規チャット画面へのフォーカス要求。

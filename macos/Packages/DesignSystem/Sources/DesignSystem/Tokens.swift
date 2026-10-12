@@ -219,22 +219,11 @@ public enum DSColor {
     public static var textSecondary: Color { theme.textSecondary.color }
     public static var textTertiary: Color { theme.textTertiary.color }
 
-    /// フォーカス輪・未読の点・選択の accent（再設計: ダークでは #E08865）。ブランドのコーラルは `AppTheme.accent`。
+    /// 主操作・選択・フォーカス・リンクに使う藍色のアクセント。
     public static var accent: Color { theme.palette.accent.color }
 
     public static var statusStarting: Color { theme.statusStarting.color }
     public static var statusIdle: Color { theme.statusIdle.color }
-
-    // 未確認完了=「あなたの番」。テーマの attention 色を不透明度違いで使い回す。
-    private static var attention: Color { theme.attention.color }
-    /// サイドバーで未確認完了セッション行の背景面。
-    public static var idleHighlight: Color { attention.opacity(AppTheme.sidebarAttentionOpacity) }
-    /// 未確認完了行の左端アクセントバー（行コンテンツに直接描画）。
-    public static var idleHighlightBar: Color { attention.opacity(0.95) }
-    /// グリッドビューで未確認完了カードの背景面。
-    public static var idleHighlightGrid: Color { attention.opacity(0.18) }
-    /// グリッドビューで未確認完了カードの枠線。
-    public static var idleHighlightGridBorder: Color { attention.opacity(0.95) }
 
     // 未確認の「停止＝要対応」（完了/承認待ち/エラー等でユーザーの番になったセッション）。
     // 完了(attention=黄系)より強い注意喚起として、テーマの error 色（赤系）で描く。
@@ -292,13 +281,13 @@ public enum DSColor {
     public static var accentFill: Color { palette.accentFill.color }
     /// accent の文字（リンク・選択中タブ）。
     public static var accentInk: Color { palette.accentInk.color }
-    /// 選択中の行（`rgba(217,119,87,.17)` / `.24`。ダークでも輪の色ではなくブランドのコーラルを基にする）。
-    public static var selectionFill: Color { RGB(0xD9, 0x77, 0x57).color.opacity(palette.selectionOpacity) }
-    /// 選択した文字・フォーカスの輪（`--selText`: ライト coral 0.25 / ダーク #E08865 0.30）。
-    public static var focusRing: Color { accent.opacity(isDark ? 0.30 : 0.25) }
-    /// 行の中の名前変更で選んだ文字の面（PhloxSidebar の `--selText`: rgba(217,119,87,.30) / .40）。
+    /// 選択中の行。
+    public static var selectionFill: Color { palette.accent.color.opacity(palette.selectionOpacity) }
+    /// フォーカスの輪はアクセント色を不透明で使う。
+    public static var focusRing: Color { palette.accent.color }
+    /// 行の中の名前変更で選んだ文字の面。
     public static var textSelection: Color { textSelection(isDark: isDark) }
-    static func textSelection(isDark: Bool) -> Color { RGB(0xD9, 0x77, 0x57).color.opacity(isDark ? 0.40 : 0.30) }
+    static func textSelection(isDark: Bool) -> Color { palette.accent.color.opacity(isDark ? 0.40 : 0.30) }
     /// ツリーの縦の案内線（`--guide`: 黒 0.13 / 白 0.14）。
     public static var guide: Color { theme.textPrimary.color.opacity(isDark ? 0.14 : 0.13) }
     /// 無彩色の状態記号（待機・実行中・完了の輪。`--neutralGlyph`: #6E6E73 / #A1A1A7）。
@@ -358,34 +347,4 @@ public enum DSColor {
         return c.mark.color.opacity(c.tintOpacity)
     }
 
-    /// エージェント頭文字の淡い面（不透明度 30%）。行とタイル見出しでは使わない。
-    public static func agentInitialFill(for descriptor: AgentDescriptor) -> Color {
-        let rgb: RGB
-        switch descriptor.ref.builtinKind {
-        case .claudeCode: rgb = RGB(0xD4, 0x93, 0x75)   // oklch(0.72 0.09 45)
-        case .codex: rgb = RGB(0x7A, 0xB3, 0x9A)        // oklch(0.72 0.07 165)
-        case .cursor: rgb = RGB(0x8B, 0xA6, 0xD1)       // oklch(0.72 0.07 260)
-        }
-        return rgb.color.opacity(0.30)
-    }
-
-    public static func agentColor(for kind: AgentKind) -> Color {
-        (theme.agentColors[kind] ?? RGB(AgentRegistry.descriptor(for: kind).colorRGB)).color
-    }
-
-    public static func agentColor(for descriptor: AgentDescriptor) -> Color {
-        agentColor(for: descriptor.ref.builtinKind)
-    }
-}
-
-public extension AgentDescriptor {
-    /// 種類を見分ける短い記号（Cl / Cx / Cu）。組み込み以外は表示名の先頭 2 文字。
-    /// タブ・会話の字下げ列の印で共通に使う。
-    var tabInitials: String {
-        switch ref.builtinKind {
-        case .claudeCode: "Cl"
-        case .codex: "Cx"
-        case .cursor: "Cu"
-        }
-    }
 }

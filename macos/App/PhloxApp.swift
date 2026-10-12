@@ -965,12 +965,6 @@ private struct SessionCommands: Commands {
             .keyboardShortcut("j", modifiers: .command)
             .disabled(!(dashboard?.hasAttention ?? false))
 
-            Button("対応待ちの一覧") {
-                router?.attentionListPresented = true
-            }
-            .keyboardShortcut("j", modifiers: [.command, .option])
-            .disabled(!(dashboard?.hasAttention ?? false))
-
             Button("次のセッション") { selectAdjacentSession(forward: true) }
                 .keyboardShortcut(.downArrow, modifiers: [.command, .option])
                 .disabled(dashboard == nil)
@@ -1155,7 +1149,7 @@ private struct InitLoadingView: View {
     }
 }
 
-/// 11 I1: 幅 240・高さ 4 の進み具合の帯。段階の件数は取れないので、accent の帯が行き来する（動きを減らす設定では止める）。
+/// 11 I1: 幅 240・高さ 4 の進み具合の帯。段階の件数は取れないので、中立色の帯が行き来する（動きを減らす設定では止める）。
 private struct StartupProgressBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var atEnd = false
@@ -1165,7 +1159,7 @@ private struct StartupProgressBar: View {
             .fill(DSColor.textPrimary.opacity(DSColor.isDark ? 0.10 : 0.08))
             .overlay(alignment: atEnd ? .trailing : .leading) {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(DSColor.accentFill)
+                    .fill(DSColor.textSecondary)
                     .frame(width: 96)
             }
             .clipShape(RoundedRectangle(cornerRadius: 2))

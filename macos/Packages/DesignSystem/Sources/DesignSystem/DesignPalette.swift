@@ -45,14 +45,15 @@ public struct DesignPalette: Sendable, Equatable {
 }
 
 extension DesignPalette {
-    static let accentFillColor = RGB(0xB4, 0x55, 0x2F)
+    static let accentColor = RGB(0x3B, 0x46, 0x9B)
+    static let darkAccentInk = RGB(0x95, 0x9C, 0xD0)
 
     /// Phlox Light の確定値。
     static let phloxLight = DesignPalette(
         window: RGB(0xFF, 0xFF, 0xFF), sidebar: RGB(0xF2, 0xF2, 0xF4), toolbar: RGB(0xF6, 0xF6, 0xF7),
         panel: RGB(0xF8, 0xF8, 0xF9), card: RGB(0xFF, 0xFF, 0xFF), code: RGB(0xF3, 0xF3, 0xF5),
         field: RGB(0xFF, 0xFF, 0xFF), popover: RGB(0xFF, 0xFF, 0xFF), tabBar: RGB(0xEC, 0xEC, 0xEF),
-        accent: RGB(0xD9, 0x77, 0x57), accentFill: accentFillColor, accentInk: RGB(0xA9, 0x4A, 0x28),
+        accent: accentColor, accentFill: accentColor, accentInk: accentColor,
         selectionOpacity: 0.17,
         approval: AttentionColors(mark: RGB(0xE3, 0x9A, 0x2D), ink: RGB(0x8A, 0x53, 0x00), tintOpacity: 0.12),
         question: AttentionColors(mark: RGB(0x3A, 0x7B, 0xDF), ink: RGB(0x1E, 0x5B, 0xB8), tintOpacity: 0.10),
@@ -66,7 +67,7 @@ extension DesignPalette {
         window: RGB(0x1E, 0x1E, 0x20), sidebar: RGB(0x26, 0x26, 0x29), toolbar: RGB(0x2A, 0x2A, 0x2D),
         panel: RGB(0x24, 0x24, 0x27), card: RGB(0x27, 0x27, 0x2A), code: RGB(0x2B, 0x2B, 0x2F),
         field: RGB(0x1A, 0x1A, 0x1C), popover: RGB(0x2F, 0x2F, 0x33), tabBar: RGB(0x23, 0x23, 0x26),
-        accent: RGB(0xE0, 0x88, 0x65), accentFill: accentFillColor, accentInk: RGB(0xF0, 0xA3, 0x83),
+        accent: darkAccentInk, accentFill: accentColor, accentInk: darkAccentInk,
         selectionOpacity: 0.24,
         approval: AttentionColors(mark: RGB(0xF0, 0xAE, 0x4A), ink: RGB(0xF4, 0xBD, 0x68), tintOpacity: 0.14),
         question: AttentionColors(mark: RGB(0x5D, 0x98, 0xF0), ink: RGB(0x8D, 0xB6, 0xF7), tintOpacity: 0.13),
@@ -99,8 +100,8 @@ extension DesignPalette {
             window: background, sidebar: shifted(reference.sidebar), toolbar: shifted(reference.toolbar),
             panel: shifted(reference.panel), card: shifted(reference.card), code: shifted(reference.code),
             field: shifted(reference.field), popover: shifted(reference.popover), tabBar: shifted(reference.tabBar),
-            accent: reference.accent, accentFill: accentFillColor,
-            accentInk: reaching(minimumTextContrast, from: reference.accent, toward: textPrimary, on: faces),
+            accent: reference.accent, accentFill: accentColor,
+            accentInk: reaching(minimumTextContrast, from: reference.accentInk, toward: textPrimary, on: faces),
             selectionOpacity: reference.selectionOpacity,
             approval: attention(ansi[3], like: reference.approval),
             question: attention(ansi[4], like: reference.question),

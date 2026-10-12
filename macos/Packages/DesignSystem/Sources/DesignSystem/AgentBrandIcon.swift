@@ -4,16 +4,14 @@ import AgentDomain
 public struct AgentBrandIcon: View {
     public let descriptor: AgentDescriptor
     public let size: CGFloat
-    private let monochromeBuiltInMark: Bool
 
-    public init(descriptor: AgentDescriptor, size: CGFloat, monochromeBuiltInMark: Bool = false) {
+    public init(descriptor: AgentDescriptor, size: CGFloat) {
         self.descriptor = descriptor
         self.size = size
-        self.monochromeBuiltInMark = monochromeBuiltInMark
     }
 
-    public init(kind: AgentKind, size: CGFloat, monochromeBuiltInMark: Bool = false) {
-        self.init(descriptor: AgentRegistry.descriptor(for: kind), size: size, monochromeBuiltInMark: monochromeBuiltInMark)
+    public init(kind: AgentKind, size: CGFloat) {
+        self.init(descriptor: AgentRegistry.descriptor(for: kind), size: size)
     }
 
     public nonisolated static var assetBundle: Bundle { .module }
@@ -40,18 +38,16 @@ public struct AgentBrandIcon: View {
     @ViewBuilder
     private func brandImage(named name: String, kind: AgentKind) -> some View {
         let base = Image(name, bundle: Self.assetBundle)
-        let usesTemplate = kind == .codex || (kind == .claudeCode && monochromeBuiltInMark)
-        let image = usesTemplate ? base.renderingMode(.template) : base
-        if usesTemplate {
-            image
+        if kind == .cursor {
+            base
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(DSColor.textPrimary)
         } else {
-            image
+            base
+                .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
+                .foregroundStyle(DSColor.textSecondary)
         }
     }
-
 }

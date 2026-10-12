@@ -191,7 +191,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var appearanceForm: some View {
-        SettingsGroupBox("テーマ", footer: Text("アクセントの色（コーラル）はすべてのテーマで共通。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。")) {
+        SettingsGroupBox("テーマ", footer: Text("アクセントの色（藍色）はすべてのテーマで共通。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。")) {
             SettingsRow {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
                     ForEach(ThemeStore.all) { theme in
@@ -447,7 +447,7 @@ struct SettingsView: View {
             SettingsDivider()
             SettingsRow {
                 Toggle(isOn: $showUsageInHeader) {
-                    SettingsLabel(title: Text("上部バーに使用量を表示する"), detail: Text("インスペクタの開閉とは関係なく表示する"))
+                    SettingsLabel(title: Text("画面下部に使用量を表示する"), detail: Text("インスペクタの開閉とは関係なく表示する"))
                 }
             }
         }
@@ -695,7 +695,7 @@ struct SettingsView: View {
         }
     }
 
-    /// テーマの見本タイル（10 Settings T2: 5 列。高さ 54・角丸 7、左 28% がサイドバー、右に 2 本の文字と accent の帯）。
+    /// テーマの見本タイル（10 Settings T2: 5 列。高さ 54・角丸 7、左 28% がサイドバー、右に 2 本の文字と中立色の帯）。
     private struct ThemeTile: View {
         let theme: AppTheme
         let isSelected: Bool
@@ -715,7 +715,7 @@ struct SettingsView: View {
                                 let body = proxy.size.width * 0.72 - 10
                                 RoundedRectangle(cornerRadius: 2).fill(ink.opacity(isDarkTheme ? 0.7 : 0.65)).frame(width: body * 0.7, height: 4)
                                 RoundedRectangle(cornerRadius: 2).fill(ink.opacity(isDarkTheme ? 0.35 : 0.3)).frame(width: body * 0.5, height: 4)
-                                RoundedRectangle(cornerRadius: 2).fill(RGB(0xD9, 0x77, 0x57).color).frame(width: body * 0.34, height: 6)
+                                RoundedRectangle(cornerRadius: 2).fill(DSColor.separator).frame(width: body * 0.34, height: 6)
                                     .padding(.top, 2)
                             }
                             .padding(.vertical, 6)

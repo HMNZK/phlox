@@ -239,7 +239,7 @@ struct CommandGroupCell: View, Equatable {
                                 rowLimit += CommandGroupRowWindow.expandStep
                             }
                             .buttonStyle(.plain)
-                            .foregroundStyle(DSColor.accentInk)
+                            .foregroundStyle(DSColor.textSecondary)
                             .font(.system(size: 11.5))
                             .padding(.leading, 28)
                             .frame(height: 24)

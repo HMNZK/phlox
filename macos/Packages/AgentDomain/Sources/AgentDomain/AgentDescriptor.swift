@@ -1,18 +1,5 @@
 import Foundation
 
-/// DesignSystem に依存せず CLI 識別色を共有するための RGB 生値。
-public struct AgentRGB: Sendable, Equatable {
-    public let r: Int
-    public let g: Int
-    public let b: Int
-
-    public init(_ r: Int, _ g: Int, _ b: Int) {
-        self.r = r
-        self.g = g
-        self.b = b
-    }
-}
-
 /// セッション起動前に CWD へ設置する hook 設定ファイルの種類。
 public enum AgentHookKind: Sendable, Equatable {
     case none
@@ -100,7 +87,6 @@ public struct AgentDescriptor: Sendable, Equatable {
     public let displayName: String
     public let binaryName: String
     public let symbolName: String
-    public let colorRGB: AgentRGB
     public let bypassKey: String
     public let usageProviderKind: AgentUsageProviderKind
     public let launchSpec: AgentLaunchSpec
@@ -115,7 +101,6 @@ public struct AgentDescriptor: Sendable, Equatable {
         displayName: String,
         binaryName: String,
         symbolName: String,
-        colorRGB: AgentRGB,
         bypassKey: String,
         usageProviderKind: AgentUsageProviderKind,
         launchSpec: AgentLaunchSpec,
@@ -125,7 +110,6 @@ public struct AgentDescriptor: Sendable, Equatable {
         self.displayName = displayName
         self.binaryName = binaryName
         self.symbolName = symbolName
-        self.colorRGB = colorRGB
         self.bypassKey = bypassKey
         self.usageProviderKind = usageProviderKind
         self.launchSpec = launchSpec
@@ -137,7 +121,6 @@ public struct AgentDescriptor: Sendable, Equatable {
         displayName: String,
         binaryName: String,
         symbolName: String,
-        colorRGB: AgentRGB,
         bypassKey: String,
         usageProviderKind: AgentUsageProviderKind = .none,
         launchSpec: AgentLaunchSpec,
@@ -147,7 +130,6 @@ public struct AgentDescriptor: Sendable, Equatable {
         self.displayName = displayName
         self.binaryName = binaryName
         self.symbolName = symbolName
-        self.colorRGB = colorRGB
         self.bypassKey = bypassKey
         self.usageProviderKind = usageProviderKind
         self.launchSpec = launchSpec
@@ -168,7 +150,6 @@ public enum AgentRegistry {
             displayName: "Claude Code",
             binaryName: "claude",
             symbolName: "sparkles",
-            colorRGB: AgentRGB(0xE0, 0xAF, 0x68),
             bypassKey: "phlox.bypass.claudeCode",
             usageProviderKind: .claudeRateLimits,
             launchSpec: AgentLaunchSpec(
@@ -186,7 +167,6 @@ public enum AgentRegistry {
             displayName: "Codex",
             binaryName: "codex",
             symbolName: "chevron.left.forwardslash.chevron.right",
-            colorRGB: AgentRGB(0x7C, 0x8C, 0xFF),
             bypassKey: "phlox.bypass.codex",
             usageProviderKind: .codex,
             launchSpec: AgentLaunchSpec(
@@ -203,7 +183,6 @@ public enum AgentRegistry {
             displayName: "Cursor",
             binaryName: "cursor-agent",
             symbolName: "cursorarrow.rays",
-            colorRGB: AgentRGB(0xB9, 0xB3, 0xD0),
             bypassKey: "phlox.bypass.cursor",
             usageProviderKind: .cursor,
             launchSpec: AgentLaunchSpec(

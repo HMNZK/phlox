@@ -11,7 +11,7 @@ struct AttentionEntry: Equatable {
     let since: Date?
 }
 
-/// ツールバーの「対応待ち」一覧（⌥⌘J）と「次の対応待ちへ」（⌘J）の並び。
+/// 「次の対応待ちへ」（⌘J）と Dock バッジが共有する対応待ちの順序。
 enum AttentionQueue {
     /// 対応待ちだけを待ち時間の長い順（起点の古い順）に並べる。起点の無いものは末尾、同順位は入力順。
     static func ordered(_ candidates: [(id: SessionID, state: SessionDisplayState, since: Date?)]) -> [AttentionEntry] {
@@ -31,7 +31,7 @@ enum AttentionQueue {
             .map(\.1)
     }
 
-    /// ⌘J の行き先。一覧と同じ順で、今のセッションの次（末尾なら先頭へ戻る）。今のセッションが一覧に無ければ先頭。
+    /// ⌘J の行き先。今のセッションの次（末尾なら先頭へ戻る）。今のセッションが対象外なら先頭。
     static func next(after current: SessionID?, in entries: [AttentionEntry]) -> SessionID? {
         guard !entries.isEmpty else { return nil }
         guard let current, let index = entries.firstIndex(where: { $0.id == current }) else {

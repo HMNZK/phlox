@@ -39,10 +39,10 @@ struct DialogRedesignTests {
         #expect(SessionDeletionDialogText.message(locale: ja).hasSuffix("元に戻せません。"))
         #expect(SessionDeletionDialogText.note(dirtyFiles: [], locale: ja) == "プロジェクトのフォルダとファイルは削除されません。")
 
-        let children = (1...8).map { (name: "子\($0)", meta: "Cx · 実行中") }
+        let children = (1...8).map { (name: "子\($0)", meta: "実行中") }
         let rows = SessionDeletionDialogText.rows(children: children, locale: ja)
         #expect(rows.count == SessionDeletionDialogText.listLimit + 1)
-        #expect(rows.first == DSDialogList.Row(id: 0, title: "子1", meta: "Cx · 実行中"))
+        #expect(rows.first == DSDialogList.Row(id: 0, title: "子1", meta: "実行中"))
         #expect(rows[SessionDeletionDialogText.listLimit - 1].title == "子\(SessionDeletionDialogText.listLimit)")
         #expect(rows.last?.title == "ほか \(children.count - SessionDeletionDialogText.listLimit) 件")
         #expect(SessionDeletionDialogText.rows(children: [], locale: ja).isEmpty)

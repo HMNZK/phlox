@@ -180,11 +180,11 @@ struct CodexPluginsPane: View {
     private func pluginIcon(isActive: Bool, symbolName: String) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .fill(isActive ? DSColor.accent.opacity(0.18) : DSColor.fillSubtle)
+                .fill(DSColor.fillSubtle)
                 .frame(width: 32, height: 32)
             Image(systemName: symbolName)
                 .font(.system(size: DSIconSize.l, weight: .semibold))
-                .foregroundStyle(isActive ? DSColor.accent : DSColor.textTertiary)
+                .foregroundStyle(DSColor.textSecondary)
         }
     }
 

@@ -124,7 +124,7 @@ struct SidebarProjectRow<Menu: View>: View {
         }
         if showsScopeMark {
             GridScopeShape()
-                .stroke(DSColor.accentInk, lineWidth: 1.4)
+                .stroke(DSColor.textSecondary, lineWidth: 1.4)
                 .frame(width: 12, height: 11)
                 .help(Text("グリッドの表示範囲"))
                 .accessibilityLabel(Text("グリッドの表示範囲"))
@@ -218,7 +218,7 @@ struct SidebarSessionRow<Menu: View>: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if hasChildren, !isExpanded {
-                    // 「+2 ▲」: 件数と、子の中の対応待ち・未読を記号だけで（PhloxSidebar.dc.html:133）。
+                    // 子の件数と、子の中の対応待ち・未読を文字で示す。
                     HStack(spacing: 3) {
                         Text(verbatim: "+\(childCount)")
                         SidebarSummaryText(summary: descendantSummary, showsCounts: false)
@@ -229,6 +229,12 @@ struct SidebarSessionRow<Menu: View>: View {
                     .frame(height: 15)
                     .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 8))
                 }
+                Text(verbatim: statusText)
+                    .font(DSFont.meta)
+                    .monospacedDigit()
+                    .foregroundStyle(state.attentionKind.map(DSColor.attentionInk) ?? DSColor.textSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
                 if isHovering {
                     SwiftUI.Menu(content: menu) {
                         SidebarRowIcon(text: "⋯", isPrimary: false)
@@ -296,7 +302,7 @@ struct SidebarSessionRow<Menu: View>: View {
                     )
                 }
             } else {
-                titleText.foregroundStyle(DSColor.textPrimary)
+                titleText.foregroundStyle(emphasis.nameColor)
             }
         }
         .contentShape(Rectangle())
@@ -305,6 +311,12 @@ struct SidebarSessionRow<Menu: View>: View {
     private var titleText: some View {
         Text(verbatim: node.displayName)
             .font(DSFont.row.weight(emphasis.nameWeight))
+    }
+
+    private var statusText: String {
+        state == .idle
+            ? SidebarRelativeTime.label(from: node.startedAt, to: max(labelClock, Date()), locale: locale)
+            : state.localizedLabel(locale: locale)
     }
 
     private func titleGradientStops(at date: Date) -> [Gradient.Stop] {
@@ -545,7 +557,7 @@ struct SidebarGuides: View {
     }
 }
 
-/// 畳んだ行の要約。状態の記号 9pt ＋ 件数（「◆1 ●1」。11/600/fg2）。未読の完了は accent の点（2026-09-24 ユーザー決定: 記号で出す）。
+/// 畳んだ行の要約。状態と未読を文字で示す。
 struct SidebarSummaryText: View {
     let summary: SidebarCollapsedSummary
     var showsCounts = true
@@ -553,22 +565,17 @@ struct SidebarSummaryText: View {
 
     var body: some View {
         if !summary.isEmpty {
-            HStack(spacing: showsCounts ? 6 : 3) {
+            HStack(spacing: 6) {
                 ForEach(summary.attention, id: \.kind) { entry in
-                    HStack(spacing: 3) {
-                        StateGlyph(state: Self.state(for: entry.kind), size: 9)
-                        if showsCounts { Text(verbatim: "\(entry.count)") }
-                    }
+                    Text(verbatim: summaryText(Self.state(for: entry.kind).localizedLabel(locale: locale), count: entry.count))
+                        .foregroundStyle(DSColor.attentionInk(entry.kind))
                 }
                 if summary.unread > 0 {
-                    HStack(spacing: 3) {
-                        Circle().fill(DSColor.accent).frame(width: 6, height: 6).padding(.horizontal, 2)
-                        if showsCounts { Text(verbatim: "\(summary.unread)") }
-                    }
+                    Text(verbatim: summaryText(AppLocalizedString.string("未読", locale: locale), count: summary.unread))
+                        .foregroundStyle(DSColor.textPrimary)
                 }
             }
             .font(DSFont.meta.weight(.semibold))
-            .foregroundStyle(DSColor.textSecondary)
             .monospacedDigit()
             .lineLimit(1)
             .fixedSize()
@@ -584,6 +591,10 @@ struct SidebarSummaryText: View {
             parts.append(String(format: AppLocalizedString.string("未読 %lld", locale: locale), summary.unread))
         }
         return parts.joined(separator: AppLocalizedString.string("、", locale: locale))
+    }
+
+    private func summaryText(_ title: String, count: Int) -> String {
+        showsCounts ? "\(title) \(count)" : title
     }
 
     static func state(for kind: AttentionKind) -> SessionDisplayState {

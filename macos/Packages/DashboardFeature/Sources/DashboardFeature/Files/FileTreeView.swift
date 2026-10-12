@@ -167,7 +167,7 @@ struct FileTreeView: View {
                 .focused($focused)
                 .overlay {
                     RoundedRectangle(cornerRadius: DSRadius.row)
-                        .strokeBorder(focused || showsFocus ? DSColor.accent.opacity(DSColor.isDark ? 0.6 : 1) : Color.clear, lineWidth: DSSpacing.xxs)
+                        .strokeBorder(focused || showsFocus ? DSColor.focusRing : Color.clear, lineWidth: DSSpacing.xxs)
                         .padding(DSSpacing.xs)
                         .allowsHitTesting(false)
                 }

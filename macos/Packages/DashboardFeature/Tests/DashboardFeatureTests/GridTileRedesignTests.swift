@@ -172,17 +172,6 @@ struct GridTileRedesignTests {
         #expect(store.loadPresetState() == .init(preset: .balanced, isAdjusted: true))
     }
 
-    @Test func outOfScope_countsByStateInFixedOrder() {
-        let entries = [
-            AttentionEntry(id: SessionID(), kind: .stalled, since: nil),
-            AttentionEntry(id: SessionID(), kind: .error, since: nil),
-            AttentionEntry(id: SessionID(), kind: .stalled, since: nil),
-        ]
-        let counts = GridOutOfScopeAttention.counts(entries)
-        #expect(counts.map(\.kind) == [.error, .stalled])
-        #expect(counts.map(\.count) == [1, 2])
-    }
-
     @Test @MainActor func commandW_inGridRemovesTheTile() {
         let session = SessionID()
         let router = AppRouter(selectedSession: session)

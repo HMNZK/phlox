@@ -249,11 +249,11 @@ private struct InstalledPluginRow: View {
             HStack(alignment: .center, spacing: DSSpacing.m) {
                 ZStack {
                     RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .fill(plugin.isEnabled ? DSColor.accent.opacity(0.18) : DSColor.fillSubtle)
+                        .fill(DSColor.fillSubtle)
                         .frame(width: 32, height: 32)
                     Image(systemName: "puzzlepiece.extension.fill")
                         .font(.system(size: DSIconSize.l, weight: .semibold))
-                        .foregroundStyle(plugin.isEnabled ? DSColor.accent : DSColor.textTertiary)
+                        .foregroundStyle(DSColor.textSecondary)
                 }
 
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {

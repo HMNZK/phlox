@@ -210,25 +210,17 @@ struct ChatTranscriptView: View {
                 let after: TranscriptTypography.BlockRole? = index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole
                 let role = block.content.typographyRole
                 transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
-                    // 04: エージェント側はすべて同じ字下げ列、ユーザー発言だけ右寄せ。
-                    // 種類の印はエージェントの発言にだけ、直前がユーザー発言（または先頭）のときに置く（PhloxChat.dc.html）。
-                    .agentColumn(
-                        isAgentSide: role != .user,
-                        avatar: Self.isAgentMessage(block.content) && (after == nil || after == .user) ? agentDescriptor : nil
-                    )
                     .padding(.top, TranscriptTypography.gap(after: after, before: role))
                     .id(block.id)
                     .background(userMessagePositionProbe(id: block.id, isTracked: userMessageIDs.contains(block.id)))
             }
             if transcript == nil {
                 CodexSessionSurface(viewModel: viewModel)
-                    .agentColumn(isAgentSide: true, avatar: nil)
                     .padding(.top, TranscriptTypography.itemGap)
                     .id("chat-codex-surface")
             }
                         if viewModel.shouldShowConnectingIndicator {
                 ConnectingIndicatorRow()
-                    .agentColumn(isAgentSide: true, avatar: nil)
                     .padding(.top, TranscriptTypography.itemGap)
                     .id("chat-connecting")
             }
@@ -238,7 +230,6 @@ struct ChatTranscriptView: View {
                 CompactingIndicatorCell(
                     descriptor: agentDescriptor
                 )
-                .agentColumn(isAgentSide: true, avatar: nil)
                 .padding(.top, TranscriptTypography.itemGap)
                 .id("chat-compacting")
             }
@@ -256,7 +247,6 @@ struct ChatTranscriptView: View {
                     recap: { viewModel.thinkingRecap(now: $0) },
                     onInterrupt: { await viewModel.turnInterrupt() }
                 )
-                    .agentColumn(isAgentSide: true, avatar: nil)
                     .padding(.top, TranscriptTypography.itemGap)
                     .id("chat-thinking")
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
@@ -350,11 +340,6 @@ struct ChatTranscriptView: View {
     /// window の拡張契機は「このボタンの押下のみ」。スクロール位置・可視領域には一切連動しない
     /// （ADR 0030 再入禁止）。expand はボタン action での mutation なので body 中書込にならない。
     /// - Parameter anchorID: 押下時の先頭可視 block の id。展開後にこの位置へ留めるためのアンカー。
-    static func isAgentMessage(_ block: ChatTranscriptBlock) -> Bool {
-        if case .single(.agentMessage) = block { return true }
-        return false
-    }
-
     private func loadEarlierButton(hiddenCount: Int, anchorID: String?) -> some View {
         Button {
             // anchorID は描画時（＝展開前）の先頭可視 item。展開して上に古い行を追加し、
@@ -608,47 +593,6 @@ private struct ConnectingIndicatorRow: View {
     }
 }
 
-/// 04 の字下げ列（30pt）とエージェントの印（20pt 角・Cl / Cx / Cu）。
-struct TranscriptAgentColumn: ViewModifier {
-    static let indent: CGFloat = 30
-
-    let isAgentSide: Bool
-    let avatar: AgentDescriptor?
-
-    func body(content: Content) -> some View {
-        content
-            .padding(.leading, isAgentSide ? Self.indent : 0)
-            .overlay(alignment: .topLeading) {
-                if let avatar {
-                    TranscriptAgentAvatar(descriptor: avatar)
-                        .padding(.top, 2)
-                }
-            }
-    }
-}
-
-private struct TranscriptAgentAvatar: View {
-    let descriptor: AgentDescriptor
-    /// テーマを読まないと切替後も前のテーマの文字色（ダークの白）が残る。
-    @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-
-    var body: some View {
-        let _ = themeID
-        return Text(verbatim: descriptor.tabInitials)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(DSColor.textPrimary)
-            .frame(width: 20, height: 20)
-            .background(DSColor.agentInitialFill(for: descriptor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .accessibilityHidden(true)
-    }
-}
-
-extension View {
-    func agentColumn(isAgentSide: Bool, avatar: AgentDescriptor?) -> some View {
-        modifier(TranscriptAgentColumn(isAgentSide: isAgentSide, avatar: avatar))
-    }
-}
-
 /// 「↓ 最新へ · 新着 n  End」（04 B7）。
 struct JumpToLatestButton: View {
     let unseenCount: Int
@@ -663,10 +607,10 @@ struct JumpToLatestButton: View {
                 if unseenCount > 0 {
                     Text("新着 \(unseenCount)")
                         .font(.system(size: 10.5, weight: .bold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(DSColor.textPrimary)
                         .padding(.horizontal, 6)
                         .frame(height: 16)
-                        .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 8))
+                        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 8))
                 }
                 Text(verbatim: "End")
                     .font(.system(size: 10.5))

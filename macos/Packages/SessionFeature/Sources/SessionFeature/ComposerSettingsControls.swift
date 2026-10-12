@@ -203,7 +203,7 @@ struct ComposerSettingsControlsView: View {
                                 Task { await viewModel.retryModelListFetch() }
                             }
                             .buttonStyle(.plain)
-                            .foregroundStyle(DSColor.accentInk)
+                            .foregroundStyle(DSColor.textSecondary)
                         }
                         .font(.system(size: 11.5))
                         .padding(.horizontal, 9)

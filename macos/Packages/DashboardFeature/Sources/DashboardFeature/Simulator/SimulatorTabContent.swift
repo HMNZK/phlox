@@ -65,7 +65,7 @@ struct SimulatorTabContent: View {
                             .padding(3)
                             .overlay {
                                 if sendsKeys {
-                                    RoundedRectangle(cornerRadius: radius + 3).strokeBorder(DSColor.accent, lineWidth: 2)
+                                    RoundedRectangle(cornerRadius: radius + 3).strokeBorder(DSColor.separator, lineWidth: 2)
                                 }
                             }
                         Text(hint(compact: geometry.size.width < 450)).font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
@@ -136,7 +136,7 @@ struct SimulatorTabContent: View {
                 }
                     .font(DSFont.meta).foregroundStyle(DSColor.textPrimary)
                     .padding(.horizontal, compact ? 5 : 7).frame(height: 20)
-                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(DSColor.accent, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(DSColor.separator, lineWidth: 1))
                     .fixedSize().accessibilityLabel("キー入力を端末に送信中")
                     .help("キー入力を端末に送信中")
                     .accessibilityIdentifier("simulator-input-band")
@@ -179,7 +179,7 @@ struct SimulatorTabContent: View {
                         Image(systemName: "info.circle")
                             .overlay {
                                 if showsDiagnostics {
-                                    Circle().strokeBorder(DSColor.accent, lineWidth: 1.5).padding(-2)
+                                    Circle().strokeBorder(DSColor.focusRing, lineWidth: 1.5).padding(-2)
                                 }
                             }
                     }

@@ -3,12 +3,8 @@ import SwiftUI
 import DesignSystem
 
 extension AgentConsoleAgent {
-    /// グループ見出しの色。セッション一覧の色分けとは独立に、ここだけで完結させる。
+    /// ハーネスごとの色は使わず、中立色で表示する。
     var tint: Color {
-        switch self {
-        case .claude: return DSColor.accent
-        case .codex: return DSColor.statusCompleted
-        case .cursor: return DSColor.statusRunning
-        }
+        DSColor.textSecondary
     }
 }

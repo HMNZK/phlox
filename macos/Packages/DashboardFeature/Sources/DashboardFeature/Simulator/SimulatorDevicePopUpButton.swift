@@ -31,7 +31,7 @@ final class SimulatorDevicePopUpButton: NSPopUpButton {
         let face = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 6, yRadius: 6)
         face.fill()
         if window?.firstResponder === self {
-            NSColor(DSColor.accent).setStroke()
+            NSColor(DSColor.focusRing).setStroke()
             face.lineWidth = 2
             face.stroke()
         }

@@ -103,7 +103,7 @@ struct CodexStatusPane: View {
                 value: "\(model.status.installedPluginCount)",
                 detail: "有効 \(model.status.enabledPluginCount)",
                 systemImage: "puzzlepiece.extension.fill",
-                tint: DSColor.accent
+                tint: DSColor.textSecondary
             )
             AgentConsoleStatusTile(
                 title: "MCP",

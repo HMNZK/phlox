@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 
 /// 縦の境界リサイズ用の掴みしろ。区切り線を中心に `gripWidth` の透明な当たり判定を持ち、
-/// ホバー/ドラッグ中はアクセント色の発光バーを出して掴みしろを視認しやすくする。
+/// ホバー/ドラッグ中は中立色のバーを出して掴みしろを視認しやすくする。
 /// 各インスタンスが自分の hover/drag state を持つため、複数を並べても相互に干渉しない
 /// (view 単位の state を共有すると「片方をホバーすると両方光る」問題が起きるため切り出した)。
 /// navigationShell 等の最前面オーバーレイとして区切り線の真上に重ねる前提。
@@ -54,9 +54,9 @@ public struct ResizeGripView: View {
         .frame(width: hitWidth)
         .frame(maxHeight: .infinity)
         .overlay {
-            // 区切り線位置の accent 3pt（角丸 2）。ホバー/ドラッグ中のみ表示する。
+            // 区切り線位置の 3pt バー（角丸 2）。ホバー/ドラッグ中のみ表示する。
             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(DSColor.accent)
+                .fill(DSColor.separator)
                 .frame(width: 3)
                 .frame(maxHeight: .infinity)
                 .opacity(highlighted ? 1 : 0)

@@ -142,7 +142,7 @@ struct GitCommitPanel: View {
                     }
                     .buttonStyle(.plain)
                     .font(DSFont.meta)
-                    .foregroundStyle(DSColor.accentInk)
+                    .foregroundStyle(DSColor.textSecondary)
                     .fixedSize()
                 }
                 Button {

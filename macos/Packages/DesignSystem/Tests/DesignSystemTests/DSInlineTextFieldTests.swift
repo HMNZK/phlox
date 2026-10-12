@@ -28,14 +28,14 @@ struct DSInlineTextFieldTests {
         #expect(restored != expected)
     }
 
-    /// 見本 PhloxSidebar の `--selText`（ライト rgba(217,119,87,.30)・ダーク .40）。
     @Test
-    func selTextMatchesTheMock() throws {
+    func textSelectionUsesAccentWithModeAlpha() throws {
+        let accent = try #require(NSColor(DSColor.accent).usingColorSpace(.sRGB))
         for (isDark, alpha) in [(false, 0.30), (true, 0.40)] {
             let color = try #require(NSColor(DSColor.textSelection(isDark: isDark)).usingColorSpace(.sRGB))
-            #expect(abs(color.redComponent * 255 - 217) < 0.5)
-            #expect(abs(color.greenComponent * 255 - 119) < 0.5)
-            #expect(abs(color.blueComponent * 255 - 87) < 0.5)
+            #expect(color.redComponent == accent.redComponent)
+            #expect(color.greenComponent == accent.greenComponent)
+            #expect(color.blueComponent == accent.blueComponent)
             #expect(abs(color.alphaComponent - alpha) < 0.001)
         }
     }

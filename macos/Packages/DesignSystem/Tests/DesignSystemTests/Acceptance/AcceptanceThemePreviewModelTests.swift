@@ -40,7 +40,7 @@ struct AcceptanceThemePreviewModelTests {
             RGB(52, 211, 153),
             RGB(251, 191, 36),
             RGB(96, 165, 250),
-            RGB(217, 119, 87),
+            RGB(149, 156, 208),
             RGB(56, 189, 248),
             RGB(214, 214, 214),
         ])
@@ -68,7 +68,7 @@ struct AcceptanceThemePreviewModelTests {
         #expect(phlox.inputText == "メッセージを入力")
         #expect(phlox.themeID == "phlox")
         #expect(phlox.themeName == "Phlox")
-        #expect(phlox.currentMarker == RGB(0xE0, 0x88, 0x65))
+        #expect(phlox.currentMarker == RGB(0x95, 0x9C, 0xD0))
 
         let github = ThemePreviewModel.make(theme: .githubLight)
         #expect(github.appLabel == "アプリ外観")

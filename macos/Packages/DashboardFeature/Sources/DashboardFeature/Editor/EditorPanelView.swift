@@ -419,7 +419,7 @@ public struct EditorPanelView: View {
                         }
                         .buttonStyle(.plain)
                         .font(.system(size: 11.5))
-                        .foregroundStyle(DSColor.accentInk)
+                        .foregroundStyle(DSColor.textSecondary)
                         .padding(.leading, 50)
                         .padding(.top, 4)
                     }

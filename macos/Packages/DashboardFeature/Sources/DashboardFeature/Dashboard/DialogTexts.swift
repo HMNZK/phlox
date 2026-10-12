@@ -111,7 +111,7 @@ enum SessionDeletionDialogText {
         AppLocalizedString.string("実行中のエージェントは停止します。会話とターミナルの内容は元に戻せません。", locale: locale)
     }
 
-    /// 巻き込まれる子セッションの表の行（名前と「Cx · 実行中」）。上限を超えた分は「ほか n 件」の 1 行にする。
+    /// 巻き込まれる子セッションの表の行（名前と状態）。上限を超えた分は「ほか n 件」の 1 行にする。
     static func rows(children: [(name: String, meta: String)], locale: Locale) -> [DSDialogList.Row] {
         var rows = children.prefix(listLimit).enumerated().map { DSDialogList.Row(id: $0.offset, title: $0.element.name, meta: $0.element.meta) }
         if children.count > listLimit {

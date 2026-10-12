@@ -1105,7 +1105,7 @@ struct IMESafeTextView: NSViewRepresentable {
                 let font: NSFont
                 switch span.kind {
                 case .slashCommand:
-                    color = NSColor(DSColor.accentInk)
+                    color = NSColor(DSColor.textSecondary)
                     font = .systemFont(ofSize: 13.5, weight: .semibold)
                 case .fileReference:
                     color = NSColor(DSColor.attentionInk(.question))

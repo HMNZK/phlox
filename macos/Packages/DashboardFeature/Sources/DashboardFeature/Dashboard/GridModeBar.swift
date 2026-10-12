@@ -4,7 +4,7 @@ import DesignSystem
 import SessionFeature
 
 /// グリッド表示のときだけツールバーの下に出す表示範囲バー（01 C1）。
-/// 並びは 範囲 → 表示するセッションの選択 →（右寄せ）範囲外の対応待ち → レイアウト。
+/// 並びは 範囲 → 表示するセッションの選択 → レイアウト。
 struct GridModeBar: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
@@ -27,7 +27,6 @@ struct GridModeBar: View {
             scopeToken(summary)
             sessionSelectionButton
             Spacer(minLength: DSSpacing.s)
-            outOfScopeButton
             PaneLayoutPresetMenu(
                 currentName: AppLocalizedString.string(viewModel.paneLayoutPresetState.preset.displayName, locale: locale),
                 isAdjusted: viewModel.paneLayoutPresetState.isAdjusted
@@ -59,34 +58,6 @@ struct GridModeBar: View {
         .help(Text(verbatim: title))
     }
 
-    /// 範囲外の対応待ちを状態ごとの件数で出す（S6「エラー 1 無応答 1 が範囲外」）。押すと対応待ちの一覧。
-    @ViewBuilder
-    private var outOfScopeButton: some View {
-        let counts = outOfScopeCounts
-        if !counts.isEmpty {
-            Button { router.attentionListPresented = true } label: {
-                HStack(spacing: 6) {
-                    ForEach(counts, id: \.kind) { entry in
-                        Text(verbatim: "\(GridOutOfScopeAttention.state(entry.kind).localizedLabel(locale: locale)) \(entry.count)")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(DSColor.attentionInk(entry.kind))
-                    }
-                    Text("が範囲外")
-                        .foregroundStyle(DSColor.textPrimary)
-                    Text(verbatim: "›")
-                        .foregroundStyle(DSColor.textTertiary)
-                }
-                .lineLimit(1)
-                .padding(.horizontal, 8)
-                .frame(height: 22)
-                .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 6))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(Text("対応待ちの一覧（⌥⌘J）"))
-        }
-    }
-
     private func clearButton(label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: "xmark")
@@ -102,12 +73,6 @@ struct GridModeBar: View {
 
     private var visibleIDs: Set<SessionID> {
         Set(viewModel.filteredGridSessionNodes(projectID: viewModel.gridSessionFilterProjectID).map(\.id))
-    }
-
-    /// 範囲外の対応待ち（承認・質問・エラー・無応答の順）。
-    private var outOfScopeCounts: [(kind: AttentionKind, count: Int)] {
-        let visible = visibleIDs
-        return GridOutOfScopeAttention.counts(viewModel.attentionEntries.filter { !visible.contains($0.id) })
     }
 
     /// 2 軸目: 表示するセッションの選択（S6「3 / 4 件を表示」）。選択中は ✕ で解除する。
@@ -169,24 +134,5 @@ private struct GridScopeTokenStyle: ViewModifier {
             .overlay {
                 if !isActive { Capsule().strokeBorder(DSColor.separator, lineWidth: 1) }
             }
-    }
-}
-
-/// 範囲外の対応待ちの数え方（表示範囲バー）。
-enum GridOutOfScopeAttention {
-    static func state(_ kind: AttentionKind) -> SessionDisplayState {
-        switch kind {
-        case .approval: .approval
-        case .question: .question
-        case .error: .error
-        case .stalled: .stalled
-        }
-    }
-
-    static func counts(_ entries: [AttentionEntry]) -> [(kind: AttentionKind, count: Int)] {
-        AttentionKind.allCases.compactMap { kind in
-            let count = entries.filter { $0.kind == kind }.count
-            return count > 0 ? (kind, count) : nil
-        }
     }
 }

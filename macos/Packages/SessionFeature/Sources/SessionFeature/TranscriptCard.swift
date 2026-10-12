@@ -96,7 +96,7 @@ struct TranscriptCardFooter: View {
                 if hiddenLineCount > 0 {
                     Button("さらに表示（残り \(hiddenLineCount) 行）", action: onShowMore)
                         .buttonStyle(.plain)
-                        .foregroundStyle(DSColor.accentInk)
+                        .foregroundStyle(DSColor.textSecondary)
                         .accessibilityIdentifier("TranscriptCard.showMore")
                 }
                 Spacer(minLength: 0)

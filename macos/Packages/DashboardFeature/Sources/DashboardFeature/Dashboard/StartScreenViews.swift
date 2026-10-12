@@ -83,14 +83,14 @@ struct StartOnboardingView: View {
         note: LocalizedStringKey? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        // 08 S1: 番号の丸は 20pt（手順 1 だけ accent）。本文は丸の幅＋間隔の 30pt だけ字下げする。
+        // 08 S1: 番号の丸は 20pt。本文は丸の幅＋間隔の 30pt だけ字下げする。
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Text(verbatim: "\(number)")
                     .font(DSFont.meta.weight(.bold))
-                    .foregroundStyle(number == 1 ? Color.white : DSColor.textPrimary)
+                    .foregroundStyle(DSColor.textPrimary)
                     .frame(width: 20, height: 20)
-                    .background(number == 1 ? DSColor.accentFill : DSColor.segmentTrack, in: Circle())
+                    .background(DSColor.segmentTrack, in: Circle())
                     .accessibilityHidden(true)
                 Text(title)
                     .font(DSFont.sessionTitle)

@@ -61,11 +61,11 @@ struct PaneDividerHandleView: View {
         .accessibilityLabel("分割線")
     }
 
-    /// 掴めることを示す発光バー（隙間の中心）。ホバー中とドラッグ中だけ出す。
+    /// 掴めることを示す中立色のバー（隙間の中心）。ホバー中とドラッグ中だけ出す。
     private var bar: some View {
         let isHighlighted = isHovering || isDragging
         return RoundedRectangle(cornerRadius: Self.barThickness / 2, style: .continuous)
-            .fill(DSColor.accent)
+            .fill(DSColor.separator)
             .frame(
                 width: divider.axis == .horizontal ? Self.barThickness : nil,
                 height: divider.axis == .vertical ? Self.barThickness : nil

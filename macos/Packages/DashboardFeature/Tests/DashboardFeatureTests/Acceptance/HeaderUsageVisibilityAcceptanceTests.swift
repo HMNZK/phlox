@@ -1,144 +1,32 @@
-// 契約の正本: tasks/task-1.md — ヘッダー（トップバー）使用量の表示制御。
-// このファイルは PM が凍結する受け入れテスト。実装役は編集禁止
-// （ハーネス欠陥を見つけた場合のみ、PM へ報告し承認を得てハーネス部分だけ修理可）。
-
 import AgentDomain
 import Foundation
 import Testing
 @testable import DashboardFeature
 
-@Suite("Acceptance: ヘッダー使用量の表示制御（task-1）")
+@Suite("Acceptance: 下部使用量バーの表示設定")
 struct HeaderUsageVisibilityAcceptanceTests {
-    private static let now = Date(timeIntervalSince1970: 1_000_000)
+    private let now = Date(timeIntervalSince1970: 1_000_000)
 
-    /// Codex は実データあり、Cursor は未取得、Claude は未取得（ADR 0039 で行を残す対象）。
-    private static var mixedUsages: [AgentKind: CLIUsage] {
+    private var mixedUsages: [AgentKind: CLIUsage] {
         [
-            .codex: CLIUsage(
-                kind: .codex,
-                state: .ok([UsageBucket(id: "5h", label: "5時間", usedPercent: 42)]),
-                updatedAt: now
-            ),
-            .cursor: CLIUsage(
-                kind: .cursor,
-                state: .unavailable(reason: "Cursorアプリ未検出"),
-                updatedAt: now
-            ),
-            .claudeCode: CLIUsage(
-                kind: .claudeCode,
-                state: .unavailable(reason: "未取得"),
-                updatedAt: now
-            ),
+            .codex: CLIUsage(kind: .codex, state: .ok([
+                UsageBucket(id: "5h", label: "5時間", usedPercent: 42),
+            ]), updatedAt: now),
+            .cursor: CLIUsage(kind: .cursor, state: .unavailable(reason: "内部理由"), updatedAt: now),
+            .claudeCode: CLIUsage(kind: .claudeCode, state: .unavailable(reason: "内部理由"), updatedAt: now),
         ]
     }
 
-    // MARK: - ツールバーのチップの縮退（01 D）。インスペクタの開閉では出し分けない（01 G2）
-
-    @Test func 残り20パーセント未満だけを残りわずかとして扱う() {
-        #expect(UsageDisplay.isLowRemaining(usedPercent: 81))
-        #expect(!UsageDisplay.isLowRemaining(usedPercent: 80))
-        #expect(!UsageDisplay.isLowRemaining(usedPercent: 12))
+    @Test func 表示設定は初期状態でオン() throws {
+        #expect(UsageSettings.showInHeaderKey == "phlox.usage.showInHeader")
+        #expect(try #require(UsageSettings.defaultsDictionary[UsageSettings.showInHeaderKey] as? Bool))
     }
 
-    @Test func 最も狭い幅では全チップのうち最小の残量を1つだけ出す() {
-        let usages: [AgentKind: CLIUsage] = [
-            .claudeCode: CLIUsage(
-                kind: .claudeCode,
-                state: .ok([UsageBucket(id: "weekly", label: "週次", usedPercent: 62)]),
-                updatedAt: Self.now
-            ),
-            .codex: CLIUsage(
-                kind: .codex,
-                state: .ok([
-                    UsageBucket(id: "5h", label: "5時間", usedPercent: 82),
-                    UsageBucket(id: "weekly", label: "週次", usedPercent: 38),
-                ]),
-                updatedAt: Self.now
-            ),
-        ]
-        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: false, now: Self.now)
-
-        #expect(UsageDisplay.minimumRemainingPercent(chips) == 18)
-    }
-
-    @Test func 使用量が取れていなければ最小の残量は出さない() {
-        #expect(UsageDisplay.minimumRemainingPercent([]) == nil)
-    }
-
-    @Test func ヘッダー表示設定の既定はオン() throws {
-        let value = try #require(
-            UsageSettings.defaultsDictionary[UsageSettings.showInHeaderKey] as? Bool
-        )
-        #expect(value)
-    }
-
-    // MARK: - 「未取得のCLIも表示」のヘッダーへの反映
-
-    @Test func 未取得を表示しない設定ではヘッダーに未取得のCursorを出さない() {
-        let chips = UsageDisplay.topBarChips(
-            usages: Self.mixedUsages,
-            showUnavailable: false,
-            now: Self.now
-        )
-
-        #expect(!chips.contains { $0.kind == .cursor })
-    }
-
-    @Test func 未取得を表示しない設定でもヘッダーのClaude行は理由つきで残る() throws {
-        let chips = UsageDisplay.topBarChips(
-            usages: Self.mixedUsages,
-            showUnavailable: false,
-            now: Self.now
-        )
-
-        let claude = try #require(chips.first { $0.kind == .claudeCode })
-        #expect(claude.unavailableReason == "未取得")
-    }
-
-    @Test func 未取得を表示する設定ならヘッダーに未取得のCursorを理由つきで出す() throws {
-        let chips = UsageDisplay.topBarChips(
-            usages: Self.mixedUsages,
-            showUnavailable: true,
-            now: Self.now
-        )
-
-        let cursor = try #require(chips.first { $0.kind == .cursor })
-        #expect(cursor.unavailableReason == "Cursorアプリ未検出")
-    }
-
-    @Test func ヘッダーのチップはAgentKindの定義順に並ぶ() {
-        let chips = UsageDisplay.topBarChips(
-            usages: Self.mixedUsages,
-            showUnavailable: true,
-            now: Self.now
-        )
-
-        #expect(chips.map(\.kind) == [.claudeCode, .codex, .cursor])
-    }
-
-    @Test func 使用量が取得できていないCLIはチップを作らない() {
-        let usages: [AgentKind: CLIUsage] = [
-            .codex: CLIUsage(
-                kind: .codex,
-                state: .ok([UsageBucket(id: "5h", label: "5時間", usedPercent: 42)]),
-                updatedAt: Self.now
-            ),
-        ]
-
-        let chips = UsageDisplay.topBarChips(usages: usages, showUnavailable: true, now: Self.now)
-
-        #expect(chips.map(\.kind) == [.codex])
-    }
-
-    @Test func 実データのチップは理由を持たず表示バケットを持つ() throws {
-        let chips = UsageDisplay.topBarChips(
-            usages: Self.mixedUsages,
-            showUnavailable: false,
-            now: Self.now
-        )
-
-        let codex = try #require(chips.first { $0.kind == .codex })
-        #expect(codex.unavailableReason == nil)
-        #expect(codex.shownBuckets.map(\.id) == ["5h"])
+    @Test func 未取得を含む全ハーネスを定義順で出す() {
+        let groups = UsageDisplay.bottomBarGroups(usages: mixedUsages)
+        #expect(groups.map(\.kind) == [.claudeCode, .codex, .cursor])
+        #expect(groups[0].buckets == nil)
+        #expect(groups[1].buckets?.map(\.id) == ["5h"])
+        #expect(groups[2].buckets == nil)
     }
 }

@@ -479,7 +479,7 @@ struct ApprovalCard: View {
                         Button { onShowDiff(itemID) } label: {
                             Text("› 差分を見る（\(approval.files.count) ファイル）")
                                 .font(.system(size: 11.5))
-                                .foregroundStyle(DSColor.accentInk)
+                                .foregroundStyle(DSColor.textSecondary)
                                 .padding(.horizontal, 12)
                                 .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
                                 .contentShape(Rectangle())

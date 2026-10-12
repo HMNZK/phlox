@@ -1,7 +1,7 @@
 import SwiftUI
 import AgentDomain
 
-/// セッション状態の表示語彙（ラベル・色・アイコン・ヘルプ）を一元提供する名前空間。
+/// セッション状態の表示語彙（ラベル・色・ヘルプ）を一元提供する名前空間。
 /// StatusLabel / StatusCapsuleBadge がここから引く。
 ///
 /// 再設計（12 Design System）の語彙: 起動中・待機・実行中・承認待ち・質問待ち・完了・エラー・無応答。
@@ -73,25 +73,17 @@ public enum StatusBadge {
         SessionDisplayState.resolve(status).color
     }
 
-    /// 色覚多様性ケアのため、色と冗長な形（SF Symbol）で状態を符号化する。
+    /// iOS の状態チップ用。macOS の一覧・会話画面では状態を文字で表示する。
     public static func iconName(for status: SessionStatus) -> String {
         switch status {
-        case .starting:
-            "circle.dotted"
-        case .idle:
-            "pause.circle"
-        case .running:
-            "play.circle.fill"
-        case .awaitingApproval:
-            "exclamationmark.bubble.fill"
-        case .awaitingUserQuestion:
-            "questionmark.bubble.fill"
-        case .completed(let exitCode) where exitCode == 0:
-            "checkmark.circle.fill"
-        case .completed:
-            "xmark.octagon.fill"
-        case .error:
-            "exclamationmark.triangle.fill"
+        case .starting: "circle.dotted"
+        case .idle: "pause.circle"
+        case .running: "play.circle.fill"
+        case .awaitingApproval: "exclamationmark.bubble.fill"
+        case .awaitingUserQuestion: "questionmark.bubble.fill"
+        case .completed(let exitCode) where exitCode == 0: "checkmark.circle.fill"
+        case .completed: "xmark.octagon.fill"
+        case .error: "exclamationmark.triangle.fill"
         }
     }
 

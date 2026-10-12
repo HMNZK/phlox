@@ -111,7 +111,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         .bulletedListMarker { _ in
             Text(verbatim: "•")
                 .fontWeight(.bold)
-                .foregroundStyle(DSColor.chatAccent)
+                .foregroundStyle(DSColor.chatTextSecondary)
                 .relativeFrame(minWidth: .em(1), alignment: .leading)
         }
         // MarkdownUI の空テーマは段落・見出しの label に縦サイズ確保を付けない。そのまま
@@ -241,7 +241,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
                 .padding(.leading, DSSpacing.l)
                 .overlay(alignment: .leading) {
                     RoundedRectangle(cornerRadius: DSRadius.s)
-                        .fill(DSColor.chatAccent.opacity(0.6))
+                        .fill(DSColor.separator)
                         .frame(width: 3)
                 }
                 .markdownTextStyle {

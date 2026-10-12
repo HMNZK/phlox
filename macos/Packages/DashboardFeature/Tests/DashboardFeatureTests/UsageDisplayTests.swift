@@ -67,52 +67,34 @@ import Testing
     #expect(result == [.claudeCode, .codex, .cursor])
 }
 
-@Test func topBarBuckets_returnsFiveHourThenWeeklyRegardlessOfInputOrder() {
-    let buckets = [
-        UsageBucket(id: "weekly", label: "週次", usedPercent: 72),
-        UsageBucket(id: "5h", label: "5時間", usedPercent: 30),
+@Test func bottomBarGroups_keepsEveryBucketInProviderOrder() throws {
+    let now = Date(timeIntervalSince1970: 100)
+    let usages: [AgentKind: CLIUsage] = [
+        .cursor: CLIUsage(kind: .cursor, state: .ok([
+            UsageBucket(id: "auto", label: "Auto", usedPercent: 10),
+            UsageBucket(id: "api", label: "API", usedPercent: 20),
+        ]), updatedAt: now),
+        .codex: CLIUsage(kind: .codex, state: .ok([
+            UsageBucket(id: "weekly", label: "週次", usedPercent: 30),
+            UsageBucket(id: "5h", label: "5時間", usedPercent: 40),
+        ]), updatedAt: now),
     ]
 
-    let result = UsageDisplay.topBarBuckets(buckets)
+    let groups = UsageDisplay.bottomBarGroups(usages: usages)
 
-    #expect(result.map(\.id) == ["5h", "weekly"])
+    #expect(groups.map(\.kind) == AgentKind.allCases)
+    #expect(groups.first?.buckets == nil)
+    #expect(try #require(groups.first(where: { $0.kind == .codex })?.buckets).map(\.id) == ["weekly", "5h"])
+    #expect(try #require(groups.first(where: { $0.kind == .cursor })?.buckets).map(\.id) == ["auto", "api"])
 }
 
-@Test func topBarBuckets_weeklyOnlyReturnsWeekly() {
-    let buckets = [
-        UsageBucket(id: "weekly", label: "週次", usedPercent: 41),
-    ]
+@Test func bottomBarBucketText_usesAllDetailsThenDropsResetAndLabel() {
+    let now = Date(timeIntervalSince1970: 100)
+    let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 28, resetsAt: now.addingTimeInterval(7200))
 
-    let result = UsageDisplay.topBarBuckets(buckets)
-
-    #expect(result.map(\.id) == ["weekly"])
-}
-
-@Test func topBarBuckets_withoutFiveHourAndWeeklyReturnsAll() {
-    let buckets = [
-        UsageBucket(id: "auto", label: "Auto+Composer", usedPercent: 21),
-        UsageBucket(id: "api", label: "API", usedPercent: 6),
-    ]
-
-    let result = UsageDisplay.topBarBuckets(buckets)
-
-    #expect(result.map(\.id) == ["auto", "api"])
-}
-
-@Test func topBarBuckets_emptyReturnsEmpty() {
-    let result = UsageDisplay.topBarBuckets([])
-
-    #expect(result.isEmpty)
-}
-
-@Test func topBarShortLabel_mapsFiveHourAndWeeklyAndKeepsOthers() {
-    let fiveHour = UsageBucket(id: "5h", label: "5時間", usedPercent: 30)
-    let weekly = UsageBucket(id: "weekly", label: "週次", usedPercent: 72)
-    let total = UsageBucket(id: "total", label: "Total", usedPercent: 19)
-
-    #expect(UsageDisplay.topBarShortLabel(for: fiveHour) == "5h")
-    #expect(UsageDisplay.topBarShortLabel(for: weekly) == "7d")
-    #expect(UsageDisplay.topBarShortLabel(for: total) == "Total")
+    #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: true, showsReset: true, now: now, locale: Locale(identifier: "ja")) == "5時間 72%（2h0m）")
+    #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: true, showsReset: false, now: now, locale: Locale(identifier: "ja")) == "5時間 72%")
+    #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: false, showsReset: false, now: now, locale: Locale(identifier: "ja")) == "72%")
 }
 
 // MARK: - リセット残り時間

@@ -1,7 +1,7 @@
 import SwiftUI
 import DesignSystem
 
-/// サイドバー行の強調。完了未確認と質問待ちを優先し、選択はグレーで示す。
+/// サイドバー行の強調。未読は文字色と太さ、対応待ちは既存の注意色で示す。
 struct SidebarRowEmphasis: Equatable {
     enum Role: Equatable {
         case projectScope(isFiltering: Bool, isDefaultTarget: Bool, isHovering: Bool)
@@ -10,6 +10,7 @@ struct SidebarRowEmphasis: Equatable {
 
     let fill: Color
     let nameWeight: Font.Weight
+    let nameColor: Color
     let scopeBadgeText: String?
     let accessibilityValue: String?
 
@@ -27,13 +28,16 @@ struct SidebarRowEmphasis: Equatable {
             return SidebarRowEmphasis(
                 fill: fill,
                 nameWeight: .semibold,
+                nameColor: DSColor.textPrimary,
                 scopeBadgeText: isFiltering ? "グリッドの表示範囲" : nil,
                 accessibilityValue: isFiltering ? "グリッドを絞り込み中" : nil
             )
         case let .session(isCurrent, isHovering, state):
             let fill: Color
-            if state == .doneUnread || state == .question {
-                fill = DSColor.selectionFill
+            if state == .question {
+                fill = DSColor.attentionTint(.question)
+            } else if state == .doneUnread {
+                fill = Color.clear
             } else if isCurrent || isHovering {
                 fill = DSColor.fillSelected
             } else {
@@ -42,6 +46,7 @@ struct SidebarRowEmphasis: Equatable {
             return SidebarRowEmphasis(
                 fill: fill,
                 nameWeight: state == .doneUnread ? .semibold : .regular,
+                nameColor: state == .doneUnread ? DSColor.textPrimary : DSColor.textSecondary,
                 scopeBadgeText: nil,
                 accessibilityValue: isCurrent ? "現在の会話" : nil
             )

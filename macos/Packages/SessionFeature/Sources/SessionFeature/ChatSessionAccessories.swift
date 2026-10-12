@@ -34,7 +34,7 @@ private struct BackgroundTaskStrip: View {
         if !tasks.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 Rectangle()
-                    .fill(DSColor.chatAccent)
+                    .fill(DSColor.separator)
                     .frame(height: 2)
                 HStack(spacing: DSSpacing.s) {
                     Label("実行中 \(tasks.count)", systemImage: "bolt.fill")
@@ -72,9 +72,9 @@ private struct BackgroundTaskStrip: View {
                 }
             }
             // overlay で本文の上に浮くため、下地（chatBackground）を敷いて透けを防ぐ。
-            .background(DSColor.chatAccent.opacity(0.10).background(DSColor.chatBackground))
+            .background(DSColor.chatBackground)
             .overlay(alignment: .bottom) {
-                Divider().overlay(DSColor.chatAccent.opacity(0.35))
+                Divider().overlay(DSColor.separator)
             }
             .accessibilityIdentifier("BackgroundTaskStrip")
         }
@@ -105,7 +105,7 @@ private struct BackgroundTaskRow: View {
                     .frame(width: 16, height: 16)
                 Text(Self.label(for: task.taskType))
                     .font(DSFont.captionStrong)
-                    .foregroundStyle(DSColor.accentInk)
+                    .foregroundStyle(DSColor.chatTextSecondary)
                     .frame(width: 92, alignment: .leading)
                     .lineLimit(1)
                 Text(task.description.isEmpty ? task.taskId : task.description)
@@ -124,7 +124,7 @@ private struct BackgroundTaskRow: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                    .strokeBorder(DSColor.chatAccent.opacity(0.28), lineWidth: 1)
+                    .strokeBorder(DSColor.separator, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -158,7 +158,7 @@ struct SubAgentStrip: View {
         if !subAgents.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 Rectangle()
-                    .fill(DSColor.chatAccent.opacity(0.68))
+                    .fill(DSColor.separator)
                     .frame(height: 1)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: DSSpacing.xs) {
@@ -176,9 +176,9 @@ struct SubAgentStrip: View {
                     .padding(.vertical, DSSpacing.s)
                 }
             }
-            .background(DSColor.chatAccent.opacity(0.08).background(DSColor.chatBackground))
+            .background(DSColor.chatBackground)
             .overlay(alignment: .bottom) {
-                Divider().overlay(DSColor.chatAccent.opacity(0.24))
+                Divider().overlay(DSColor.separator)
             }
             .accessibilityIdentifier("SubAgentStrip")
         }
@@ -210,12 +210,12 @@ private struct SubAgentMainLabel: View {
             Text("メイン")
                 .font(DSFont.captionStrong)
         }
-        .foregroundStyle(DSColor.chatBackground)
+        .foregroundStyle(DSColor.chatTextPrimary)
         .padding(.horizontal, DSSpacing.s)
         .padding(.vertical, DSSpacing.xs)
         .background(
             RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                .fill(DSColor.chatAccent)
+                .fill(DSColor.fillSubtle)
         )
         .accessibilityIdentifier("SubAgentStrip.main")
     }

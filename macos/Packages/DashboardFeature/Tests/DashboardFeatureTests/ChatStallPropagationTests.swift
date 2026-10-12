@@ -6,7 +6,7 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
-// 04 B5・01 E1: 30 分反応がないチャット型は、タブ・サイドバー・対応待ちの一覧で「無応答」になる。
+// 04 B5・01 E1: 30 分反応がないチャット型は、タブとサイドバーで「無応答」になる。
 
 private final class StallFakeClient: StructuredAgentClient, @unchecked Sendable {
     let events: AsyncStream<NormalizedChatEvent>

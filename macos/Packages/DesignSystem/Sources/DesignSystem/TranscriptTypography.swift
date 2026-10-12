@@ -138,7 +138,7 @@ public enum TranscriptTypography {
         case .tool:
             DSColor.chatToolCallText
         case .accent:
-            DSColor.accentInk
+            DSColor.chatTextSecondary
         }
     }
 

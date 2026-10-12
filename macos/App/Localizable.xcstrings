@@ -1516,28 +1516,6 @@
         }
       }
     },
-    "対応待ち %lld 件（⌥⌘J で一覧、⌘J で次へ）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld need you (⌥⌘J for list, ⌘J for next)"
-          }
-        }
-      }
-    },
-    "対応待ちの一覧": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Needs You List"
-          }
-        }
-      }
-    },
     "拒否": {
       "extractionState": "manual",
       "localizations": {
@@ -4047,17 +4025,6 @@
         }
       }
     },
-    "対応待ちの一覧（⌥⌘J）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Needs Attention (⌥⌘J)"
-          }
-        }
-      }
-    },
     "%lld / %lld 件を表示": {
       "extractionState": "manual",
       "localizations": {
@@ -4670,6 +4637,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld%% left"
+          }
+        }
+      }
+    },
+    "残りわずか": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Low remaining"
+          }
+        }
+      }
+    },
+    "取得できません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unavailable"
+          }
+        }
+      }
+    },
+    "リセット %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resets %@"
           }
         }
       }
@@ -8152,13 +8152,13 @@
         }
       }
     },
-    "アクセントの色（コーラル）はすべてのテーマで共通。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。": {
+    "アクセントの色（藍色）はすべてのテーマで共通。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The accent color (coral) is shared by all themes. A theme applies to the terminal colors and the whole app, right away."
+            "value": "The indigo accent is shared by all themes. A theme applies to the terminal colors and the whole app, right away."
           }
         }
       }

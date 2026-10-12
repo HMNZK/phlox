@@ -27,7 +27,7 @@ public enum CodeSyntaxColor {
         case .member:
             chat ? DSColor.codeSyntaxNumber : DSColor.textPrimary
         case .call:
-            chat ? DSColor.accentInk : DSColor.textPrimary
+            chat ? DSColor.chatTextSecondary : DSColor.textPrimary
         }
     }
 }

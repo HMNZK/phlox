@@ -1,8 +1,9 @@
 import AgentDomain
+import DesignSystem
 import SwiftUI
 
 enum UsageDisplay {
-    /// サイドバー/トップバーに表示する CLI を AgentKind.allCases の順で返す。
+    /// サイドバーに表示する CLI を AgentKind.allCases の順で返す。
     /// showUnavailable = false のとき、usages に無い・unavailable の CLI を除外する。
     static func visibleKinds(
         usages: [AgentKind: CLIUsage],
@@ -22,7 +23,7 @@ enum UsageDisplay {
         }
     }
 
-    /// ツールバーのチップで「残りわずか」として琥珀色と ▲ で示す残量の境目（%）。
+    /// 「残りわずか」として注意色で示す残量の境目（%）。
     static let lowRemainingThreshold: Double = 20
 
     /// 残量がしきい値を下回るか。
@@ -30,80 +31,71 @@ enum UsageDisplay {
         100 - max(0, min(100, usedPercent)) < lowRemainingThreshold
     }
 
-    /// 最も狭い幅で出す 1 つだけの残量（全チップの表示バケットのうち最小の残り %）。取得できていなければ nil。
-    static func minimumRemainingPercent(_ chips: [TopBarChip]) -> Int? {
-        let maxUsed = chips.flatMap(\.shownBuckets).map(\.usedPercent).max()
-        return maxUsed.map { Int(round(100 - max(0, min(100, $0)))) }
-    }
-
-    /// トップバーに出す1CLI分のチップ情報。
-    struct TopBarChip: Identifiable {
+    /// 下部バーに出す1ハーネス分。取得できない場合は buckets が nil。
+    struct BottomBarGroup: Identifiable {
         let kind: AgentKind
-        let allBuckets: [UsageBucket]
-        let shownBuckets: [UsageBucket]
-        let unavailableReason: String?
-        let staleNote: String?
+        let buckets: [UsageBucket]?
 
         var id: AgentKind { kind }
-
-        var isUnavailable: Bool { unavailableReason != nil }
     }
 
-    /// トップバーに出すチップ列を構築する。並び順は AgentKind.allCases 順（visibleKinds と同じ規則）。
-    /// - showUnavailable == false: .ok の CLI のみ。ただし Claude は .unavailable でも理由つきで残す(ADR 0039)。
-    /// - showUnavailable == true: .unavailable の CLI も理由つきチップにする。
-    /// - .ok でも表示バケットが空ならチップを作らない。
-    /// - Claude の .ok かつ dataAsOf != nil のときだけ staleNote を付ける（ADR 0099: .ok 表示中は注記を重ねない）。
-    static func topBarChips(
-        usages: [AgentKind: CLIUsage],
-        showUnavailable: Bool,
-        now: Date
-    ) -> [TopBarChip] {
-        visibleKinds(usages: usages, showUnavailable: showUnavailable).compactMap { kind -> TopBarChip? in
-            guard let usage = usages[kind] else { return nil }
+    /// 下部バーのハーネスと全バケットを AgentKind 順で返す。
+    static func bottomBarGroups(
+        usages: [AgentKind: CLIUsage]
+    ) -> [BottomBarGroup] {
+        AgentKind.allCases.compactMap { kind -> BottomBarGroup? in
+            guard let usage = usages[kind] else {
+                return BottomBarGroup(kind: kind, buckets: nil)
+            }
             switch usage.state {
-            case .unavailable(let reason):
-                return TopBarChip(
-                    kind: kind,
-                    allBuckets: [],
-                    shownBuckets: [],
-                    unavailableReason: reason,
-                    staleNote: nil
-                )
+            case .unavailable:
+                return BottomBarGroup(kind: kind, buckets: nil)
             case .ok(let buckets):
-                let shown = topBarBuckets(buckets)
-                guard !shown.isEmpty else { return nil }
-                let staleNote = (kind == .claudeCode && usage.dataAsOf != nil)
-                    ? ClaudeUsageStaleness.note(now: now, dataAsOf: usage.dataAsOf)
-                    : nil
-                return TopBarChip(
-                    kind: kind,
-                    allBuckets: buckets,
-                    shownBuckets: shown,
-                    unavailableReason: nil,
-                    staleNote: staleNote
-                )
+                return buckets.isEmpty ? nil : BottomBarGroup(kind: kind, buckets: buckets)
             }
         }
     }
 
-    /// トップバーで表示するバケット列。5時間上限(id "5h")と週次(id "weekly")をこの順で返し、
-    /// どちらも持たない CLI(Cursor 等)は全バケットを返す。空なら空配列。
-    static func topBarBuckets(_ buckets: [UsageBucket]) -> [UsageBucket] {
-        let preferred = ["5h", "weekly"].compactMap { id in buckets.first { $0.id == id } }
-        if !preferred.isEmpty {
-            return preferred
-        }
-        return buckets
+    static func bottomBarUnavailableText(locale: Locale) -> String {
+        AppLocalizedString.string("取得できません", locale: locale)
     }
 
-    /// トップバーの行頭に出す短縮ラベル。5時間→"5h"、週次→"7d"、それ以外は元のラベル。
-    static func topBarShortLabel(for bucket: UsageBucket) -> String {
-        switch bucket.id {
-        case "5h": "5h"
-        case "weekly": "7d"
-        default: bucket.label
+    static func bottomBarBucketText(
+        _ bucket: UsageBucket,
+        showsLabel: Bool,
+        showsReset: Bool,
+        now: Date,
+        locale: Locale
+    ) -> String {
+        let remaining = Int(round(100 - max(0, min(100, bucket.usedPercent))))
+        var text = showsLabel ? "\(bucket.label) \(remaining)%" : "\(remaining)%"
+        if showsReset, let reset = sidebarResetDisplay(for: bucket, now: now) {
+            let isEnglish = locale.language.languageCode?.identifier == "en"
+            text += isEnglish ? " (\(reset.text))" : "（\(reset.text)）"
         }
+        return text
+    }
+
+    static func bottomBarAccessibilityLabel(groups: [BottomBarGroup], now: Date, locale: Locale) -> String {
+        let details = groups.map { group -> String in
+            guard let buckets = group.buckets else {
+                return "\(group.kind.displayName)、\(bottomBarUnavailableText(locale: locale))"
+            }
+            let values = buckets.map { bucket -> String in
+                let remaining = Int(round(100 - max(0, min(100, bucket.usedPercent))))
+                var value = "\(bucket.label) \(String(format: AppLocalizedString.string("残り %lld%%", locale: locale), remaining))"
+                if isLowRemaining(usedPercent: bucket.usedPercent) {
+                    value += "、\(AppLocalizedString.string("残りわずか", locale: locale))"
+                }
+                if let reset = sidebarResetDisplay(for: bucket, now: now) {
+                    value += "、\(String(format: AppLocalizedString.string("リセット %@", locale: locale), reset.text))"
+                }
+                return value
+            }
+            return "\(group.kind.displayName)、\(values.joined(separator: AppLocalizedString.string("、", locale: locale)))"
+        }
+        let joined = details.joined(separator: AppLocalizedString.string("、", locale: locale))
+        return String(format: AppLocalizedString.string("使用量: %@。クリックで詳細", locale: locale), joined)
     }
 
     /// 使用量に応じて緑→黄→赤へ段階変化（statusline の rate_color を移植）。
@@ -203,24 +195,4 @@ enum UsageDisplay {
         return "残り\(Int(round(100 - clamped)))%"
     }
 
-    /// トップバー chip のヘルプ文字列。
-    /// - unavailable: 提供元名と理由だけ（% も「残り」も含めない）。
-    /// - ok: 1行目に提供元名、続けて各バケットの「ラベル 残量（リセット …）」、最後に staleNote（あれば）。
-    static func topBarHelpText(chip: TopBarChip, now: Date) -> String {
-        if let reason = chip.unavailableReason {
-            return "\(chip.kind.displayName): \(reason)"
-        }
-        var lines = [chip.kind.displayName]
-        lines += chip.allBuckets.map { bucket in
-            var line = "\(bucket.label) \(remainingPercentText(usedPercent: bucket.usedPercent))"
-            if let reset = sidebarResetDisplay(for: bucket, now: now) {
-                line += "（リセット \(reset.text)）"
-            }
-            return line
-        }
-        if let staleNote = chip.staleNote {
-            lines.append(staleNote)
-        }
-        return lines.joined(separator: "\n")
-    }
 }

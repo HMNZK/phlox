@@ -132,7 +132,7 @@ struct ComposerKeywordRenderingTests {
         let (storage, _) = try highlightedColors(text: "/ultrathink", highlightsKeywords: true)
 
         #expect(srgbComponents(try #require(color(storage, at: 1)))
-                == srgbComponents(NSColor(DSColor.accentInk)))
+                == srgbComponents(NSColor(DSColor.textSecondary)))
     }
 
     @MainActor

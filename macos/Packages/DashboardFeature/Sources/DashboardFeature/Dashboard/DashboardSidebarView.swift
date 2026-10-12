@@ -173,10 +173,9 @@ struct DashboardSidebarView: View {
                 if !attention.isEmpty {
                     Text(verbatim: "\(attention.count)")
                         .font(DSFont.meta.weight(.bold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(DSColor.textSecondary)
                         .padding(.horizontal, 5)
                         .frame(minWidth: 18, minHeight: 16)
-                        .background(DSColor.accentFill, in: Capsule())
                 }
                 Spacer(minLength: 0)
                 Text("待ち時間順")
@@ -230,10 +229,6 @@ struct DashboardSidebarView: View {
             }
         } label: {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(DSColor.accent)
-                    .frame(width: 6, height: 6)
-                    .padding(.horizontal, 3)
                 text
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -243,8 +238,8 @@ struct DashboardSidebarView: View {
                     .foregroundStyle(DSColor.textTertiary)
                     .rotationEffect(.degrees(unreadExpanded && unread.count > 1 ? 90 : 0))
             }
-            .font(DSFont.auxiliary)
-            .foregroundStyle(DSColor.textSecondary)
+            .font(DSFont.auxiliary.weight(.semibold))
+            .foregroundStyle(DSColor.textPrimary)
             .padding(.horizontal, 8)
             .frame(height: 26)
             .contentShape(Rectangle())

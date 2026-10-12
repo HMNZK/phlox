@@ -16,11 +16,16 @@ import Testing
         #expect(light.sidebar == RGB(0xF2, 0xF2, 0xF4))
         #expect(light.tabBar == RGB(0xEC, 0xEC, 0xEF))
         #expect(light.stalled.mark == RGB(0x94, 0x57, 0xDB))
-        #expect(light.accentFill == RGB(0xB4, 0x55, 0x2F))
+        #expect(light.accent == RGB(0x3B, 0x46, 0x9B))
+        #expect(light.accentInk == RGB(0x3B, 0x46, 0x9B))
+        #expect(light.accentFill == RGB(0x3B, 0x46, 0x9B))
         let dark = AppTheme.phlox.palette
         #expect(dark.window == RGB(0x1E, 0x1E, 0x20))
         #expect(dark.popover == RGB(0x2F, 0x2F, 0x33))
         #expect(dark.approval.ink == RGB(0xF4, 0xBD, 0x68))
+        #expect(dark.accent == RGB(0x95, 0x9C, 0xD0))
+        #expect(dark.accentInk == RGB(0x95, 0x9C, 0xD0))
+        #expect(dark.accentFill == RGB(0x3B, 0x46, 0x9B))
         #expect(AppTheme.phlox.background == dark.window)
         #expect(AppTheme.phlox.textPrimary == RGB(0xF2, 0xF2, 0xF4))
         #expect(AppTheme.phloxLight.textPrimary == RGB(0x1D, 0x1D, 0x1F))
@@ -56,6 +61,24 @@ import Testing
         }
     }
 
+    @Test("全テーマ: accent は印として 3:1 以上、リンク文字として 4.5:1 以上")
+    func accentRolesMeetContrast() {
+        for theme in ThemeStore.all {
+            let p = theme.palette
+            let expected = p.isLight ? RGB(0x3B, 0x46, 0x9B) : RGB(0x95, 0x9C, 0xD0)
+            #expect(p.accent == expected, "\(theme.id) accent")
+            for face in faces(p) {
+                #expect(contrast(p.accent, face) >= 3, "\(theme.id) accent on \(face)")
+                #expect(contrast(p.accentInk, face) >= 4.5, "\(theme.id) accentInk on \(face)")
+            }
+        }
+    }
+
+    @Test("キーボードのフォーカス枠は不透明なアクセント")
+    func focusRingUsesSolidAccent() {
+        #expect(DSColor.focusRing == DSColor.accent)
+    }
+
     @Test("全テーマ: 本文・補助・弱い文字は新しい面でも 4.5:1 以上")
     func textIsReadableOnNewFaces() {
         // 既定 2 テーマの弱い文字はモックの確定値（#8E8E94 / #75757B）で、4.5:1 を満たさない（2026-09-24 ユーザー決定）。
@@ -70,9 +93,11 @@ import Testing
         }
     }
 
-    @Test("主ボタンの白文字は accent の面で 4.5:1 以上")
+    @Test("全テーマ: 主ボタンの白文字は accent の面で 4.5:1 以上")
     func accentFillCarriesWhiteText() {
-        #expect(contrast(RGB(255, 255, 255), DesignPalette.accentFillColor) >= 4.5)
+        for theme in ThemeStore.all {
+            #expect(contrast(RGB(255, 255, 255), theme.palette.accentFill) >= 4.5, Comment(rawValue: theme.id))
+        }
     }
 
     @Test("幅の範囲はクランプされる")

@@ -123,7 +123,7 @@ struct CursorStatusPane: View {
                 value: "\(model.availableModels.count)",
                 detail: model.availableModels.isEmpty ? "未取得" : nil,
                 systemImage: "cpu",
-                tint: DSColor.accent
+                tint: DSColor.textSecondary
             )
         }
     }

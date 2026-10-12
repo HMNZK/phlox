@@ -79,11 +79,11 @@ public struct DashboardView: View {
         )
     }
 
-    /// 巻き込まれる子セッション（名前と「Cx · 実行中」）。
+    /// 巻き込まれる子セッション（名前と状態）。
     private func deletionDialogRows(for id: SessionID) -> [DSDialogList.Row] {
         SessionDeletionDialogText.rows(
             children: viewModel.descendantNodes(of: id).map {
-                (name: $0.displayName, meta: "\($0.agentDescriptor.tabInitials) · \($0.gridDisplayState.localizedLabel(locale: locale))")
+                (name: $0.displayName, meta: $0.gridDisplayState.localizedLabel(locale: locale))
             },
             locale: locale
         )
@@ -324,7 +324,6 @@ public struct DashboardView: View {
                     DashboardToolbar(
                         viewModel: viewModel,
                         router: router,
-                        usageMonitor: usageMonitor,
                         density: ToolbarDensity.forWindowWidth(windowWidth),
                         showsSidebarToggle: !layout.showsSidebar
                     )
@@ -556,6 +555,9 @@ public struct DashboardView: View {
         .onChange(of: router.inspectorVisible) { _, visible in
             guard visible else { return }
             Task { await usageMonitor.refresh() }
+        }
+        .safeAreaInset(edge: .bottom) {
+            UsageBottomBarView(monitor: usageMonitor, router: router)
         }
     }
 
@@ -851,7 +853,7 @@ public struct DashboardView: View {
             Button("閉じる") { discardedSessionCountNotice = nil }
                 .buttonStyle(.plain)
                 .font(DSFont.dense.weight(.semibold))
-                .foregroundStyle(DSColor.accentInk)
+                .foregroundStyle(DSColor.textSecondary)
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 38)

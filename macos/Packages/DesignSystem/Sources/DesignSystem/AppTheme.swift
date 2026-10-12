@@ -14,10 +14,6 @@ public struct RGB: Sendable, Equatable {
         self.b = b
     }
 
-    init(_ rgb: AgentRGB) {
-        self.init(rgb.r, rgb.g, rgb.b)
-    }
-
     public var color: Color {
         Color(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
     }
@@ -76,9 +72,6 @@ public struct AppTheme: Sendable, Identifiable {
     public let statusCompleted: RGB
     public let statusStarting: RGB
     public let statusIdle: RGB
-    public let attention: RGB
-    // CLI バッジ
-    public let agentColors: [AgentKind: RGB]
     // ターミナル
     public let terminalBackground: RGB
     public let terminalForeground: RGB
@@ -92,15 +85,13 @@ public struct AppTheme: Sendable, Identifiable {
 }
 
 extension AppTheme {
-    private static let claudeCoral = RGB(0xD9, 0x77, 0x57)
-
-    // MARK: - サイドバー4面の不透明度（Tokens.swift の fillSubtle/fillSelected/idleHighlight と共有する唯一の定義）
+    // MARK: - サイドバー面の不透明度（Tokens.swift の fillSubtle/fillSelected と共有）
 
     /// hover 面（`DSColor.fillSubtle`。12 Design System `--hov`: ダーク 0.06 / ライト 0.05）。
     static func sidebarHoverOpacity(isDark: Bool) -> Double { isDark ? 0.06 : 0.05 }
     /// 選択面（`DSColor.fillSelected`。`--sel`: ダーク 0.09 / ライト 0.075）。
     static func sidebarSelectedOpacity(isDark: Bool) -> Double { isDark ? 0.09 : 0.075 }
-    /// attention 面（`DSColor.idleHighlight`）。
+    /// コントラスト計算で確認する状態色の面。
     static let sidebarAttentionOpacity = 0.22
 
     /// 補助文字コントラストの実装目標（WCAG 4.5 に丸め・実測残差の余裕を足した値）。
@@ -108,7 +99,7 @@ extension AppTheme {
     private static let secondaryIdealMix = 0.42
     private static let tertiaryIdealMix = 0.62
 
-    /// サイドバーで実際に重なる4面（基底／hover／選択／attention）。優先順の2枚重ねは作らない。
+    /// 補助文字のコントラスト計算に使う面（基底／hover／選択／状態色）。
     private static func sidebarFaces(background: RGB, hoverOverlay: RGB, attention: RGB) -> [RGB] {
         let isDark = background.relativeLuminance < 0.5
         return [
@@ -208,6 +199,7 @@ extension AppTheme {
         let surface = isLight ? background.darkened(7) : background.lightened(7)
         let surfaceElevated = isLight ? background.darkened(14) : background.lightened(14)
         let auxiliaryText = derivedAuxiliaryText(primary: textPrimary, background: background, attention: attentionColor)
+        let palette = DesignPalette.derived(background: background, textPrimary: textPrimary, ansi: ansi)
         // Palette 固有の accent はターミナル由来テーマの互換入力として受け取り、UI accent は共有色に統一する。
         return AppTheme(
             id: id,
@@ -218,23 +210,17 @@ extension AppTheme {
             textPrimary: textPrimary,
             textSecondary: auxiliaryText.secondary,
             textTertiary: auxiliaryText.tertiary,
-            accent: Self.claudeCoral,
+            accent: palette.accent,
             statusRunning: ansi[2],
             statusAwaiting: ansi[3],
             statusError: ansi[1],
             statusCompleted: ansi[10],
             statusStarting: rawTextPrimary.mixed(background, 0.38),
             statusIdle: rawTextPrimary.mixed(background, 0.52),
-            attention: ansi[9],
-            agentColors: [
-                .claudeCode: ansi[3],
-                .codex: ansi[4],
-                .cursor: rawTextPrimary.mixed(background, 0.35),
-            ],
             terminalBackground: bg,
             terminalForeground: fg,
             ansi: ansi,
-            palette: .derived(background: background, textPrimary: textPrimary, ansi: ansi)
+            palette: palette
         )
     }
 
@@ -244,10 +230,8 @@ extension AppTheme {
         id: String, name: String, palette: DesignPalette,
         primary: RGB, secondary: RGB, tertiary: RGB,
         statusRunning: RGB, statusCompleted: RGB, statusStarting: RGB, statusIdle: RGB,
-        agentColors: [AgentKind: RGB],
         terminalBackground: RGB, terminalForeground: RGB, ansi: [RGB]
     ) -> AppTheme {
-        let attention = claudeCoral
         return AppTheme(
             id: id,
             name: name,
@@ -265,8 +249,6 @@ extension AppTheme {
             statusCompleted: statusCompleted,
             statusStarting: statusStarting,
             statusIdle: statusIdle,
-            attention: attention,
-            agentColors: agentColors,
             terminalBackground: terminalBackground,
             terminalForeground: terminalForeground,
             ansi: ansi,
@@ -278,7 +260,7 @@ extension AppTheme {
 // MARK: - テーマ定義
 
 extension AppTheme {
-    /// 既定テーマ。UI chrome はニュートラルグレー、アクセントは Claude コーラルに統一する。
+    /// 既定テーマ。UI chrome はニュートラルグレー、アクセントは藍色に統一する。
     /// textSecondary/textTertiary は固定 RGB 直書きをやめ、fromPalette と共有する導出関数の呼び出しへ
     /// 置き換える（主文字 0xE6 は最悪面でも十分読めるため、そのまま変えない）。
     public static let phlox: AppTheme = designTheme(
@@ -292,11 +274,6 @@ extension AppTheme {
         statusCompleted: RGB(0x6E, 0xE7, 0xB7),
         statusStarting: RGB(0xA3, 0xA3, 0xA3),
         statusIdle: RGB(0x86, 0x86, 0x86),
-        agentColors: [
-            .claudeCode: RGB(0xE0, 0xAF, 0x68),
-            .codex: RGB(0x7C, 0x8C, 0xFF),
-            .cursor: RGB(0xB8, 0xB8, 0xB8),
-        ],
         terminalBackground: RGB(0x14, 0x14, 0x16),
         terminalForeground: RGB(0xD6, 0xD6, 0xD6),
         ansi: phloxTerminalANSI
@@ -305,7 +282,7 @@ extension AppTheme {
     /// Phlox / Phlox Light の端末 16 色。端末はテーマの明暗によらず暗い面（12 Design System）。
     static let phloxTerminalANSI: [RGB] = [
             RGB(0x0D, 0x0D, 0x0D), RGB(0xEF, 0x44, 0x44), RGB(0x34, 0xD3, 0x99), RGB(0xFB, 0xBF, 0x24),
-            RGB(0x60, 0xA5, 0xFA), RGB(0xD9, 0x77, 0x57), RGB(0x38, 0xBD, 0xF8), RGB(0xE5, 0xE5, 0xE5),
+            RGB(0x60, 0xA5, 0xFA), RGB(0x95, 0x9C, 0xD0), RGB(0x38, 0xBD, 0xF8), RGB(0xE5, 0xE5, 0xE5),
             RGB(0x3F, 0x3F, 0x46), RGB(0xFB, 0x71, 0x71), RGB(0x6E, 0xE7, 0xB7), RGB(0xFD, 0xE6, 0x8A),
             RGB(0x93, 0xC5, 0xFD), RGB(0xFB, 0xA8, 0x8A), RGB(0x7D, 0xD3, 0xFC), RGB(0xFF, 0xFF, 0xFF),
     ]
@@ -397,7 +374,7 @@ extension AppTheme {
             RGB(0x6C, 0x6F, 0x85), RGB(0xD2, 0x0F, 0x39), RGB(0x40, 0xA0, 0x2B), RGB(0xDF, 0x8E, 0x1D),
             RGB(0x1E, 0x66, 0xF5), RGB(0xEA, 0x76, 0xCB), RGB(0x17, 0x92, 0x99), RGB(0xBC, 0xC0, 0xCC),
         ],
-        accent: claudeCoral
+        accent: DesignPalette.accentColor
     )
 
     /// Solarized Light
@@ -412,7 +389,7 @@ extension AppTheme {
             RGB(0x00, 0x2B, 0x36), RGB(0xCB, 0x4B, 0x16), RGB(0x58, 0x6E, 0x75), RGB(0x65, 0x7B, 0x83),
             RGB(0x83, 0x94, 0x96), RGB(0x6C, 0x71, 0xC4), RGB(0x93, 0xA1, 0xA1), RGB(0xFD, 0xF6, 0xE3),
         ],
-        accent: claudeCoral
+        accent: DesignPalette.accentColor
     )
 
     /// GitHub Light
@@ -427,7 +404,7 @@ extension AppTheme {
             RGB(0x57, 0x60, 0x6A), RGB(0xA4, 0x0E, 0x26), RGB(0x1A, 0x7F, 0x37), RGB(0x9A, 0x67, 0x00),
             RGB(0x21, 0x82, 0xE8), RGB(0xA4, 0x75, 0xF9), RGB(0x31, 0x8E, 0x95), RGB(0x8C, 0x95, 0x9F),
         ],
-        accent: claudeCoral
+        accent: DesignPalette.accentColor
     )
 
     /// Phlox Light — 再設計の明色の既定テーマ（12 Design System の確定値）。
@@ -452,11 +429,6 @@ extension AppTheme {
             statusCompleted: ansi[10],
             statusStarting: primary.mixed(palette.window, 0.38),
             statusIdle: primary.mixed(palette.window, 0.52),
-            agentColors: [
-                .claudeCode: ansi[3],
-                .codex: ansi[4],
-                .cursor: primary.mixed(palette.window, 0.35),
-            ],
             terminalBackground: RGB(0x1B, 0x1B, 0x1D),
             terminalForeground: RGB(0xD6, 0xD6, 0xD6),
             ansi: phloxTerminalANSI

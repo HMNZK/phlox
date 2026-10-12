@@ -57,14 +57,12 @@ public extension DSColor {
       case .claudeCode: return RGB(0xC4, 0x6D, 0x42).color
       case .codex: return RGB(0x10, 0xB9, 0x81).color
       case .cursor: return RGB(0x6B, 0x7F, 0xE8).color
-      default: return agentColor(for: kind)
       }
     }
     switch kind {
     case .claudeCode: return RGB(0xE0, 0x8B, 0x63).color
     case .codex: return RGB(0x34, 0xD3, 0x99).color
     case .cursor: return RGB(0x8A, 0xA0, 0xFF).color
-    default: return agentColor(for: kind)
     }
   }
 }

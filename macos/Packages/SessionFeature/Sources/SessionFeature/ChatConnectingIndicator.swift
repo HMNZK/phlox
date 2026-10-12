@@ -28,7 +28,7 @@ public struct ChatConnectingIndicator: View {
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
                 let maximumRadius = min(canvasSize.width, canvasSize.height) / 2
-                let accent = DSColor.chatAccent
+                let accent = DSColor.chatTextSecondary
 
                 for index in 0..<3 {
                     let phase = ((time * 0.55) + Double(index) / 3)
@@ -97,13 +97,13 @@ public struct ChatConnectingIndicator: View {
     private var staticIndicator: some View {
         ZStack {
             Circle()
-                .stroke(DSColor.chatAccent.opacity(0.22), lineWidth: 2)
+                .stroke(DSColor.chatTextSecondary.opacity(0.22), lineWidth: 2)
                 .frame(width: size * 0.82, height: size * 0.82)
             Circle()
-                .stroke(DSColor.chatAccent.opacity(0.5), lineWidth: 2)
+                .stroke(DSColor.chatTextSecondary.opacity(0.5), lineWidth: 2)
                 .frame(width: size * 0.5, height: size * 0.5)
             Circle()
-                .fill(DSColor.chatAccent.opacity(0.9))
+                .fill(DSColor.chatTextSecondary.opacity(0.9))
                 .frame(width: size * 0.18, height: size * 0.18)
         }
     }

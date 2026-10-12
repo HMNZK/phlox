@@ -80,7 +80,6 @@ struct GridTileHeader: View {
     var body: some View {
         let _ = themeID
         HStack(spacing: 7) {
-            stateText
             if isInternal {
                 Text("内部")
                     .font(.system(size: 10))
@@ -96,24 +95,13 @@ struct GridTileHeader: View {
                 workspacePath: session.workspacePath
             )
             Text(verbatim: presentation.primary)
-                .font(DSFont.dense.weight(.semibold))
-                .foregroundStyle(DSColor.textPrimary)
-                .opacity(isCalm ? 0.8 : 1)
+                .font(DSFont.dense.weight(state == .doneUnread ? .semibold : .regular))
+                .foregroundStyle(state == .doneUnread ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .help(presentation.helpText)
-            if state == .doneUnread {
-                Circle()
-                    .fill(DSColor.accent)
-                    .frame(width: 6, height: 6)
-                    .accessibilityLabel(Text("未読"))
-            }
             if size != .small {
-                Text(verbatim: session.agentDescriptor.tabInitials)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(DSColor.textTertiary)
-                    .accessibilityHidden(true)
                 if let number, number <= 9 {
                     Text(verbatim: "⌘\(number)")
                         .font(.system(size: 10.5))
@@ -136,41 +124,9 @@ struct GridTileHeader: View {
         .padding(.leading, 10)
         .padding(.trailing, 6)
         .frame(height: size == .small ? 28 : 30)
-        .background(state.attentionKind.map { DSColor.attentionTint($0) } ?? Color.clear)
         .overlay(alignment: .bottom) {
             Rectangle().fill(DSColor.separator).frame(height: 1)
         }
-    }
-
-    /// 起動中・待機・完了は弱い文字、実行中は太字、対応待ちは状態の色（06 論点 1・2）。
-    private var isCalm: Bool {
-        state.attentionKind == nil && state != .running && state != .doneUnread
-    }
-
-    @ViewBuilder
-    private var stateText: some View {
-        if state == .stalled {
-            TimelineView(.periodic(from: .now, by: 1)) { context in label(now: context.date) }
-        } else if state.attentionKind != nil, session.statusEnteredAt != nil {
-            TimelineView(.periodic(from: .now, by: 60)) { context in label(now: context.date) }
-        } else {
-            label(now: Date())
-        }
-    }
-
-    private func label(now: Date) -> some View {
-        Text(verbatim: GridTileText.stateLabel(
-            state: state,
-            since: session.statusEnteredAt,
-            silence: session.stalledSilence(now: now),
-            now: now,
-            locale: locale
-        ))
-        .font(.system(size: 11.5, weight: state.attentionKind != nil || state == .running ? .bold : .medium))
-        .monospacedDigit()
-        .foregroundStyle(state.attentionKind.map { DSColor.attentionInk($0) } ?? (state == .running ? DSColor.textPrimary : DSColor.textTertiary))
-        .lineLimit(1)
-        .layoutPriority(2)
     }
 
 }

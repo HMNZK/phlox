@@ -11,8 +11,8 @@ import XCTest
 // 検証対象:
 //   - PhloxCore 再エクスポート経路（supportedAgentKinds）
 //   - SessionStatus / HookEvent / reduce(_:applying:)（ステータス遷移の純粋関数）
-//   - AgentKind / AgentRegistry / AgentCatalog（CLI レジストリ）
-//   - AgentRef（builtin/custom）の Codable
+//   - AgentKind / AgentRegistry（組み込み CLI レジストリ）
+//   - AgentRef（組み込み CLI）の Codable
 //   - SessionID の Codable / 表現
 //   - FlowerNameGenerator（命名生成の不変条件）
 final class PhloxCoreTests: XCTestCase {
@@ -276,7 +276,7 @@ final class PhloxCoreTests: XCTestCase {
         XCTAssertTrue(AgentRegistry.optionalBinaryKinds.contains(.codex))
     }
 
-    // MARK: - AgentRef（builtin / custom）
+    // MARK: - AgentRef（builtin）
 
     func testAgentRef_builtinIdAndKind() {
         let ref = AgentRef.builtin(.codex)
@@ -284,61 +284,18 @@ final class PhloxCoreTests: XCTestCase {
         XCTAssertEqual(ref.builtinKind, .codex)
     }
 
-    func testAgentRef_customIdAndNilKind() {
-        let ref = AgentRef.custom("myagent")
-        XCTAssertEqual(ref.id, "myagent")
-        XCTAssertNil(ref.builtinKind)
-    }
-
     func testAgentRef_builtinCodableRoundTrip() throws {
-        let refs: [AgentRef] = [.builtin(.claudeCode), .builtin(.cursor)]
+        let refs = AgentKind.allCases.map(AgentRef.builtin)
         let decoded = try JSONDecoder().decode([AgentRef].self, from: JSONEncoder().encode(refs))
         XCTAssertEqual(decoded, refs)
     }
 
-    func testAgentRef_customCodableRoundTrip() throws {
-        let refs: [AgentRef] = [.custom("teamcli"), .builtin(.codex)]
-        let decoded = try JSONDecoder().decode([AgentRef].self, from: JSONEncoder().encode(refs))
-        XCTAssertEqual(decoded, refs)
-    }
+    // MARK: - AgentRegistry
 
-    // MARK: - AgentCatalog
-
-    func testAgentCatalog_builtinsContainAllKinds() {
-        let catalog = AgentCatalog.builtins
+    func testAgentRegistry_descriptorsUseBuiltinRefs() {
         for kind in AgentKind.allCases {
-            XCTAssertNotNil(catalog.descriptor(for: .builtin(kind)), "missing builtin \(kind)")
+            XCTAssertEqual(AgentRegistry.descriptor(for: kind).ref, .builtin(kind))
         }
-    }
-
-    func testAgentCatalog_mergesCustomDescriptor() {
-        let custom = AgentDescriptor(
-            ref: .custom("teamcli"),
-            displayName: "Team CLI",
-            binaryName: "teamcli",
-            symbolName: "terminal",
-            colorRGB: AgentRGB(0x10, 0x20, 0x30),
-            bypassKey: "phlox.bypass.teamcli",
-            launchSpec: AgentLaunchSpec()
-        )
-        let catalog = AgentCatalog(customDescriptors: [custom])
-        XCTAssertEqual(catalog.allDescriptors.count, AgentRegistry.allDescriptors.count + 1)
-        XCTAssertNotNil(catalog.descriptor(for: .custom("teamcli")))
-        XCTAssertNotNil(catalog.descriptor(for: .builtin(.claudeCode)))
-    }
-
-    func testAgentCatalog_ignoresCustomCollidingWithBuiltinID() {
-        let collider = AgentDescriptor(
-            ref: .custom("claudeCode"),
-            displayName: "Fake",
-            binaryName: "fake",
-            symbolName: "terminal",
-            colorRGB: AgentRGB(0, 0, 0),
-            bypassKey: "phlox.bypass.fake",
-            launchSpec: AgentLaunchSpec()
-        )
-        let catalog = AgentCatalog(customDescriptors: [collider])
-        XCTAssertEqual(catalog.allDescriptors.count, AgentRegistry.allDescriptors.count)
     }
 
     // MARK: - SessionID

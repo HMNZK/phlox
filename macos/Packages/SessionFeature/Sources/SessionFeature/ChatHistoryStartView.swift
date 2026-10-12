@@ -235,7 +235,7 @@ public struct HistoryStartRow: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .strokeBorder(isHovering ? DSColor.accent : DSColor.separator, lineWidth: isHovering ? 2 : 1)
+                    .strokeBorder(DSColor.separator, lineWidth: isHovering ? 2 : 1)
             }
             .contentShape(Rectangle())
         }

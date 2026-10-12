@@ -23,16 +23,27 @@ struct DashboardToolbar: ToolbarContent {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     var body: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            items.sharedBackgroundVisibility(.hidden)
+        } else {
+            items
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var items: some ToolbarContent {
         // サイドバーを隠しているときだけ出す（project-tabs.md P6）。
-        if !(router.sidebarVisible && !router.sidebarLacksRoom) {
-            ToolbarItem(placement: .navigation) {
+        ToolbarItem(id: "dashboard-sidebar", placement: .navigation) {
+            if !(router.sidebarVisible && !router.sidebarLacksRoom) {
                 SidebarToggleButton(router: router, attentionCount: viewModel.attentionEntries.count)
             }
         }
         ToolbarItem(placement: .automatic) { Spacer() }
-        ToolbarItemGroup(placement: .primaryAction) {
-            ViewModeToggle(mode: $router.viewMode)
-            inspectorToggleButton
+        ToolbarItem(id: "dashboard-display", placement: .primaryAction) {
+            HStack(spacing: DSSpacing.s) {
+                ViewModeToggle(mode: $router.viewMode)
+                inspectorToggleButton
+            }
         }
     }
 
@@ -45,7 +56,7 @@ struct DashboardToolbar: ToolbarContent {
             Image(systemName: "sidebar.right")
                 .font(.system(size: DSIconSize.l, weight: .medium))
                 .foregroundStyle(router.inspectorVisible ? DSColor.textPrimary : DSColor.textSecondary)
-                .frame(width: 28, height: 24)
+                .frame(width: DSLayout.toolbarIconButtonSize, height: DSLayout.toolbarIconButtonSize)
                 .background(
                     router.inspectorVisible ? DSColor.fillSelected : Color.clear,
                     in: RoundedRectangle(cornerRadius: DSRadius.row)
@@ -71,14 +82,12 @@ struct SidebarToggleButton: View {
 
     var body: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                router.toggleSidebar()
-            }
+            router.toggleSidebar()
         } label: {
             Image(systemName: "sidebar.leading")
                 .font(.system(size: DSIconSize.l, weight: .medium))
                 .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 28, height: 24)
+                .frame(width: DSLayout.toolbarIconButtonSize, height: DSLayout.toolbarIconButtonSize)
                 .overlay(alignment: .topTrailing) {
                     if !isShowing, attentionCount > 0 {
                         CountBadge(count: attentionCount)
@@ -133,8 +142,8 @@ struct ViewModeToggle: View {
             segment(.single, symbol: "square", title: AppLocalizedString.string("単体", locale: locale), key: "⌃⌘1")
             segment(.grid, symbol: "square.grid.2x2", title: AppLocalizedString.string("グリッド", locale: locale), key: "⌃⌘2")
         }
-        .padding(DSSpacing.xxs)
-        .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 7))
+        .padding(.horizontal, DSSpacing.xxs)
+        .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: DSRadius.row))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("表示モード"))
     }
@@ -165,20 +174,23 @@ private struct ModeSegmentButton: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: symbol)
-                    .font(DSFont.auxiliary.weight(.medium))
+                    .font(.system(size: DSIconSize.modeSegment, weight: .medium))
                 if let title {
                     Text(title)
                         .font(DSFont.auxiliary.weight(.medium))
                 }
             }
             .padding(.horizontal, title == nil ? 0 : 10)
-            // 見た目は 12 Design System のセグメント高 22、押せる範囲は DSHitTarget の 24。
-            .frame(minWidth: DSHitTarget.modeSegmentWidth, minHeight: 22)
+            // 見本のトラック高 24、内側の面は 20。押せる範囲は 24 を保つ。
+            .frame(minWidth: DSHitTarget.modeSegmentWidth, minHeight: DSLayout.modeSegmentFaceHeight)
             .background(
                 isOn ? DSColor.controlBackground : (hovering ? DSColor.fillSubtle : Color.clear),
-                in: RoundedRectangle(cornerRadius: 5)
+                in: RoundedRectangle(cornerRadius: DSRadius.s)
             )
-            .shadow(color: isOn ? .black.opacity(0.2) : .clear, radius: 0.75, y: 0.5)
+            .overlay {
+                RoundedRectangle(cornerRadius: DSRadius.s)
+                    .strokeBorder(isOn ? DSColor.controlBorder : .clear, lineWidth: DSLayout.controlBorderWidth)
+            }
             .frame(minHeight: DSHitTarget.modeSegmentHeight)
             .contentShape(Rectangle())
         }

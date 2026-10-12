@@ -23,10 +23,10 @@ struct UsageBottomBarView: View {
                     } label: {
                         GeometryReader { geometry in
                             row(groups, width: geometry.size.width, now: context.date)
-                                .padding(.horizontal, 12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, DSSpacing.m)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                         }
-                        .frame(height: 24)
+                        .frame(height: DSLayout.usageBarHeight)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

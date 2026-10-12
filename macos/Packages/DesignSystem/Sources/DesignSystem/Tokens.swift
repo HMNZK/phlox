@@ -75,6 +75,10 @@ public enum DSLayout {
 
     // 再設計の高さ・幅（12 Design System / README「全体の決定事項」）。
     public static let toolbarHeight: CGFloat = 38
+    public static let toolbarIconButtonSize: CGFloat = 28
+    public static let modeSegmentFaceHeight: CGFloat = 20
+    public static let controlBorderWidth: CGFloat = 0.5
+    public static let usageBarHeight: CGFloat = 24
     public static let tabBarHeight: CGFloat = 34
     public static let childTabBarHeight: CGFloat = 36
     public static let listRowHeight: CGFloat = 28
@@ -93,9 +97,14 @@ public enum DSLayout {
     }
 }
 
+public enum DSAnimation {
+    public static let pane = Animation.easeInOut(duration: 0.18)
+}
+
 /// SF Symbol などアイコングリフの固有サイズ。本文フォント(DSFont)とは別系統で、
 /// 頻出する実寸を一元化する（weight は利用箇所で指定）。一回限りの特大アイコンは対象外。
 public enum DSIconSize {
+    public static let modeSegment: CGFloat = 14
     public static let s: CGFloat = 10
     public static let m: CGFloat = 12
     public static let l: CGFloat = 15
@@ -105,7 +114,7 @@ public enum DSIconSize {
 public enum DSHitTarget {
     public static let icon: CGFloat = 24            // サイドバー＋/…、タイル×
     public static let modeSegmentWidth: CGFloat = 30
-    public static let modeSegmentHeight: CGFloat = 24 // 押せる範囲（task-34 で 24 以上）。見た目の 22 は ModeSegmentButton が内側に描く
+    public static let modeSegmentHeight: CGFloat = 24 // 押せる範囲。内側の面は DSLayout.modeSegmentFaceHeight。
 }
 
 /// elevation（面の持ち上げ）を表す影トークン。生値の `.shadow(...)` 直書きを排除し、

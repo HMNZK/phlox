@@ -12,6 +12,7 @@ public struct DashboardView: View {
     @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
     @Environment(\.localizationBundle) private var localizationBundle
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var sidebarWidth: CGFloat = DSLayout.sidebarWidth.ideal
     @State private var sidebarWidthAtDragStart: CGFloat = DSLayout.sidebarWidth.ideal
@@ -122,6 +123,8 @@ public struct DashboardView: View {
     public var body: some View {
         shellWithTabDialogs
             .toolbar { DashboardToolbar(viewModel: viewModel, router: router) }
+            .toolbarBackground(DSColor.toolbarBackground, for: .windowToolbar)
+            .toolbarBackground(.visible, for: .windowToolbar)
             .environment(\.adjustTerminalFontSize) { [viewModel] delta in
                 viewModel.adjustFontSize(by: delta, target: .terminal)
             }
@@ -320,12 +323,16 @@ public struct DashboardView: View {
             let windowWidth = geometry.size.width
             let layout = paneLayout(windowWidth: windowWidth)
             HStack(spacing: 0) {
-                if layout.showsSidebar {
+                HStack(spacing: 0) {
                     sidebarColumn
                         .frame(width: layout.sidebar)
-                        .transition(.move(edge: .leading))
                     verticalSeparator
                 }
+                .frame(width: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0, alignment: .trailing)
+                .clipped()
+                .disabled(!layout.showsSidebar)
+                .allowsHitTesting(layout.showsSidebar)
+                .accessibilityHidden(!layout.showsSidebar)
 
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
@@ -342,11 +349,6 @@ public struct DashboardView: View {
                             centerContent
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .background(router.viewMode == .grid ? DSColor.gridAreaBackground : DSColor.windowBackground)
-                                .transaction { transaction in
-                                    if transaction.animation != nil {
-                                        transaction.animation = nil
-                                    }
-                                }
                         }
 
                         if router.inspectorVisible, !layout.inspectorIsOverlay {
@@ -359,7 +361,6 @@ public struct DashboardView: View {
                     }
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: router.sidebarVisible)
             .animation(.easeInOut(duration: 0.18), value: router.inspectorVisible)
             // 幅が足りないときの重ね表示。SwiftUI の overlay は端末の NSView より前面に描ける。
             .overlay(alignment: .topTrailing) {
@@ -390,6 +391,8 @@ public struct DashboardView: View {
                     .transition(.move(edge: .leading))
                 }
             }
+            .animation(reduceMotion ? nil : DSAnimation.pane, value: layout.showsSidebar)
+            .animation(reduceMotion ? nil : DSAnimation.pane, value: router.sidebarPeeking)
             // リサイズ用の掴みしろもオーバーレイにする。HStack 内の区切り線へ overlay で
             // 当たり判定を広げる方式だと、ターミナル(AppKit NSView)側に張り出した分が
             // NSView に遮られてホバー・ドラッグを受け取れないため、最前面のオーバーレイとして

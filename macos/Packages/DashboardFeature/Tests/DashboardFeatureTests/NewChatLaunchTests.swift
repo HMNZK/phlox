@@ -39,6 +39,42 @@ private actor LaunchClient: StructuredAgentClient, SpawnAgentSettingsControlling
 
 @Suite("New chat launch", .serialized) @MainActor
 final class NewChatLaunchTests {
+    @Test func projectDeletedDuringHistoryLoadPreventsNewChatLaunch() async throws {
+        let client = LaunchClient()
+        let store = InMemorySessionStore()
+        let dashboard = dashboard([client], kind: .codex, store: store)
+        let base = request(dashboard, kind: .codex)
+        let image = ComposerAttachment(data: Data([1]), mediaType: "image/png")
+        let launch = NewChatLaunchRequest(projectID: base.projectID, agentRef: base.agentRef,
+            settings: base.settings, usesWorktree: false, text: base.text, attachments: [image],
+            resumeHistoryID: "blocked-history")
+        let entry = ClaudeSessionHistoryEntry(sessionID: "blocked-history", preview: "history",
+            firstUserAt: nil, lastModified: Date(), gitBranch: nil,
+            fileURL: URL(fileURLWithPath: "/tmp/nonexistent-phlox-history-\(UUID()).jsonl"),
+            sourceWorkingDirectory: "/tmp")
+        let (started, ready) = AsyncStream<Void>.makeStream()
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal(); ready.finish() }
+        let task = Task {
+            try await DashboardViewModel.$newChatHistoryLoader.withValue({
+                ready.yield(())
+                release.wait()
+                return [entry]
+            }) { try await dashboard.launchNewChat(launch) }
+        }
+        for await _ in started { break }
+        #expect(dashboard.sessionNodes.isEmpty)
+        await dashboard.removeProject(base.projectID)
+        release.signal()
+        await #expect(throws: AgentSpawnError.unknownProject) { try await task.value }
+        #expect(dashboard.projects.isEmpty)
+        #expect(dashboard.sessionNodes.isEmpty)
+        #expect(await client.starts == 0)
+        #expect(await client.inputs.isEmpty)
+        #expect(await store.load().isEmpty)
+        for node in dashboard.sessionNodes { await dashboard.removeSession(node.id) }
+    }
+
     @Test(arguments: [AgentKind.claudeCode, .codex, .cursor])
     func processExitDuringStartDoesNotSendPendingMessage(kind: AgentKind) async throws {
         let client = LaunchClient(holdsStart: true)

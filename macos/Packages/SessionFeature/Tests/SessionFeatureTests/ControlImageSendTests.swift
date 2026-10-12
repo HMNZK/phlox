@@ -12,6 +12,7 @@ private final class RecordingStructuredClient: StructuredAgentClient, @unchecked
     private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
     private(set) var lastTurnStartInput: [ChatInput]?
     var turnStartError: (any Error)?
+    var turnStartGate: AsyncStream<Void>?
 
     init() {
         var captured: AsyncStream<NormalizedChatEvent>.Continuation?
@@ -24,6 +25,7 @@ private final class RecordingStructuredClient: StructuredAgentClient, @unchecked
     func start() async {}
     func turnStart(_ input: [ChatInput]) async throws {
         lastTurnStartInput = input
+        if let turnStartGate { for await _ in turnStartGate { break } }
         if let turnStartError {
             throw turnStartError
         }
@@ -58,6 +60,84 @@ private func makeCodexViewModel(client: RecordingStructuredClient) -> ChatSessio
 
 @Suite @MainActor
 struct ControlImageSendTests {
+    @Test func newChatExitDuringImagePreparationStopsFirstSendAndRestoresInput() async throws {
+        let imageModel = try JSONDecoder().decode(AppServerModel.self, from: Data(#"{"id":"image-model","model":"image-model","displayName":"Image","description":"","hidden":false,"supportedReasoningEfforts":["medium"],"defaultReasoningEffort":"medium","isDefault":true,"inputModalities":["text","image"]}"#.utf8))
+        let client = RacingCodexImageClient(models: [imageModel])
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/work")
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            let first = ComposerAttachment(data: tinyPNG, mediaType: "image/png")
+            vm.prepareFirstMessage("first [Image #1]", attachments: [first])
+            var started = client.configurationStarted.makeAsyncIterator()
+            let send = Task { await vm.sendFirstMessage("first [Image #1]", attachments: [first]) }
+            _ = await started.next()
+            await client.emit(.processExited(exitCode: 1))
+            await client.emit(.warning(message: "events processed"))
+            try await waitForProcessedEvents(vm)
+            #expect(vm.launchFailure != nil)
+            #expect(vm.draft == "first [Image #1]")
+            #expect(vm.composerAttachments == [first])
+            await client.releaseConfiguration()
+            await send.value
+            #expect(await client.turnStartInputs().isEmpty)
+            #expect(vm.draft == "first [Image #1]")
+            #expect(vm.composerAttachments == [first])
+            #expect(vm.pendingFirstMessage == nil)
+            #expect(vm.sendFailure == nil)
+            #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
+            if case .error = vm.status {} else { Issue.record("launch failure status overwritten") }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func newChatExitDuringTurnStartRestoresInputOnlyOnce(throwsResponse: Bool) async throws {
+        let client = RecordingStructuredClient()
+        let (gate, release) = AsyncStream<Void>.makeStream()
+        defer { release.finish() }
+        client.turnStartGate = gate
+        if throwsResponse { client.turnStartError = ChatLaunchError.processFailed("late turnStart failure") }
+        let vm = makeClaudeViewModel(client: client)
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            let first = ComposerAttachment(data: tinyPNG, mediaType: "image/png")
+            let next = ComposerAttachment(data: tinyPNG, mediaType: "image/png")
+            vm.prepareFirstMessage("first [Image #1]", attachments: [first])
+            let send = Task { await vm.sendFirstMessage("first [Image #1]", attachments: [first]) }
+            for _ in 0..<100 {
+                if client.lastTurnStartInput != nil { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(client.lastTurnStartInput != nil)
+            vm.restoreLaunchDraft("next [Image #1]", attachments: [next])
+            client.emit(.processExited(exitCode: 1))
+            client.emit(.warning(message: "events processed"))
+            try await waitForProcessedEvents(vm)
+            let restoredDraft = vm.draft
+            let restoredAttachments = vm.composerAttachments
+            #expect(restoredDraft == "first [Image #1]\n\nnext [Image #2]")
+            #expect(restoredAttachments.map(\.id) == [first.id, next.id])
+            release.yield(())
+            await send.value
+            #expect(vm.draft == restoredDraft)
+            #expect(vm.composerAttachments == restoredAttachments)
+            #expect(vm.launchFailure != nil)
+            #expect(vm.sendFailure == nil)
+            #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
+            if case .error = vm.status {} else { Issue.record("launch failure status overwritten") }
+        }
+    }
+
+    private func waitForProcessedEvents(_ vm: ChatSessionViewModel) async throws {
+        for _ in 0..<100 {
+            if vm.transcript.contains(where: {
+                if case .error(_, let message, _) = $0 { message == "events processed" } else { false }
+            }) { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        Issue.record("process exit event was not processed")
+    }
+
     @Test func newChatProcessExitBeforeFirstSendRestoresPendingMessage() async throws {
         let client = RecordingStructuredClient()
         let vm = makeClaudeViewModel(client: client)
@@ -632,6 +712,8 @@ private actor RacingCodexImageClient: StructuredAgentClient, CodexSettingsProvid
         configurationContinuation?.resume()
         configurationContinuation = nil
     }
+
+    func emit(_ event: NormalizedChatEvent) { eventContinuation.yield(event) }
 
     func lastTurnStartInput() -> [ChatInput]? { lastInput }
 

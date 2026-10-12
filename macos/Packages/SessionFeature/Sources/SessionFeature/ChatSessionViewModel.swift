@@ -196,13 +196,17 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func sendFirstMessage(_ text: String, attachments: [ComposerAttachment]) async {
+        guard launchFailure == nil, processExit == nil else { return }
         removePendingFirstMessage()
         attachmentStore.restore(attachments)
         guard !text.isEmpty || !attachments.isEmpty else { return }
+        firstTurnInput = (text, attachments, "pending-first-\(id.rawValue)")
         draftClearedForSend = text
         do {
             try await sendText(text, submit: true)
         } catch {
+            guard launchFailure == nil else { return }
+            firstTurnInput = nil
             restoreLaunchDraft(text, attachments: attachments)
             reportError(error.localizedDescription)
         }
@@ -3789,6 +3793,7 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     public func sendText(_ text: String, submit: Bool) async throws {
+        guard launchFailure == nil, processExit == nil else { throw CancellationError() }
         guard !isPreparingImageSend else { throw ControlImageSendError.imageSendInProgress }
         if submit {
             guard !isApplyingSpawnAgentPermission else {
@@ -3836,6 +3841,7 @@ extension ChatSessionViewModel: ControllableSession {
                     throw SendRejected.imagesUnsupported
                 }
                 await configureCodexImageInputIfNeeded(supportsImages: imageSnapshot.supportsImages)
+                guard launchFailure == nil, processExit == nil else { throw CancellationError() }
                 guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {
                     attachmentStore.setError(ControlImageSendError.imageSendSnapshotChanged.localizedDescription)
                     restoreDraftAfterRejectedSend(input)
@@ -3843,12 +3849,14 @@ extension ChatSessionViewModel: ControllableSession {
                 }
                 do {
                     let prepared = try await ImageAttachmentPreparer.prepare(attachmentStore.attachments.map(\.data))
+                    guard launchFailure == nil, processExit == nil else { throw CancellationError() }
                     guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {
                         throw ControlImageSendError.imageSendSnapshotChanged
                     }
                     sendInputs = clientInput.isEmpty ? [] : [.text(clientInput)]
                     sendInputs += prepared.map { .image(data: $0.data, mediaType: $0.mediaType) }
                 } catch {
+                    guard launchFailure == nil else { throw error }
                     attachmentStore.setError(error.localizedDescription)
                     restoreDraftAfterRejectedSend(input)
                     throw error
@@ -3902,6 +3910,7 @@ extension ChatSessionViewModel: ControllableSession {
                     try await client.turnStart(sendInputs)
                 }
             } catch {
+                guard launchFailure == nil else { throw error }
                 // A3: turnStart 失敗時は status を .idle に戻す（.running 固着を防ぐ）。
                 // reservation（pendingReplayContext）・添付・記録済み userMessage は
                 // 変更せず残す（再送でプリアンブルをちょうど1回適用する既存セマンティクス）。
@@ -3923,6 +3932,7 @@ extension ChatSessionViewModel: ControllableSession {
                 reportError("ターン開始に失敗しました: \(error)")
                 throw error
             }
+            guard launchFailure == nil, processExit == nil else { throw CancellationError() }
             // 単一適用: 送信成功後にクリアする。throw 時は予約を残し、再送で二重付与しない。
             pendingReplayContext = nil
             codexSkillSelectionState?.clearSelection()

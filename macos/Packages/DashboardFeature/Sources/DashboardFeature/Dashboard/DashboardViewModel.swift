@@ -126,6 +126,7 @@ public final class DashboardViewModel {
     @ObservationIgnored private var spawnService: SessionSpawnService?
     /// 画面からの起動だけを 08 F2 の案内の対象にする。API・スマホからの起動のパスは出さない。
     @TaskLocal static var reportsWorktreeCreation = false
+    @TaskLocal static var newChatHistoryLoader: (@Sendable () throws -> [ClaudeSessionHistoryEntry])?
     /// 画面からの起動がいま作っている worktree のパス（作り始めた順）。
     private var worktreeCreationPaths: [String] = []
     /// 08 F2 の案内に出す worktree のパス。作っていなければ nil。
@@ -1163,6 +1164,7 @@ public final class DashboardViewModel {
         } else {
             historyEntry = nil
         }
+        guard projects.contains(where: { $0.id == request.projectID }) else { throw AgentSpawnError.unknownProject }
         let id = try await spawnNewSession(ref: request.agentRef, projectID: request.projectID, backend: .appServer,
             workingDirectoryOverride: request.workingDirectoryOverride,
             isolationOverride: request.usesWorktree, initialSettings: request.settings,
@@ -1185,7 +1187,7 @@ public final class DashboardViewModel {
     func newChatHistoryEntries(projectID: ProjectID, agentRef: AgentRef) async throws -> [ClaudeSessionHistoryEntry] {
         guard let project = projects.first(where: { $0.id == projectID }) else { return [] }
         let directories = [project.directoryPath] + (project.worktreePaths ?? [])
-        guard let provider = environment.newChatSessionHistoryLoader(
+        guard let provider = Self.newChatHistoryLoader ?? environment.newChatSessionHistoryLoader(
             agentRef: agentRef,
             workingDirectories: directories
         ) else { return [] }

@@ -11,6 +11,7 @@ public struct DashboardView: View {
     @Bindable var newChatDraftStore: NewChatDraftStore
     @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.localizationBundle) private var localizationBundle
 
     @State private var sidebarWidth: CGFloat = DSLayout.sidebarWidth.ideal
     @State private var sidebarWidthAtDragStart: CGFloat = DSLayout.sidebarWidth.ideal
@@ -608,7 +609,7 @@ public struct DashboardView: View {
                     NewChatEntryActions(router: router, dashboard: viewModel).gridEmptyState(projectID: projectID)
                 } label: {
                     HStack(spacing: 6) {
-                        Text("新規チャット")
+                        Text("新規チャット", bundle: localizationBundle)
                     }
                     .font(DSFont.dense.weight(.semibold))
                     .foregroundStyle(Color.white)
@@ -665,7 +666,7 @@ public struct DashboardView: View {
                 HStack(spacing: 6) {
                     Text(verbatim: "＋")
                         .font(DSFont.row)
-                    Text("新規チャット")
+                    Text("新規チャット", bundle: localizationBundle)
                         .font(DSFont.auxiliary.weight(.medium))
                     Text(verbatim: "⌘N")
                         .font(.system(size: 10.5))
@@ -682,8 +683,8 @@ public struct DashboardView: View {
             }
             .buttonStyle(.plain)
             .fixedSize()
-            .help(Text("新規チャット（⌘N）"))
-            .accessibilityLabel(Text("新規チャット（⌘N）"))
+            .help(Text("新規チャット", bundle: localizationBundle) + Text(verbatim: "（⌘N）"))
+            .accessibilityLabel(Text("新規チャット", bundle: localizationBundle) + Text(verbatim: "（⌘N）"))
             Spacer(minLength: 0)
             if let agentConsoleWindowID {
                 footerIconButton(systemImage: "slider.horizontal.3", label: "エージェント管理（⇧⌘,）") {

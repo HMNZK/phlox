@@ -24,6 +24,7 @@ public struct DSDialog<Detail: View>: View {
     let onCancel: () -> Void
     let detail: Detail
     @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
 
     public init(
         _ kind: Kind,
@@ -80,7 +81,9 @@ public struct DSDialog<Detail: View>: View {
     /// ボタンが 3 つ以上か、どれかの名前が 8 文字を超えるときは縦に並べる（09）。
     @ViewBuilder
     private var buttonRow: some View {
-        let stacked = buttons.count >= 3 || buttons.contains { AppLocalizedString.string($0.title, locale: locale).count > 8 }
+        let stacked = buttons.count >= 3 || buttons.contains {
+            AppLocalizedString.string($0.title, locale: locale, bundle: localizationBundle).count > 8
+        }
         if stacked {
             VStack(spacing: 8) { buttonViews }
         } else {
@@ -92,15 +95,15 @@ public struct DSDialog<Detail: View>: View {
         ForEach(buttons) { button in
             switch button.role {
             case .primary:
-                Button(LocalizedStringKey(button.title), action: button.action)
+                Button(action: button.action) { Text(LocalizedStringKey(button.title), bundle: localizationBundle) }
                     .buttonStyle(.ds(.primary, keyHint: "↩", fillsWidth: true))
                     .keyboardShortcut(.defaultAction)
             case .destructive:
-                Button(LocalizedStringKey(button.title), action: button.action)
+                Button(action: button.action) { Text(LocalizedStringKey(button.title), bundle: localizationBundle) }
                     .buttonStyle(.ds(.destructive, keyHint: "⌘⌫", fillsWidth: true))
                     .keyboardShortcut(.delete, modifiers: .command)
             case .normal:
-                Button(LocalizedStringKey(button.title), action: button.action)
+                Button(action: button.action) { Text(LocalizedStringKey(button.title), bundle: localizationBundle) }
                     .buttonStyle(.ds(.secondary, fillsWidth: true))
             }
         }

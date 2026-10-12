@@ -62,18 +62,21 @@ public final class NewChatDraft {
         projectExists: Bool,
         harnessDetected: Bool,
         modelAcceptsImages: Bool,
-        locale: Locale = .current
+        locale: Locale = .current,
+        bundle: Bundle = .main
     ) -> String? {
         let hasContent = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.attachments.isEmpty
         guard hasContent else { return nil }
-        guard projectExists else { return AppLocalizedString.string("プロジェクトを選んでください", locale: locale) }
+        guard projectExists else { return AppLocalizedString.string("プロジェクトを選んでください", locale: locale, bundle: bundle) }
         guard harnessDetected else {
             let name = AgentRegistry.descriptor(for: agentRef.builtinKind).displayName
-            return String(format: AppLocalizedString.string("%@ が見つかりません。インストールするか、別のハーネスを選んでください", locale: locale), name)
+            return String(format: AppLocalizedString.string("%@ が見つかりません。インストールするか、別のハーネスを選んでください", locale: locale, bundle: bundle), name)
         }
         if !attachments.attachments.isEmpty, !modelAcceptsImages {
-            let prefix = agentRef.builtinKind == .cursor ? AppLocalizedString.string("Cursor", locale: locale) : AppLocalizedString.string("このモデル", locale: locale)
-            return String(format: AppLocalizedString.string("%@ は画像を送れません。画像を外すか、画像を送れるハーネスを選んでください", locale: locale), prefix)
+            let prefix = agentRef.builtinKind == .cursor
+                ? AppLocalizedString.string("Cursor", locale: locale, bundle: bundle)
+                : AppLocalizedString.string("このモデル", locale: locale, bundle: bundle)
+            return String(format: AppLocalizedString.string("%@ は画像を送れません。画像を外すか、画像を送れるハーネスを選んでください", locale: locale, bundle: bundle), prefix)
         }
         return nil
     }

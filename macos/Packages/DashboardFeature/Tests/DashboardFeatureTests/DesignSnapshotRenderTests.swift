@@ -95,8 +95,9 @@ struct DesignSnapshotRenderTests {
         let height: CGFloat
         var light = false
         var state: String? = nil
+        var language: String? = nil
         var stateID: String { state ?? id }
-        var english: Bool { id == "3k" || id.hasSuffix("-en") }
+        var english: Bool { language == "en" || id == "3k" || id.hasSuffix("-en") }
     }
 
     private let frames: [Frame] = [
@@ -235,6 +236,40 @@ struct DesignSnapshotRenderTests {
         .init(id: "8L3", name: "ライト入力送信", width: 520, height: 520, light: true),
     ]
 
+    private var stage8Frames: [Frame] {
+        [
+            .init(id: "10-A1-dark-ja", name: "新規チャット A1", width: 1440, height: 900, language: "ja"),
+            .init(id: "10-A2-light-ja", name: "新規チャット A2", width: 1440, height: 900, light: true, language: "ja"),
+            .init(id: "10-C1-dark-ja", name: "新規チャット C1", width: 720, height: 900, language: "ja"),
+            .init(id: "10-N2-dark-en", name: "新規チャット N2", width: 720, height: 900, language: "en"),
+            .init(id: "10-N3-light-en", name: "新規チャット N3", width: 1440, height: 900, light: true, language: "en"),
+            .init(id: "10-M1-dark-ja", name: "ハーネス・モデルメニュー", width: 1440, height: 900, language: "ja"),
+            .init(id: "10-M2-light-en", name: "ハーネス・モデルメニュー", width: 720, height: 900, light: true, language: "en"),
+            .init(id: "10-R1-dark-en", name: "送信不可の理由", width: 720, height: 900, language: "en"),
+            .init(id: "10-R2-light-ja", name: "送信不可の理由", width: 1440, height: 900, light: true, language: "ja"),
+            .init(id: "10-F1-dark-ja", name: "送信ボタンのフォーカス", width: 720, height: 900, language: "ja"),
+            .init(id: "10-F2-light-en", name: "送信ボタンのフォーカス", width: 720, height: 900, light: true, language: "en"),
+            .init(id: "11-T1-dark", name: "プロジェクトタブ T1", width: 1440, height: 900, language: "ja"),
+            .init(id: "11-T3-dark", name: "プロジェクトタブ T3", width: 1440, height: 900, language: "ja"),
+            .init(id: "11-T5-dark", name: "プロジェクトタブ T5", width: 720, height: 900, language: "ja"),
+            .init(id: "11-T7-light", name: "プロジェクトタブ T7", width: 1440, height: 900, light: true, language: "ja"),
+            .init(id: "11-T12-dark", name: "プロジェクトタブ T12 サイドバーなし", width: 1440, height: 900, language: "ja"),
+            .init(id: "11-T1-light-en", name: "プロジェクトタブ T1 英語ライト", width: 720, height: 900, light: true, language: "en"),
+            .init(id: "11-T3-dark-en", name: "プロジェクトタブ T3 英語", width: 1440, height: 900, language: "en"),
+            .init(id: "11-T8-project-delete-dark-ja", name: "プロジェクト削除確認", width: 1440, height: 900, language: "ja"),
+            .init(id: "11-T8-project-delete-light-en", name: "プロジェクト削除確認", width: 720, height: 900, light: true, language: "en"),
+            .init(id: "11-T9-session-delete-dark-en", name: "セッション削除確認", width: 720, height: 900, language: "en"),
+            .init(id: "11-T9-session-delete-light-ja", name: "セッション削除確認", width: 1440, height: 900, light: true, language: "ja"),
+            .init(id: "12-U1-dark", name: "ヘッダーと使用量 U1", width: 1440, height: 900, language: "ja"),
+            .init(id: "12-U3-dark", name: "ヘッダーと使用量 U3", width: 720, height: 900, language: "ja"),
+            .init(id: "12-U4-low-unavailable-dark", name: "残りわずかと未取得", width: 1440, height: 900, language: "ja"),
+            .init(id: "12-U5-light", name: "ヘッダーと使用量 U5", width: 1440, height: 900, light: true, language: "ja"),
+            .init(id: "12-U8-low-unavailable-light", name: "残りわずかと未取得", width: 720, height: 900, light: true, language: "ja"),
+            .init(id: "12-U1-light-en", name: "ヘッダーと使用量 U1 英語", width: 720, height: 900, light: true, language: "en"),
+            .init(id: "12-U4-dark-en", name: "ヘッダーと使用量 U4 英語", width: 1440, height: 900, language: "en"),
+        ]
+    }
+
     private struct Unavailable: Error { let reason: String }
 
     private var browserFrames: [Frame] {
@@ -355,7 +390,7 @@ struct DesignSnapshotRenderTests {
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
         try #require(["all", "files", "simulator", "syntax", "large-files", "browser"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser のいずれか")
-        let selectedFrames = (frames + syntaxFrames + browserFrames).filter { frame in
+        let selectedFrames = (frames + syntaxFrames + browserFrames + stage8Frames).filter { frame in
             if scope == "browser" { return frame.id.hasPrefix("9-") }
             if scope == "large-files" { return ["3l", "3large", "changes-deleted", "changes-readonly", "changes-oversized"].contains(frame.stateID) || frame.stateID.hasPrefix("3readonly") }
             if scope == "syntax" { return frame.id.hasPrefix("syntax-") }
@@ -376,7 +411,7 @@ struct DesignSnapshotRenderTests {
                 rows.append("| \(frame.id) | 書き出せない | 描画失敗: \(error) |")
             }
         }
-        let report = "# 画面外描画の結果\n\n生成 PNG: \(written) 枚。倍率 2。8L1〜8L3 と light はライト、ほかはダーク。\n\n"
+        let report = "# 画面外描画の結果\n\n生成 PNG: \(written) 枚。倍率 2。色・言語は状態 ID に記載。\n\n"
             + rows.joined(separator: "\n") + "\n"
         try Data(report.utf8).write(to: output.appendingPathComponent("結果.md"), options: .atomic)
         print(report)
@@ -482,6 +517,9 @@ struct DesignSnapshotRenderTests {
             return id == "changes-deleted" ? "削除した小さいSwiftファイル。実gitから読み込んだ差分の字句色・削除色を描画"
                 : "実gitの差分。編集上限／閲覧上限の案内とファイルタブ入口を描画"
         }
+        if id.hasPrefix("10-") { return try await renderStage8NewChat(frame, fixtures: fixtures, output: output) }
+        if id.hasPrefix("11-") { return try await renderStage8ProjectTabs(frame, fixtures: fixtures, output: output) }
+        if id.hasPrefix("12-") { return try await renderStage8Usage(frame, fixtures: fixtures, output: output) }
         if id == "1d" { return try await renderTabChooser(frame, fixtures: fixtures, output: output) }
         if id.hasPrefix("1") { return try await renderDashboard(frame, fixtures: fixtures, output: output) }
         if id.hasPrefix("6") {
@@ -698,6 +736,213 @@ struct DesignSnapshotRenderTests {
         #expect(alert.buttons.first?.keyEquivalent == "\r")
         try await capture(UnsavedChangesContent(windows: windows, locale: locale).padding(10), frame: frame, output: output)
         return "実物の一覧と保存案内。NSAlert全体の非表示描画は欠けるため、題・警告・キー・標準破棄設定はテストで確認"
+    }
+
+    private struct Stage8Scene {
+        let dashboard: DashboardViewModel
+        let router: AppRouter
+        let project: Project
+        let draftStore: NewChatDraftStore
+        let draft: NewChatDraft
+        let usageMonitor: UsageMonitor
+        let sessionIDs: [SessionID]
+    }
+
+    private func makeStage8Scene(_ frame: Frame, fixtures: URL, sessionCount: Int = 0) async throws -> Stage8Scene {
+        let root = fixtures.appendingPathComponent(frame.id, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        var projects = [Project]()
+        for (index, name) in ["Aster", "Cedar"].enumerated() {
+            let directory = root.appendingPathComponent(name, isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data("# \(name)\n".utf8).write(to: directory.appendingPathComponent("README.md"))
+            let git = Process()
+            git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            git.arguments = ["-C", directory.path, "init", "-q", "--initial-branch=main"]
+            try git.run()
+            git.waitUntilExit()
+            try #require(git.terminationStatus == 0, "撮影用 Git リポジトリを作れません: \(directory.path)")
+            projects.append(Project(name: name, directoryPath: directory.path,
+                                    createdAt: Date(timeIntervalSince1970: 1_000 + Double(index)),
+                                    isManagedDirectory: false))
+        }
+        let project = try #require(projects.first)
+        let projectStore = InMemoryProjectStore()
+        try await projectStore.save(projects)
+        let sessionIDs = (0..<sessionCount).map { _ in SessionID() }
+        let descriptors = sessionIDs.enumerated().map { index, id in
+            PersistedSessionDescriptor(
+                id: id,
+                kind: .claudeCode,
+                workingDirectory: project.directoryPath,
+                name: ["調査を続ける", "設計を確認する", "修正内容をまとめる"][index % 3],
+                projectID: project.id,
+                startedAt: Date(timeIntervalSince1970: 2_000 + Double(index)),
+                command: "/usr/bin/false",
+                args: [],
+                env: [:],
+                backend: .appServer,
+                chatNativeSessionId: "snapshot-session-\(index)",
+                token: "snapshot-token-\(index)"
+            )
+        }
+        let sessions = InMemorySessionStore(descriptors)
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(
+            pty: MockPTYManager(),
+            hookStream: AsyncStream { $0.finish() },
+            projects: projectStore,
+            sessions: sessions,
+            workspaceDirectory: root,
+            appServerClientFactory: { _, _, _, _, _ in EventYieldingStructuredClient() }
+        ))
+        await dashboard.start()
+
+        let defaults = UserDefaults(suiteName: "phlox.design-snapshot.\(UUID().uuidString)")!
+        let draftStore = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
+        let draft = draftStore.draft(for: project.id)
+        draft.settings = CodexAppServerSessionSettings(
+            selectedModel: AgentModelCatalog.defaultModel(for: .claudeCode),
+            selectedEffort: "high",
+            selectedPermissionProfile: "bypassPermissions"
+        )
+        let router = AppRouter(viewMode: .single, sidebarVisible: frame.id != "11-T12-dark")
+        router.selectedProjectID = project.id
+
+        let lowRemaining = frame.id.contains("U4") || frame.id.contains("U8")
+        let now = Date()
+        let claude = CLIUsage(kind: .claudeCode, state: .ok([
+            UsageBucket(id: "5h", label: "5h", usedPercent: lowRemaining ? 96 : 34),
+            UsageBucket(id: "weekly", label: "7d", usedPercent: lowRemaining ? 88 : 56),
+        ]), updatedAt: now)
+        let codex: CLIUsage = lowRemaining
+            ? CLIUsage(kind: .codex, state: .unavailable(reason: "fixture unavailable"), updatedAt: now)
+            : CLIUsage(kind: .codex, state: .ok([UsageBucket(id: "weekly", label: "7d", usedPercent: 43)]), updatedAt: now)
+        let cursor = CLIUsage(kind: .cursor, state: .ok([UsageBucket(id: "cursor", label: "Cursor", usedPercent: 21)]), updatedAt: now)
+        let usageMonitor = UsageMonitor(providers: [
+            .claudeCode: DesignSnapshotUsageProvider(kind: .claudeCode, usage: claude),
+            .codex: DesignSnapshotUsageProvider(kind: .codex, usage: codex),
+            .cursor: DesignSnapshotUsageProvider(kind: .cursor, usage: cursor),
+        ])
+        await usageMonitor.refresh()
+        return Stage8Scene(dashboard: dashboard, router: router, project: project,
+                           draftStore: draftStore, draft: draft, usageMonitor: usageMonitor, sessionIDs: sessionIDs)
+    }
+
+    private func dashboard(_ scene: Stage8Scene) -> DashboardView {
+        DashboardView(viewModel: scene.dashboard, router: scene.router, usageMonitor: scene.usageMonitor,
+                      newChatDraftStore: scene.draftStore)
+    }
+
+    private func renderStage8NewChat(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
+        let scene = try await makeStage8Scene(frame, fixtures: fixtures)
+        let isUnavailable = frame.id.contains("-R")
+        let isFocusedSend = frame.id.contains("-F")
+        let hasOpenMenu = frame.id.contains("-M")
+        if isUnavailable {
+            scene.draft.selectHarness(.builtin(.codex))
+            scene.draft.text = "まず現状を確認してください"
+        } else if isFocusedSend {
+            scene.draft.text = "この変更を要約してください"
+        }
+        scene.router.showNewChat(projectID: scene.project.id)
+        let content = dashboard(scene)
+            .environment(\.newChatSendButtonInitiallyFocused, isFocusedSend)
+            .environment(\.newChatModelMenuInitiallyOpen, hasOpenMenu)
+        do {
+            try await capture(content, frame: frame, output: output)
+        } catch {
+            for session in scene.dashboard.sessions { await session.kill() }
+            throw error
+        }
+        for session in scene.dashboard.sessions { await session.kill() }
+        return isUnavailable ? "実際の新規チャット。Codex 未検出の送信不可理由を表示"
+            : hasOpenMenu ? "実際のモデル選択メニューをボタン位置に重ねて描画"
+            : isFocusedSend ? "実際の新規チャットで送信ボタンへキーボードフォーカスを設定"
+            : "実際のダッシュボードで下段の新規チャットタブを選択"
+    }
+
+    private func renderStage8ProjectTabs(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
+        let isDialog = frame.id.contains("-delete-")
+        let scene = try await makeStage8Scene(frame, fixtures: fixtures, sessionCount: isDialog ? 2 : 3)
+        if isDialog {
+            scene.router.showNewChat(projectID: scene.project.id)
+            let locale = Locale(identifier: frame.english ? "en" : "ja")
+            let bundle = try localizationBundle(fixtures: output)
+            func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale, bundle: bundle) }
+            let dialog: AnyView
+            if frame.id.contains("project-delete") {
+                let title = String(format: localized("プロジェクト「%@」を削除しますか?"), scene.project.name)
+                let message = String(format: localized("このプロジェクトのセッション %lld 件を停止し、一覧から外します。会話は元に戻せません。"), 2)
+                let note = String(format: localized("フォルダ「%@」とその中のファイルは削除されません。"), "~/Projects/Aster")
+                dialog = AnyView(DSDialog(.irreversible, title: title, message: message, note: note,
+                    buttons: [DSDialogButton("削除", role: .destructive) {}, DSDialogButton("キャンセル", role: .primary) {}],
+                    onCancel: {}).padding(10))
+            } else {
+                let title = String(format: localized("「%@」と子セッション %lld 件を削除しますか?"), "調査を続ける", 2)
+                let rows = [
+                    DSDialogList.Row(id: 0, title: "設計を確認する", meta: localized("実行中")),
+                    DSDialogList.Row(id: 1, title: "修正内容をまとめる", meta: localized("実行中")),
+                ]
+                dialog = AnyView(DSDialog(.irreversible, title: title,
+                    message: localized("実行中のエージェントは停止します。会話とターミナルの内容は元に戻せません。"),
+                    note: localized("プロジェクトのフォルダとファイルは削除されません。"),
+                    buttons: [DSDialogButton("削除", role: .destructive) {}, DSDialogButton("キャンセル", role: .primary) {}],
+                    onCancel: {}) { DSDialogList(rows: rows) }.padding(10))
+            }
+            let content = ZStack {
+                dashboard(scene)
+                Color.black.opacity(0.42).ignoresSafeArea()
+                dialog
+            }
+            do {
+                try await capture(content, frame: frame, output: output)
+            } catch {
+                for session in scene.dashboard.sessions { await session.kill() }
+                throw error
+            }
+            for session in scene.dashboard.sessions { await session.kill() }
+            return frame.id.contains("project-delete") ? "実際の DSDialog とプロジェクト削除文言" : "実際の DSDialog とセッション削除文言"
+        }
+
+        let chats = scene.sessionIDs.map(ProjectTab.chat)
+        var layout = ProjectTabLayout()
+        for chat in chats { layout.open(chat) }
+        layout.open(.newChat)
+        layout.open(.changes)
+        layout.open(.file("README.md"))
+        let selectsNewChat = frame.id.contains("T3")
+        if let first = scene.sessionIDs.first {
+            layout.select(selectsNewChat ? .newChat : .chat(first))
+            scene.router.selectedSession = selectsNewChat ? nil : first
+        } else {
+            layout.select(.newChat)
+        }
+        scene.router.tabs.updateLayout(for: scene.project.id) { $0 = layout }
+        let hideSidebarAfterMount = frame.id == "11-T12-dark"
+        do {
+            try await capture(dashboard(scene), frame: frame, output: output,
+                              afterMount: { if hideSidebarAfterMount { scene.router.sidebarVisible = false } })
+        } catch {
+            for session in scene.dashboard.sessions { await session.kill() }
+            throw error
+        }
+        for session in scene.dashboard.sessions { await session.kill() }
+        return selectsNewChat ? "実際のタブ列で新規チャットを選択" : "実際のタブ列で会話を選択" + (frame.id.contains("T12") ? "、サイドバーを非表示" : "")
+    }
+
+    private func renderStage8Usage(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
+        let scene = try await makeStage8Scene(frame, fixtures: fixtures)
+        scene.router.showNewChat(projectID: scene.project.id)
+        do {
+            try await capture(dashboard(scene), frame: frame, output: output)
+        } catch {
+            for session in scene.dashboard.sessions { await session.kill() }
+            throw error
+        }
+        for session in scene.dashboard.sessions { await session.kill() }
+        return frame.id.contains("U4") || frame.id.contains("U8")
+            ? "実際の下部バー。残り 4% と Codex の取得不可状態を表示"
+            : "実際のヘッダーと下部使用量バー"
     }
 
     private func renderDashboard(_ frame: Frame, fixtures: URL, output: URL) async throws -> String {
@@ -1090,7 +1335,9 @@ struct DesignSnapshotRenderTests {
     }
 
     private func destination(_ frame: Frame, _ output: URL) -> URL {
-        output.appendingPathComponent("\(frame.id)-\(frame.name).png")
+        let name = ["10-", "11-", "12-"].contains(where: frame.id.hasPrefix)
+            ? "\(frame.id).png" : "\(frame.id)-\(frame.name).png"
+        return output.appendingPathComponent(name)
     }
 
     private func capture<V: View>(_ content: V, frame: Frame, output: URL,
@@ -1201,6 +1448,13 @@ struct DesignSnapshotRenderTests {
     }
 }
 
+
+private struct DesignSnapshotUsageProvider: UsageProvider {
+    let kind: AgentKind
+    let usage: CLIUsage
+
+    func fetch() async -> CLIUsage { usage }
+}
 
 /// OS のメニューを開かず、本物の項目の文字・印を描く。
 @MainActor private final class SimulatorMenuSnapshot: NSView {

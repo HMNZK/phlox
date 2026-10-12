@@ -27,6 +27,7 @@ struct DashboardSidebarView: View {
     let onChooseProjectDirectory: () -> Void
 
     @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
     @FocusState private var listFocused: Bool
     @State private var renaming: SidebarItem?
     @State private var renameDraft = ""
@@ -502,8 +503,10 @@ struct DashboardSidebarView: View {
         ForEach(ProjectRowMenuItem.allCases, id: \.self) { item in
             switch item {
             case .newChat:
-                Button("新規チャット") {
+                Button {
                     NewChatEntryActions(router: router, dashboard: viewModel).projectMenu(project.id)
+                } label: {
+                    Text("新規チャット", bundle: localizationBundle)
                 }
                 Divider()
             case .rename:

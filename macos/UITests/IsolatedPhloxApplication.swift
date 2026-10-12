@@ -2,7 +2,7 @@ import AppKit
 import Security
 import XCTest
 
-/// この3件のUIテスト専用。所有権は起動コールバックの戻り値だけから取得する。
+/// UIテスト専用。所有権は起動コールバックの戻り値だけから取得する。
 @MainActor
 final class IsolatedPhloxApplication {
     private static let bundleID = "com.phlox.Phlox.debug"
@@ -41,6 +41,7 @@ final class IsolatedPhloxApplication {
         arguments: [String] = [],
         dataParent: URL = FileManager.default.temporaryDirectory,
         testClaudeBinaryPath: String? = nil,
+        testAgentBinaryPaths: ((URL) throws -> [String: String])? = nil,
         prepareData: ((URL) throws -> Void)? = nil
     ) async throws -> IsolatedPhloxApplication {
         // 設定文字列ではなく実行中Runnerの署名を検査。保存先の読み書きより先に拒否する。
@@ -85,8 +86,9 @@ final class IsolatedPhloxApplication {
             "PHLOX_DEFAULTS_SUITE": isolated.suite,
             "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN": "1",
         ]
-        if let testClaudeBinaryPath {
-            let paths = ["claudeCode": testClaudeBinaryPath]
+        var paths = try testAgentBinaryPaths?(isolated.dataURL) ?? [:]
+        if let testClaudeBinaryPath { paths["claudeCode"] = testClaudeBinaryPath }
+        if !paths.isEmpty {
             let data = try JSONSerialization.data(withJSONObject: paths)
             configuration.environment["PHLOX_TEST_AGENT_BINARY_PATHS"] = String(decoding: data, as: UTF8.self)
         }

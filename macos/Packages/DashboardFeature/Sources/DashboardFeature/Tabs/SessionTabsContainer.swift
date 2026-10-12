@@ -278,7 +278,7 @@ struct ChildTabBar: View {
     private func title(for tab: ProjectTab) -> Text {
         switch tab {
         case .chat(let id): Text(verbatim: viewModel.sessionNode(id: id)?.displayName ?? "会話")
-        case .newChat: Text("新規チャット")
+        case .newChat: Text("新規チャット", bundle: localizationBundle)
         case .terminal: Text("ターミナル", bundle: localizationBundle)
         case .simulator: Text("シミュレーター")
         case .browser: Text("ブラウザ")
@@ -452,7 +452,7 @@ struct NewTabChooser: View {
 
     private func title(_ item: Item) -> Text {
         switch item {
-        case .newChat: Text("新規チャット")
+        case .newChat: Text("新規チャット", bundle: localizationBundle)
         case .terminal: Text("ターミナル", bundle: localizationBundle)
         case .changes: Text("変更")
         case .file: Text("ファイルを開く…")

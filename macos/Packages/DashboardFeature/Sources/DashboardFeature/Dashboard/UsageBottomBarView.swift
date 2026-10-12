@@ -8,6 +8,7 @@ struct UsageBottomBarView: View {
 
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsage = true
     @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
 
     @ViewBuilder
     var body: some View {
@@ -34,7 +35,9 @@ struct UsageBottomBarView: View {
                     .background(DSColor.toolbarBackground)
                     .overlay(alignment: .top) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                     .help(Text("使用量の詳細を開く"))
-                    .accessibilityLabel(Text(UsageDisplay.bottomBarAccessibilityLabel(groups: groups, now: context.date, locale: locale)))
+                    .accessibilityLabel(Text(UsageDisplay.bottomBarAccessibilityLabel(
+                        groups: groups, now: context.date, locale: locale, bundle: localizationBundle
+                    )))
                 }
             }
         }
@@ -53,7 +56,7 @@ struct UsageBottomBarView: View {
                             }
                         }
                     } else {
-                        Text(UsageDisplay.bottomBarUnavailableText(locale: locale))
+                        Text(UsageDisplay.bottomBarUnavailableText(locale: locale, bundle: localizationBundle))
                             .font(DSFont.meta)
                             .foregroundStyle(DSColor.textSecondary)
                     }

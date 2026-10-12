@@ -4,6 +4,24 @@ import AgentDomain
 import DesignSystem
 import SessionFeature
 
+private struct NewChatSendButtonInitiallyFocusedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+private struct NewChatModelMenuInitiallyOpenKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var newChatSendButtonInitiallyFocused: Bool {
+        get { self[NewChatSendButtonInitiallyFocusedKey.self] }
+        set { self[NewChatSendButtonInitiallyFocusedKey.self] = newValue }
+    }
+    var newChatModelMenuInitiallyOpen: Bool {
+        get { self[NewChatModelMenuInitiallyOpenKey.self] }
+        set { self[NewChatModelMenuInitiallyOpenKey.self] = newValue }
+    }
+}
+
 struct NewChatView: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
@@ -13,11 +31,15 @@ struct NewChatView: View {
     let onLaunchFailure: (AgentRef, Error) -> Void
 
     @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
+    @Environment(\.newChatSendButtonInitiallyFocused) private var newChatSendButtonInitiallyFocused
+    @Environment(\.newChatModelMenuInitiallyOpen) private var newChatModelMenuInitiallyOpen
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     @State private var greeting = NewChatGreetings.random()
     @State private var modelSearch = ""
     @State private var modelPickerPresented = false
     @FocusState private var modelSearchFocused: Bool
+    @FocusState private var sendButtonFocused: Bool
     @State private var inputFocused = false
     @State private var focusToken = 0
     @State private var isLaunching = false
@@ -39,7 +61,22 @@ struct NewChatView: View {
         selectedSection?.models.first { $0.id == draft.settings.selectedModel }
     }
     private var selectedModelTitle: String {
-        selectedModelOption?.displayName ?? draft.settings.selectedModel ?? AppLocalizedString.string("モデル", locale: locale)
+        selectedModelOption?.displayName ?? draft.settings.selectedModel ?? localized("モデル")
+    }
+    var harnessAccessibility: NewChatAccessibilityCopy {
+        .init(role: localized("ハーネスとモデル"), value: "\(selectedSection?.name ?? "") \(selectedModelTitle)")
+    }
+    var effortAccessibility: NewChatAccessibilityCopy {
+        .init(role: localized("推論の深さ"), value: effortTitle(draft.settings.selectedEffort ?? ""))
+    }
+    var permissionAccessibility: NewChatAccessibilityCopy {
+        .init(role: localized(selectedKind == .cursor ? "mode" : "権限"), value: selectedPermissionTitle)
+    }
+    var projectAccessibility: NewChatAccessibilityCopy {
+        .init(role: localized("プロジェクト"), value: project?.name ?? localized("未選択"))
+    }
+    var workspaceAccessibility: NewChatAccessibilityCopy {
+        .init(role: localized("作業場所"), value: localized(draft.usesWorktree ? "新しい worktree" : "既存ディレクトリ"))
     }
     private var modelAcceptsImages: Bool {
         switch selectedKind {
@@ -60,7 +97,8 @@ struct NewChatView: View {
             projectExists: project.map { selectedProjectExists($0.id) } ?? false,
             harnessDetected: detectedHarnessIDs.contains(draft.agentRef.id),
             modelAcceptsImages: modelAcceptsImages,
-            locale: locale
+            locale: locale,
+            bundle: localizationBundle
         )
     }
     private var suggestionDirectory: String? {
@@ -85,7 +123,7 @@ struct NewChatView: View {
     }
     private var permissionOptions: [ComposerSettingOption] {
         guard let kind = selectedKind else { return [] }
-        let plan = AppLocalizedString.string("計画", locale: locale)
+        let plan = localized("計画")
         func permission(_ value: String, agent: UIWording.PermissionAgent, kind: UIWording.PermissionKind) -> ComposerSettingOption {
             ComposerSettingOption(
                 value: value,
@@ -103,7 +141,7 @@ struct NewChatView: View {
             } + [ComposerSettingOption(value: Self.planSelection, title: plan)]
         case .cursor:
             return [
-                ComposerSettingOption(value: nil, title: AppLocalizedString.string("既定", locale: locale)),
+                ComposerSettingOption(value: nil, title: localized("既定")),
                 permission("ask", agent: .cursor, kind: .cursorOperationMode),
                 ComposerSettingOption(value: Self.planSelection, title: plan),
             ]
@@ -114,7 +152,7 @@ struct NewChatView: View {
     }
     private var selectedPermissionTitle: String {
         permissionOptions.first(where: { $0.value == selectedPermissionSelection })?.title
-            ?? AppLocalizedString.string("既定", locale: locale)
+            ?? localized("既定")
     }
     private var historyKey: String? {
         guard let project, draft.agentRef == .builtin(.claudeCode) || draft.agentRef == .builtin(.codex) else { return nil }
@@ -132,7 +170,7 @@ struct NewChatView: View {
                 Spacer(minLength: 12)
                 HStack(spacing: 10) {
                     AppIconBadge(showsCaution: false, size: 30)
-                    Text(LocalizedStringKey(greeting))
+                    Text(verbatim: localized(greeting))
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(2)
@@ -150,7 +188,11 @@ struct NewChatView: View {
             .padding(.vertical, 18)
             .onAppear {
                 greeting = NewChatGreetings.random()
-                focusToken &+= 1
+                if newChatSendButtonInitiallyFocused {
+                    sendButtonFocused = true
+                } else {
+                    focusToken &+= 1
+                }
             }
             .onChange(of: router.newChatFocusToken) { _, _ in
                 focusToken &+= 1
@@ -164,6 +206,24 @@ struct NewChatView: View {
                 await loadHistoryEntries()
             }
         }
+        .overlay(alignment: .topLeading) {
+            if newChatModelMenuInitiallyOpen {
+                GeometryReader { geometry in
+                    let menuWidth: CGFloat = 318
+                    let menuHeight: CGFloat = 398
+                    let buttonX = max(0, (geometry.size.width - min(geometry.size.width, 760)) / 2 + 75)
+                    let menuCenterX = max(menuWidth / 2 + 8, min(buttonX, geometry.size.width - menuWidth / 2 - 8))
+                    let menuCenterY = min(geometry.size.height - menuHeight / 2, geometry.size.height * 0.28)
+                    modelPickerMenu
+                        .frame(width: 310, height: 390)
+                        .padding(4)
+                        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 8))
+                        .dsShadow(DSShadow.popover)
+                        .position(x: menuCenterX, y: menuCenterY)
+                }
+                .allowsHitTesting(false)
+            }
+        }
     }
 
     private func composer(isCompact: Bool) -> some View {
@@ -172,7 +232,7 @@ struct NewChatView: View {
                 text: $draft.text,
                 attachmentStore: draft.attachments,
                 workingDirectory: suggestionDirectory ?? "",
-                placeholder: AppLocalizedString.string("やりたいことを入力（/ でコマンド）", locale: locale),
+                placeholder: localized("やりたいことを入力（/ でコマンド）"),
                 focusToken: focusToken,
                 accessibilityPrefix: "newChat",
                 inputAccessibilitySuffix: "messageInput",
@@ -271,15 +331,15 @@ struct NewChatView: View {
         }
         .buttonStyle(HoverableSoftButtonStyle())
         .popover(isPresented: $modelPickerPresented, arrowEdge: .top) { modelPickerMenu }
-        .accessibilityLabel(Text(verbatim: "\(AppLocalizedString.string("ハーネスとモデル", locale: locale))、\(selectedSection?.name ?? "")：\(selectedModelTitle)"))
-        .accessibilityValue(Text(verbatim: "\(selectedSection?.name ?? "") \(selectedModelTitle)"))
+        .accessibilityLabel(Text(verbatim: harnessAccessibility.role))
+        .accessibilityValue(Text(verbatim: harnessAccessibility.value))
         .accessibilityIdentifier("newChat.harnessModelPicker")
         .help(Text(verbatim: "\(selectedSection?.name ?? "")：\(selectedModelTitle)"))
     }
 
-    private var modelPickerMenu: some View {
+    var modelPickerMenu: some View {
         VStack(spacing: 6) {
-            TextField(AppLocalizedString.string("モデルを絞り込む", locale: locale), text: $modelSearch)
+            TextField(localized("モデルを絞り込む"), text: $modelSearch)
                 .textFieldStyle(.roundedBorder)
                 .focused($modelSearchFocused)
                 .padding(.horizontal, 8)
@@ -297,9 +357,9 @@ struct NewChatView: View {
                             }
                         } else {
                             HStack(spacing: 6) {
-                                Text(AppLocalizedString.string("未検出", locale: locale))
+                                Text(localized("未検出"))
                                     .foregroundStyle(DSColor.textTertiary)
-                                Text(String(format: AppLocalizedString.string("%@ が見つかりません。インストールすると選べます", locale: locale), section.name))
+                                Text(String(format: localized("%@ が見つかりません。インストールすると選べます"), section.name))
                                     .font(DSFont.meta)
                                     .foregroundStyle(DSColor.textSecondary)
                             }
@@ -342,7 +402,7 @@ struct NewChatView: View {
                 .foregroundStyle(DSColor.textPrimary)
             Spacer(minLength: 8)
             if model.id == section.defaultModel {
-                Text(AppLocalizedString.string("既定", locale: locale))
+                Text(localized("既定"))
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(DSColor.textSecondary)
                     .padding(.horizontal, 5)
@@ -361,7 +421,8 @@ struct NewChatView: View {
             accessibilityIdentifier: "newChat.effortPicker",
             onSelect: { draft.settings.selectedEffort = $0 }
         )
-        .accessibilityLabel(Text(verbatim: "\(AppLocalizedString.string("推論の深さ", locale: locale)): \(effortTitle(draft.settings.selectedEffort ?? ""))"))
+        .accessibilityLabel(Text(verbatim: effortAccessibility.role))
+        .accessibilityValue(Text(verbatim: effortAccessibility.value))
     }
 
     private var permissionPicker: some View {
@@ -372,13 +433,14 @@ struct NewChatView: View {
             accessibilityIdentifier: "newChat.permissionPicker",
             onSelect: selectPermission
         )
-        .accessibilityLabel(Text(verbatim: "\(AppLocalizedString.string(selectedKind == .cursor ? "mode" : "権限", locale: locale)): \(selectedPermissionTitle)"))
+        .accessibilityLabel(Text(verbatim: permissionAccessibility.role))
+        .accessibilityValue(Text(verbatim: permissionAccessibility.value))
     }
 
     private var compactSettingsMenu: some View {
         Menu {
             if !effortOptions.isEmpty {
-                Menu(AppLocalizedString.string("推論の深さ", locale: locale)) {
+                Menu(localized("推論の深さ")) {
                     ForEach(effortOptions) { option in
                         settingMenuButton(option, selected: draft.settings.selectedEffort == option.value) {
                             draft.settings.selectedEffort = option.value
@@ -386,7 +448,7 @@ struct NewChatView: View {
                     }
                 }
             }
-            Menu(AppLocalizedString.string(selectedKind == .cursor ? "mode" : "権限", locale: locale)) {
+            Menu(localized(selectedKind == .cursor ? "mode" : "権限")) {
                 ForEach(permissionOptions) { option in
                     settingMenuButton(option, selected: selectedPermissionSelection == option.value) {
                         selectPermission(option.value)
@@ -425,22 +487,23 @@ struct NewChatView: View {
                         if project?.id == item.id { Image(systemName: "checkmark") }
                         Text(verbatim: item.name)
                         if draftStore.hasDraft(for: item.id) {
-                            Text(AppLocalizedString.string("下書きあり", locale: locale))
+                            Text(localized("下書きあり"))
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundStyle(DSColor.textSecondary)
                         }
                     }
                 }
             }
-            Text(AppLocalizedString.string("本文と添付はプロジェクトごとに保たれます", locale: locale))
+            Text(localized("本文と添付はプロジェクトごとに保たれます"))
                 .font(.system(size: 10.5))
                 .foregroundStyle(DSColor.textSecondary)
         } label: {
-            footerLabel(icon: "folder", title: project?.name ?? AppLocalizedString.string("プロジェクト", locale: locale), compact: isCompact)
+            footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact)
         }
         .menuStyle(.borderlessButton)
         .disabled(viewModel.projects.isEmpty)
-        .accessibilityLabel(Text(verbatim: "\(AppLocalizedString.string("プロジェクト", locale: locale)): \(project?.name ?? AppLocalizedString.string("未選択", locale: locale))"))
+        .accessibilityLabel(Text(verbatim: projectAccessibility.role))
+        .accessibilityValue(Text(verbatim: projectAccessibility.value))
         .accessibilityIdentifier("newChat.projectPicker")
     }
 
@@ -449,29 +512,30 @@ struct NewChatView: View {
             Button {
                 draft.usesWorktree = false
             } label: {
-                if !draft.usesWorktree { Label(AppLocalizedString.string("既存ディレクトリ", locale: locale), systemImage: "checkmark") }
-                else { Text(AppLocalizedString.string("既存ディレクトリ", locale: locale)) }
+                if !draft.usesWorktree { Label(localized("既存ディレクトリ"), systemImage: "checkmark") }
+                else { Text(localized("既存ディレクトリ")) }
             }
             Button {
                 draft.usesWorktree = true
             } label: {
-                if draft.usesWorktree { Label(AppLocalizedString.string("新しい worktree", locale: locale), systemImage: "checkmark") }
-                else { Text(AppLocalizedString.string("新しい worktree", locale: locale)) }
+                if draft.usesWorktree { Label(localized("新しい worktree"), systemImage: "checkmark") }
+                else { Text(localized("新しい worktree")) }
             }
             .disabled(isGitRepository != true)
-            .accessibilityHint(Text(isGitRepository == true ? "" : AppLocalizedString.string("git リポジトリではないため worktree を作れません", locale: locale)))
+            .accessibilityHint(Text(isGitRepository == true ? "" : localized("git リポジトリではないため worktree を作れません")))
             if isGitRepository == false {
-                Text(AppLocalizedString.string("git リポジトリではないため worktree を作れません", locale: locale))
+                Text(localized("git リポジトリではないため worktree を作れません"))
                     .font(DSFont.meta)
             }
         } label: {
             footerLabel(icon: draft.usesWorktree ? "arrow.triangle.branch" : "folder", title: draft.usesWorktree
-                ? AppLocalizedString.string("新しい worktree", locale: locale)
-                : AppLocalizedString.string("既存ディレクトリ", locale: locale), compact: isCompact)
+                ? localized("新しい worktree")
+                : localized("既存ディレクトリ"), compact: isCompact)
         }
         .menuStyle(.borderlessButton)
         .disabled(project == nil)
-        .accessibilityLabel(Text(verbatim: "\(AppLocalizedString.string("作業場所", locale: locale)): \(draft.usesWorktree ? AppLocalizedString.string("新しい worktree", locale: locale) : AppLocalizedString.string("既存ディレクトリ", locale: locale))"))
+        .accessibilityLabel(Text(verbatim: workspaceAccessibility.role))
+        .accessibilityValue(Text(verbatim: workspaceAccessibility.value))
         .accessibilityIdentifier("newChat.workspacePicker")
     }
 
@@ -500,9 +564,15 @@ struct NewChatView: View {
                 .frame(width: 28, height: 28)
                 .background(canSend ? DSColor.accentFill : DSColor.fillSubtle, in: Circle())
                 .contentShape(Circle())
+                .overlay {
+                    if newChatSendButtonInitiallyFocused || sendButtonFocused {
+                        Circle().stroke(DSColor.focusRing, lineWidth: 2).padding(-3)
+                    }
+                }
         }
         .buttonStyle(HoverableSurfaceButtonStyle())
         .disabled(!canSend)
+        .focused($sendButtonFocused)
         .accessibilityLabel(Text("送信"))
         .accessibilityIdentifier("newChat.sendButton")
     }
@@ -514,7 +584,7 @@ struct NewChatView: View {
                     draft.appendSuggestion(suggestion.text)
                     focusToken &+= 1
                 } label: {
-                    Text(LocalizedStringKey(suggestion.title))
+                    Text(verbatim: localized(suggestion.title))
                         .font(DSFont.auxiliary.weight(.medium))
                         .foregroundStyle(DSColor.textSecondary)
                         .padding(.horizontal, 10)
@@ -596,7 +666,7 @@ struct NewChatView: View {
         let currentIndex = effortOptions.firstIndex { $0.value == draft.settings.selectedEffort } ?? -1
         let next = effortOptions[(currentIndex + 1) % effortOptions.count]
         draft.settings.selectedEffort = next.value
-        AccessibilityNotification.Announcement("\(AppLocalizedString.string("推論の深さ", locale: locale)) \(next.title)").post()
+        AccessibilityNotification.Announcement("\(localized("推論の深さ")) \(next.title)").post()
         return true
     }
 
@@ -611,7 +681,7 @@ struct NewChatView: View {
         case "ultra": key = "ultra"
         default: return value
         }
-        return AppLocalizedString.string(key, locale: locale)
+        return localized(key)
     }
 
     private func send(workingDirectoryOverride: String? = nil) {
@@ -639,10 +709,9 @@ struct NewChatView: View {
     private func launch(_ request: NewChatLaunchRequest, isHistoryResume: Bool) {
         guard !isLaunching, let project else { return }
         isLaunching = true
-        let startingAnnouncement = isHistoryResume
-            ? AppLocalizedString.string("会話を再開しています", locale: locale)
-            : AppLocalizedString.string("起動しています。終わったら最初のメッセージを送ります", locale: locale)
-        AccessibilityNotification.Announcement(startingAnnouncement).post()
+        AccessibilityNotification.Announcement(NewChatLaunchAnnouncement.text(
+            phase: .starting, resumesHistory: isHistoryResume, locale: locale, bundle: localizationBundle
+        )).post()
         Task {
             do {
                 let id = try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
@@ -652,13 +721,10 @@ struct NewChatView: View {
                 }
                 isLaunching = false
                 pendingResumeHistoryID = nil
-                if viewModel.sessionNode(id: id)?.appServer?.launchFailure != nil {
-                    let message = isHistoryResume ? "会話を再開できませんでした" : "起動できませんでした。本文を入力欄に戻しました"
-                    AccessibilityNotification.Announcement(AppLocalizedString.string(message, locale: locale)).post()
-                } else {
-                    let message = isHistoryResume ? "会話を再開しました" : "起動しました。最初のメッセージを送りました"
-                    AccessibilityNotification.Announcement(AppLocalizedString.string(message, locale: locale)).post()
-                }
+                let phase: NewChatLaunchAnnouncement.Phase = viewModel.sessionNode(id: id)?.appServer?.launchFailure == nil ? .succeeded : .failed
+                AccessibilityNotification.Announcement(NewChatLaunchAnnouncement.text(
+                    phase: phase, resumesHistory: isHistoryResume, locale: locale, bundle: localizationBundle
+                )).post()
             } catch {
                 if !isHistoryResume { draft.restoreLaunchDraft(from: request) }
                 if let log = NewSessionCollisionGate.worktreeFailureLog(error) {
@@ -674,14 +740,41 @@ struct NewChatView: View {
                     onLaunchFailure(request.agentRef, error)
                 }
                 isLaunching = false
-                let message = isHistoryResume ? "会話を再開できませんでした" : "起動できませんでした。本文を入力欄に戻しました"
-                AccessibilityNotification.Announcement(AppLocalizedString.string(message, locale: locale)).post()
+                AccessibilityNotification.Announcement(NewChatLaunchAnnouncement.text(
+                    phase: .failed, resumesHistory: isHistoryResume, locale: locale, bundle: localizationBundle
+                )).post()
             }
         }
     }
 
+    private func localized(_ key: String) -> String {
+        AppLocalizedString.string(key, locale: locale, bundle: localizationBundle)
+    }
+
     private func selectedProjectExists(_ id: ProjectID) -> Bool {
         viewModel.projects.contains { $0.id == id }
+    }
+}
+
+struct NewChatAccessibilityCopy: Equatable {
+    let role: String
+    let value: String
+}
+
+enum NewChatLaunchAnnouncement {
+    enum Phase { case starting, succeeded, failed }
+
+    static func text(phase: Phase, resumesHistory: Bool, locale: Locale, bundle: Bundle = .main) -> String {
+        let key: String
+        switch (phase, resumesHistory) {
+        case (.starting, true): key = "会話を再開しています"
+        case (.starting, false): key = "起動しています。終わったら最初のメッセージを送ります"
+        case (.succeeded, true): key = "会話を再開しました"
+        case (.succeeded, false): key = "起動しました。最初のメッセージを送りました"
+        case (.failed, true): key = "会話を再開できませんでした"
+        case (.failed, false): key = "起動できませんでした。本文を入力欄に戻しました"
+        }
+        return AppLocalizedString.string(key, locale: locale, bundle: bundle)
     }
 }
 

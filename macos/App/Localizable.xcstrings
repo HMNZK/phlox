@@ -45,6 +45,10 @@
       "extractionState": "manual",
       "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Describe a task (/ for commands)"}}}
     },
+    "メッセージ": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Message"}}}
+    },
     "プロジェクトを選んでください": {
       "extractionState": "manual",
       "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Select a project"}}}

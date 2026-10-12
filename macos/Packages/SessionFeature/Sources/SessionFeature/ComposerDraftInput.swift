@@ -19,6 +19,10 @@ public struct ComposerDraftInput: View {
     @State private var editorHeight = ComposerHeightBounds.single.min
     @State private var isComposing = false
     @State private var suggestionController: ComposerSuggestionController
+    @Environment(\.localizationBundle) private var localizationBundle
+
+    var accessibilityRole: String { "メッセージ" }
+    var accessibilityValue: String { text }
 
     public init(
         text: Binding<String>,
@@ -72,7 +76,8 @@ public struct ComposerDraftInput: View {
                     }
                 )
                 .frame(minHeight: ComposerHeightBounds.single.min, idealHeight: editorHeight, maxHeight: ComposerHeightBounds.single.max)
-                .accessibilityLabel(Text("メッセージ"))
+                .accessibilityLabel(Text(LocalizedStringKey(accessibilityRole), bundle: localizationBundle))
+                .accessibilityValue(Text(verbatim: accessibilityValue))
                 .accessibilityIdentifier("\(accessibilityPrefix).\(inputAccessibilitySuffix)")
 
                 if ComposerPlaceholderVisibility.shouldShowPlaceholder(text: text, isComposing: isComposing) {

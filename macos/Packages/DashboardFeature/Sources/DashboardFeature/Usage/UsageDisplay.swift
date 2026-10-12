@@ -56,8 +56,8 @@ enum UsageDisplay {
         }
     }
 
-    static func bottomBarUnavailableText(locale: Locale) -> String {
-        AppLocalizedString.string("取得できません", locale: locale)
+    static func bottomBarUnavailableText(locale: Locale, bundle: Bundle = .main) -> String {
+        AppLocalizedString.string("取得できません", locale: locale, bundle: bundle)
     }
 
     static func bottomBarBucketText(
@@ -76,26 +76,26 @@ enum UsageDisplay {
         return text
     }
 
-    static func bottomBarAccessibilityLabel(groups: [BottomBarGroup], now: Date, locale: Locale) -> String {
+    static func bottomBarAccessibilityLabel(groups: [BottomBarGroup], now: Date, locale: Locale, bundle: Bundle = .main) -> String {
         let details = groups.map { group -> String in
             guard let buckets = group.buckets else {
-                return "\(group.kind.displayName)、\(bottomBarUnavailableText(locale: locale))"
+                return "\(group.kind.displayName)、\(bottomBarUnavailableText(locale: locale, bundle: bundle))"
             }
             let values = buckets.map { bucket -> String in
                 let remaining = Int(round(100 - max(0, min(100, bucket.usedPercent))))
-                var value = "\(bucket.label) \(String(format: AppLocalizedString.string("残り %lld%%", locale: locale), remaining))"
+                var value = "\(bucket.label) \(String(format: AppLocalizedString.string("残り %lld%%", locale: locale, bundle: bundle), remaining))"
                 if isLowRemaining(usedPercent: bucket.usedPercent) {
-                    value += "、\(AppLocalizedString.string("残りわずか", locale: locale))"
+                    value += "、\(AppLocalizedString.string("残りわずか", locale: locale, bundle: bundle))"
                 }
                 if let reset = sidebarResetDisplay(for: bucket, now: now) {
-                    value += "、\(String(format: AppLocalizedString.string("リセット %@", locale: locale), reset.text))"
+                    value += "、\(String(format: AppLocalizedString.string("リセット %@", locale: locale, bundle: bundle), reset.text))"
                 }
                 return value
             }
-            return "\(group.kind.displayName)、\(values.joined(separator: AppLocalizedString.string("、", locale: locale)))"
+            return "\(group.kind.displayName)、\(values.joined(separator: AppLocalizedString.string("、", locale: locale, bundle: bundle)))"
         }
-        let joined = details.joined(separator: AppLocalizedString.string("、", locale: locale))
-        return String(format: AppLocalizedString.string("使用量: %@。クリックで詳細", locale: locale), joined)
+        let joined = details.joined(separator: AppLocalizedString.string("、", locale: locale, bundle: bundle))
+        return String(format: AppLocalizedString.string("使用量: %@。クリックで詳細", locale: locale, bundle: bundle), joined)
     }
 
     /// 使用量に応じて緑→黄→赤へ段階変化（statusline の rate_color を移植）。

@@ -7,6 +7,8 @@ import DesignSystem
 public struct ChatSessionView: View {
     @Bindable var viewModel: ChatSessionViewModel
     let projectName: String?
+    let onLaunchFailureRestart: (() -> Void)?
+    let onLaunchFailureClose: (() -> Void)?
     @State private var requestedTranscriptTarget: String?
     @State private var fileChangeRevealRequest: FileChangeRevealRequest?
     @State private var isComposerPopupOpen = false
@@ -18,9 +20,16 @@ public struct ChatSessionView: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @State private var composerHeight: CGFloat = 0
 
-    public init(viewModel: ChatSessionViewModel, projectName: String? = nil) {
+    public init(
+        viewModel: ChatSessionViewModel,
+        projectName: String? = nil,
+        onLaunchFailureRestart: (() -> Void)? = nil,
+        onLaunchFailureClose: (() -> Void)? = nil
+    ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         self.projectName = projectName
+        self.onLaunchFailureRestart = onLaunchFailureRestart
+        self.onLaunchFailureClose = onLaunchFailureClose
     }
 
     public var body: some View {
@@ -56,7 +65,9 @@ public struct ChatSessionView: View {
                 contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: width),
                 bottomScrollContentMargin: composerHeight,
                 requestedScrollTarget: $requestedTranscriptTarget,
-                currentInputPositionID: $currentInputPositionID
+                currentInputPositionID: $currentInputPositionID,
+                onLaunchFailureRestart: onLaunchFailureRestart,
+                onLaunchFailureClose: onLaunchFailureClose
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .environment(\.fileChangeRevealRequest, fileChangeRevealRequest)

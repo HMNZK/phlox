@@ -48,7 +48,7 @@ func removeSession_warnsWithTheFileAndReasonWhenTheWorkspaceCannotBeRemoved() as
     )
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     let locked = environment.sessionWorkspaceDirectory(for: sessionID).appendingPathComponent("locked", isDirectory: true)
     try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)

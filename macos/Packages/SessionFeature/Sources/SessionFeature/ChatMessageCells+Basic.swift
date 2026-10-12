@@ -260,6 +260,8 @@ struct AgentMessageBody: View {
 struct ErrorMessageCell: View {
     let message: String
     let timestamp: Date
+    var onRestart: (() -> Void)? = nil
+    var onClose: (() -> Void)? = nil
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     @Environment(\.locale) private var locale
@@ -273,24 +275,51 @@ struct ErrorMessageCell: View {
             message: message,
             heading: UIWording.text(.errorHeading, languageCode: languageCode)
         )
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12 * scale))
-                .foregroundStyle(DSColor.attentionMark(.error))
-                .padding(.top, 3)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(presentation.heading ?? "")
-                    .font(.system(size: 12.5 * scale, weight: .semibold))
-                    .foregroundStyle(DSColor.attentionInk(.error))
-                Text(message)
-                    .font(.system(size: 12.5 * scale, design: .monospaced))
-                    .foregroundStyle(DSColor.chatTextPrimary)
-                    .chatTextSelection()
-                    .lineSpacing(4 * scale)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12 * scale))
+                    .foregroundStyle(DSColor.attentionMark(.error))
+                    .padding(.top, 3)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(presentation.heading ?? "")
+                        .font(.system(size: 12.5 * scale, weight: .semibold))
+                        .foregroundStyle(DSColor.attentionInk(.error))
+                    Text(message)
+                        .font(.system(size: 12.5 * scale, design: .monospaced))
+                        .foregroundStyle(DSColor.chatTextPrimary)
+                        .chatTextSelection()
+                        .lineSpacing(4 * scale)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            if onRestart != nil || onClose != nil {
+                HStack(spacing: 8) {
+                    Spacer()
+                    if let onRestart {
+                        Button("再起動", action: onRestart)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(DSColor.textPrimary)
+                            .padding(.horizontal, 10)
+                            .frame(height: 24)
+                            .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(DSColor.controlBorder, lineWidth: 0.5))
+                            .accessibilityIdentifier("ChatLaunchFailure.restart")
+                    }
+                    if let onClose {
+                        Button("閉じる", action: onClose)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .padding(.horizontal, 10)
+                            .frame(height: 24)
+                            .background(DSColor.controlBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(DSColor.controlBorder, lineWidth: 0.5))
+                            .accessibilityIdentifier("ChatLaunchFailure.close")
+                    }
+                }
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -300,6 +329,6 @@ struct ErrorMessageCell: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(DSColor.attentionMark(.error), lineWidth: 1)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }

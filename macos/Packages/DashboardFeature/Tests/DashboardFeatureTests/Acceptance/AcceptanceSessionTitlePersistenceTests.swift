@@ -245,7 +245,7 @@ struct AcceptanceSessionTitlePersistenceTests {
             )
         )
         await dashboard.start()
-        try await dashboard.spawnNewClaudeCodeSession()
+        try await dashboard.spawnNewSession(kind: .claudeCode)
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let node = try #require(dashboard.sessionNodes.first)
         let flowerBefore = node.titleState.flowerName
@@ -277,7 +277,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         )
         await dashboard.start()
         let spawnTask = Task { @MainActor in
-            try await dashboard.spawnNewClaudeCodeSession()
+            try await dashboard.spawnNewSession(kind: .claudeCode)
         }
         let id = await gate.nextObservedSessionID()
         #expect(await store.load().isEmpty, Comment(rawValue: "unsaved before first persist"))
@@ -343,7 +343,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         )
         await dashboard.start()
         let spawnTask = Task { @MainActor in
-            try await dashboard.spawnNewClaudeCodeSession()
+            try await dashboard.spawnNewSession(kind: .claudeCode)
         }
         let id = await gate.nextObservedSessionID()
         #expect(await store.load().isEmpty)
@@ -391,7 +391,7 @@ struct AcceptanceSessionTitlePersistenceTests {
             )
         )
         await dashboard.start()
-        try await dashboard.spawnNewClaudeCodeSession()
+        try await dashboard.spawnNewSession(kind: .claudeCode)
         let id = dashboard.sessions[0].id
         let flowerBefore = dashboard.sessionNodes[0].titleState.flowerName
         dashboard.renameSession(id, to: " 通知を修正 \n")
@@ -412,7 +412,7 @@ struct AcceptanceSessionTitlePersistenceTests {
             )
         )
         await dashboard.start()
-        try await dashboard.spawnNewClaudeCodeSession()
+        try await dashboard.spawnNewSession(kind: .claudeCode)
         let id = dashboard.sessions[0].id
         let flowerBefore = dashboard.sessionNodes[0].titleState.flowerName
         dashboard.renameSession(id, to: "   ")
@@ -456,7 +456,7 @@ struct AcceptanceSessionTitlePersistenceTests {
             )
         )
         await dashboard.start()
-        try await dashboard.spawnNewClaudeCodeSession()
+        try await dashboard.spawnNewSession(kind: .claudeCode)
         await dashboard.waitForPendingPersistenceWritesForTesting()
         let reservedIDs = Set(reserved.map(\.id))
         let spawned = try #require(dashboard.sessionNodes.first(where: { !reservedIDs.contains($0.id) }))
@@ -513,7 +513,7 @@ struct AcceptanceSessionTitlePersistenceTests {
         )
         let (_, stderr) = try await capturingStandardError {
             await dashboard.start()
-            try await dashboard.spawnNewClaudeCodeSession()
+            try await dashboard.spawnNewSession(kind: .claudeCode)
             await dashboard.waitForPendingPersistenceWritesForTesting()
         }
         #expect(await store.attemptCount() > 0, Comment(rawValue: "first save attempted"))

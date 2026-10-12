@@ -5,6 +5,7 @@ import HookServer
 import MessageStore
 import PTYKit
 import SessionFeature
+import StructuredChatKit
 @testable import DashboardFeature
 
 private actor WorktreeIsolationProjectStore: ProjectStoreProtocol {
@@ -36,6 +37,30 @@ private actor WorktreeIsolationSessionStore: SessionStoreProtocol {
 }
 
 private struct WorktreeIsolationTestGitError: Error {}
+
+private actor WorktreeLaunchTestClient: StructuredAgentClient, SpawnAgentSettingsControlling {
+    nonisolated let events: AsyncStream<NormalizedChatEvent>
+    nonisolated let continuation: AsyncStream<NormalizedChatEvent>.Continuation
+    let failsStart: Bool
+    var inputs: [[ChatInput]] = []
+    var settings: (String?, String?, String?)?
+
+    init(failsStart: Bool = false) {
+        (events, continuation) = AsyncStream.makeStream()
+        self.failsStart = failsStart
+    }
+
+    func start() async throws {
+        if failsStart { throw ChatLaunchError.processFailed("fake worktree launch failure") }
+    }
+    func turnStart(_ input: [ChatInput]) async throws { inputs.append(input) }
+    func resume(sessionRef: String) async throws {}
+    func interrupt() async throws {}
+    func close() async { continuation.finish() }
+    func applySpawnAgentSettings(model: String?, permissionOrMode: String?, effort: String?) async {
+        settings = (model, permissionOrMode, effort)
+    }
+}
 
 private func runWorktreeIsolationGit(_ arguments: [String], in directory: URL) throws -> String {
     let process = Process()
@@ -182,6 +207,135 @@ func worktreeIsolation_newLaunchUsesOnlyExplicitSelection(selection: Bool?) asyn
     #expect(saved.workingDirectory == (selection == true ? path.path : repository.path))
     #expect(saved.worktreeIsolationOptOut == nil)
     await dashboard.removeSession(id)
+}
+
+@Test @MainActor
+func worktreeIsolation_failedNewChatCloseCleansItsWorktree() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-failed-chat-close-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    let project = Project(name: "failed-chat-close", directoryPath: repository.path, createdAt: Date(),
+        isManagedDirectory: false, worktreeIsolationEnabled: true)
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let failedClient = WorktreeLaunchTestClient(failsStart: true)
+    let clients = StructuredClientSequence([failedClient])
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: MockPTYManager(),
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore,
+        appServerClientFactory: { _, _, _, _, _ in try clients.next() }
+    )
+    var worktreePath: URL?
+    var branchName: String?
+    defer {
+        if let worktreePath, let branchName {
+            cleanupWorktreeIsolationTestWorktree(at: worktreePath, branchName: branchName, in: repository)
+        }
+        try? FileManager.default.removeItem(at: workspaceRoot)
+    }
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+
+    let id = try await dashboard.launchNewChat(NewChatLaunchRequest(
+        projectID: project.id,
+        agentRef: .builtin(.claudeCode),
+        settings: CodexAppServerSessionSettings(selectedModel: "fable", selectedEffort: "high",
+            selectedPermissionProfile: "acceptEdits", isPlanMode: false),
+        usesWorktree: true,
+        text: "first message",
+        attachments: []
+    ))
+    worktreePath = environment.sessionWorkspaceDirectory(for: id)
+    branchName = WorktreeIsolationPlanner.branchName(for: id)
+    #expect(dashboard.sessionNode(id: id)?.appServer?.launchFailure != nil)
+    #expect(FileManager.default.fileExists(atPath: try #require(worktreePath).path))
+
+    #expect(await dashboard.removeSession(id))
+    #expect(dashboard.sessionNode(id: id) == nil)
+    #expect(!FileManager.default.fileExists(atPath: try #require(worktreePath).path))
+}
+
+@Test @MainActor
+func worktreeIsolation_restartCreatesNewWorktreeAndSelectsNewChat() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-failed-chat-restart-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    let project = Project(name: "failed-chat-restart", directoryPath: repository.path, createdAt: Date(),
+        isManagedDirectory: false, worktreeIsolationEnabled: true)
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let failedClient = WorktreeLaunchTestClient(failsStart: true)
+    let replacementClient = WorktreeLaunchTestClient()
+    let clients = StructuredClientSequence([failedClient, replacementClient])
+    let environment = makeWorktreeIsolationEnvironment(
+        pty: MockPTYManager(),
+        workspaceDirectory: workspaceRoot,
+        projectStore: projectStore,
+        appServerClientFactory: { _, _, _, _, _ in try clients.next() }
+    )
+    var originalWorktree: URL?
+    var originalBranch: String?
+    var replacementWorktree: URL?
+    var replacementBranch: String?
+    defer {
+        if let originalWorktree, let originalBranch {
+            cleanupWorktreeIsolationTestWorktree(at: originalWorktree, branchName: originalBranch, in: repository)
+        }
+        if let replacementWorktree, let replacementBranch {
+            cleanupWorktreeIsolationTestWorktree(at: replacementWorktree, branchName: replacementBranch, in: repository)
+        }
+        try? FileManager.default.removeItem(at: workspaceRoot)
+    }
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+
+    let request = NewChatLaunchRequest(
+        projectID: project.id,
+        agentRef: .builtin(.claudeCode),
+        settings: CodexAppServerSessionSettings(selectedModel: "fable", selectedEffort: "high",
+            selectedPermissionProfile: "acceptEdits", isPlanMode: false),
+        usesWorktree: true,
+        text: "first message",
+        attachments: []
+    )
+    let failedID = try await dashboard.launchNewChat(request)
+    let old = try #require(dashboard.sessionNode(id: failedID)?.appServer)
+    originalWorktree = environment.sessionWorkspaceDirectory(for: failedID)
+    originalBranch = WorktreeIsolationPlanner.branchName(for: failedID)
+    let attachments = [ComposerAttachment(data: Data([7]), mediaType: "image/png")]
+    old.restoreLaunchDraft("edited text", attachments: attachments)
+    #expect(FileManager.default.fileExists(atPath: try #require(originalWorktree).path))
+
+    let router = AppRouter()
+    router.showNewChat(projectID: project.id)
+    let newID = try await dashboard.restartNewChat(failedID) { newID in
+        router.completeNewChat(sessionID: newID, projectID: project.id)
+    }
+    replacementWorktree = environment.sessionWorkspaceDirectory(for: newID)
+    replacementBranch = WorktreeIsolationPlanner.branchName(for: newID)
+    let restarted = try #require(dashboard.sessionNode(id: newID)?.appServer)
+    let oldPath = try #require(originalWorktree)
+    let newPath = try #require(replacementWorktree)
+    #expect(dashboard.sessionNodes.count == 1)
+    #expect(dashboard.sessionNode(id: failedID) == nil)
+    #expect(router.selectedSession == newID)
+    #expect(router.tabs.layout(for: project.id).selected == .chat(newID))
+    #expect(restarted.agentRef == request.agentRef)
+    #expect(restarted.rawWorkspacePath == newPath.path)
+    #expect(restarted.rawWorkspacePath != oldPath.path)
+    #expect(!FileManager.default.fileExists(atPath: oldPath.path))
+    #expect(FileManager.default.fileExists(atPath: newPath.path))
+    #expect(restarted.draft == "edited text")
+    #expect(restarted.composerAttachments == attachments)
+    #expect(await replacementClient.inputs.isEmpty)
+    let settings = try #require(await replacementClient.settings)
+    #expect(settings.0 == request.settings.selectedModel)
+    #expect(settings.1 == request.settings.selectedPermissionProfile)
+    #expect(settings.2 == request.settings.selectedEffort)
+    await dashboard.removeSession(newID)
 }
 
 // planner は隔離を選択した後にだけ呼ぶため、既定の非隔離の契約は起動境界で確かめる。

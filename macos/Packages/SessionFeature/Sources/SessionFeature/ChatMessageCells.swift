@@ -13,6 +13,8 @@ public struct ChatItemView: View, Equatable {
     var onDismissUserQuestion: (() -> Void)? = nil
     /// turnCost の行（金額の無い Codex はターン最後の応答の下）に添えるトークン内訳。
     var turnUsage: TurnUsage? = nil
+    var onLaunchFailureRestart: (() -> Void)? = nil
+    var onLaunchFailureClose: (() -> Void)? = nil
 
     public init(
         item: ChatItem,
@@ -20,7 +22,9 @@ public struct ChatItemView: View, Equatable {
         agentDescriptor: AgentDescriptor,
         onRespondToUserQuestion: ((String, [String: [String]]) async -> Bool)? = nil,
         onDismissUserQuestion: (() -> Void)? = nil,
-        turnUsage: TurnUsage? = nil
+        turnUsage: TurnUsage? = nil,
+        onLaunchFailureRestart: (() -> Void)? = nil,
+        onLaunchFailureClose: (() -> Void)? = nil
     ) {
         self.item = item
         self.isRunningCommand = isRunningCommand
@@ -28,6 +32,8 @@ public struct ChatItemView: View, Equatable {
         self.onRespondToUserQuestion = onRespondToUserQuestion
         self.onDismissUserQuestion = onDismissUserQuestion
         self.turnUsage = turnUsage
+        self.onLaunchFailureRestart = onLaunchFailureRestart
+        self.onLaunchFailureClose = onLaunchFailureClose
     }
 
     /// ADR 0116: 未変更行の body 再評価をスキップするための同値性（呼び出し側で `.equatable()`）。
@@ -68,7 +74,12 @@ public struct ChatItemView: View, Equatable {
         case .fileChange(let id, let changes, let timestamp):
             FileChangeCell(changes: changes, timestamp: timestamp, itemID: id)
         case .error(_, let message, let timestamp):
-            ErrorMessageCell(message: message, timestamp: timestamp)
+            ErrorMessageCell(
+                message: message,
+                timestamp: timestamp,
+                onRestart: onLaunchFailureRestart,
+                onClose: onLaunchFailureClose
+            )
         case .subAgentMarker(let id, let subagentType, let description, let status):
             SubAgentMarkerCell(
                 id: id,

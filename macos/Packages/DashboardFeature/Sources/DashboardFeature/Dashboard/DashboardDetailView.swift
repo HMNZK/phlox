@@ -97,7 +97,25 @@ struct DashboardDetailView: View {
             case .pty(let session):
                 SessionView(viewModel: session)
             case .appServer(let session):
-                ChatSessionView(viewModel: session, projectName: viewModel.projects.first(where: { $0.id == session.projectID })?.name)
+                ChatSessionView(
+                    viewModel: session,
+                    projectName: viewModel.projects.first(where: { $0.id == session.projectID })?.name,
+                    onLaunchFailureRestart: {
+                        guard let projectID = session.projectID else { return }
+                        Task {
+                            do {
+                                _ = try await viewModel.restartNewChat(session.id) { newID in
+                                    router.completeNewChat(sessionID: newID, projectID: projectID)
+                                }
+                            } catch {
+                                onNewChatLaunchFailure(session.agentRef, error)
+                            }
+                        }
+                    },
+                    onLaunchFailureClose: {
+                        Task { await viewModel.removeSession(session.id) }
+                    }
+                )
                     // 「この会話から再開」で同じ ID の VM が差し替わったら、ビューも作り直して末尾へ寄せ直す（04 B3）。
                     .id(ObjectIdentifier(session))
             }

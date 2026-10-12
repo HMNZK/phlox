@@ -198,7 +198,7 @@ func removeSession_killsPTYAndRemovesFromList() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     #expect(dashboard.sessions.count == 1)
     let sessionID = dashboard.sessions[0].id
 
@@ -258,7 +258,7 @@ func removeSession_cascadesToAllDescendantsAndKeepsOutsideSessions() async throw
 }
 
 @Test @MainActor
-func spawnNewClaudeCodeSession_eagerlySpawnsWithoutView() async throws {
+func spawnNewSession_eagerlySpawnsWithoutView() async throws {
     // eager spawn: View（SwiftTerm の sizeChanged）を待たず、spawnNewSession の時点で
     // PTY が起動する。これが Phase 1 の本質（API 経由・非表示セッションでも起動する）。
     let ptyManager = MockPTYManager()
@@ -269,7 +269,7 @@ func spawnNewClaudeCodeSession_eagerlySpawnsWithoutView() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
 
     #expect(dashboard.sessions.count == 1)
     // onResize を呼ばずとも spawn 済み（eager）。
@@ -292,7 +292,7 @@ func renameSession_updatesSessionName() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     dashboard.renameSession(sessionID, to: "Backend")
@@ -312,8 +312,8 @@ func unseenCompletionCountCountsOnlyUnseenCompletions() async throws {
     var observedCounts: [Int] = []
     dashboard.unseenCompletionCountDidChange = { observedCounts.append($0) }
 
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
 
     #expect(dashboard.unseenCompletionCount == 0)
 
@@ -397,7 +397,7 @@ func spawnNewSession_autoNamesWithFlowerName() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
 
     #expect(FlowerNameGenerator.names.contains(dashboard.sessions[0].name))
 }
@@ -415,7 +415,7 @@ func spawnNewSession_assignsUniqueFlowerNames() async throws {
     // 既存セッション名を avoiding に渡す配線が壊れると花名が重複し得る。
     // 連番サフィックスに入らない範囲(花名は30個)で複数 spawn し、一意性を担保する。
     for _ in 0..<10 {
-        try await dashboard.spawnNewClaudeCodeSession()
+        try await dashboard.spawnNewSession(kind: .claudeCode)
     }
 
     let names = dashboard.sessions.map(\.name)
@@ -439,7 +439,7 @@ func spawnNewSession_persistsFlowerName() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let name = dashboard.sessions[0].name
     let sessionID = dashboard.sessions[0].id
 
@@ -515,7 +515,7 @@ func renameSession_persistsName() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     dashboard.renameSession(sessionID, to: "Backend")
@@ -540,7 +540,7 @@ func spawnThenRename_persistsFinalName() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     dashboard.renameSession(sessionID, to: "Final Name")
 
@@ -565,7 +565,7 @@ func renameSession_multipleRenamesPersistLastName() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     dashboard.renameSession(sessionID, to: "First")
@@ -593,9 +593,9 @@ func reorderSession_swapsTwoSessionsAndPersistsOrder() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let initialOrder = dashboard.sessions.map(\.id)
 
     dashboard.reorderSession(initialOrder[0], with: initialOrder[2])
@@ -622,9 +622,9 @@ func reorderSession_swapIsSymmetricForReversedArguments() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let initialOrder = dashboard.sessions.map(\.id)
 
     dashboard.reorderSession(initialOrder[2], with: initialOrder[0])
@@ -651,10 +651,10 @@ func reorderSession_swapKeepsInterveningSessionsFixed() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let initialOrder = dashboard.sessions.map(\.id)
 
     // 両端(先頭と末尾)だけを入れ替え、間の2枚は動かないこと。
@@ -718,7 +718,7 @@ func renameSession_emptyNamePersistsAndRestoresShortID() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     dashboard.renameSession(sessionID, to: "   ")
 
@@ -1201,7 +1201,7 @@ func renameSession_trimsWhitespace() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     dashboard.renameSession(sessionID, to: "   Backend   ")
@@ -1212,7 +1212,7 @@ func renameSession_trimsWhitespace() async throws {
 }
 
 @Test @MainActor
-func spawnNewClaudeCodeSession_passesSessionIDAndHookURLToEnv() async throws {
+func spawnNewSession_passesSessionIDAndHookURLToEnv() async throws {
     let ptyManager = MockPTYManager()
     let hookURL = URL(string: "http://127.0.0.1:54321/hook")!
     let settingsURL = URL(fileURLWithPath: "/tmp/agent-dashboard-test-hooks.json")
@@ -1239,7 +1239,7 @@ func spawnNewClaudeCodeSession_passesSessionIDAndHookURLToEnv() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     // eager spawn: View を待たず即 spawn。
     try await waitUntil { ptyManager.spawnCalls.count == 1 }
 
@@ -1281,7 +1281,7 @@ func spawnNewClaudeCodeSession_passesSessionIDAndHookURLToEnv() async throws {
 }
 
 @Test @MainActor
-func spawnNewClaudeCodeSession_eagerSpawnThenResizesOnSizeChanged() async throws {
+func spawnNewSession_eagerSpawnThenResizesOnSizeChanged() async throws {
     let ptyManager = MockPTYManager()
 
     let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
@@ -1289,7 +1289,7 @@ func spawnNewClaudeCodeSession_eagerSpawnThenResizesOnSizeChanged() async throws
 
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
 
     // eager spawn 済み。
     try await waitUntil { ptyManager.spawnCalls.count == 1 }
@@ -1321,8 +1321,8 @@ func hookMultiplex_routesEventToCorrectSession() async throws {
     await dashboard.start()
 
     // 2 つのセッションを spawn（DashboardViewModel が内部で SessionID を生成して spawn に渡す）
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
 
     #expect(dashboard.sessions.count == 2)
     let vmA = dashboard.sessions[0]
@@ -1597,7 +1597,7 @@ func claudeCodeHookNativeSessionId_followsResumeIDOnChange() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = try #require(dashboard.sessions.first?.id)
     let launchUUID = sessionID.rawValue.uuidString.lowercased()
 
@@ -1644,7 +1644,7 @@ func claudeCodeHookNativeSessionId_noOpWhenMatchesLaunchUUID() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = try #require(dashboard.sessions.first?.id)
     let launchUUID = sessionID.rawValue.uuidString.lowercased()
 
@@ -1683,7 +1683,7 @@ func claudeCodeHookNativeSessionId_ignoresInvalidNativeSessionId() async throws 
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = try #require(dashboard.sessions.first?.id)
     let launchUUID = sessionID.rawValue.uuidString.lowercased()
 
@@ -1727,7 +1727,7 @@ func claudeCodeHookNativeSessionId_noOpWhenNormalizedUUIDMatches() async throws 
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = try #require(dashboard.sessions.first?.id)
     let launchUUID = sessionID.rawValue.uuidString.lowercased()
 
@@ -1766,7 +1766,7 @@ func claudeCodeHookNativeSessionId_restoreUsesFollowedResumeID() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = try #require(dashboard.sessions.first?.id)
 
     let followedResumeID = "44444444-4444-4444-4444-444444444444"
@@ -2384,7 +2384,7 @@ func removeSession_removesOwnedPerSessionWorkspaceDirectory() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     let sessionWorkspaceURL = environment.sessionWorkspaceDirectory(for: sessionID)
     #expect(FileManager.default.fileExists(atPath: sessionWorkspaceURL.path))
@@ -2758,7 +2758,7 @@ func changeWorkspace_swapsHookStreamAndRoutesNewEvents() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let vm = dashboard.sessions[0]
     let sessionID = vm.id
     vm.terminalCoordinator.onResize(80, 24)
@@ -2783,7 +2783,7 @@ func changeWorkspace_preservesNameAcrossRestart() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let vm = dashboard.sessions[0]
     vm.name = "My"
     vm.terminalCoordinator.onResize(80, 24)
@@ -2805,8 +2805,8 @@ func changeWorkspace_doesNotAffectOtherSessions() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let vmA = dashboard.sessions[0]
     let vmB = dashboard.sessions[1]
 
@@ -2835,7 +2835,7 @@ func changeWorkspace_unknownID_isNoOp() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     dashboard.sessions[0].terminalCoordinator.onResize(80, 24)
     try await waitUntil { ptyManager.spawnCalls.count == 1 }
 
@@ -2858,7 +2858,7 @@ func sessionOutput_returnsVisibleTerminalTextForKnownSession() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let vm = dashboard.sessions[0]
     vm.terminalCoordinator.feed(Data("PONG".utf8))
 
@@ -2876,7 +2876,7 @@ func sessionOutput_returnsNilForUnknownSession() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
 
     #expect(dashboard.sessionOutput(for: SessionID()) == nil)
 }
@@ -2894,7 +2894,7 @@ func waitUntilReady_claudeCode_readyAfterSessionStartAndSettledOutput() async th
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     try await waitUntil { ptyManager.spawnCalls.count == 1 }
 
@@ -2918,7 +2918,7 @@ func waitUntilReady_returnsTimedOutWithoutOutput() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     try await waitUntil { ptyManager.spawnCalls.count == 1 }
 
     let result = await dashboard.waitUntilReady(
@@ -2954,7 +2954,7 @@ func waitUntilDone_doesNotTreatPreexistingStopAsDone() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     hookContinuation.yield((sessionID, .stop(turnId: nil)))
@@ -2980,7 +2980,7 @@ func waitUntilDone_returnsDoneForStopAfterWaitStarts() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     let waitTask = Task { @MainActor in
@@ -3052,7 +3052,7 @@ func waitUntilDone_returnsDoneWhenSentinelAppears() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     let waitTask = Task { @MainActor in
@@ -3084,7 +3084,7 @@ func waitUntilDone_returnsTimedOutWithoutCompletionSignal() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     let result = await dashboard.waitUntilDone(
@@ -3127,7 +3127,7 @@ func waitUntilDone_returnsDoneForMatchingTurnIdStop() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     hookContinuation.yield((sessionID, .userPromptSubmit(turnId: "T2")))
@@ -3158,7 +3158,7 @@ func waitUntilDone_doesNotCompleteOnStaleTurnIdStop() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     hookContinuation.yield((sessionID, .userPromptSubmit(turnId: "T2")))
@@ -3191,7 +3191,7 @@ func waitUntilDone_returnsDoneForStopWithoutTurnId() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
 
     let waitTask = Task { @MainActor in

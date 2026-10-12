@@ -49,6 +49,17 @@ struct ChatComposer: View {
         // PhloxReply.dc.html の入力欄: 上 10・左右 12・下 8、本文と下段の間 10（空のとき高さ 74）。
         // 本文欄の内側余白 8（ComposerPlaceholderMetrics.textInsets）の分だけ外側を詰める。
         VStack(alignment: .leading, spacing: 2) {
+            if viewModel.launchFailure != nil {
+                Text("本文を戻しました。再起動すると送れます")
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .accessibilityIdentifier("ChatComposer.launchFailureHint")
+            } else if viewModel.status == .starting, !viewModel.draft.isEmpty {
+                Text("起動しています。終わったら送れます（自動では送りません）")
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .accessibilityIdentifier("ChatComposer.restartHint")
+            }
             if let error = viewModel.codexSkillSelectionState?.errorMessage {
                 Text("Codex skill の取得に失敗しました: \(error)")
                     .font(DSFont.caption)

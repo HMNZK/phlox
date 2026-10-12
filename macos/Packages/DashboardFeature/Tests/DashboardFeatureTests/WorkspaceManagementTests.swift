@@ -107,7 +107,7 @@ func removeSession_doesNotDeleteSiblingDirectoryWithSimilarPrefix() async throws
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     let sessionWorkspaceURL = environment.sessionWorkspaceDirectory(for: sessionID)
     #expect(sessionWorkspaceURL.path.hasPrefix(workspaceURL.path))
@@ -146,7 +146,7 @@ func removeSession_doesNotFollowSymlinkOutsideWorkspaceRoot() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     let sessionWorkspaceURL = environment.sessionWorkspaceDirectory(for: sessionID)
     try FileManager.default.createDirectory(at: sessionWorkspaceURL, withIntermediateDirectories: true)

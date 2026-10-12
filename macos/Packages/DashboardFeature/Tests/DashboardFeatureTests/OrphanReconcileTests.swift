@@ -235,7 +235,7 @@ func spawnNewSession_persistsLivePidFromProvider() async throws {
     )
     await dashboard.start()
 
-    try await dashboard.spawnNewClaudeCodeSession()
+    try await dashboard.spawnNewSession(kind: .claudeCode)
     let sessionID = dashboard.sessions[0].id
     try await waitUntil { ptyManager.spawnCalls.count == 1 }
 

@@ -13,6 +13,8 @@ struct ChatTranscriptView: View {
     private let showsThinkingIndicator: Bool
     private let contentMaxWidth: CGFloat?
     private let bottomScrollContentMargin: CGFloat
+    private let onLaunchFailureRestart: (() -> Void)?
+    private let onLaunchFailureClose: (() -> Void)?
     private let defaultWindowLimit: Int
     @State private var autoFollow = ChatAutoFollowController()
     // 表示件数制限（末尾 N 件のみ描画。ADR 0030:22）。view-local な @State に住み、
@@ -51,7 +53,9 @@ struct ChatTranscriptView: View {
         bottomScrollContentMargin: CGFloat = 0,
         requestedScrollTarget: Binding<String?> = .constant(nil),
         currentInputPositionID: Binding<String?> = .constant(nil),
-        presentationContext: TranscriptPresentationContext = .single
+        presentationContext: TranscriptPresentationContext = .single,
+        onLaunchFailureRestart: (() -> Void)? = nil,
+        onLaunchFailureClose: (() -> Void)? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _requestedScrollTarget = requestedScrollTarget
@@ -60,6 +64,8 @@ struct ChatTranscriptView: View {
         self.showsThinkingIndicator = showsThinkingIndicator
         self.contentMaxWidth = contentMaxWidth
         self.bottomScrollContentMargin = bottomScrollContentMargin
+        self.onLaunchFailureRestart = onLaunchFailureRestart
+        self.onLaunchFailureClose = onLaunchFailureClose
         _window = State(initialValue: TranscriptWindow(context: presentationContext))
         defaultWindowLimit = TranscriptWindow.defaultLimit(for: presentationContext)
     }
@@ -320,7 +326,9 @@ struct ChatTranscriptView: View {
                         }
                     }
                 },
-                turnUsage: viewModel.turnUsageByItemID[item.id]
+                turnUsage: viewModel.turnUsageByItemID[item.id],
+                onLaunchFailureRestart: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureRestart : nil,
+                onLaunchFailureClose: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureClose : nil
             )
             // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が
             // @Observable の依存になっており、1行の更新でもこのビュー全体が無効化されるため、

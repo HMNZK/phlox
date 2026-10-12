@@ -196,6 +196,13 @@ final class NewChatLaunchTests {
         #expect(vm.attachmentStore.attachments == attachments)
         #expect(await client.inputs.isEmpty)
         #expect(await store.load().isEmpty)
+        let launchError = try #require(vm.transcript.first { $0.id == "launch-error-\(id.rawValue)" })
+        if case .error(_, let message, _) = launchError {
+            #expect(message.contains("最初のメッセージは送っていません"))
+            #expect(message.contains("本文を入力欄に戻しました"))
+        } else {
+            Issue.record("launch failure explanation is missing")
+        }
         if case .error = vm.status {} else { Issue.record("launch error overwritten") }
         await dashboard.removeSession(id)
     }
@@ -255,20 +262,46 @@ final class NewChatLaunchTests {
         let failed = LaunchClient(failsStart: true)
         let replacement = LaunchClient()
         let dashboard = dashboard([failed, replacement])
-        let id = try await dashboard.launchNewChat(request(dashboard))
+        let base = request(dashboard)
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("new-chat-restart-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let launchRequest = NewChatLaunchRequest(
+            projectID: base.projectID,
+            agentRef: base.agentRef,
+            settings: base.settings,
+            usesWorktree: false,
+            text: base.text,
+            attachments: base.attachments,
+            workingDirectoryOverride: workspace.path
+        )
+        let id = try await dashboard.launchNewChat(launchRequest)
         let old = try #require(dashboard.sessionNode(id: id)?.appServer)
         old.draft = "edited text"
         let attachments = [ComposerAttachment(data: Data([2]), mediaType: "image/png")]
         old.attachmentStore.restore(attachments)
-        let newID = try await dashboard.restartNewChat(id)
+        let router = AppRouter()
+        router.showNewChat(projectID: base.projectID)
+        let newID = try await dashboard.restartNewChat(id) { newID in
+            router.completeNewChat(sessionID: newID, projectID: base.projectID)
+        }
         let vm = try #require(dashboard.sessionNode(id: newID)?.appServer)
         #expect(newID != id)
         #expect(dashboard.sessionNodes.count == 1)
         #expect(dashboard.sessionNode(id: id) == nil)
+        #expect(router.selectedSession == newID)
+        #expect(router.tabs.layout(for: base.projectID).selected == .chat(newID))
+        #expect(vm.rawWorkspacePath == workspace.path)
+        #expect(vm.agentRef == launchRequest.agentRef)
         #expect(vm.draft == "edited text")
         #expect(vm.attachmentStore.attachments == attachments)
         #expect(await replacement.starts == 1)
         #expect(await replacement.inputs.isEmpty)
+        let settings = try #require(await replacement.settings)
+        #expect(settings.0 == launchRequest.settings.selectedModel)
+        #expect(settings.1 == launchRequest.settings.selectedPermissionProfile)
+        #expect(settings.2 == launchRequest.settings.selectedEffort)
         await dashboard.removeSession(newID)
     }
 

@@ -1200,13 +1200,11 @@ public final class DashboardViewModel {
         }
         let text = vm.draft
         let attachments = vm.composerAttachments
-        failedNewChatRequests.removeValue(forKey: id)
-        await removeSession(id)
         let restart = NewChatLaunchRequest(projectID: request.projectID, agentRef: request.agentRef,
             settings: request.settings,
-            usesWorktree: request.resumeHistoryID == nil ? false : request.usesWorktree,
+            usesWorktree: request.usesWorktree,
             text: "", attachments: [],
-            workingDirectoryOverride: request.resumeHistoryID == nil ? nil : request.workingDirectoryOverride,
+            workingDirectoryOverride: request.workingDirectoryOverride,
             resumeHistoryID: request.resumeHistoryID)
         let newID = try await launchNewChat(restart, onRowAppended: { newID in
             if request.resumeHistoryID == nil {
@@ -1217,6 +1215,7 @@ public final class DashboardViewModel {
         if request.resumeHistoryID == nil {
             sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
         }
+        await removeSession(id)
         return newID
     }
 
@@ -1516,11 +1515,6 @@ public final class DashboardViewModel {
             workingDirectoryOverride: workingDirectory,
             spawnLimitSource: .controlRequester(requester)
         )
-    }
-
-    /// M6a で実装。新規 Claude Code セッションをプレースホルダとして `sessions` に追加する。
-    public func spawnNewClaudeCodeSession() async throws {
-        try await spawnNewSession(kind: .claudeCode)
     }
 
     /// 指定セッションのワークスペース (CWD) を変更する。対象セッションを kill し、

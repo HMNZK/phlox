@@ -161,7 +161,11 @@ public final class ChatSessionViewModel: Identifiable {
         launchFailure = error
         draft = text
         status = .error(message: error.localizedDescription)
-        appendOrReplace(.error(id: "launch-error-\(id.rawValue)", message: error.localizedDescription, timestamp: Date()))
+        appendOrReplace(.error(
+            id: "launch-error-\(id.rawValue)",
+            message: "起動できませんでした（\(error.localizedDescription)）。最初のメッセージは送っていません。本文を入力欄に戻しました。",
+            timestamp: Date()
+        ))
     }
 
     public func sendFirstMessage(_ text: String, attachments: [ComposerAttachment]) async {

@@ -305,6 +305,36 @@ final class NewChatLaunchTests {
         await dashboard.removeSession(newID)
     }
 
+    @Test func restartPreservesEditsMadeWhileStartingAndRejectsSecondRestart() async throws {
+        let failed = LaunchClient(failsStart: true)
+        let replacement = LaunchClient(holdsStart: true)
+        let unexpected = LaunchClient()
+        let dashboard = dashboard([failed, replacement, unexpected])
+        let id = try await dashboard.launchNewChat(request(dashboard))
+        var replacementID: SessionID?
+        let task = Task { try await dashboard.restartNewChat(id) { replacementID = $0 } }
+        for _ in 0..<100 {
+            if await replacement.starts == 1 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let newID = try #require(replacementID)
+        let vm = try #require(dashboard.sessionNode(id: newID)?.appServer)
+        vm.draft = "edited while starting"
+        let image = ComposerAttachment(data: Data([3]), mediaType: "image/png")
+        vm.attachmentStore.restore([image])
+        await #expect(throws: CancellationError.self) {
+            try await dashboard.restartNewChat(id)
+        }
+        await replacement.releaseStart()
+        #expect(try await task.value == newID)
+        #expect(vm.draft == "edited while starting")
+        #expect(vm.attachmentStore.attachments == [image])
+        #expect(dashboard.sessionNodes.count == 1)
+        #expect(await unexpected.starts == 0)
+        #expect(await replacement.inputs.isEmpty)
+        for node in dashboard.sessionNodes { await dashboard.removeSession(node.id) }
+    }
+
     @Test(arguments: [AgentKind.claudeCode, .cursor])
     func AC5_asyncFirstTurnErrorRestoresDraft(kind: AgentKind) async throws {
         let client = LaunchClient()

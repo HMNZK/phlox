@@ -77,6 +77,7 @@ public actor JSONSessionStore: SessionStoreProtocol {
         category: "JSONSessionStore"
     )
     private var discardedSessionCountToNotify = 0
+    private var requiresDiscardedSessionsBackup = false
 
     public init(fileURL: URL) {
         self.fileURL = fileURL
@@ -94,8 +95,10 @@ public actor JSONSessionStore: SessionStoreProtocol {
         }
         if file.discardedSessionCount > 0 {
             discardedSessionCountToNotify = max(discardedSessionCountToNotify, file.discardedSessionCount)
-            backupSourceContainingDiscardedSessions()
+            requiresDiscardedSessionsBackup = true
             do {
+                try backupSourceContainingDiscardedSessions()
+                requiresDiscardedSessionsBackup = false
                 try store.save(SessionsFile(schemaVersion: file.schemaVersion, sessions: file.sessions))
             } catch {
                 logger.error(
@@ -112,10 +115,14 @@ public actor JSONSessionStore: SessionStoreProtocol {
     }
 
     public func save(_ sessions: [PersistedSessionDescriptor]) async throws {
+        if requiresDiscardedSessionsBackup {
+            try backupSourceContainingDiscardedSessions()
+            requiresDiscardedSessionsBackup = false
+        }
         try store.save(SessionsFile(schemaVersion: 1, sessions: sessions))
     }
 
-    private func backupSourceContainingDiscardedSessions() {
+    private func backupSourceContainingDiscardedSessions() throws {
         do {
             let sourceData = try Data(contentsOf: fileURL)
             let fileManager = FileManager.default
@@ -154,6 +161,7 @@ public actor JSONSessionStore: SessionStoreProtocol {
             logger.error(
                 "failed to back up sessions source containing discarded elements \(self.fileURL.path, privacy: .public): \(String(describing: error), privacy: .public)"
             )
+            throw error
         }
     }
 }

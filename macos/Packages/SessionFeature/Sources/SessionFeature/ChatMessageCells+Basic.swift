@@ -261,6 +261,7 @@ struct ErrorMessageCell: View {
     let message: String
     let timestamp: Date
     var onRestart: (() -> Void)? = nil
+    var isRestarting = false
     var onClose: (() -> Void)? = nil
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
@@ -300,6 +301,7 @@ struct ErrorMessageCell: View {
                     Spacer()
                     if let onRestart {
                         Button("再起動", action: onRestart)
+                            .disabled(isRestarting)
                             .buttonStyle(.plain)
                             .foregroundStyle(DSColor.textPrimary)
                             .padding(.horizontal, 10)

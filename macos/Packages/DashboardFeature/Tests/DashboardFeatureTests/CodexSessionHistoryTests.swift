@@ -4,6 +4,61 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
+@Test @MainActor func AC18_codexHistoryProductionLoaderReportsUnreadableSessionsAndRetries() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("codex-history-errors-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let sessions = root.appendingPathComponent("sessions")
+    defer {
+        do {
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: sessions.path)
+            try FileManager.default.removeItem(at: root)
+        } catch { Issue.record("Failed to clean history fixture: \(error)") }
+    }
+    try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+    try FileManager.default.setAttributes([.posixPermissions: 0o300], ofItemAtPath: sessions.path)
+    #expect(throws: (any Error).self) {
+        try FileManager.default.contentsOfDirectory(at: sessions, includingPropertiesForKeys: nil)
+    }
+    let discovery = CodexSessionHistoryDiscovery(codexHome: root)
+    let model = NewChatHistoryPopoverModel()
+    await model.load { try discovery.loadEntries(forWorkingDirectories: ["/tmp/project"], limit: 20) }
+    #expect(model.state == .failed)
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: sessions.path)
+    await model.load { try discovery.loadEntries(forWorkingDirectories: ["/tmp/project"], limit: 20) }
+    #expect(model.state == .empty)
+}
+
+@Test func codexSessionHistoryProductionLoaderPropagatesNestedDirectoryAndRolloutReadErrors() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("codex-history-nested-\(UUID().uuidString)")
+    let day = root.appendingPathComponent("sessions/2026/10/12")
+    try FileManager.default.createDirectory(at: day, withIntermediateDirectories: true)
+    let file = day.appendingPathComponent("rollout-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl")
+    defer {
+        do {
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: day.path)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            try FileManager.default.removeItem(at: root)
+        } catch { Issue.record("Failed to clean history fixture: \(error)") }
+    }
+    try #"{"type":"session_meta","payload":{"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","cwd":"/tmp/project"}}"#
+        .write(to: file, atomically: true, encoding: .utf8)
+    let discovery = CodexSessionHistoryDiscovery(codexHome: root)
+    try FileManager.default.setAttributes([.posixPermissions: 0o300], ofItemAtPath: day.path)
+    #expect(throws: (any Error).self) {
+        try discovery.loadEntries(forWorkingDirectories: ["/tmp/project"], limit: 20)
+    }
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: day.path)
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+    #expect(throws: (any Error).self) {
+        try discovery.loadEntries(forWorkingDirectories: ["/tmp/project"], limit: 20)
+    }
+}
+
+@Test func codexSessionHistoryProductionLoaderTreatsMissingSessionsAsEmpty() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("codex-history-missing-\(UUID().uuidString)")
+    #expect(try CodexSessionHistoryDiscovery(codexHome: root).loadEntries(forWorkingDirectories: ["/tmp/project"], limit: 20).isEmpty)
+}
+
 @Test func codexSessionHistory_entriesFilterCWDAndRestoreTranscript() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("codex-history-\(UUID().uuidString)", isDirectory: true)

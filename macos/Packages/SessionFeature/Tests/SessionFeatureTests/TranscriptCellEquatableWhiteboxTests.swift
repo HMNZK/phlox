@@ -66,6 +66,14 @@ struct TranscriptCellEquatableWhiteboxTests {
         #expect(a != b)
     }
 
+    @Test func chatItemView_restartInProgressInvalidatesCell() {
+        let item = ChatItem.error(id: "launch-error", message: "launch failed", timestamp: timestamp)
+        let idle = view(item: item, descriptor: descriptor)
+        var restarting = idle
+        restarting.isLaunchFailureRestarting = true
+        #expect(idle != restarting)
+    }
+
     @Test("エージェントが変われば not equal になる（見た目が descriptor に依存するため）")
     func chatItemView_differentDescriptor_isNotEqual() {
         let item = message(id: "item-1", text: "こんにちは")

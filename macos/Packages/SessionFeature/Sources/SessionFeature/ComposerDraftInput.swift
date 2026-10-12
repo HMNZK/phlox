@@ -15,6 +15,7 @@ public struct ComposerDraftInput: View {
     private let onSubmit: () -> Void
     private let onCycleEffort: () -> Bool
     private let onFocusChange: ((Bool) -> Void)?
+    private let onTab: (() -> Bool)?
 
     @State private var editorHeight = ComposerHeightBounds.single.min
     @State private var isComposing = false
@@ -34,7 +35,8 @@ public struct ComposerDraftInput: View {
         inputAccessibilitySuffix: String = "input",
         onSubmit: @escaping () -> Void,
         onCycleEffort: @escaping () -> Bool = { false },
-        onFocusChange: ((Bool) -> Void)? = nil
+        onFocusChange: ((Bool) -> Void)? = nil,
+        onTab: (() -> Bool)? = nil
     ) {
         _text = text
         _attachmentStore = Bindable(wrappedValue: attachmentStore)
@@ -46,6 +48,7 @@ public struct ComposerDraftInput: View {
         self.onSubmit = onSubmit
         self.onCycleEffort = onCycleEffort
         self.onFocusChange = onFocusChange
+        self.onTab = onTab
         _suggestionController = State(wrappedValue: ComposerSuggestionController.production(workingDirectory: workingDirectory))
     }
 
@@ -69,11 +72,15 @@ public struct ComposerDraftInput: View {
                     focusRequest: ComposerFocusRequest(token: focusToken, movesCaretToEnd: true),
                     onFocusRequestHandled: { _ in },
                     highlightsKeywords: false,
+                    onTab: onTab,
                     onRecallHistory: { _ in false },
                     onCycleEffort: onCycleEffort,
                     onFocusChange: { focused in
                         onFocusChange?(focused)
-                    }
+                    },
+                    inputAccessibilityIdentifier: "\(accessibilityPrefix).\(inputAccessibilitySuffix)",
+                    inputAccessibilityLabel: NSLocalizedString(accessibilityRole, bundle: localizationBundle, comment: ""),
+                    tabMovesFocus: true
                 )
                 .frame(minHeight: ComposerHeightBounds.single.min, idealHeight: editorHeight, maxHeight: ComposerHeightBounds.single.max)
                 .accessibilityLabel(Text(LocalizedStringKey(accessibilityRole), bundle: localizationBundle))
@@ -188,6 +195,7 @@ public struct ComposerSettingChip: View {
             ComposerChipLabel(title: title, isOpen: false, leadingSystemImage: leadingSystemImage)
         }
         .menuStyle(.borderlessButton)
+        .nativeMenuKeyboardActivation()
         .accessibilityLabel(Text(verbatim: title))
         .accessibilityValue(Text(verbatim: options.first(where: { $0.value == selection })?.title ?? ""))
         .accessibilityIdentifier(accessibilityIdentifier)

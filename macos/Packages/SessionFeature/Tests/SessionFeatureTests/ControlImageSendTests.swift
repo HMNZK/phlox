@@ -58,6 +58,29 @@ private func makeCodexViewModel(client: RecordingStructuredClient) -> ChatSessio
 
 @Suite @MainActor
 struct ControlImageSendTests {
+    @Test(arguments: ["next input", ""])
+    func firstMessageAsyncFailurePreservesNextInputAndDeduplicatesAttachments(nextText: String) async throws {
+        let client = RecordingStructuredClient()
+        let vm = makeClaudeViewModel(client: client)
+        try await withTerminatedViewModel(vm) {
+            try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            let original = ComposerAttachment(data: tinyPNG, mediaType: "image/png", filename: "original.png")
+            let next = ComposerAttachment(data: tinyPNG, mediaType: "image/png", filename: "next.png")
+            await vm.sendFirstMessage("first input", attachments: [original])
+            vm.draft = nextText
+            vm.attachmentStore.restore([original, next])
+            client.emit(.error(message: "fake first turn failure"))
+            for _ in 0..<100 {
+                if case .error = vm.status { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            if case .error = vm.status {} else { Issue.record("error not processed") }
+            #expect(vm.draft == (nextText.isEmpty ? "first input" : "first input\n\nnext input"))
+            #expect(vm.attachmentStore.attachments == [original, next])
+            #expect(client.lastTurnStartInput?.count == 2)
+        }
+    }
+
     @Test func firstMessageAsyncFailureRestoresTextAndOriginalAttachments() async throws {
         let client = RecordingStructuredClient()
         let vm = makeClaudeViewModel(client: client)
@@ -115,6 +138,16 @@ struct ControlImageSendTests {
         #expect(vm.transcript.allSatisfy { if case .userMessage = $0 { false } else { true } })
         #expect(vm.transcriptItemIDs == Set(vm.transcript.map(\.id)))
         #expect(!vm.isReadyForInput)
+        await vm.terminate()
+    }
+
+    @Test(arguments: [false, true])
+    func launchFailurePreservesInputEditedWhileStarting(isRestart: Bool) async {
+        let vm = makeClaudeViewModel(client: RecordingStructuredClient())
+        if !isRestart { vm.prepareFirstMessage("first input", attachments: []) }
+        vm.draft = "next input"
+        vm.markLaunchFailed(.processFailed("fake launch failure"), restoringDraft: isRestart ? "next input" : "first input")
+        #expect(vm.draft == (isRestart ? "next input" : "first input\n\nnext input"))
         await vm.terminate()
     }
 

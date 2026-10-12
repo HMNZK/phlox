@@ -69,6 +69,41 @@ private func makeDescriptor(
 }
 
 struct JSONSessionStoreTests {
+    @Test func load_backupFailurePreservesSourceAndBlocksSaveUntilBackupSucceeds() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sessions-backup-failure-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            do {
+                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+                try FileManager.default.removeItem(at: directory)
+            } catch { Issue.record("Failed to clean backup fixture: \(error)") }
+        }
+        let url = directory.appendingPathComponent("sessions.json")
+        let retained = makeDescriptor()
+        let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(retained)) as? [String: Any])
+        var legacy = object
+        legacy["id"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SessionID()))
+        legacy["kind"] = ["type": "custom", "id": "legacy-cli"]
+        let source = try JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "sessions": [object, legacy]])
+        try source.write(to: url, options: .atomic)
+        // 原本の読み書きは可能だが、バックアップ探索の列挙だけを拒否する。
+        try FileManager.default.setAttributes([.posixPermissions: 0o300], ofItemAtPath: directory.path)
+        #expect(throws: (any Error).self) {
+            try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        }
+        let store = JSONSessionStore(fileURL: url)
+        #expect(await store.load() == [retained])
+        #expect(try Data(contentsOf: url) == source)
+        await #expect(throws: (any Error).self) { try await store.save([]) }
+        #expect(try Data(contentsOf: url) == source)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        try await store.save([retained])
+        #expect(try Data(contentsOf: try #require(quarantinedSessionFiles(for: url).first)) == source)
+        #expect(await store.load() == [retained])
+    }
+
     @Test func saveAndLoad_roundTrip() async throws {
         let url = temporarySessionsFileURL()
         defer { removeSessionsFile(at: url) }

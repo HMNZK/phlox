@@ -14,6 +14,7 @@ struct ChatTranscriptView: View {
     private let contentMaxWidth: CGFloat?
     private let bottomScrollContentMargin: CGFloat
     private let onLaunchFailureRestart: (() -> Void)?
+    private let isLaunchFailureRestarting: Bool
     private let onLaunchFailureClose: (() -> Void)?
     private let defaultWindowLimit: Int
     @State private var autoFollow = ChatAutoFollowController()
@@ -55,6 +56,7 @@ struct ChatTranscriptView: View {
         currentInputPositionID: Binding<String?> = .constant(nil),
         presentationContext: TranscriptPresentationContext = .single,
         onLaunchFailureRestart: (() -> Void)? = nil,
+        isLaunchFailureRestarting: Bool = false,
         onLaunchFailureClose: (() -> Void)? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
@@ -65,6 +67,7 @@ struct ChatTranscriptView: View {
         self.contentMaxWidth = contentMaxWidth
         self.bottomScrollContentMargin = bottomScrollContentMargin
         self.onLaunchFailureRestart = onLaunchFailureRestart
+        self.isLaunchFailureRestarting = isLaunchFailureRestarting
         self.onLaunchFailureClose = onLaunchFailureClose
         _window = State(initialValue: TranscriptWindow(context: presentationContext))
         defaultWindowLimit = TranscriptWindow.defaultLimit(for: presentationContext)
@@ -328,6 +331,7 @@ struct ChatTranscriptView: View {
                 },
                 turnUsage: viewModel.turnUsageByItemID[item.id],
                 onLaunchFailureRestart: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureRestart : nil,
+                isLaunchFailureRestarting: isLaunchFailureRestarting,
                 onLaunchFailureClose: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureClose : nil
             )
             // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が

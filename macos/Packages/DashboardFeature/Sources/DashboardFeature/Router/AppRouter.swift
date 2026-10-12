@@ -222,6 +222,11 @@ public final class AppRouter {
         if let selected = tabs.layout(for: id).selected { selectTab(selected, in: id) }
     }
 
+    public func splitRight(_ tab: ProjectTab, in projectID: ProjectID, chats: [ProjectTab]) {
+        tabs.updateLayout(for: projectID) { $0.splitRight(tab, chats: chats) }
+        selectTab(tab, in: projectID)
+    }
+
     @discardableResult
     public func requestClose() -> Bool {
         guard let target = tabs.closeTarget(projectID: selectedProjectID, selectedSession: selectedSession, viewMode: viewMode) else { return false }
@@ -286,9 +291,10 @@ public final class AppRouter {
     /// サイドバーでプロジェクト行を選ぶ（↑↓・クリック）。選んだプロジェクトがグリッドの表示範囲になる（03 行の規則）。
     /// 単体表示ではセッションの選択を外して起動カードを出す（ADR 0086）。
     public func showProject(_ projectID: ProjectID) {
+        let changesProject = selectedProjectID != projectID
         selectProject(projectID)
         gridFilterProjectID = projectID
-        if viewMode == .single {
+        if viewMode == .single && changesProject {
             selectedSession = nil
         }
     }

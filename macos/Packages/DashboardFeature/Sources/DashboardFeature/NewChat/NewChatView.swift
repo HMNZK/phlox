@@ -41,6 +41,7 @@ struct NewChatView: View {
     @State private var modelPickerPresented = false
     @FocusState private var modelSearchFocused: Bool
     @FocusState private var sendButtonFocused: Bool
+    @FocusState private var harnessPickerFocused: Bool
     @State private var inputFocused = false
     @State private var focusToken = 0
     @State private var isLaunching = false
@@ -239,7 +240,8 @@ struct NewChatView: View {
                 inputAccessibilitySuffix: "messageInput",
                 onSubmit: { send() },
                 onCycleEffort: cycleEffort,
-                onFocusChange: { inputFocused = $0 }
+                onFocusChange: { inputFocused = $0 },
+                onTab: { harnessPickerFocused = true; return true }
             )
             .id(suggestionControllerKey)
             .accessibilityIdentifier("newChat.composer")
@@ -275,6 +277,7 @@ struct NewChatView: View {
             .padding(.horizontal, 10)
             .padding(.top, 3)
             .padding(.bottom, 14)
+            .focusSection()
         }
         .background {
             let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -330,6 +333,12 @@ struct NewChatView: View {
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row, hoverFill: DSColor.fillSubtle, hoverBorderColor: .clear))
+        .focusable()
+        .focused($harnessPickerFocused)
+        .onKeyPress(keys: [.space, .return], phases: .down) { _ in
+            modelPickerPresented = true
+            return .handled
+        }
         .popover(isPresented: $modelPickerPresented, arrowEdge: .top) { modelPickerMenu }
         .accessibilityLabel(Text(verbatim: harnessAccessibility.role))
         .accessibilityValue(Text(verbatim: harnessAccessibility.value))
@@ -425,6 +434,7 @@ struct NewChatView: View {
             selectCurrentModel()
         }
         .onDisappear { modelSearchFocused = false }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("newChat.modelMenu")
     }
 
@@ -608,6 +618,7 @@ struct NewChatView: View {
             footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact)
         }
         .menuStyle(.borderlessButton)
+        .nativeMenuKeyboardActivation()
         .disabled(viewModel.projects.isEmpty)
         .accessibilityLabel(Text(verbatim: projectAccessibility.role))
         .accessibilityValue(Text(verbatim: projectAccessibility.value))
@@ -640,6 +651,7 @@ struct NewChatView: View {
                 : localized("既存ディレクトリ"), compact: isCompact)
         }
         .menuStyle(.borderlessButton)
+        .nativeMenuKeyboardActivation()
         .disabled(project == nil)
         .accessibilityLabel(Text(verbatim: workspaceAccessibility.role))
         .accessibilityValue(Text(verbatim: workspaceAccessibility.value))

@@ -14,7 +14,6 @@ struct SessionTabsContainer<Conversation: View>: View {
     let editorPanel: EditorPanelCoordinator
     let files: FileTabDocuments
     @ViewBuilder let conversation: (ProjectTab?) -> Conversation
-    @State private var worktreeChangesSessionID: SessionID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,7 +35,6 @@ struct SessionTabsContainer<Conversation: View>: View {
                 conversation(nil)
             }
         }
-        .onChange(of: router.selectedSession) { _, _ in worktreeChangesSessionID = nil }
     }
 
     /// 上段に並べるプロジェクト：選択中セッションのプロジェクト、無ければ選択中のプロジェクト。
@@ -86,6 +84,7 @@ struct SessionTabsContainer<Conversation: View>: View {
                 isDirty: { files.existing(for: project.id, path: $0)?.hasUnsavedChanges ?? false }
             ) { path in
                 Task {
+                    guard let path = await FileTabOpening.projectRelativeChangePath(path, workingDirectory: project.directoryPath) else { return }
                     let root = await FileTabOpening.root(for: project.directoryPath)
                     files.openFileTab(projectID: project.id, root: root, relativePath: path, router: router,
                         requestedWorkingDirectory: project.directoryPath,
@@ -127,6 +126,28 @@ struct SessionTabsContainer<Conversation: View>: View {
     private func chatPane(_ tab: ProjectTab, sessionID: SessionID, project: Project) -> some View {
         if let branch = viewModel.worktreeBranchName(for: sessionID),
            let node = viewModel.sessionNode(id: sessionID) {
+            WorktreeChatPane(sessionID: sessionID, branch: branch, workingDirectory: node.workspacePath,
+                projectName: project.name, workspaces: viewModel.workspaceSessionWorkspaces) {
+                conversation(tab)
+            }.id(sessionID)
+        } else {
+            conversation(tab)
+        }
+    }
+
+}
+
+private struct WorktreeChatPane<Conversation: View>: View {
+    let sessionID: SessionID
+    let branch: String
+    let workingDirectory: String
+    let projectName: String
+    let workspaces: [SessionWorkspace]
+    @ViewBuilder let conversation: () -> Conversation
+    @State private var showsChanges = false
+    @State private var editorPanel = EditorPanelCoordinator()
+
+    var body: some View {
             VStack(spacing: 0) {
                 HStack(spacing: DSSpacing.xs) {
                     Text("worktree で実行中")
@@ -137,14 +158,15 @@ struct SessionTabsContainer<Conversation: View>: View {
                         .truncationMode(.middle)
                     Spacer(minLength: 0)
                     Button {
-                        worktreeChangesSessionID = worktreeChangesSessionID == sessionID ? nil : sessionID
+                        showsChanges.toggle()
                     } label: {
                         Text("変更 \(editorPanel.viewModel.changes.count) ファイル")
                             .font(DSFont.auxiliary)
-                            .foregroundStyle(worktreeChangesSessionID == sessionID ? DSColor.textPrimary : DSColor.textSecondary)
+                            .foregroundStyle(showsChanges ? DSColor.textPrimary : DSColor.textSecondary)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("worktreeChanges.toggle")
                     .help(Text("変更 \(editorPanel.viewModel.changes.count) ファイル"))
                 }
                 .font(DSFont.meta)
@@ -154,24 +176,27 @@ struct SessionTabsContainer<Conversation: View>: View {
                 .overlay(alignment: .bottom) { Rectangle().fill(DSColor.separator).frame(height: 1) }
 
                 HStack(spacing: 0) {
-                    conversation(tab)
+                    conversation()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if worktreeChangesSessionID == sessionID {
+                    if showsChanges {
                         Rectangle().fill(DSColor.separator).frame(width: 1)
                         EditorPanelView(
                             viewModel: editorPanel.viewModel,
-                            projectName: project.name,
-                            workingDirectory: node.workspacePath
+                            projectName: projectName,
+                            workingDirectory: workingDirectory
                         )
                         .frame(width: 440)
                     }
                 }
             }
-        } else {
-            conversation(tab)
-        }
+            .task(id: EditorPanelTargetPolicy.target(selectedSessionID: sessionID, workspaces: workspaces)) {
+                editorPanel.update(selectedSessionID: sessionID, workspaces: workspaces)
+                await editorPanel.resolve(workspaces: workspaces)
+            }
+            .task(id: showsChanges) {
+                if showsChanges { await editorPanel.resolve(workspaces: workspaces) }
+            }
     }
-
 }
 
 // MARK: - Child tab bar
@@ -544,7 +569,7 @@ private struct ChildTabPanes<Content: View>: View {
         }
         .dropDestination(for: String.self) { items, _ in
             guard let tab = items.first.flatMap(ProjectTab.init(dragPayload:)), layout.tabs(chats: chats).contains(tab) else { return false }
-            router.tabs.updateLayout(for: projectID) { $0.splitRight(tab, chats: chats) }
+            router.splitRight(tab, in: projectID, chats: chats)
             return true
         } isTargeted: { isDropTargeted = $0 }
         .overlay(alignment: .trailing) {

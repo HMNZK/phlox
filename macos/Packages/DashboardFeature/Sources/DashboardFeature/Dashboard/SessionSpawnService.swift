@@ -693,6 +693,12 @@ final class SessionSpawnService {
             plan.env,
             broker.serverRequestHandler
         )
+        if registerSessionForWrite != nil, let projectID,
+           !projectsSnapshot().contains(where: { $0.id == projectID })
+            || FileTabDocumentRegistry.shared.isChangingProject(projectID) {
+            await client.close()
+            throw AgentSpawnError.unknownProject
+        }
         let projectDirectories = projectID
             .flatMap { id in projectsSnapshot().first(where: { $0.id == id }) }
             .map { [$0.directoryPath] + ($0.worktreePaths ?? []) }

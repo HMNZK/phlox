@@ -628,6 +628,9 @@ struct IMESafeTextView: NSViewRepresentable {
     var isEditable = true
     /// 入力欄のフォーカスが変わったとき（入力欄の輪を出す。05 R2）。
     var onFocusChange: ((Bool) -> Void)? = nil
+    var inputAccessibilityIdentifier = "ChatComposer.input"
+    var inputAccessibilityLabel: String? = nil
+    var tabMovesFocus = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -642,6 +645,8 @@ struct IMESafeTextView: NSViewRepresentable {
         scrollView.identifier = NSUserInterfaceItemIdentifier("ChatComposer.input")
 
         let textView = SubmitAwareTextView()
+        textView.setAccessibilityIdentifier(inputAccessibilityIdentifier)
+        textView.setAccessibilityLabel(inputAccessibilityLabel)
         textView.allowsUndo = true
         textView.delegate = context.coordinator
         textView.onSubmit = onSubmit
@@ -651,6 +656,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
         textView.onTab = onTab
+        textView.tabMovesFocus = tabMovesFocus
         textView.onRecallHistory = onRecallHistory
         textView.onCycleEffort = onCycleEffort
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
@@ -691,6 +697,8 @@ struct IMESafeTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let textView = scrollView.documentView as? SubmitAwareTextView else { return }
+        textView.setAccessibilityIdentifier(inputAccessibilityIdentifier)
+        textView.setAccessibilityLabel(inputAccessibilityLabel)
         textView.allowsUndo = true
         textView.onSubmit = onSubmit
         textView.onPasteImage = onPasteImage
@@ -699,6 +707,7 @@ struct IMESafeTextView: NSViewRepresentable {
         textView.imagesForCopy = imagesForCopy
         textView.onEscape = onEscape
         textView.onTab = onTab
+        textView.tabMovesFocus = tabMovesFocus
         textView.onRecallHistory = onRecallHistory
         textView.onCycleEffort = onCycleEffort
         if textView.isEditable != isEditable { textView.isEditable = isEditable }
@@ -858,6 +867,7 @@ struct IMESafeTextView: NSViewRepresentable {
         var onComposingChanged: ((Bool, String) -> Void)?
         var onEscape: (() -> Void)?
         var onTab: (() -> Bool)?
+        var tabMovesFocus = false
         var onRecallHistory: ((InputHistoryCursor.Direction) -> Bool)?
         var onCycleEffort: (() -> Bool)?
         var onFocusGained: (() -> Void)?
@@ -1015,6 +1025,12 @@ struct IMESafeTextView: NSViewRepresentable {
                !hasMarkedText(),
                suggestionController?.isPresented != true,
                onCycleEffort?() == true {
+                return
+            }
+            if tabMovesFocus, event.keyCode == 48,
+               event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty,
+               !hasMarkedText(), suggestionController?.isPresented != true {
+                window?.selectNextKeyView(nil)
                 return
             }
             if event.keyCode == 126 || event.keyCode == 125,

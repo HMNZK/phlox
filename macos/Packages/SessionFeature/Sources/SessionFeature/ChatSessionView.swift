@@ -8,6 +8,7 @@ public struct ChatSessionView: View {
     @Bindable var viewModel: ChatSessionViewModel
     let projectName: String?
     let onLaunchFailureRestart: (() -> Void)?
+    let isLaunchFailureRestarting: Bool
     let onLaunchFailureClose: (() -> Void)?
     @State private var requestedTranscriptTarget: String?
     @State private var fileChangeRevealRequest: FileChangeRevealRequest?
@@ -24,11 +25,13 @@ public struct ChatSessionView: View {
         viewModel: ChatSessionViewModel,
         projectName: String? = nil,
         onLaunchFailureRestart: (() -> Void)? = nil,
+        isLaunchFailureRestarting: Bool = false,
         onLaunchFailureClose: (() -> Void)? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         self.projectName = projectName
         self.onLaunchFailureRestart = onLaunchFailureRestart
+        self.isLaunchFailureRestarting = isLaunchFailureRestarting
         self.onLaunchFailureClose = onLaunchFailureClose
     }
 
@@ -67,6 +70,7 @@ public struct ChatSessionView: View {
                 requestedScrollTarget: $requestedTranscriptTarget,
                 currentInputPositionID: $currentInputPositionID,
                 onLaunchFailureRestart: onLaunchFailureRestart,
+                isLaunchFailureRestarting: isLaunchFailureRestarting,
                 onLaunchFailureClose: onLaunchFailureClose
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

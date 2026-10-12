@@ -69,6 +69,8 @@ struct FilePathDisplayTests {
         var layout = ProjectTabLayout()
         layout.open(.terminal(TerminalTabID()))
         if includesChanges { layout.open(.changes) }
+        layout.open(.browser)
+        layout.open(.simulator)
         layout.open(.file("docs/file-tree.md"))
         for tab in [ProjectTab.file("docs/file-tree.md"), .chat(node.id)] {
             layout.select(tab)

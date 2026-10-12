@@ -14,6 +14,7 @@ public struct ChatItemView: View, Equatable {
     /// turnCost の行（金額の無い Codex はターン最後の応答の下）に添えるトークン内訳。
     var turnUsage: TurnUsage? = nil
     var onLaunchFailureRestart: (() -> Void)? = nil
+    var isLaunchFailureRestarting = false
     var onLaunchFailureClose: (() -> Void)? = nil
 
     public init(
@@ -24,6 +25,7 @@ public struct ChatItemView: View, Equatable {
         onDismissUserQuestion: (() -> Void)? = nil,
         turnUsage: TurnUsage? = nil,
         onLaunchFailureRestart: (() -> Void)? = nil,
+        isLaunchFailureRestarting: Bool = false,
         onLaunchFailureClose: (() -> Void)? = nil
     ) {
         self.item = item
@@ -33,6 +35,7 @@ public struct ChatItemView: View, Equatable {
         self.onDismissUserQuestion = onDismissUserQuestion
         self.turnUsage = turnUsage
         self.onLaunchFailureRestart = onLaunchFailureRestart
+        self.isLaunchFailureRestarting = isLaunchFailureRestarting
         self.onLaunchFailureClose = onLaunchFailureClose
     }
 
@@ -48,6 +51,7 @@ public struct ChatItemView: View, Equatable {
             && lhs.isRunningCommand == rhs.isRunningCommand
             && lhs.agentDescriptor == rhs.agentDescriptor
             && lhs.turnUsage == rhs.turnUsage
+            && lhs.isLaunchFailureRestarting == rhs.isLaunchFailureRestarting
     }
 
     public var body: some View {
@@ -78,6 +82,7 @@ public struct ChatItemView: View, Equatable {
                 message: message,
                 timestamp: timestamp,
                 onRestart: onLaunchFailureRestart,
+                isRestarting: isLaunchFailureRestarting,
                 onClose: onLaunchFailureClose
             )
         case .subAgentMarker(let id, let subagentType, let description, let status):

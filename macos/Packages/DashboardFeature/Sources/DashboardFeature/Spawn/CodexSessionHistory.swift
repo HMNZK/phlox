@@ -23,6 +23,15 @@ struct CodexSessionHistoryDiscovery: Sendable {
         onScan: (@Sendable (URL) -> Void)? = nil,
         onRead: (@Sendable (Int) -> Void)? = nil
     ) -> [ClaudeSessionHistoryEntry] {
+        (try? loadEntries(forWorkingDirectory: workingDirectory, limit: limit, onScan: onScan, onRead: onRead)) ?? []
+    }
+
+    private func loadEntries(
+        forWorkingDirectory workingDirectory: String,
+        limit: Int,
+        onScan: (@Sendable (URL) -> Void)? = nil,
+        onRead: (@Sendable (Int) -> Void)? = nil
+    ) throws -> [ClaudeSessionHistoryEntry] {
         guard limit > 0 else { return [] }
         let normalizedCWD = CodexSessionDiscovery.normalizedPath(workingDirectory)
         if let databaseEntries = databaseEntries(
@@ -34,8 +43,8 @@ struct CodexSessionHistoryDiscovery: Sendable {
         }
         var result: [ClaudeSessionHistoryEntry] = []
 
-        for candidate in rolloutFiles() {
-            guard let scan = scan(
+        for candidate in try rolloutFiles() {
+            guard let scan = try scan(
                 candidate.url,
                 matchingCWD: normalizedCWD,
                 onScan: onScan,
@@ -78,7 +87,7 @@ struct CodexSessionHistoryDiscovery: Sendable {
         }
         var entriesByID: [String: ClaudeSessionHistoryEntry] = [:]
         for workingDirectory in workingDirectories where !workingDirectory.isEmpty {
-            for entry in entries(forWorkingDirectory: workingDirectory, limit: limit)
+            for entry in try loadEntries(forWorkingDirectory: workingDirectory, limit: limit)
             where entriesByID[entry.id] == nil {
                 entriesByID[entry.id] = entry.located(in: workingDirectory)
             }
@@ -222,25 +231,39 @@ struct CodexSessionHistoryDiscovery: Sendable {
         let modified: Date
     }
 
-    private func rolloutFiles() -> [RolloutFile] {
+    private func rolloutFiles() throws -> [RolloutFile] {
+        do {
+            _ = try sessionsRoot.resourceValues(forKeys: [.isDirectoryKey])
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return []
+        }
+        // 列挙失敗は空の履歴ではなく、再試行できる読み込み失敗として返す。
+        _ = try FileManager.default.contentsOfDirectory(at: sessionsRoot, includingPropertiesForKeys: nil)
+        var enumerationError: (any Error)?
         guard let enumerator = FileManager.default.enumerator(
             at: sessionsRoot,
             includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
-        return enumerator.compactMap { item in
+            options: [.skipsHiddenFiles],
+            errorHandler: { _, error in
+                enumerationError = error
+                return false
+            }
+        ) else { throw CocoaError(.fileReadUnknown) }
+        let files = try enumerator.compactMap { item -> RolloutFile? in
             guard let url = item as? URL,
                   url.lastPathComponent.hasPrefix("rollout-"),
-                  url.pathExtension == "jsonl",
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
-                  values.isRegularFile == true else {
+                  url.pathExtension == "jsonl" else {
                 return nil
             }
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey])
+            guard values.isRegularFile == true else { return nil }
             return RolloutFile(url: url, modified: values.contentModificationDate ?? .distantPast)
         }.sorted {
             if $0.modified != $1.modified { return $0.modified > $1.modified }
             return $0.url.path < $1.url.path
         }
+        if let enumerationError { throw enumerationError }
+        return files
     }
 
     private struct Scan {
@@ -256,20 +279,21 @@ struct CodexSessionHistoryDiscovery: Sendable {
         matchingCWD: String,
         onScan: (@Sendable (URL) -> Void)?,
         onRead: (@Sendable (Int) -> Void)?
-    ) -> Scan? {
+    ) throws -> Scan? {
         onScan?(fileURL)
-        guard let prefix = Self.read(
+        let prefix = try Self.read(
             fileURL,
             maxBytes: Self.maxSessionMetaBytes,
             onRead: onRead
-        ),
-              let metadata = Self.sessionMeta(from: prefix) else {
+        )
+        guard let metadata = Self.sessionMeta(from: prefix) else {
             return nil
         }
         guard metadata.cwd.map(CodexSessionDiscovery.normalizedPath) == matchingCWD else {
             return metadata
         }
-        guard let data = Self.read(fileURL, maxBytes: Self.maxBytesPerFile, onRead: onRead), !data.isEmpty else {
+        let data = try Self.read(fileURL, maxBytes: Self.maxBytesPerFile, onRead: onRead)
+        guard !data.isEmpty else {
             return metadata
         }
         var scan = metadata
@@ -397,10 +421,10 @@ struct CodexSessionHistoryDiscovery: Sendable {
         _ fileURL: URL,
         maxBytes: Int,
         onRead: (@Sendable (Int) -> Void)? = nil
-    ) -> Data? {
-        guard let handle = try? FileHandle(forReadingFrom: fileURL) else { return nil }
+    ) throws -> Data {
+        let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
-        guard let data = try? handle.read(upToCount: maxBytes) else { return nil }
+        let data = try handle.read(upToCount: maxBytes) ?? Data()
         onRead?(data.count)
         return data
     }

@@ -5,6 +5,40 @@ import Testing
 
 @Suite("EditorPanelCoordinator")
 struct EditorPanelCoordinatorTests {
+    @Test @MainActor func worktreeChangesExcludeMainRepositoryChanges() async throws {
+        let root = try makeGitRepository()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let worktree = root.appendingPathComponent("worktree")
+        try git(["worktree", "add", "-b", "isolated", worktree.path], in: root)
+        try "main".write(to: root.appendingPathComponent("main.txt"), atomically: true, encoding: .utf8)
+        try "isolated".write(to: worktree.appendingPathComponent("worktree.txt"), atomically: true, encoding: .utf8)
+        let session = SessionID()
+        let workspaces = [workspace(session, worktree)]
+        let coordinator = EditorPanelCoordinator()
+        coordinator.update(selectedSessionID: session, workspaces: workspaces)
+        await coordinator.resolve(workspaces: workspaces)
+        #expect(coordinator.viewModel.changes.map(\.path) == ["worktree.txt"])
+        #expect(coordinator.viewModel.changeScope.repositoryRoot == (try repositoryRoot(worktree)))
+    }
+
+    @Test @MainActor func gitChangePathResolvesWithinProjectSubfolder() async throws {
+        let root = try makeGitRepository()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = root.appendingPathComponent("sub")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try "inside".write(to: project.appendingPathComponent("inside.txt"), atomically: true, encoding: .utf8)
+        let path = await FileTabOpening.projectRelativeChangePath("sub/inside.txt", workingDirectory: project.path)
+        #expect(path == "inside.txt")
+        #expect(await FileTabOpening.projectRelativeChangePath("a.txt", workingDirectory: project.path) == nil)
+        #expect(await FileTabOpening.projectRelativeChangePath("../outside.txt", workingDirectory: project.path) == nil)
+        let files = FileTabDocuments()
+        let id = ProjectID()
+        let router = AppRouter()
+        #expect(files.openFileTab(projectID: id, root: await FileTabOpening.root(for: project.path), relativePath: try #require(path), router: router, requestedWorkingDirectory: project.path, currentWorkingDirectory: project.path))
+        let document = try #require(files.existing(for: id, path: "inside.txt"))
+        await document.loadIfNeeded()
+        #expect(document.draft == "inside")
+    }
     @Test @MainActor func projectChangesUseProjectFolderRegardlessOfChatWorktree() {
         let project = Project(name: "project", directoryPath: "/project", createdAt: Date(), isManagedDirectory: false)
         let coordinator = EditorPanelCoordinator()

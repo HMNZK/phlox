@@ -26,3 +26,26 @@ import AgentDomain
     #expect(router.viewMode == .single)
     #expect(router.selectedSession == sessionID)
 }
+
+@MainActor
+@Test func appRouter_reselectingProjectPreservesFocusedChat() {
+    let router = AppRouter()
+    let project = ProjectID()
+    let session = SessionID()
+    router.selectTab(.chat(session), in: project)
+    router.selectProjectFromSidebar(project)
+    #expect(router.selectedSession == session)
+    #expect(router.tabs.layout(for: project).selected == .chat(session))
+}
+
+@MainActor
+@Test func appRouter_splitRightSynchronizesFocusedSession() {
+    let router = AppRouter()
+    let project = ProjectID()
+    let first = SessionID()
+    let second = SessionID()
+    router.selectTab(.chat(first), in: project)
+    router.splitRight(.chat(second), in: project, chats: [.chat(first), .chat(second)])
+    #expect(router.tabs.layout(for: project).selected == .chat(second))
+    #expect(router.selectedSession == second)
+}

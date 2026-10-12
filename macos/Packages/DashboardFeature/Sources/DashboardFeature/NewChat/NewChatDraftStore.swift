@@ -103,12 +103,17 @@ public final class NewChatDraft {
         )
         text = ""
         attachments.clear()
+        usesWorktree = false
         return request
     }
 
     func restoreLaunchDraft(from request: NewChatLaunchRequest) {
-        text = request.text
-        attachments.restore(request.attachments)
+        if !request.text.isEmpty {
+            text = text.isEmpty ? request.text : request.text + "\n\n" + text
+        }
+        var seen: Set<UUID> = []
+        attachments.restore((request.attachments + attachments.attachments).filter { seen.insert($0.id).inserted })
+        usesWorktree = request.usesWorktree
     }
 
     private static func initialKind(lastHarness: String?) -> AgentKind {

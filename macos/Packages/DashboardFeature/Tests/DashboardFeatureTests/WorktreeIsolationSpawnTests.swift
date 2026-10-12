@@ -42,6 +42,8 @@ private actor WorktreeLaunchTestClient: StructuredAgentClient, SpawnAgentSetting
     nonisolated let events: AsyncStream<NormalizedChatEvent>
     nonisolated let continuation: AsyncStream<NormalizedChatEvent>.Continuation
     let failsStart: Bool
+    var starts = 0
+    var closes = 0
     var inputs: [[ChatInput]] = []
     var settings: (String?, String?, String?)?
 
@@ -51,12 +53,13 @@ private actor WorktreeLaunchTestClient: StructuredAgentClient, SpawnAgentSetting
     }
 
     func start() async throws {
+        starts += 1
         if failsStart { throw ChatLaunchError.processFailed("fake worktree launch failure") }
     }
     func turnStart(_ input: [ChatInput]) async throws { inputs.append(input) }
     func resume(sessionRef: String) async throws {}
     func interrupt() async throws {}
-    func close() async { continuation.finish() }
+    func close() async { closes += 1; continuation.finish() }
     func applySpawnAgentSettings(model: String?, permissionOrMode: String?, effort: String?) async {
         settings = (model, permissionOrMode, effort)
     }
@@ -1320,6 +1323,86 @@ func worktreeCreationPath_isTheNewWorktreeWhileCreatingAndClearedAfter() async t
     #expect(seen == [environment.sessionWorkspaceDirectory(for: sessionID).path])
     #expect(dashboard.worktreeCreationPath == nil)
     await dashboard.removeSession(sessionID)
+}
+
+@Test @MainActor
+func worktreeIsolation_projectDeletedBeforeRowPreventsLaunchAndCleansWorkspace() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-deleted-project-\(UUID())", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: workspaceRoot) }
+    let project = Project(name: "deleted", directoryPath: repository.path,
+        createdAt: Date(), isManagedDirectory: false)
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let pty = MockPTYManager()
+    let sessionStore = WorktreeIsolationSessionStore([])
+    let environment = makeWorktreeIsolationEnvironment(pty: pty,
+        workspaceDirectory: workspaceRoot, projectStore: projectStore, sessionStore: sessionStore)
+    let dashboard = DashboardViewModel(environment: environment, codexUserHooksEnabledProvider: { true })
+    await dashboard.start()
+    let spawn = Task {
+        try await DashboardViewModel.$reportsWorktreeCreation.withValue(true) {
+            try await dashboard.spawnNewSession(ref: .builtin(.codex), projectID: project.id, isolationOverride: true)
+        }
+    }
+    let deadline = ContinuousClock.now + .seconds(5)
+    while dashboard.worktreeCreationPath == nil, ContinuousClock.now < deadline { await Task.yield() }
+    let path = try #require(dashboard.worktreeCreationPath)
+    #expect(dashboard.sessionNodes.isEmpty)
+    await dashboard.removeProject(project.id)
+    await #expect(throws: AgentSpawnError.unknownProject) { try await spawn.value }
+    #expect(dashboard.sessionNodes.isEmpty)
+    #expect(pty.spawnCalls.isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: path))
+    #expect(await environment.sessions.load().isEmpty)
+}
+
+@Test @MainActor
+func worktreeIsolation_projectDeletedWhileCreatingClientPreventsLaunchAndCleansWorkspace() async throws {
+    let repository = try WorktreeIsolationRepositoryFixture.repository()
+    let workspaceRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("phlox-worktree-deleted-client-project-\(UUID())", isDirectory: true)
+    try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: workspaceRoot) }
+    let project = Project(name: "deleted", directoryPath: repository.path,
+        createdAt: Date(), isManagedDirectory: false)
+    let projectStore = WorktreeIsolationProjectStore()
+    try await projectStore.save([project])
+    let client = WorktreeLaunchTestClient()
+    let (factoryReady, ready) = AsyncStream<Void>.makeStream()
+    let (releaseFactory, release) = AsyncStream<Void>.makeStream()
+    defer { ready.finish(); release.finish() }
+    let pty = MockPTYManager()
+    let environment = makeWorktreeIsolationEnvironment(pty: pty,
+        workspaceDirectory: workspaceRoot, projectStore: projectStore,
+        sessionStore: WorktreeIsolationSessionStore([]), agentBinaryPaths: [.claudeCode: "/bin/echo"],
+        appServerClientFactory: { _, _, _, _, _ in
+            ready.yield(())
+            for await _ in releaseFactory { break }
+            return client
+        })
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+    let spawn = Task {
+        try await dashboard.launchNewChat(NewChatLaunchRequest(projectID: project.id,
+            agentRef: .builtin(.claudeCode), settings: CodexAppServerSessionSettings(),
+            usesWorktree: true, text: "first message", attachments: []))
+    }
+    for await _ in factoryReady { break }
+    let directories = try FileManager.default.contentsOfDirectory(at: workspaceRoot, includingPropertiesForKeys: nil)
+    let path = try #require(directories.first)
+    #expect(dashboard.sessionNodes.isEmpty)
+    await dashboard.removeProject(project.id)
+    release.yield(())
+    await #expect(throws: AgentSpawnError.unknownProject) { try await spawn.value }
+    #expect(dashboard.sessionNodes.isEmpty)
+    #expect(await client.starts == 0)
+    #expect(await client.closes == 1)
+    #expect(pty.spawnCalls.isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: path.path))
+    #expect(await environment.sessions.load().isEmpty)
 }
 
 // C-50 / 09 E2: 復元で壊れた worktree を作り直す前にたずねる。やめたら作らず、そのセッションは復元しない。

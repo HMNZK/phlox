@@ -142,6 +142,14 @@ public final class ChatSessionViewModel: Identifiable {
         attachmentStore.restore(attachments)
     }
 
+    private func mergeFailedFirstTurnDraft(_ text: String, attachments: [ComposerAttachment]) {
+        if !text.isEmpty {
+            draft = draft.isEmpty ? text : text + "\n\n" + draft
+        }
+        var attachmentIDs = Set<UUID>()
+        attachmentStore.restore((attachments + composerAttachments).filter { attachmentIDs.insert($0.id).inserted })
+    }
+
     public func prepareFirstMessage(_ text: String, attachments: [ComposerAttachment]) {
         guard !text.isEmpty || !attachments.isEmpty else { return }
         attachmentStore.restore(attachments)
@@ -157,9 +165,9 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func markLaunchFailed(_ error: ChatLaunchError, restoringDraft text: String) {
+        if pendingFirstMessage != nil { mergeFailedFirstTurnDraft(text, attachments: []) }
         removePendingFirstMessage()
         launchFailure = error
-        draft = text
         status = .error(message: error.localizedDescription)
         appendOrReplace(.error(
             id: "launch-error-\(id.rawValue)",
@@ -2401,7 +2409,7 @@ public final class ChatSessionViewModel: Identifiable {
             midTurnPersistenceGate.noteExternalFlush()
         case .error(let message):
             if let firstTurnInput {
-                restoreLaunchDraft(firstTurnInput.text, attachments: firstTurnInput.attachments)
+                mergeFailedFirstTurnDraft(firstTurnInput.text, attachments: firstTurnInput.attachments)
                 self.firstTurnInput = nil
             }
             if codexClient != nil {

@@ -153,6 +153,7 @@ public final class DashboardViewModel {
     @ObservationIgnored private var codexDiscovery: CodexNativeSessionDiscoveryController?
     private var lastUsedChatSettingsStore = LastUsedChatSettingsStore()
     private var failedNewChatRequests: [SessionID: NewChatLaunchRequest] = [:]
+    public private(set) var restartingNewChatIDs: Set<SessionID> = []
 
     /// task-3: sessionNodes の ID→ノード索引（`sessionNode(id:)` の O(1) 参照用）。
     /// `sessionNodes` への追加・削除は必ず `appendSessionNode`/`removeSessionNode` を経由させ、
@@ -1176,8 +1177,7 @@ public final class DashboardViewModel {
         guard let vm = sessionNode(id: id)?.appServer else { throw CancellationError() }
         if vm.launchFailure != nil {
             failedNewChatRequests[id] = request
-            if historyEntry == nil { vm.restoreLaunchDraft(request.text, attachments: request.attachments) }
-        } else if historyEntry == nil {
+        } else if historyEntry == nil, !request.text.isEmpty || !request.attachments.isEmpty {
             await vm.sendFirstMessage(request.text, attachments: request.attachments)
         }
         return id
@@ -1195,6 +1195,8 @@ public final class DashboardViewModel {
 
     public func restartNewChat(_ id: SessionID,
                                onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
+        guard restartingNewChatIDs.insert(id).inserted else { throw CancellationError() }
+        defer { restartingNewChatIDs.remove(id) }
         guard let request = failedNewChatRequests[id], let vm = sessionNode(id: id)?.appServer else {
             throw ChatLaunchError.processFailed("起動に失敗したセッションが見つかりません")
         }
@@ -1212,9 +1214,6 @@ public final class DashboardViewModel {
             }
             onRowAppended?(newID)
         })
-        if request.resumeHistoryID == nil {
-            sessionNode(id: newID)?.appServer?.restoreLaunchDraft(text, attachments: attachments)
-        }
         await removeSession(id)
         return newID
     }
@@ -1296,6 +1295,14 @@ public final class DashboardViewModel {
             await environment.tokenStore.remove(session: sessionID)
             await cleanupOwnedWorkspace(for: sessionID)
             throw error
+        }
+
+        if let resolvedProjectID,
+           !projects.contains(where: { $0.id == resolvedProjectID })
+            || FileTabDocumentRegistry.shared.isChangingProject(resolvedProjectID) {
+            await environment.tokenStore.remove(session: sessionID)
+            await cleanupOwnedWorkspace(for: sessionID)
+            throw AgentSpawnError.unknownProject
         }
 
         let usedNames = Set(sessionNodes.flatMap { node -> [String] in

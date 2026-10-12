@@ -78,6 +78,7 @@ struct NewChatDraftStoreTests {
         #expect(request.usesWorktree)
         #expect(draft.text.isEmpty)
         #expect(draft.attachments.attachments.isEmpty)
+        #expect(!draft.usesWorktree)
     }
 
     @Test func AC5d_failedLaunchRestoresTextAndAttachmentsToTheSameDraft() throws {
@@ -94,6 +95,28 @@ struct NewChatDraftStoreTests {
 
         #expect(draft.text == "keep this")
         #expect(draft.attachments.attachments == [image])
+    }
+
+    @Test func failedLaunchPreservesNextInputAndRestoresWorktreeSelection() throws {
+        let (store, _, suite) = try makeStore()
+        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let project = ProjectID()
+        let draft = store.draft(for: project)
+        let first = ComposerAttachment(data: Data([1]), mediaType: "image/png")
+        let next = ComposerAttachment(data: Data([2]), mediaType: "image/png")
+        draft.text = "first"
+        draft.usesWorktree = true
+        draft.attachments.restore([first])
+        let request = try #require(draft.makeLaunchRequest(projectID: project))
+        draft.text = "next"
+        draft.usesWorktree = false
+        draft.attachments.restore([next, first])
+
+        draft.restoreLaunchDraft(from: request)
+
+        #expect(draft.text == "first\n\nnext")
+        #expect(draft.attachments.attachments == [first, next])
+        #expect(draft.usesWorktree)
     }
 
     @Test func AC5g_cursorImageBlocksSendWithoutDroppingTheAttachment() throws {

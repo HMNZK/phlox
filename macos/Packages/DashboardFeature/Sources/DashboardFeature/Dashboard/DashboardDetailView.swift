@@ -112,6 +112,7 @@ struct DashboardDetailView: View {
                             }
                         }
                     },
+                    isLaunchFailureRestarting: viewModel.restartingNewChatIDs.contains(session.id),
                     onLaunchFailureClose: {
                         Task { await viewModel.removeSession(session.id) }
                     }

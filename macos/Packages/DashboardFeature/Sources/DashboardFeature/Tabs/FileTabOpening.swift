@@ -2,6 +2,13 @@ import Foundation
 import AgentDomain
 
 enum FileTabOpening {
+    static func projectRelativeChangePath(_ path: String, workingDirectory: String) async -> String? {
+        let service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: workingDirectory, isDirectory: true))
+        guard let gitRoot = await service.resolvedRepositoryRootPath() else { return nil }
+        let url = URL(fileURLWithPath: gitRoot, isDirectory: true).appendingPathComponent(path)
+        return relativePath(of: url, under: await root(for: workingDirectory))
+    }
+
     static func root(for workingDirectory: String) async -> String {
         return URL(fileURLWithPath: workingDirectory, isDirectory: true).standardizedFileURL.resolvingSymlinksInPath().path
     }

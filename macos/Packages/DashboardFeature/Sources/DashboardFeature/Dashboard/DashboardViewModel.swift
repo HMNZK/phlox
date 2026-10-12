@@ -58,6 +58,7 @@ public final class DashboardViewModel {
     private struct OwnedWorkspace {
         let directory: URL
         let worktreeRepository: URL?
+        let workspaceSessionID: SessionID
     }
 
     public private(set) var sessions: [SessionViewModel] = []
@@ -232,7 +233,9 @@ public final class DashboardViewModel {
             registerOwnedWorkspace: { [weak self] sessionID, url, worktreeRepository in
                 self?.ownedWorkspaceDirectories[sessionID] = OwnedWorkspace(
                     directory: url,
-                    worktreeRepository: worktreeRepository
+                    worktreeRepository: worktreeRepository,
+                    workspaceSessionID: worktreeRepository == nil ? sessionID
+                        : UUID(uuidString: url.lastPathComponent).map { SessionID(rawValue: $0) } ?? sessionID
                 )
             },
             cleanupOwnedWorkspace: { [weak self] sessionID in
@@ -1202,20 +1205,40 @@ public final class DashboardViewModel {
         }
         let restart = NewChatLaunchRequest(projectID: request.projectID, agentRef: request.agentRef,
             settings: request.settings,
-            usesWorktree: request.usesWorktree,
+            usesWorktree: false,
             text: "", attachments: [],
-            workingDirectoryOverride: request.workingDirectoryOverride,
+            workingDirectoryOverride: vm.rawWorkspacePath,
             resumeHistoryID: request.resumeHistoryID)
-        let newID = try await launchNewChat(restart, onRowAppended: { newID in
-            if request.resumeHistoryID == nil, let target = self.sessionNode(id: newID)?.appServer {
-                let merged = ComposerAttachmentStore.mergingDrafts(text: vm.draft, attachments: vm.composerAttachments,
-                    nextText: target.draft, nextAttachments: target.composerAttachments)
-                target.restoreLaunchDraft(merged.text, attachments: merged.attachments)
+        var replacementID: SessionID?
+        do {
+            let newID = try await launchNewChat(restart, onRowAppended: { newID in
+                replacementID = newID
+                if let ownedWorkspace = self.ownedWorkspaceDirectories.removeValue(forKey: id) {
+                    self.ownedWorkspaceDirectories[newID] = ownedWorkspace
+                }
+                if request.resumeHistoryID == nil, let target = self.sessionNode(id: newID)?.appServer {
+                    let merged = ComposerAttachmentStore.mergingDrafts(text: vm.draft, attachments: vm.composerAttachments,
+                        nextText: target.draft, nextAttachments: target.composerAttachments)
+                    target.restoreLaunchDraft(merged.text, attachments: merged.attachments)
+                }
+                onRowAppended?(newID)
+            })
+            if let failure = sessionNode(id: newID)?.appServer?.launchFailure { throw failure }
+            await removeSession(id)
+            return newID
+        } catch {
+            if let replacementID {
+                if request.resumeHistoryID == nil, let target = sessionNode(id: replacementID)?.appServer {
+                    vm.restoreLaunchDraft(target.draft, attachments: target.composerAttachments)
+                }
+                // 古い行へ戻してから閉じ、再利用中の worktree を後始末から守る。
+                if let ownedWorkspace = ownedWorkspaceDirectories.removeValue(forKey: replacementID) {
+                    ownedWorkspaceDirectories[id] = ownedWorkspace
+                }
+                await removeSession(replacementID)
             }
-            onRowAppended?(newID)
-        })
-        await removeSession(id)
-        return newID
+            throw error
+        }
     }
 
     private func spawnNewSessionImpl(
@@ -1566,8 +1589,8 @@ public final class DashboardViewModel {
     }
 
     public func worktreeBranchName(for id: SessionID) -> String? {
-        guard ownedWorkspaceDirectories[id]?.worktreeRepository != nil else { return nil }
-        return WorktreeIsolationPlanner.branchName(for: id)
+        guard let workspace = ownedWorkspaceDirectories[id], workspace.worktreeRepository != nil else { return nil }
+        return WorktreeIsolationPlanner.branchName(for: workspace.workspaceSessionID)
     }
 
     /// changeWorkspace / moveSession 共通の再起動シーケンス（R2 で 1 本化）。
@@ -1936,7 +1959,7 @@ public final class DashboardViewModel {
         }
 
         let normalizedDirectory = directory.standardizedFileURL.resolvingSymlinksInPath()
-        let expectedDirectory = environment.sessionWorkspaceDirectory(for: sessionID)
+        let expectedDirectory = environment.sessionWorkspaceDirectory(for: ownedWorkspace.workspaceSessionID)
             .standardizedFileURL
             .resolvingSymlinksInPath()
         guard normalizedDirectory == expectedDirectory else { return }
@@ -1957,13 +1980,13 @@ public final class DashboardViewModel {
 
             do {
                 try await WorktreeIsolationGit.removeBranch(
-                    WorktreeIsolationPlanner.branchName(for: sessionID),
+                    WorktreeIsolationPlanner.branchName(for: ownedWorkspace.workspaceSessionID),
                     from: repository,
                     force: false
                 )
             } catch {
                 workspaceCleanupWarning = .branchRetained(
-                    branchName: WorktreeIsolationPlanner.branchName(for: sessionID)
+                    branchName: WorktreeIsolationPlanner.branchName(for: ownedWorkspace.workspaceSessionID)
                 )
                 workspaceCleanupFailureReason = Self.cleanupFailureReason(error)
                 logError(error, context: "Failed to cleanup worktree branch for \(sessionID)")

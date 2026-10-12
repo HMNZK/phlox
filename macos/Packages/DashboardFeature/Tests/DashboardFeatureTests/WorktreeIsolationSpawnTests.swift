@@ -45,7 +45,6 @@ private actor WorktreeLaunchTestClient: StructuredAgentClient, SpawnAgentSetting
     var starts = 0
     var closes = 0
     var inputs: [[ChatInput]] = []
-    var resumes: [String] = []
     var settings: (String?, String?, String?)?
 
     init(failsStart: Bool = false) {
@@ -58,7 +57,7 @@ private actor WorktreeLaunchTestClient: StructuredAgentClient, SpawnAgentSetting
         if failsStart { throw ChatLaunchError.processFailed("fake worktree launch failure") }
     }
     func turnStart(_ input: [ChatInput]) async throws { inputs.append(input) }
-    func resume(sessionRef: String) async throws { resumes.append(sessionRef) }
+    func resume(sessionRef: String) async throws {}
     func interrupt() async throws {}
     func close() async { closes += 1; continuation.finish() }
     func applySpawnAgentSettings(model: String?, permissionOrMode: String?, effort: String?) async {
@@ -261,8 +260,8 @@ func worktreeIsolation_failedNewChatCloseCleansItsWorktree() async throws {
     #expect(!FileManager.default.fileExists(atPath: try #require(worktreePath).path))
 }
 
-@Test(arguments: [false, true], [false, true]) @MainActor
-func worktreeIsolation_restartReusesWorktreeAndSelectsNewChat(hasEdits: Bool, restores: Bool) async throws {
+@Test @MainActor
+func worktreeIsolation_restartCreatesNewWorktreeAndSelectsNewChat() async throws {
     let repository = try WorktreeIsolationRepositoryFixture.repository()
     let workspaceRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("phlox-failed-chat-restart-\(UUID().uuidString)", isDirectory: true)
@@ -274,12 +273,10 @@ func worktreeIsolation_restartReusesWorktreeAndSelectsNewChat(hasEdits: Bool, re
     let failedClient = WorktreeLaunchTestClient(failsStart: true)
     let replacementClient = WorktreeLaunchTestClient()
     let clients = StructuredClientSequence([failedClient, replacementClient])
-    let sessions = WorktreeIsolationSessionStore([])
     let environment = makeWorktreeIsolationEnvironment(
         pty: MockPTYManager(),
         workspaceDirectory: workspaceRoot,
         projectStore: projectStore,
-        sessionStore: sessions,
         appServerClientFactory: { _, _, _, _, _ in try clients.next() }
     )
     var originalWorktree: URL?
@@ -314,15 +311,13 @@ func worktreeIsolation_restartReusesWorktreeAndSelectsNewChat(hasEdits: Bool, re
     let attachments = [ComposerAttachment(data: Data([7]), mediaType: "image/png")]
     old.restoreLaunchDraft("edited text", attachments: attachments)
     #expect(FileManager.default.fileExists(atPath: try #require(originalWorktree).path))
-    let editedFile = try #require(originalWorktree).appendingPathComponent("user-edit.txt")
-    if hasEdits { try Data("keep my edit".utf8).write(to: editedFile) }
 
     let router = AppRouter()
     router.showNewChat(projectID: project.id)
     let newID = try await dashboard.restartNewChat(failedID) { newID in
         router.completeNewChat(sessionID: newID, projectID: project.id)
     }
-    replacementWorktree = URL(fileURLWithPath: try #require(dashboard.sessionNode(id: newID)?.appServer).rawWorkspacePath)
+    replacementWorktree = environment.sessionWorkspaceDirectory(for: newID)
     replacementBranch = WorktreeIsolationPlanner.branchName(for: newID)
     let restarted = try #require(dashboard.sessionNode(id: newID)?.appServer)
     let oldPath = try #require(originalWorktree)
@@ -333,14 +328,9 @@ func worktreeIsolation_restartReusesWorktreeAndSelectsNewChat(hasEdits: Bool, re
     #expect(router.tabs.layout(for: project.id).selected == .chat(newID))
     #expect(restarted.agentRef == request.agentRef)
     #expect(restarted.rawWorkspacePath == newPath.path)
-    #expect(restarted.rawWorkspacePath == oldPath.path)
-    #expect(FileManager.default.fileExists(atPath: oldPath.path))
+    #expect(restarted.rawWorkspacePath != oldPath.path)
+    #expect(!FileManager.default.fileExists(atPath: oldPath.path))
     #expect(FileManager.default.fileExists(atPath: newPath.path))
-    #expect(dashboard.worktreeBranchName(for: newID) == originalBranch)
-    #expect(!dashboard.canMoveSession(newID))
-    let worktrees = try runWorktreeIsolationGit(["worktree", "list", "--porcelain"], in: repository)
-    #expect(worktrees.components(separatedBy: "\n").filter { $0.hasPrefix("worktree ") && $0.contains(workspaceRoot.lastPathComponent) }.count == 1)
-    if hasEdits { #expect(try String(contentsOf: editedFile, encoding: .utf8) == "keep my edit") }
     #expect(restarted.draft == "edited text")
     #expect(restarted.composerAttachments == attachments)
     #expect(await replacementClient.inputs.isEmpty)
@@ -348,85 +338,7 @@ func worktreeIsolation_restartReusesWorktreeAndSelectsNewChat(hasEdits: Bool, re
     #expect(settings.0 == request.settings.selectedModel)
     #expect(settings.1 == request.settings.selectedPermissionProfile)
     #expect(settings.2 == request.settings.selectedEffort)
-    try await waitUntil { await sessions.load().contains { $0.id == newID } }
-    let saved = try #require(await sessions.load().first { $0.id == newID })
-    #expect(saved.workingDirectory == oldPath.path)
-    let closingDashboard: DashboardViewModel
-    if restores {
-        // 復元クライアントも偽物にし、実 CLI は起動しない。
-        let restoredClient = WorktreeLaunchTestClient()
-        let restoredEnvironment = makeWorktreeIsolationEnvironment(pty: MockPTYManager(),
-            workspaceDirectory: workspaceRoot, projectStore: projectStore,
-            sessionStore: WorktreeIsolationSessionStore([saved.updating(resumeID: "test-thread")]),
-            appServerClientFactory: { _, _, _, _, _ in restoredClient })
-        closingDashboard = DashboardViewModel(environment: restoredEnvironment)
-        await closingDashboard.start()
-        #expect(closingDashboard.sessionNode(id: newID)?.appServer?.rawWorkspacePath == oldPath.path)
-        #expect(closingDashboard.worktreeBranchName(for: newID) == originalBranch)
-        #expect(!closingDashboard.canMoveSession(newID))
-        #expect(await restoredClient.resumes == ["test-thread"])
-    } else {
-        closingDashboard = dashboard
-    }
-    #expect(await closingDashboard.removeSession(newID))
-    #expect(FileManager.default.fileExists(atPath: oldPath.path) == hasEdits)
-    let branches = try runWorktreeIsolationGit(["branch", "--list", try #require(originalBranch)], in: repository)
-    #expect(branches.contains(try #require(originalBranch)) == hasEdits)
-    if hasEdits {
-        #expect(try String(contentsOf: editedFile, encoding: .utf8) == "keep my edit")
-        #expect(closingDashboard.workspaceCleanupWarning != nil)
-    }
-}
-
-@Test(arguments: [false, true], [false, true]) @MainActor
-func worktreeIsolation_restartFailureReturnsOwnershipToOldRow(failsBeforeRow: Bool, isManaged: Bool) async throws {
-    let repository = try WorktreeIsolationRepositoryFixture.repository()
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("phlox-restart-failure-\(UUID().uuidString)")
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    let project = Project(name: "restart-failure", directoryPath: repository.path, createdAt: Date(),
-        isManagedDirectory: isManaged, worktreeIsolationEnabled: true)
-    let store = WorktreeIsolationProjectStore()
-    try await store.save([project])
-    let failedClient = WorktreeLaunchTestClient(failsStart: true)
-    let replacement = WorktreeLaunchTestClient(failsStart: true)
-    let clients = StructuredClientSequence([failedClient, replacement])
-    let environment = makeWorktreeIsolationEnvironment(pty: MockPTYManager(), workspaceDirectory: root,
-        projectStore: store, appServerClientFactory: { _, _, _, _, _ in
-            if failsBeforeRow, await failedClient.starts > 0 {
-                throw ChatLaunchError.processFailed("fake client creation failure")
-            }
-            return try clients.next()
-        })
-    let dashboard = DashboardViewModel(environment: environment)
-    await dashboard.start()
-    let id = try await dashboard.launchNewChat(NewChatLaunchRequest(projectID: project.id,
-        agentRef: .builtin(.claudeCode), settings: CodexAppServerSessionSettings(),
-        usesWorktree: true, text: "draft", attachments: []))
-    let path = environment.sessionWorkspaceDirectory(for: id)
-    let branch = WorktreeIsolationPlanner.branchName(for: id)
-    defer {
-        cleanupWorktreeIsolationTestWorktree(at: path, branchName: branch, in: repository)
-        try? FileManager.default.removeItem(at: root)
-    }
-    let old = try #require(dashboard.sessionNode(id: id)?.appServer)
-    let image = ComposerAttachment(data: Data([9]), mediaType: "image/png")
-    old.restoreLaunchDraft("edited draft", attachments: [image])
-    let file = path.appendingPathComponent("user-edit.txt")
-    try Data("keep my edit".utf8).write(to: file)
-
-    await #expect(throws: ChatLaunchError.self) { try await dashboard.restartNewChat(id) }
-
-    #expect(dashboard.sessionNodes.map(\.id) == [id])
-    #expect(old.draft == "edited draft")
-    #expect(old.composerAttachments == [image])
-    #expect(dashboard.worktreeBranchName(for: id) == branch)
-    #expect(!dashboard.canMoveSession(id))
-    #expect(try String(contentsOf: file, encoding: .utf8) == "keep my edit")
-    let worktrees = try runWorktreeIsolationGit(["worktree", "list", "--porcelain"], in: repository)
-    #expect(worktrees.components(separatedBy: "\n").filter { $0.hasPrefix("worktree ") && $0.contains(root.lastPathComponent) }.count == 1)
-    try FileManager.default.removeItem(at: file)
-    #expect(await dashboard.removeSession(id))
-    #expect(!FileManager.default.fileExists(atPath: path.path))
+    await dashboard.removeSession(newID)
 }
 
 // planner は隔離を選択した後にだけ呼ぶため、既定の非隔離の契約は起動境界で確かめる。

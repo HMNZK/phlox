@@ -991,12 +991,7 @@ final class SessionSpawnService {
     ) async throws -> (repository: URL, path: URL)? {
         guard let project else { return nil }
 
-        var workspaceSessionID = sessionID
-        if intent == .restore, let workingDirectoryOverride,
-           let uuid = UUID(uuidString: URL(fileURLWithPath: workingDirectoryOverride).lastPathComponent) {
-            workspaceSessionID = SessionID(rawValue: uuid)
-        }
-        let worktreePath = environment.sessionWorkspaceDirectory(for: workspaceSessionID)
+        let worktreePath = environment.sessionWorkspaceDirectory(for: sessionID)
 
         switch intent {
         case .newSession:
@@ -1013,7 +1008,7 @@ final class SessionSpawnService {
         )
         let outcome = worktreeIsolationOutcome(
             project: project,
-            sessionID: workspaceSessionID,
+            sessionID: sessionID,
             worktreePath: worktreePath,
             state: state,
             intent: intent

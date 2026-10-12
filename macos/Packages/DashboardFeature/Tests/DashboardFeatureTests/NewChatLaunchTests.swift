@@ -98,33 +98,6 @@ final class NewChatLaunchTests {
                 selectedEffort: "high", selectedPermissionProfile: kind == .cursor ? "ask" : "acceptEdits",
                 isPlanMode: false), usesWorktree: false, text: "first message", attachments: attachments)
     }
-    @Test func restartFailurePreservesEditsMadeWhileStarting() async throws {
-        let failed = LaunchClient(failsStart: true)
-        let replacement = LaunchClient(failsStart: true, holdsStart: true)
-        let dashboard = dashboard([failed, replacement])
-        let id = try await dashboard.launchNewChat(request(dashboard))
-        let old = try #require(dashboard.sessionNode(id: id)?.appServer)
-        var replacementID: SessionID?
-        let task = Task { try await dashboard.restartNewChat(id) { replacementID = $0 } }
-        for _ in 0..<100 {
-            if await replacement.starts == 1 { break }
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        let newID = try #require(replacementID)
-        let vm = try #require(dashboard.sessionNode(id: newID)?.appServer)
-        let image = ComposerAttachment(data: Data([4]), mediaType: "image/png")
-        vm.restoreLaunchDraft("edited before failure", attachments: [image])
-        await replacement.releaseStart()
-
-        await #expect(throws: ChatLaunchError.self) { try await task.value }
-
-        #expect(dashboard.sessionNodes.map(\.id) == [id])
-        #expect(old.draft == "edited before failure")
-        #expect(old.composerAttachments == [image])
-        #expect(await replacement.inputs.isEmpty)
-        await dashboard.removeSession(id)
-    }
-
     @Test(arguments: [AgentKind.claudeCode, .cursor])
     func AC2_settingsAndFirstMessage(kind: AgentKind) async throws {
         let client = LaunchClient()

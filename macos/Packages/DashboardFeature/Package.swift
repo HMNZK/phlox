@@ -48,6 +48,8 @@ let package = Package(
                 .product(name: "cmark-gfm", package: "swift-cmark"),
                 .product(name: "cmark-gfm-extensions", package: "swift-cmark"),
             ],
+            // 新規チャットの見出しのドット書体（ADR 0191）。
+            resources: [.process("NewChat/Fonts")],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .testTarget(

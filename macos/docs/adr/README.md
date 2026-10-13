@@ -12,6 +12,7 @@ last-verified: 2026-10-13
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0191 | [新規チャットの見出しにドット書体 DotGothic16 を同梱する](0191-bundled-dot-font-for-new-chat-heading.md) | accepted |
 | 0190 | [選択肢のポップアップの見た目を 1 つの部品にまとめる](0190-shared-popup-menu-look.md) | accepted |
 | 0189 | [アクセントの色をやめ、白黒にする](0189-monochrome-accent.md) | accepted |
 | 0188 | [新規チャットの下書きをプロジェクトから切り離し、送信したときにそのプロジェクトのタブを作る](0188-project-independent-new-chat-draft.md) | accepted |

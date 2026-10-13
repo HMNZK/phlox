@@ -278,7 +278,7 @@ struct NewChatView: View {
                 Spacer(minLength: 12)
                 HStack(spacing: 10) {
                     Text(verbatim: localized(greeting))
-                        .font(DSFont.newChatHeading)
+                        .font(NewChatHeadingFont.font)
                         .tracking(-0.1)
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(2)
@@ -955,6 +955,17 @@ enum NewChatLaunchAnnouncement {
         }
         return AppLocalizedString.string(key, locale: locale, bundle: bundle)
     }
+}
+
+/// 見出しのドット書体（ADR 0191）。初回の参照で同梱の書体をプロセスに登録してから返す。
+enum NewChatHeadingFont {
+    static let postScriptName = "DotGothic16-Regular"
+    static let font: Font = {
+        if let url = Bundle.module.url(forResource: postScriptName, withExtension: "ttf") {
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
+        return DSFont.newChatHeading
+    }()
 }
 
 enum NewChatGreetings {

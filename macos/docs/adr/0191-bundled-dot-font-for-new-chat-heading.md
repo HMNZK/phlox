@@ -1,0 +1,22 @@
+---
+status: accepted
+---
+
+# 0191: 新規チャットの見出しにドット書体 DotGothic16 を同梱する
+
+## 決定
+
+- 新規チャットの挨拶の見出し（`DSFont.newChatHeading`）は、ドット書体 DotGothic16 の 32pt で描く。
+- 書体ファイル `DotGothic16-Regular.ttf` とライセンス文 `OFL.txt` は DashboardFeature パッケージの資源（`NewChat/Fonts`）に置く。DesignSystem は iOS アプリとも共有しているので、そこに置くと使わない iOS アプリにまで 2MB の書体が入る。
+- 書体の登録は `NewChatHeadingFont.font` を初めて参照したときにプロセス内へ 1 回だけ行う。画面外の描画テストでも同じ経路で登録される。
+- 大きさは 16px の格子の倍の 32pt にする。30pt だと格子がずれてドットがにじむ。
+
+## 理由
+
+見出しをドット書体にしたい（2026-10-13 ユーザー指示）。アプリにはドット書体が無かった。見出しは日本語なので、和文を持つ書体に限られる。候補のうち、DotGothic16 はユーザーが選んだ。SIL Open Font License 1.1 で同梱でき、和文と英字の両方を持つ。
+
+## 結果
+
+- macOS アプリが約 2MB 大きくなる。
+- ライセンスは `THIRD_PARTY_NOTICES.md` に載せ、`OFL.txt` を書体と一緒に同梱する。
+- 登録に失敗すると `Font.custom` はシステムの書体に黙って戻る。登録は書体の名前が引けることをテストで確かめる。

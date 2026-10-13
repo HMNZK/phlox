@@ -20,6 +20,14 @@ The copyright notices below are retained as required by those licenses.
   lives under `macos/Packages/DesignSystem/Sources/DesignSystem/ThinkingOrb`
   and is used by both the macOS and iOS apps.
 
+## Bundled fonts
+
+- **DotGothic16** — SIL Open Font License 1.1. Copyright 2020 The DotGothic16
+  Project Authors (<https://github.com/fontworks-fonts/DotGothic16>). Used for
+  the new-chat greeting heading in the macOS app. The font and its license text
+  (`OFL.txt`) are bundled under
+  `macos/Packages/DashboardFeature/Sources/DashboardFeature/NewChat/Fonts`.
+
 ## Swift Package Manager dependencies
 
 ### macOS app (`macos/`)

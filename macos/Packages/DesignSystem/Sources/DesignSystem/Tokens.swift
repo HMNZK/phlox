@@ -31,8 +31,9 @@ public enum DSFont {
     public static let sectionHeader = Font.subheadline.weight(.semibold)
     public static let title = Font.title3.weight(.semibold)
     public static let heroTitle = Font.title2.weight(.semibold)
-    /// 30 / Semibold — 新規チャットの見出し（2026-10-13 ユーザー指示で見本の 22 から拡大）。
-    public static let newChatHeading = Font.system(size: 30, weight: .semibold)
+    /// ドット書体 DotGothic16 の 32 — 新規チャットの見出し（ADR 0191）。16px の格子の倍で描く。
+    /// 書体は DashboardFeature が同梱し、`NewChatHeadingFont` が初回の参照で登録する。
+    public static let newChatHeading = Font.custom("DotGothic16-Regular", fixedSize: 32)
     public static let mono = Font.system(.body, design: .monospaced)
     public static let monoCaption = Font.system(size: 11, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。

@@ -26,6 +26,23 @@ import AgentDomain
         }
     }
 
+    @Test func newChatTabSavedByOlderVersionIsDroppedOnLoad() throws {
+        let suite = "phlox.projectTabs.legacyNewChat.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let project = ProjectID()
+        var layout = ProjectTabLayout()
+        layout.open(.changes); layout.open(.newChat)
+        var old = ProjectTabsSnapshot()
+        old.projects[project] = layout
+        defaults.set(try JSONEncoder().encode(old), forKey: ProjectTabStore.defaultsKey)
+
+        let restored = ProjectTabStore(defaults: defaults).layout(for: project)
+
+        #expect(restored.items == [.changes])
+        #expect(restored.left == nil, "選択は ensureProjectSelection が選び直す")
+    }
+
     @Test func hiddenTransientTabsLeavePersistentSplitAndFocusIntact() throws {
         let suite = "phlox.projectTabs.split.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -37,7 +54,7 @@ import AgentDomain
             $0.left = .changes; $0.right = .file("a.txt"); $0.focusesRight = true; $0.splitFraction = 0.37
         }
         let restored = ProjectTabStore(defaults: defaults).layout(for: project)
-        #expect(restored.items == [.newChat, .changes, .file("a.txt")])
+        #expect(restored.items == [.changes, .file("a.txt")])
         #expect(restored.left == .changes && restored.right == .file("a.txt"))
         #expect(restored.focusesRight)
         #expect(restored.splitFraction == 0.37)
@@ -57,7 +74,7 @@ import AgentDomain
             $0.splitFraction = 0.37
         }
         let restored = ProjectTabStore(defaults: defaults).layout(for: project)
-        #expect(restored.items == [.newChat, .changes, .file("a.txt")])
+        #expect(restored.items == [.changes, .file("a.txt")])
         #expect(restored.left == .file("a.txt"))
         #expect(restored.right == nil)
         #expect(!restored.focusesRight)

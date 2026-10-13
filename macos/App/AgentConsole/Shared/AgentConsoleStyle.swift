@@ -133,7 +133,7 @@ struct AgentConsoleActionButtonStyle: ButtonStyle {
             let shape = RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
             configuration.label
                 .font(DSFont.caption.weight(.semibold))
-                .foregroundStyle(isProminent ? Color.white : DSColor.textPrimary)
+                .foregroundStyle(isProminent ? DSColor.accentOnFill : DSColor.textPrimary)
                 .padding(.vertical, 5)
                 .padding(.horizontal, DSSpacing.m)
                 .background {

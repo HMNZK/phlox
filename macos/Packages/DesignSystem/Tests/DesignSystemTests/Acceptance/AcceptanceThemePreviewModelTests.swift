@@ -68,7 +68,7 @@ struct AcceptanceThemePreviewModelTests {
         #expect(phlox.inputText == "メッセージを入力")
         #expect(phlox.themeID == "phlox")
         #expect(phlox.themeName == "Phlox")
-        #expect(phlox.currentMarker == RGB(0x95, 0x9C, 0xD0))
+        #expect(phlox.currentMarker == AppTheme.phlox.textPrimary)
 
         let github = ThemePreviewModel.make(theme: .githubLight)
         #expect(github.appLabel == "アプリ外観")

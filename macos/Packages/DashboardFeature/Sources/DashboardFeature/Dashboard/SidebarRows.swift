@@ -41,7 +41,7 @@ struct SidebarProjectRow<Menu: View>: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     private var emphasis: SidebarRowEmphasis {
-        .resolve(.projectScope(isFiltering: isScoped, isDefaultTarget: isSelected, isHovering: isHovering))
+        .resolve(.projectScope(isFiltering: isScoped, isHovering: isHovering))
     }
 
     var body: some View {
@@ -81,6 +81,7 @@ struct SidebarProjectRow<Menu: View>: View {
                 Button(action: onNewChat) {
                     SidebarRowIcon(text: "＋", isPrimary: true)
                 }
+                .buttonStyle(.plain)
                 .fixedSize()
                 .help(Text("\(project.name) で新規チャット"))
                 .accessibilityLabel(Text("\(project.name) で新規チャット"))
@@ -229,12 +230,14 @@ struct SidebarSessionRow<Menu: View>: View {
                     .frame(height: 15)
                     .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 8))
                 }
-                Text(verbatim: statusText)
-                    .font(DSFont.meta)
-                    .monospacedDigit()
-                    .foregroundStyle(state.attentionKind.map(DSColor.attentionInk) ?? DSColor.textSecondary)
-                    .lineLimit(1)
-                    .fixedSize()
+                // 待機中は何も出さない（経過時間は出さない。要件 FR-24）。
+                if state != .idle {
+                    Text(verbatim: state.localizedLabel(locale: locale))
+                        .font(DSFont.meta)
+                        .foregroundStyle(state.attentionKind.map(DSColor.attentionInk) ?? DSColor.textSecondary)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
                 if isHovering {
                     SwiftUI.Menu(content: menu) {
                         SidebarRowIcon(text: "⋯", isPrimary: false)
@@ -313,12 +316,6 @@ struct SidebarSessionRow<Menu: View>: View {
             .font(DSFont.row.weight(emphasis.nameWeight))
     }
 
-    private var statusText: String {
-        state == .idle
-            ? SidebarRelativeTime.label(from: node.startedAt, to: max(labelClock, Date()), locale: locale)
-            : state.localizedLabel(locale: locale)
-    }
-
     private func titleGradientStops(at date: Date) -> [Gradient.Stop] {
         let center = ShimmerBandModel.bandCenter(phase: SidebarTitleShimmer.phase(at: date))
         let range = 1 - ShimmerBandModel.minBrightness
@@ -354,13 +351,13 @@ struct SidebarSessionRow<Menu: View>: View {
         }
     }
 
-    /// 読み上げの経過の起点（対応待ちは状態に入った時刻、待機は行の右端と同じ時刻）。
+    /// 読み上げの経過の起点（対応待ちは状態に入った時刻）。
     private var elapsedSince: Date? {
-        state.attentionKind != nil ? node.statusEnteredAt : state == .idle ? node.startedAt : nil
+        state.attentionKind != nil ? node.statusEnteredAt : nil
     }
 
     /// 「タイトル、状態、経過、未読、エージェント、子セッション n 件」（モックの aria-label と同じ並び）。
-    /// 経過は「待機、42分前」「承認待ち、3分前から」（1 分未満は付けない）。語は画面の言語設定で引くため Text でつなぐ。
+    /// 経過は対応待ちだけ「承認待ち、3分前から」（1 分未満は付けない）。語は画面の言語設定で引くため Text でつなぐ。
     private var accessibilityText: Text {
         var parts = [Text(verbatim: node.displayName), Text(verbatim: state.localizedLabel(locale: locale))]
         let since = elapsedSince
@@ -368,7 +365,7 @@ struct SidebarSessionRow<Menu: View>: View {
         let now = max(labelClock, Date())
         if let since, now.timeIntervalSince(since) >= 60 {
             let elapsed = SidebarRelativeTime.label(from: since, to: now, locale: locale)
-            parts.append(state.attentionKind != nil ? Text("\(elapsed)前から") : Text("\(elapsed)前"))
+            parts.append(Text("\(elapsed)前から"))
         }
         if isUnread { parts.append(Text("未読")) }
         parts.append(Text(verbatim: node.agentDescriptor.displayName))

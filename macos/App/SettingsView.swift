@@ -191,7 +191,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var appearanceForm: some View {
-        SettingsGroupBox("テーマ", footer: Text("アクセントの色（藍色）はすべてのテーマで共通。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。")) {
+        SettingsGroupBox("テーマ", footer: Text("アクセントはテーマの文字色（白黒）。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。")) {
             SettingsRow {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
                     ForEach(ThemeStore.all) { theme in

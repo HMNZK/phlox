@@ -53,6 +53,7 @@ final class SuggestionDescriptionScrollView: NSView {
     static let pointsPerSecond: CGFloat = 30
     let textLayer = CATextLayer()
     private var text = ""
+    private var ink: NSColor?
     private var textSize = NSSize.zero
     private var animatedDistance: CGFloat?
 
@@ -69,12 +70,15 @@ final class SuggestionDescriptionScrollView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
+    /// 文字は選択行の面（`accentFill`）の上の色。テーマが変わったら描き直す。
     func setText(_ text: String) {
-        guard self.text != text else { return }
+        let ink = NSColor(DSColor.accentOnFill)
+        guard self.text != text || self.ink != ink else { return }
         self.text = text
+        self.ink = ink
         let attributedText = NSAttributedString(
             string: text.components(separatedBy: .newlines).joined(separator: " "),
-            attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.white] // DSFont.auxiliary
+            attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: ink] // DSFont.auxiliary
         )
         textSize = attributedText.size()
         CATransaction.begin()

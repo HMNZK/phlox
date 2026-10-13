@@ -2,11 +2,35 @@ import AppKit
 import QuartzCore
 import SwiftUI
 import Testing
+import DesignSystem
 @testable import SessionFeature
 
 @Suite @MainActor
 struct ComposerSuggestionDescriptionTests {
     private let description = "先頭から最後まで読める説明です。コマンド名と出どころは固定し、この長い説明だけが一定の速さで進みます。末尾です。"
+
+    @Test("流す説明文は選択行の面の上の色（accentOnFill）で、テーマを替えると描き直す")
+    func scrollingDescriptionUsesAccentOnFill() throws {
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: ThemeStore.themeKey)
+        defer {
+            if let previous { defaults.set(previous, forKey: ThemeStore.themeKey) } else { defaults.removeObject(forKey: ThemeStore.themeKey) }
+        }
+        let view = SuggestionDescriptionScrollView(frame: NSRect(x: 0, y: 0, width: 120, height: 16))
+        func ink() -> NSColor? {
+            ((view.textLayer.string as? NSAttributedString)?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)?
+                .usingColorSpace(.sRGB)
+        }
+        defaults.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
+        view.setText(description)
+        let dark = try #require(ink())
+        #expect(dark == NSColor(DSColor.accentOnFill).usingColorSpace(.sRGB))
+        #expect(dark.brightnessComponent < 0.5, "ダークの白い面に白い文字を載せない")
+
+        defaults.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
+        view.setText(description)
+        #expect(try #require(ink()).brightnessComponent > 0.5)
+    }
 
     @Test func overflowingDescriptionReachesTheEndAndRepeatsWithReadingPauses() throws {
         let view = SuggestionDescriptionScrollView(frame: NSRect(x: 0, y: 0, width: 120, height: 16))

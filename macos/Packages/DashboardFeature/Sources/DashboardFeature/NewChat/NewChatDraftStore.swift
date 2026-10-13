@@ -6,27 +6,11 @@ import SessionFeature
 
 @MainActor @Observable
 public final class NewChatDraftStore {
-    private var drafts: [ProjectID?: NewChatDraft] = [:]
-    private let lastUsedChatSettingsStore: LastUsedChatSettingsStore
+    /// 新規チャットの下書きはアプリに 1 つ（ADR 0188）。送信先のプロジェクトは `AppRouter.newChatProjectID`。
+    public let draft: NewChatDraft
 
     public init(lastUsedChatSettingsStore: LastUsedChatSettingsStore = LastUsedChatSettingsStore()) {
-        self.lastUsedChatSettingsStore = lastUsedChatSettingsStore
-    }
-
-    public func draft(for projectID: ProjectID?) -> NewChatDraft {
-        if let draft = drafts[projectID] { return draft }
-        let draft = NewChatDraft(lastUsedChatSettingsStore: lastUsedChatSettingsStore)
-        drafts[projectID] = draft
-        return draft
-    }
-
-    public func discard(_ projectID: ProjectID) {
-        drafts[projectID] = nil
-    }
-
-    public func hasDraft(for projectID: ProjectID) -> Bool {
-        guard let draft = drafts[projectID] else { return false }
-        return !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !draft.attachments.attachments.isEmpty
+        draft = NewChatDraft(lastUsedChatSettingsStore: lastUsedChatSettingsStore)
     }
 }
 

@@ -182,7 +182,7 @@ struct UserQuestionCell: View {
                     Text(verbatim: "⌘↩").opacity(0.85).font(.system(size: 10.5))
                 }
                 .font(DSFont.auxiliary.weight(.semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(DSColor.accentOnFill)
                 .padding(.horizontal, 12)
                 .frame(height: 26)
                 .background(DSColor.accentFill.opacity(form.canSubmit && !isSubmitting ? 1 : 0.5),

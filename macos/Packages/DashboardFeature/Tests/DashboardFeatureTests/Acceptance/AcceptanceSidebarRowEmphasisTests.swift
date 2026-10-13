@@ -7,13 +7,13 @@ import Testing
 
 @Suite("03 Sidebar: sidebar row emphasis")
 struct AcceptanceSidebarRowEmphasisTests {
-    @Test("projectScope の面は filtering||defaultTarget → hover → なし の順")
+    @Test("projectScope の面は filtering → hover → なし の順（選択だけでは敷かない）")
     func projectScopeFillPriority() {
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: false, isHovering: false)).fill == DSColor.selectionFill)
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: true, isHovering: false)).fill == DSColor.selectionFill)
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: false, isHovering: true)).fill == DSColor.fillSubtle)
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: false, isHovering: false)).fill == Color.clear)
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: true, isHovering: true)).fill == DSColor.selectionFill)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isHovering: false)).fill == DSColor.selectionFill)
+        // 選択中のプロジェクトは色を変えない（2026-10-13 ユーザー指示）。グリッドの絞り込み中だけ面を敷く。
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isHovering: true)).fill == DSColor.fillSubtle)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isHovering: false)).fill == Color.clear)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isHovering: true)).fill == DSColor.selectionFill)
     }
 
     @Test("選択はアクセントの淡い面、ホバーは従来の面、質問待ちは注意色")
@@ -48,16 +48,16 @@ struct AcceptanceSidebarRowEmphasisTests {
 
     @Test("グリッドの表示範囲の印は projectScope(isFiltering: true) だけ")
     func scopeBadgeOnlyWhenProjectIsFiltering() {
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: false, isHovering: false)).scopeBadgeText == "グリッドの表示範囲")
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: true, isHovering: true)).scopeBadgeText == nil)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isHovering: false)).scopeBadgeText == "グリッドの表示範囲")
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isHovering: true)).scopeBadgeText == nil)
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: false, state: .idle)).scopeBadgeText == nil)
     }
 
     @Test("accessibilityValue は現在の会話 / グリッドを絞り込み中 / その他 nil")
     func accessibilityValueThreeBranches() {
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: true, isHovering: false, state: .idle)).accessibilityValue == "現在の会話")
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isDefaultTarget: false, isHovering: false)).accessibilityValue == "グリッドを絞り込み中")
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: true, isHovering: false)).accessibilityValue == "グリッドを絞り込み中")
         #expect(SidebarRowEmphasis.resolve(.session(isCurrent: false, isHovering: true, state: .doneUnread)).accessibilityValue == nil)
-        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isDefaultTarget: true, isHovering: false)).accessibilityValue == nil)
+        #expect(SidebarRowEmphasis.resolve(.projectScope(isFiltering: false, isHovering: false)).accessibilityValue == nil)
     }
 }

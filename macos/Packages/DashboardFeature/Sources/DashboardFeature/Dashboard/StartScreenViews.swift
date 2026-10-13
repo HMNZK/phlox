@@ -43,7 +43,7 @@ struct StartOnboardingView: View {
                             Text(verbatim: "⌘O").font(DSFont.meta).opacity(0.85)
                         }
                         .font(DSFont.row.weight(.semibold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(DSColor.accentOnFill)
                         .padding(.horizontal, 14)
                         .frame(height: 30)
                         .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 7))

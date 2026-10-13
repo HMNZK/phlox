@@ -16,16 +16,18 @@ import Testing
         #expect(light.sidebar == RGB(0xF2, 0xF2, 0xF4))
         #expect(light.tabBar == RGB(0xEC, 0xEC, 0xEF))
         #expect(light.stalled.mark == RGB(0x94, 0x57, 0xDB))
-        #expect(light.accent == RGB(0x3B, 0x46, 0x9B))
-        #expect(light.accentInk == RGB(0x3B, 0x46, 0x9B))
-        #expect(light.accentFill == RGB(0x3B, 0x46, 0x9B))
+        #expect(light.accent == RGB(0x1D, 0x1D, 0x1F))
+        #expect(light.accentInk == RGB(0x1D, 0x1D, 0x1F))
+        #expect(light.accentFill == RGB(0x1D, 0x1D, 0x1F))
+        #expect(light.accentOnFill == RGB(0xFF, 0xFF, 0xFF))
         let dark = AppTheme.phlox.palette
         #expect(dark.window == RGB(0x1E, 0x1E, 0x20))
         #expect(dark.popover == RGB(0x2F, 0x2F, 0x33))
         #expect(dark.approval.ink == RGB(0xF4, 0xBD, 0x68))
-        #expect(dark.accent == RGB(0x95, 0x9C, 0xD0))
-        #expect(dark.accentInk == RGB(0x95, 0x9C, 0xD0))
-        #expect(dark.accentFill == RGB(0x3B, 0x46, 0x9B))
+        #expect(dark.accent == RGB(0xF2, 0xF2, 0xF4))
+        #expect(dark.accentInk == RGB(0xF2, 0xF2, 0xF4))
+        #expect(dark.accentFill == RGB(0xF2, 0xF2, 0xF4))
+        #expect(dark.accentOnFill == RGB(0x1E, 0x1E, 0x20))
         #expect(AppTheme.phlox.background == dark.window)
         #expect(AppTheme.phlox.textPrimary == RGB(0xF2, 0xF2, 0xF4))
         #expect(AppTheme.phloxLight.textPrimary == RGB(0x1D, 0x1D, 0x1F))
@@ -61,12 +63,12 @@ import Testing
         }
     }
 
-    @Test("全テーマ: accent は印として 3:1 以上、リンク文字として 4.5:1 以上")
+    @Test("全テーマ: accent は主文字色（白黒）で、印として 3:1 以上、リンク文字として 4.5:1 以上")
     func accentRolesMeetContrast() {
         for theme in ThemeStore.all {
             let p = theme.palette
-            let expected = p.isLight ? RGB(0x3B, 0x46, 0x9B) : RGB(0x95, 0x9C, 0xD0)
-            #expect(p.accent == expected, "\(theme.id) accent")
+            #expect(p.accent == theme.textPrimary, "\(theme.id) accent")
+            #expect(p.accentFill == theme.textPrimary, "\(theme.id) accentFill")
             for face in faces(p) {
                 #expect(contrast(p.accent, face) >= 3, "\(theme.id) accent on \(face)")
                 #expect(contrast(p.accentInk, face) >= 4.5, "\(theme.id) accentInk on \(face)")
@@ -93,10 +95,11 @@ import Testing
         }
     }
 
-    @Test("全テーマ: 主ボタンの白文字は accent の面で 4.5:1 以上")
-    func accentFillCarriesWhiteText() {
+    @Test("全テーマ: 主ボタンの文字（accentOnFill）は accent の面で 4.5:1 以上")
+    func accentFillCarriesReadableText() {
         for theme in ThemeStore.all {
-            #expect(contrast(RGB(255, 255, 255), theme.palette.accentFill) >= 4.5, Comment(rawValue: theme.id))
+            #expect(theme.palette.accentOnFill == theme.background, Comment(rawValue: theme.id))
+            #expect(contrast(theme.palette.accentOnFill, theme.palette.accentFill) >= 4.5, Comment(rawValue: theme.id))
         }
     }
 

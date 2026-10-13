@@ -4,7 +4,7 @@ import DesignSystem
 /// サイドバー行の強調。選択はアクセントの淡い面、未読は文字色と太さ、対応待ちは注意色で示す。
 struct SidebarRowEmphasis: Equatable {
     enum Role: Equatable {
-        case projectScope(isFiltering: Bool, isDefaultTarget: Bool, isHovering: Bool)
+        case projectScope(isFiltering: Bool, isHovering: Bool)
         case session(isCurrent: Bool, isHovering: Bool, state: SessionDisplayState)
     }
 
@@ -16,9 +16,10 @@ struct SidebarRowEmphasis: Equatable {
 
     static func resolve(_ role: Role) -> SidebarRowEmphasis {
         switch role {
-        case let .projectScope(isFiltering, isDefaultTarget, isHovering):
+        case let .projectScope(isFiltering, isHovering):
             let fill: Color
-            if isFiltering || isDefaultTarget {
+            // 選択中のプロジェクト（セッションを選んだときも含む）は色を変えない（2026-10-13 ユーザー指示）。
+            if isFiltering {
                 fill = DSColor.selectionFill
             } else if isHovering {
                 fill = DSColor.fillSubtle

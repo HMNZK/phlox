@@ -327,9 +327,9 @@ struct DashboardSidebarView: View {
                         .font(DSFont.auxiliary.weight(.semibold))
                     Text(verbatim: "⌘O")
                         .font(.system(size: 10.5))
-                        .foregroundStyle(Color.white.opacity(0.85))
+                        .foregroundStyle(DSColor.accentOnFill.opacity(0.85))
                 }
-                .foregroundStyle(Color.white)
+                .foregroundStyle(DSColor.accentOnFill)
                 .padding(.horizontal, 12)
                 .frame(height: 26)
                 .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: DSRadius.row))
@@ -350,7 +350,8 @@ struct DashboardSidebarView: View {
             project: project,
             isExpanded: isExpanded,
             isSelected: router.selectedProjectID == project.id,
-            isScoped: router.gridFilterProjectID == project.id,
+            // 単体表示ではプロジェクトを選ぶだけで表示範囲が付くので、面はグリッドのときだけ敷く（2026-10-13 ユーザー指示）。
+            isScoped: router.viewMode == .grid && router.gridFilterProjectID == project.id,
             showsScopeMark: router.viewMode == .grid && router.gridFilterProjectID == project.id,
             collapsedSummary: .make(states),
             isRenaming: renaming == .project(project.id),

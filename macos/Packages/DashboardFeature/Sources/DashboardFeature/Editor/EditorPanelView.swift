@@ -485,7 +485,7 @@ public struct EditorPanelView: View {
     }
 }
 
-/// コミット対象のチェック（07 D2）。13×13・角丸 3.5。オンは accentFill に白の ✓、オフは 1.2pt の fg3 の枠。
+/// コミット対象のチェック（07 D2）。13×13・角丸 3.5。オンは accentFill に accentOnFill の ✓、オフは 1.2pt の fg3 の枠。
 struct CommitCheckbox: View {
     let isOn: Bool
 
@@ -495,7 +495,7 @@ struct CommitCheckbox: View {
                 RoundedRectangle(cornerRadius: 3.5).fill(DSColor.accentFill)
                 Image(systemName: "checkmark")
                     .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(DSColor.accentOnFill)
             } else {
                 RoundedRectangle(cornerRadius: 3.5).strokeBorder(DSColor.textTertiary, lineWidth: 1.2)
             }

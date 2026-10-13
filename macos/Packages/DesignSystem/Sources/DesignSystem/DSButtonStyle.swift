@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 共通のボタン（12 Design System P「ボタン」）。高さ 28・角丸 6・13pt。
-/// 主 = accent の面に白文字 600、副 = 操作面＋0.5pt の縁、破壊的 = 副の形に赤い文字 600、
+/// 主 = accent の面に accentOnFill の文字 600、副 = 操作面＋0.5pt の縁、破壊的 = 副の形に赤い文字 600、
 /// 文字だけ = 面なしの補助色。無効は 45%。`keyHint` はボタン内の小さなキーの表示（10.5pt・0.85）。
 /// 小さい面（07 のコミット欄 24 高・12pt、使用量の「更新」22 高・11.5pt）は高さ・文字・左右の余白を渡す。
 public struct DSButtonStyle: ButtonStyle {
@@ -70,7 +70,7 @@ public struct DSButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         switch kind {
-        case .primary: .white
+        case .primary: DSColor.accentOnFill
         case .secondary: DSColor.textPrimary
         case .destructive: DSColor.statusError
         case .plain: DSColor.textSecondary

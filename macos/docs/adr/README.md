@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-09-14
+last-verified: 2026-10-13
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,11 +12,13 @@ last-verified: 2026-09-14
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0187 | [上段をプロジェクトのタブにし、タブ列をサイドバーと一致させる](0187-project-tabs.md) | accepted |
+| 0189 | [アクセントの色をやめ、白黒にする](0189-monochrome-accent.md) | accepted |
+| 0188 | [新規チャットの下書きをプロジェクトから切り離し、送信したときにそのプロジェクトのタブを作る](0188-project-independent-new-chat-draft.md) | accepted |
+| 0187 | [上段をプロジェクトのタブにし、タブ列をサイドバーと一致させる](0187-project-tabs.md) | accepted（新規チャットの子タブは 0188 で置換） |
 | 0186 | [使用量をヘッダーから画面下部のバーへ移し、対応待ちの一覧を廃止する](0186-bottom-usage-bar-and-no-attention-list.md) | accepted |
 | 0185 | [画面からターミナルのセッションを始める経路と、カスタムエージェントを廃止する](0185-remove-terminal-launch-and-custom-agents.md) | accepted |
-| 0184 | [アクセント色を藍色 #3B469B にし、使う場所を絞り、ハーネスごとの色を廃止する](0184-indigo-accent-and-no-harness-colors.md) | accepted |
-| 0183 | [セッションの始め方を共通の新規チャット画面にまとめ、送信した時点でセッションを作る](0183-unified-new-chat-start-screen.md) | accepted |
+| 0184 | [アクセント色を藍色 #3B469B にし、使う場所を絞り、ハーネスごとの色を廃止する](0184-indigo-accent-and-no-harness-colors.md) | accepted（アクセント色は 0189 で置換） |
+| 0183 | [セッションの始め方を共通の新規チャット画面にまとめ、送信した時点でセッションを作る](0183-unified-new-chat-start-screen.md) | accepted（下書きの単位は 0188 で置換） |
 | 0182 | [ブラウザはファイルプレビューと分け、非永続の子タブで開く](0182-in-app-browser-tab.md) | accepted |
 | 0181 | [大きいテキストの色付け・編集・閲覧の上限を分ける](0181-large-text-files-without-highlighting.md) | accepted |
 | 0180 | [ファイルのソース表示は自前の字句解析で色付けする](0180-syntax-highlighting-with-in-house-lexer.md) | accepted |

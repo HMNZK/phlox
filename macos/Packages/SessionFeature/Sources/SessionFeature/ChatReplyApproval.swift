@@ -611,7 +611,7 @@ struct ApprovalCard: View {
         .disabled(!isArmed)
     }
 
-    /// 許可のキーは白 85%、他は弱い文字色（PhloxReply.dc.html の btnAllow / btnSess / btnDeny）。
+    /// 許可のキーは accentOnFill 85%、他は弱い文字色（PhloxReply.dc.html の btnAllow / btnSess / btnDeny）。
     private func buttonLabel(_ title: LocalizedStringKey, key: String?, isPrimary: Bool = false) -> some View {
         HStack(spacing: 6) {
             Text(title)
@@ -619,7 +619,7 @@ struct ApprovalCard: View {
             if let key {
                 Text(verbatim: key)
                     .font(.system(size: 10.5))
-                    .foregroundStyle(isPrimary ? Color.white.opacity(0.85) : DSColor.textTertiary)
+                    .foregroundStyle(isPrimary ? DSColor.accentOnFill.opacity(0.85) : DSColor.textTertiary)
             }
         }
     }
@@ -646,7 +646,7 @@ struct ApprovalPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let radius: CGFloat = compact ? 5 : 7
         return configuration.label
-            .foregroundStyle(Color.white)
+            .foregroundStyle(DSColor.accentOnFill)
             .padding(.horizontal, compact ? 9 : 12)
             .frame(height: compact ? 22 : 28)
             .background(DSColor.accentFill.opacity(isArmed ? (configuration.isPressed ? 0.85 : 1) : 0.55),
@@ -656,7 +656,7 @@ struct ApprovalPrimaryButtonStyle: ButtonStyle {
                 if !isArmed {
                     GeometryReader { geo in
                         Rectangle()
-                            .fill(Color.white.opacity(0.9))
+                            .fill(DSColor.accentOnFill.opacity(0.9))
                             .frame(width: geo.size.width * progress, height: 2)
                             .frame(maxHeight: .infinity, alignment: .bottom)
                     }

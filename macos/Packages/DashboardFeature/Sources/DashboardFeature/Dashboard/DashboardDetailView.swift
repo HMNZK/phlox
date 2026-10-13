@@ -111,7 +111,7 @@ struct DashboardDetailView: View {
     @ViewBuilder
     private var singleDetail: some View {
         if displayTab == .newChat {
-            newChatView(project: selectedProject)
+            newChatView(project: newChatProject)
         } else if let selectedID = displayedSessionID,
            let session = viewModel.sessionNode(id: selectedID) {
             switch session {
@@ -140,16 +140,15 @@ struct DashboardDetailView: View {
         )
     }
 
-    private var selectedProject: Project? {
-        viewModel.projects.first { $0.id == router.selectedProjectID }
+    private var newChatProject: Project? {
+        viewModel.projects.first { $0.id == router.newChatProjectID }
     }
 
     private func newChatView(project: Project?) -> some View {
         NewChatView(
             viewModel: viewModel,
             router: router,
-            draftStore: newChatDraftStore,
-            draft: newChatDraftStore.draft(for: project?.id),
+            draft: newChatDraftStore.draft,
             project: project,
             onLaunchFailure: onNewChatLaunchFailure
         )
@@ -161,7 +160,7 @@ struct DashboardDetailView: View {
         case .projectOnboarding:
             detailEmptyState
         case .newChat:
-            newChatView(project: selectedProject)
+            newChatView(project: newChatProject)
         case .sessionContent:
             EmptyView()
         }

@@ -58,11 +58,11 @@ struct StartAreaSelectionWhiteboxTests {
 
         NewChatEntryActions(router: router, dashboard: dashboard).fileMenu()
 
-        #expect(router.selectedProjectID == projectB)
-        #expect(router.selectedProjectID != projectA)
+        #expect(router.newChatProjectID == projectB)
+        #expect(router.newChatProjectID != projectA)
         #expect(router.selectedSession == nil)
         #expect(router.viewMode == .single)
-        #expect(router.tabs.layout(for: projectB).selected == .newChat)
+        #expect(router.tabs.layout(for: projectB).items.isEmpty)
         #expect(dashboard.sessionNodes.count == sessionCount)
     }
 
@@ -76,10 +76,10 @@ struct StartAreaSelectionWhiteboxTests {
         router.selectProjectFromSidebar(projectB)
         router.ensureProjectSelection(chatTabs: dashboard.chatTabs(in: projectB))
 
-        #expect(router.selectedProjectID == projectB)
+        #expect(router.newChatProjectID == projectB)
         #expect(router.selectedSession == nil)
         #expect(router.viewMode == .single)
-        #expect(router.tabs.layout(for: projectB).selected == .newChat)
+        #expect(router.tabs.layout(for: projectB).items.isEmpty)
         #expect(dashboard.sessionNodes.count == sessionCount)
     }
 }

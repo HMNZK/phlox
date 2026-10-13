@@ -26,7 +26,7 @@ struct NewChatAccessibilityTests {
         await dashboard.start()
 
         let draftStore = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
-        let draft = draftStore.draft(for: project.id)
+        let draft = draftStore.draft
         draft.selectHarness(.builtin(.claudeCode))
         let model = try #require(AgentModelCatalog.models(for: .claudeCode).first { $0.id == "sonnet" })
         draft.settings = CodexAppServerSessionSettings(
@@ -38,8 +38,7 @@ struct NewChatAccessibilityTests {
         let view = NewChatView(
             viewModel: dashboard,
             router: AppRouter(),
-            draftStore: draftStore,
-            draft: draft,
+                        draft: draft,
             project: project,
             onLaunchFailure: { _, _ in }
         )
@@ -82,7 +81,7 @@ struct NewChatAccessibilityTests {
         await dashboard.start()
 
         let draftStore = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
-        let draft = draftStore.draft(for: project.id)
+        let draft = draftStore.draft
         let model = try #require(AgentModelCatalog.models(for: .claudeCode).first { $0.id == "sonnet" })
         draft.settings = CodexAppServerSessionSettings(
             selectedModel: model.id,
@@ -93,8 +92,7 @@ struct NewChatAccessibilityTests {
         let view = NewChatView(
             viewModel: dashboard,
             router: AppRouter(),
-            draftStore: draftStore,
-            draft: draft,
+                        draft: draft,
             project: project,
             onLaunchFailure: { _, _ in }
         )
@@ -124,9 +122,9 @@ struct NewChatAccessibilityTests {
         await dashboard.start()
         let router = AppRouter()
         let store = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
-        let draft = store.draft(for: first.id)
+        let draft = store.draft
         let view = NewChatView(
-            viewModel: dashboard, router: router, draftStore: store, draft: draft,
+            viewModel: dashboard, router: router, draft: draft,
             project: first, onLaunchFailure: { _, _ in }
         )
 
@@ -144,9 +142,10 @@ struct NewChatAccessibilityTests {
         ).title)
 
         view.selectProject(second.id)
-        #expect(router.selectedProjectID == second.id)
+        #expect(router.newChatProjectID == second.id)
+        #expect(router.selectedProjectID == nil)
         let secondView = NewChatView(
-            viewModel: dashboard, router: router, draftStore: store, draft: store.draft(for: second.id),
+            viewModel: dashboard, router: router, draft: store.draft,
             project: second, onLaunchFailure: { _, _ in }
         )
         #expect(secondView.projectAccessibility.value == second.name)

@@ -248,7 +248,6 @@ private struct ProjectTabButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
         .overlay(alignment: .trailing) {
             if isSelected || isHovering {
                 Button(action: onClose) {
@@ -263,6 +262,8 @@ private struct ProjectTabButton: View {
                 .accessibilityLabel(Text("プロジェクトを削除…"))
             }
         }
+        // ✕ に乗ってもホバー中のままにする（タブのボタンだけに付けると、✕ へ移った時点で ✕ が消えて押せない）。
+        .onHover { isHovering = $0 }
         .help(Text(verbatim: project.name))
         .contextMenu {
             Button("プロジェクト名を変更…", action: onRename)

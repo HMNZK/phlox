@@ -26,13 +26,17 @@ import Testing
 
 @Suite(.serialized) struct DSColorThemeTokenTests {
     @Test @MainActor
-    func accentAndChatAccentUseIndigo() {
+    func accentAndChatAccentUseMonochrome() {
         withStandardTheme(AppTheme.phlox.id) {
-            #expect(DSColor.accent == RGB(0x95, 0x9C, 0xD0).color)
+            #expect(DSColor.accent == RGB(0xF2, 0xF2, 0xF4).color)
+            #expect(DSColor.accent == AppTheme.phlox.textPrimary.color)
+            #expect(DSColor.accentOnFill == DSColor.windowBackground)
             #expect(DSColor.chatAccent == DSColor.accent)
         }
         withStandardTheme(AppTheme.phloxLight.id) {
-            #expect(DSColor.accent == RGB(0x3B, 0x46, 0x9B).color)
+            #expect(DSColor.accent == RGB(0x1D, 0x1D, 0x1F).color)
+            #expect(DSColor.accent == AppTheme.phloxLight.textPrimary.color)
+            #expect(DSColor.accentOnFill == DSColor.windowBackground)
             #expect(DSColor.diffAdded == RGB(0x1F, 0x7A, 0x3A).color)
         }
     }

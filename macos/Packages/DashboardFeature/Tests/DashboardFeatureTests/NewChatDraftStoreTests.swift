@@ -10,7 +10,7 @@ struct NewChatDraftStoreTests {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         let project = ProjectID()
-        let draft = store.draft(for: project)
+        let draft = store.draft
         let first = ComposerAttachment(data: Data([1]), mediaType: "image/png")
         let next = ComposerAttachment(data: Data([2]), mediaType: "image/png")
         draft.text = "first [Image #1]"
@@ -34,42 +34,47 @@ struct NewChatDraftStoreTests {
         return (NewChatDraftStore(lastUsedChatSettingsStore: settings), settings, suite)
     }
 
-    @Test func AC5e_draftsAreSharedByProjectAndSeparatedBetweenProjects() throws {
+    @Test func AC5e_draftIsOneAndSurvivesChoosingOrSwitchingProjects() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let router = AppRouter()
         let projectA = ProjectID()
         let projectB = ProjectID()
 
-        let draftA = store.draft(for: projectA)
-        draftA.text = "A の書きかけ"
-        let draftB = store.draft(for: projectB)
-        draftB.text = "B の書きかけ"
+        router.showNewChat(projectID: nil)
+        store.draft.text = "プロジェクトを選ぶ前の書きかけ"
+        router.newChatProjectID = projectA
+        router.showNewChat(projectID: projectB)
 
-        #expect(store.draft(for: projectA) === draftA)
-        #expect(store.draft(for: projectA).text == "A の書きかけ")
-        #expect(store.draft(for: projectB).text == "B の書きかけ")
-        #expect(store.draft(for: nil) !== draftA)
+        #expect(store.draft.text == "プロジェクトを選ぶ前の書きかけ")
+        #expect(router.newChatProjectID == projectB)
+        #expect(router.selectedProjectID == nil)
+        #expect(!router.tabs.layout(for: projectA).items.contains(.newChat))
+        #expect(!router.tabs.layout(for: projectB).items.contains(.newChat))
     }
 
-    @Test func AC5f_discardRemovesTheDeletedProjectsDraftAndItCannotBeSent() throws {
+    @Test func AC5f_deletingTheDestinationProjectClearsItAndKeepsTheText() async throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let router = AppRouter()
         let project = ProjectID()
-        store.draft(for: project).text = "discard me"
+        router.showNewChat(projectID: project)
+        store.draft.text = "keep me"
 
-        store.discard(project)
+        await router.forgetProject(project, terminals: nil, simulatorHub: nil)
 
-        #expect(store.draft(for: project).text.isEmpty)
-        #expect(!store.draft(for: project).canSend(projectExists: false, harnessDetected: true, modelAcceptsImages: true))
+        #expect(router.newChatProjectID == nil)
+        #expect(store.draft.text == "keep me")
+        #expect(!store.draft.canSend(projectExists: false, harnessDetected: true, modelAcceptsImages: true))
     }
 
     @Test func initialDraftUsesLastHarnessAndItsSavedSettings() throws {
-        let (store, settings, suite) = try makeStore()
+        let (_, settings, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         settings.record(agentID: "codex", model: "gpt-6-sol", effort: "high", permission: ":workspace", isPlanMode: true)
         settings.recordLastHarness("codex")
 
-        let draft = store.draft(for: nil)
+        let draft = NewChatDraftStore(lastUsedChatSettingsStore: settings).draft
 
         #expect(draft.agentRef == .builtin(.codex))
         #expect(draft.settings.selectedModel == "gpt-6-sol")
@@ -96,7 +101,7 @@ struct NewChatDraftStoreTests {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         let project = ProjectID()
-        let draft = store.draft(for: project)
+        let draft = store.draft
         let image = ComposerAttachment(data: Data([1, 2]), mediaType: "image/png")
         draft.agentRef = .builtin(.codex)
         draft.settings = CodexAppServerSessionSettings(selectedModel: "gpt-6-sol", selectedEffort: "high")
@@ -120,7 +125,7 @@ struct NewChatDraftStoreTests {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         let project = ProjectID()
-        let draft = store.draft(for: project)
+        let draft = store.draft
         let image = ComposerAttachment(data: Data([3]), mediaType: "image/jpeg")
         draft.text = "keep this"
         draft.attachments.restore([image])
@@ -136,7 +141,7 @@ struct NewChatDraftStoreTests {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         let project = ProjectID()
-        let draft = store.draft(for: project)
+        let draft = store.draft
         let first = ComposerAttachment(data: Data([1]), mediaType: "image/png")
         let next = ComposerAttachment(data: Data([2]), mediaType: "image/png")
         draft.text = "first"
@@ -158,7 +163,7 @@ struct NewChatDraftStoreTests {
     @Test func AC5g_cursorImageBlocksSendWithoutDroppingTheAttachment() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
-        let draft = store.draft(for: ProjectID())
+        let draft = store.draft
         let image = ComposerAttachment(data: Data([1]), mediaType: "image/png")
         draft.agentRef = .builtin(.cursor)
         draft.text = "look at this"
@@ -173,7 +178,7 @@ struct NewChatDraftStoreTests {
     @Test func emptyDraftHasNoReasonAndMissingProjectExplainsHowToContinue() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
-        let draft = store.draft(for: nil)
+        let draft = store.draft
 
         #expect(draft.sendUnavailableReason(projectExists: false, harnessDetected: false, modelAcceptsImages: false) == nil)
         draft.text = "work"
@@ -183,7 +188,7 @@ struct NewChatDraftStoreTests {
     @Test func contentCannotSendWhenTheSelectedHarnessIsNotDetected() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
-        let draft = store.draft(for: ProjectID())
+        let draft = store.draft
         draft.text = "work"
 
         #expect(!draft.canSend(projectExists: true, harnessDetected: false, modelAcceptsImages: true))
@@ -194,7 +199,7 @@ struct NewChatDraftStoreTests {
     @Test func AC8_suggestionAppendsTextWithoutSending() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
-        let draft = store.draft(for: ProjectID())
+        let draft = store.draft
         draft.text = "背景"
 
         draft.appendSuggestion("未コミットの変更をレビューして、問題点を重要度順に挙げてください。")
@@ -217,14 +222,16 @@ struct NewChatDraftStoreTests {
         #expect(NewChatSuggestionDirectory.path(projectDirectory: "/work/b", usesWorktree: false) == "/work/b")
     }
 
-    @Test func completingNewChatReplacesItsProjectTabWithTheCreatedChat() {
+    @Test func completingNewChatOpensTheCreatedChatAsTheProjectTab() {
         let router = AppRouter()
         let projectID = ProjectID()
         let sessionID = SessionID()
         router.showNewChat(projectID: projectID)
 
-        #expect(router.tabs.layout(for: projectID).selected == .newChat)
+        #expect(router.tabs.layout(for: projectID).items.isEmpty)
         router.completeNewChat(sessionID: sessionID, projectID: projectID)
+
+        #expect(router.selectedProjectID == projectID)
 
         #expect(router.tabs.layout(for: projectID).selected == .chat(sessionID))
         #expect(!router.tabs.layout(for: projectID).items.contains(.newChat))

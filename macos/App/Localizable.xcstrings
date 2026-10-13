@@ -8167,13 +8167,13 @@
         }
       }
     },
-    "アクセントの色（藍色）はすべてのテーマで共通。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。": {
+    "アクセントはテーマの文字色（白黒）。テーマはターミナルの配色とアプリ全体に効き、すぐに反映される。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The indigo accent is shared by all themes. A theme applies to the terminal colors and the whole app, right away."
+            "value": "The accent uses the theme's text color (black or white). A theme applies to the terminal colors and the whole app, right away."
           }
         }
       }

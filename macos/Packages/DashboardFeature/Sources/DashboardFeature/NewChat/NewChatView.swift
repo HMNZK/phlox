@@ -10,6 +10,9 @@ private struct NewChatSendButtonInitiallyFocusedKey: EnvironmentKey {
 private struct NewChatModelMenuInitiallyOpenKey: EnvironmentKey {
     static let defaultValue = false
 }
+private struct NewChatSendValidationInitiallyShownKey: EnvironmentKey {
+    static let defaultValue = false
+}
 
 extension EnvironmentValues {
     var newChatSendButtonInitiallyFocused: Bool {
@@ -19,6 +22,11 @@ extension EnvironmentValues {
     var newChatModelMenuInitiallyOpen: Bool {
         get { self[NewChatModelMenuInitiallyOpenKey.self] }
         set { self[NewChatModelMenuInitiallyOpenKey.self] = newValue }
+    }
+    /// 画面外の描画で、送ろうとした後の検証メッセージを出した状態を撮る。
+    var newChatSendValidationInitiallyShown: Bool {
+        get { self[NewChatSendValidationInitiallyShownKey.self] }
+        set { self[NewChatSendValidationInitiallyShownKey.self] = newValue }
     }
 }
 
@@ -113,7 +121,6 @@ private struct NewChatSendButtonStyle: ButtonStyle {
 struct NewChatView: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
-    @Bindable var draftStore: NewChatDraftStore
     @Bindable var draft: NewChatDraft
     let project: Project?
     let onLaunchFailure: (AgentRef, Error) -> Void
@@ -121,13 +128,15 @@ struct NewChatView: View {
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var localizationBundle
     @Environment(\.newChatSendButtonInitiallyFocused) private var newChatSendButtonInitiallyFocused
+    @Environment(\.newChatSendValidationInitiallyShown) private var newChatSendValidationInitiallyShown
+    /// 送ろうとして送れなかった後だけ理由を出す（要件 E7）。原因が解消したら下ろす。
+    @State private var showsSendValidation = false
     @Environment(\.newChatModelMenuInitiallyOpen) private var newChatModelMenuInitiallyOpen
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     @State private var greeting = NewChatGreetings.random()
     @State private var modelSearch = ""
     @FocusState private var sendButtonFocused: Bool
     @FocusState private var harnessPickerFocused: Bool
-    @State private var inputFocused = false
     @State private var focusToken = 0
     @State private var isLaunching = false
     @State private var isGitRepository: Bool?
@@ -188,6 +197,8 @@ struct NewChatView: View {
             bundle: localizationBundle
         )
     }
+    private var validationMessage: String? { showsSendValidation ? sendUnavailableReason : nil }
+    private var showsProjectError: Bool { validationMessage != nil && project.map { selectedProjectExists($0.id) } != true }
     private var suggestionDirectory: String? {
         project.map { NewChatSuggestionDirectory.path(projectDirectory: $0.directoryPath, usesWorktree: draft.usesWorktree) }
     }
@@ -266,7 +277,17 @@ struct NewChatView: View {
                 }
                 .padding(.bottom, 20)
                 composer(width: composerWidth, compactSettings: compactSettings, compactLabels: compactLabels)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, validationMessage == nil ? 16 : 8)
+                if let validationMessage {
+                    Label { Text(verbatim: validationMessage) } icon: { Image(systemName: "exclamationmark.circle") }
+                        .font(DSFont.auxiliary)
+                        .foregroundStyle(DSColor.attentionInk(.error))
+                        .lineLimit(2)
+                        .frame(width: composerWidth, alignment: .leading)
+                        .padding(.leading, DSSpacing.s)
+                        .padding(.bottom, 12)
+                        .accessibilityIdentifier("newChat.sendUnavailableReason")
+                }
                 suggestions
                 historyResumeButton
                 Spacer(minLength: 12)
@@ -275,7 +296,11 @@ struct NewChatView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 24)
             .padding(.vertical, 18)
+            .onChange(of: sendUnavailableReason) { _, reason in
+                if reason == nil { showsSendValidation = false }
+            }
             .onAppear {
+                showsSendValidation = newChatSendValidationInitiallyShown
                 greeting = NewChatGreetings.random()
                 if newChatSendButtonInitiallyFocused {
                     sendButtonFocused = true
@@ -323,9 +348,8 @@ struct NewChatView: View {
                 accessibilityPrefix: "newChat",
                 inputAccessibilitySuffix: "messageInput",
                 emptyTextHeight: DSLayout.newChatComposerTextHeight,
-                onSubmit: { send() },
+                onSubmit: { attemptSend() },
                 onCycleEffort: cycleEffort,
-                onFocusChange: { inputFocused = $0 },
                 onTab: { harnessPickerFocused = true; return true }
             )
             .id(suggestionControllerKey)
@@ -334,15 +358,6 @@ struct NewChatView: View {
             .padding(.trailing, -DSSpacing.xxs)
             .padding(.bottom, DSSpacing.xs)
             .accessibilityIdentifier("newChat.composer")
-            if let reason = sendUnavailableReason {
-                Text(verbatim: reason)
-                    .font(DSFont.row)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .lineLimit(1)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 2)
-                    .accessibilityIdentifier("newChat.sendUnavailableReason")
-            }
             HStack(spacing: 0) {
                 HStack(spacing: DSSpacing.xxs) {
                     ComposerAttachPlaceholder(
@@ -382,21 +397,9 @@ struct NewChatView: View {
         .frame(width: width, alignment: .leading)
         .background {
             let shape = RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
+            // フォーカス中も枠は変えない（要件 §5.1。2026-10-13 ユーザー指示）。
             shape.fill(DSColor.fieldBackground)
-                .overlay(shape.strokeBorder(
-                    inputFocused ? DSColor.focusRing : DSColor.fieldBorder,
-                    lineWidth: inputFocused ? DSLayout.composerFocusRingWidth : 1
-                ))
-        }
-        .background {
-            if inputFocused {
-                RoundedRectangle(
-                    cornerRadius: DSRadius.l + DSLayout.composerFocusRingWidth,
-                    style: .continuous
-                )
-                    .fill(DSColor.focusRing)
-                    .padding(-DSLayout.composerFocusRingWidth)
-            }
+                .overlay(shape.strokeBorder(DSColor.fieldBorder, lineWidth: 1))
         }
         .dsDialog(item: $spawnGuard) { item in
             SpawnGuardSheet(
@@ -582,7 +585,6 @@ struct NewChatView: View {
                     id: item.id.description,
                     value: item.id.description,
                     title: item.name,
-                    badge: draftStore.hasDraft(for: item.id) ? localized("下書きあり") : nil,
                     isSelected: project?.id == item.id
                 )
             },
@@ -591,7 +593,6 @@ struct NewChatView: View {
             accessibilityValue: projectAccessibility.value,
             accessibilityIdentifier: "newChat.projectPicker",
             width: DSLayout.menuWidth,
-            footer: localized("本文と添付はプロジェクトごとに保たれます"),
             isEnabled: !viewModel.projects.isEmpty,
             showsFocusRing: true,
             onSelect: { option in
@@ -601,6 +602,12 @@ struct NewChatView: View {
             }
         ) { _ in
             footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact)
+                .overlay {
+                    if showsProjectError {
+                        RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
+                            .strokeBorder(DSColor.attentionMark(.error), lineWidth: 1)
+                    }
+                }
         }
     }
 
@@ -641,12 +648,11 @@ struct NewChatView: View {
 
     private var sendButton: some View {
         Button {
-            guard canSend else { return }
-            send()
+            attemptSend()
         } label: {
             Image(systemName: "arrow.up")
                 .font(DSFont.sendButtonIcon)
-                .foregroundStyle(canSend ? Color.white : DSColor.textTertiary)
+                .foregroundStyle(canSend ? DSColor.accentOnFill : DSColor.textTertiary)
                 .frame(width: DSLayout.toolbarIconButtonSize, height: DSLayout.toolbarIconButtonSize)
                 .contentShape(Circle())
                 .overlay {
@@ -785,7 +791,7 @@ struct NewChatView: View {
     }
 
     func selectProject(_ id: ProjectID) {
-        router.showNewChat(projectID: id)
+        router.newChatProjectID = id
     }
 
     func selectWorkspace(_ usesWorktree: Bool) {
@@ -813,6 +819,14 @@ struct NewChatView: View {
         default: return value
         }
         return localized(key)
+    }
+
+    /// ↩ と送信ボタン。送れないときは理由を検証メッセージとして出し、読み上げる（要件 E7）。
+    private func attemptSend() {
+        if canSend { send(); return }
+        guard let reason = sendUnavailableReason else { return }
+        showsSendValidation = true
+        AccessibilityNotification.Announcement(reason).post()
     }
 
     private func send(workingDirectoryOverride: String? = nil) {

@@ -15,7 +15,7 @@ struct ChatHistoryRevertPicker: View {
     @FocusState private var isFocused: Bool
 
     /// PhloxChat.dc.html の showRevert: 幅 480・ポップオーバー地・角丸 12・内側 8。
-    /// 見出しと説明 → 行（高さ 30・13pt・右に時刻。選択行はアクセント塗り＋白文字）→ 区切り線の下にキーの案内。
+    /// 見出しと説明 → 行（高さ 30・13pt・右に時刻。選択行はアクセント塗り＋accentOnFill の文字）→ 区切り線の下にキーの案内。
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             VStack(alignment: .leading, spacing: 2) {
@@ -122,11 +122,11 @@ struct ChatHistoryRevertPicker: View {
                 Text(verbatim: Self.timeFormatter.string(from: item.timestamp))
                     .font(DSFont.meta)
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? Color.white : DSColor.textSecondary)
+                    .foregroundStyle(isSelected ? DSColor.accentOnFill : DSColor.textSecondary)
                     .opacity(0.8)
             }
             .font(DSFont.row)
-            .foregroundStyle(isSelected ? Color.white : DSColor.textPrimary)
+            .foregroundStyle(isSelected ? DSColor.accentOnFill : DSColor.textPrimary)
             .padding(.horizontal, 10)
             .frame(height: 30)
             .background(

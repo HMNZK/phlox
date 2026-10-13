@@ -317,9 +317,14 @@ struct ChildTabBar: View {
     }
 
     func titleText(for tab: ProjectTab, locale overrideLocale: Locale? = nil, bundle: Bundle? = nil) -> String {
-        let locale = overrideLocale ?? self.locale
-        let localizationBundle = bundle ?? self.localizationBundle
-        return switch tab {
+        Self.titleText(for: tab, viewModel: viewModel, changeCount: changeCount,
+                       locale: overrideLocale ?? locale, bundle: bundle ?? localizationBundle)
+    }
+
+    /// 子タブの列とヘッダーの名前（新規チャットの要件 FR-41）で同じ文字列を使う。
+    static func titleText(for tab: ProjectTab, viewModel: DashboardViewModel, changeCount: Int,
+                          locale: Locale, bundle localizationBundle: Bundle) -> String {
+        switch tab {
         case .chat(let id): viewModel.sessionNode(id: id)?.displayName ?? "会話"
         case .newChat: AppLocalizedString.string("新規チャット", locale: locale, bundle: localizationBundle)
         case .terminal: AppLocalizedString.string("ターミナル", locale: locale, bundle: localizationBundle)

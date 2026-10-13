@@ -242,16 +242,16 @@ import AgentDomain
         router.closeBrowser(for: project)
     }
 
-    @Test func selectingChatLeavesNewChatAvailableUntilItStarts() {
+    @Test func selectingChatLeavesTheNewChatDestinationForLater() {
         let project = ProjectID(), session = SessionID()
         let router = AppRouter()
         router.showNewChat(projectID: project)
         router.selectTab(.chat(session), in: project)
-        #expect(router.tabs.layout(for: project).items == [.newChat])
+        #expect(router.tabs.layout(for: project).items.isEmpty)
         #expect(router.selectedSession == session)
-        router.selectTab(.newChat, in: project)
+        router.showNewChat(projectID: nil)
         #expect(router.selectedSession == nil)
-        #expect(router.tabs.layout(for: project).selected == .newChat)
+        #expect(router.newChatProjectID == project)
     }
     @Test func closeTargetRoutesChatItemsAndGrid() {
         let project = ProjectID(), session = SessionID()
@@ -273,7 +273,7 @@ import AgentDomain
         router.openChildTab(.changes)
         router.showNewChat(projectID: project)
         router.showNewChat(projectID: project)
-        #expect(router.tabs.layout(for: project).items == [.changes, .newChat])
+        #expect(router.tabs.layout(for: project).items == [.changes])
         #expect(router.selectedSession == nil)
         router.completeNewChat(sessionID: session, projectID: project)
         #expect(router.tabs.layout(for: project).items == [.changes])

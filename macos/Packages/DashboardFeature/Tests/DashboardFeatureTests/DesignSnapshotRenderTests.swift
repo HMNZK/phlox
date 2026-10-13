@@ -841,7 +841,7 @@ struct DesignSnapshotRenderTests {
 
         let defaults = UserDefaults(suiteName: "phlox.design-snapshot.\(UUID().uuidString)")!
         let draftStore = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
-        let draft = draftStore.draft(for: project.id)
+        let draft = draftStore.draft
         draft.selectHarness(.builtin(.codex))
         draft.settings = CodexAppServerSessionSettings(
             selectedModel: AgentModelCatalog.defaultModel(for: .codex),
@@ -917,6 +917,7 @@ struct DesignSnapshotRenderTests {
         let sidebarWidth = frame.width <= 720 ? DSLayout.sidebarWidth.min : nil
         let content = dashboard(scene, initialSidebarWidth: sidebarWidth)
             .environment(\.newChatSendButtonInitiallyFocused, isFocusedSend)
+            .environment(\.newChatSendValidationInitiallyShown, isUnavailable)
             .environment(\.newChatModelMenuInitiallyOpen, hasOpenMenu)
         do {
             try await capture(content, frame: frame, output: output)
@@ -979,15 +980,13 @@ struct DesignSnapshotRenderTests {
         for chat in chats { layout.open(chat) }
         layout.open(.terminal(TerminalTabID()))
         layout.open(.file("DashboardView.swift"))
-        let selectsNewChat = frame.id.contains("T3")
-        if selectsNewChat { layout.open(.newChat) }
-        if let first = scene.sessionIDs.first {
-            layout.select(selectsNewChat ? .newChat : .chat(first))
-            scene.router.selectedSession = selectsNewChat ? nil : first
-        } else {
-            layout.select(.newChat)
+        let selectsNewChat = frame.id.contains("T3") || scene.sessionIDs.isEmpty
+        if let first = scene.sessionIDs.first, !selectsNewChat {
+            layout.select(.chat(first))
+            scene.router.selectedSession = first
         }
         scene.router.tabs.updateLayout(for: scene.project.id) { $0 = layout }
+        if selectsNewChat { scene.router.showNewChat(projectID: scene.project.id) }
         let hideSidebarAfterMount = frame.id == "11-T12-dark"
         let sidebarWidth = frame.width <= 720 ? DSLayout.sidebarWidth.min : nil
         do {

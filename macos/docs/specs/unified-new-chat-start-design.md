@@ -10,6 +10,8 @@ last-verified: 2026-10-13
 > **書かないもの**: 何を満たすべきか（→ 要件書）、なぜこの方式か（→ [ADR 0183](../adr/0183-unified-new-chat-start-screen.md)）。実装後の構成は architecture/ へ移す。
 >
 > **実装との突き合わせ（2026-10-12）**: 段 1〜7 の実装（コミット 07650a0e..b23855e2）のコードと、型名・ファイル名・流れを突き合わせて直した。直したのは名前と流れで、設計の判断は変えていない。実装と食い違う点は §5.3 の末尾と §9 の末尾に書いた。
+>
+> **2026-10-13 の改訂**: [ADR 0188](../adr/0188-project-independent-new-chat-draft.md)（下書きはアプリに 1 つ・新規チャットはタブにしない）と [ADR 0189](../adr/0189-monochrome-accent.md)（アクセントは白黒）に合わせ、§1・§2.1・§3・§4.5・§5.1・§9.1・§11 を直した。ヘッダーの開閉ボタンとタブ名は §3.3。
 
 パスは `macos/Packages/` からの相対。略称: `DF/` = `DashboardFeature/Sources/DashboardFeature/`、`SF/` = `SessionFeature/Sources/SessionFeature/`、
 `DVM` = `DF/Dashboard/DashboardViewModel.swift`、`SSS` = `DF/Dashboard/SessionSpawnService.swift`、`CVM` = `SF/ChatSessionViewModel.swift`、`WIP` = `AgentDomain/Sources/AgentDomain/WorktreeIsolationPlanner.swift`。
@@ -20,14 +22,14 @@ last-verified: 2026-10-13
 [入口: ⌘N / ＋ / プロジェクト行 / グリッド空状態]   （NewChatEntryActions が呼ぶ）
         │ router.showNewChat(projectID:)
         ▼
-[新規チャット画面 NewChatView（下段の「新規チャット」タブ）]──参照──[NewChatDraftStore（プロジェクトごとの下書き）]
+[新規チャット画面 NewChatView（モード。どのプロジェクトのタブにも属さない）]──参照──[NewChatDraftStore（アプリに 1 つの下書き）]
         │ 送信: NewChatDraft.makeLaunchRequest が NewChatLaunchRequest を作り、下書きを空にする
         ▼
 DashboardViewModel.launchNewChat(request, onRowAppended:)
   1. spawnNewSession(backend: .appServer, isolationOverride:, initialSettings:, keepsRowOnLaunchFailure: true, onRowAppended:)
      （worktree 作成 → VM 作成 → 行を出す → CLI 起動）
      └ 行が出た時点で、初回メッセージを会話欄に仮表示（vm.prepareFirstMessage）し、
-       呼び出し側が router.completeNewChat(sessionID:projectID:) で新規チャットのタブを外してその行を選ぶ
+       呼び出し側が router.completeNewChat(sessionID:projectID:) で送信先のプロジェクトのタブにその行を開いて選ぶ
   2. 起動の成否を vm.launchFailure で判定（ChatLaunchError）
      ├ 成功 → vm.sendFirstMessage(text, attachments)
      └ 失敗 → 行を残し、本文を入力欄へ戻す（vm.markLaunchFailed / vm.restoreLaunchDraft）。
@@ -42,10 +44,7 @@ DashboardViewModel.launchNewChat(request, onRowAppended:)
 
 ```swift
 @MainActor @Observable public final class NewChatDraftStore {
-    private var drafts: [ProjectID?: NewChatDraft] = [:]   // nil = プロジェクト未選択の下書き
-    public func draft(for projectID: ProjectID?) -> NewChatDraft   // 無ければ作る
-    public func discard(_ projectID: ProjectID)                    // プロジェクト削除時
-    public func hasDraft(for projectID: ProjectID) -> Bool         // プロジェクトのメニューの「下書きあり」の印
+    public let draft: NewChatDraft   // アプリに 1 つ（ADR 0188）。プロジェクトごとの辞書・破棄・「下書きあり」の印は無い
 }
 
 @MainActor @Observable public final class NewChatDraft {
@@ -60,7 +59,8 @@ DashboardViewModel.launchNewChat(request, onRowAppended:)
 ```
 
 - 持ち主は `CompositionRoot.newChatDraftStore`（`AppRouter` と同じく 1 つを全ウィンドウで共有）。`PhloxApp` が `DashboardView` に引数で渡す。
-- 入力欄の「プロジェクト」チップは `router.selectedProjectID` そのもの。選び直すと `draftStore.draft(for:)` の引数が変わり、そのプロジェクトの下書きに切り替わる（D9）。
+- 送信先のプロジェクトは `AppRouter.newChatProjectID: ProjectID?`（D27）。入力欄の「プロジェクト」チップは `router.newChatProjectID` だけを書き換える。上段のタブの選択（`selectedProjectID`）は変えず、本文・添付・設定も変わらない。
+- 送信先のプロジェクトを削除したら（`AppRouter.forgetProject`）`newChatProjectID` を空にする。下書きは消さない（FR-6a）。
 - `agentRef`・`settings` の初期値（下書きを作るとき）: `phlox.newChat.lastHarness` と、そのハーネスの `LastUsedChatSettingsStore` の値。無ければ Claude Code と `AgentModelCatalog.defaultModel(for:)`。
 - 設定値の型は新しく作らず `CodexAppServerSessionSettings` を使う。起動経路がすでにこの型で設定を運んでいる（`SSS:871-877`、`CursorModelListProvider.swift:6-14`）。Cursor の mode は今の流儀どおり `selectedPermissionProfile` に、Plan は `isPlanMode` に載せる。
 
@@ -98,27 +98,39 @@ struct NewChatLaunchRequest {
 ```swift
 public func showNewChat(projectID: ProjectID?) {
     viewMode = .single                 // グリッドでは selectedSession を外しても画面が変わらないため
-    if let projectID { selectedProjectID = projectID }
+    if let projectID = projectID ?? selectedProjectID { newChatProjectID = projectID }   // 送信先。引数が無ければ今のプロジェクト
+    selectedProjectID = nil            // 新規チャットはモード。どのプロジェクトのタブも選ばない
     selectedSession = nil
-    if let selectedProjectID { tabs.updateLayout(for: selectedProjectID) { $0.open(.newChat) } }  // 下段の「新規チャット」タブを開いて選ぶ
     newChatFocusToken &+= 1            // 入力欄へのフォーカス要求（FR-4）
 }
 ```
 
-すべての入口がこれを呼ぶ。入口の UI 操作は `NewChatEntryActions`（`DF/Dashboard/NewChatEntryActions.swift`。`fileMenu`・`sidebarFooter`・`projectPlus`・`projectMenu`・`gridEmptyState`）に集め、プロジェクトが未指定のときの既定は `DashboardViewModel.defaultProjectIDForNewChat` が決める。`newSessionTablePresented` は消した。下段の「＋」のメニュー（`NewTabChooser`）の「新規チャット」と、`NewChatView` のプロジェクト選択も `showNewChat` を呼ぶ。
+- 新規チャット画面は**モード**で、タブではない（D27）。`ProjectTab.newChat` は旧版が保存した配置を読むためだけに残す。`persists` は偽で、`ProjectTabStore` の読み込みが保存用コピー（`persistenceCopy`）を通すので、旧い `.newChat` は捨てられる。
+- 送信して行が出たら `completeNewChat(sessionID:projectID:)` が送信先のプロジェクトの配置に `.chat(新しい ID)` を開いて選ぶ（プロジェクトのタブも選択される）。
+- `ensureProjectSelection`: プロジェクトの配置に選択中のタブがあればそれを選ぶ。無ければチャットか開いている項目の先頭を開いて選ぶ。どちらも無い（タブが 1 つも無い）プロジェクトだけ `showNewChat(projectID:)` で送信先にして新規チャット画面を出す（D21）。
+
+すべての入口がこれを呼ぶ。入口の UI 操作は `NewChatEntryActions`（`DF/Dashboard/NewChatEntryActions.swift`。`fileMenu`・`sidebarFooter`・`projectPlus`・`projectMenu`・`gridEmptyState`）に集め、プロジェクトが未指定のときの既定は `DashboardViewModel.defaultProjectIDForNewChat` が決める。`newSessionTablePresented` は消した。下段の「＋」のメニュー（`NewTabChooser`）の「新規チャット」も `showNewChat` を呼ぶ（タブは作らない）。`NewChatView` のプロジェクト選択は `router.newChatProjectID` を書き換えるだけで、`showNewChat` は呼ばない。
 
 | 入口 | 呼び出し |
 |---|---|
 | ⌘N「新規チャット」（`App/PhloxApp.swift` のファイルメニュー） | `NewChatEntryActions.fileMenu()`。`.disabled(projects.isEmpty)` は無い（0 件なら `StartAreaPolicy` が先にオンボーディングを出す） |
 | サイドバー下端「＋ 新規チャット」（`DashboardView.swift`） | `sidebarFooter()` |
-| プロジェクト行の ＋（`SidebarRows.swift`） | `projectPlus(project.id)`。普通のボタン |
+| プロジェクト行の ＋（`SidebarRows.swift`） | `projectPlus(project.id)`。「⋯」と同じ `.plain` のボタン（D30） |
 | プロジェクトメニュー「新規チャット」（`DashboardSidebarView.swift`） | `projectMenu(project.id)` |
 | グリッド空状態（`DashboardView.swift`） | 「新規チャット」ボタン → `gridEmptyState(projectID: router.gridFilterProjectID)` |
 
 ### 3.2 主画面の分岐
 
 - `StartAreaPolicy`（`DF/Dashboard/StartAreaPolicy.swift`）のケースは `projectOnboarding` / `sessionContent` / `newChat` の 3 つ（プロジェクトが 0 件ならオンボーディング、セッションを選んでいれば会話、それ以外は新規チャット）。`selectProjectPlaceholder` と `SelectProjectPlaceholderView` は消した（FR-2a。未選択でも新規チャット画面を出し、プロジェクト選択が空）。
-- `DashboardDetailView` の単体表示は、下段で選んでいるタブが `.newChat` のとき `NewChatView` を出す。`startHeader` と `isolates:` は消した。
+- `DashboardDetailView` の単体表示は、セッションもタブも選んでいないとき（`displayTab == .newChat`）`NewChatView` を出し、送信先に `router.newChatProjectID` のプロジェクトを渡す。`startHeader` と `isolates:` は消した。
+- 上のタブ（`ProjectTab`）の `.newChat` は、ヘッダーのタブ名（§3.3）が「新規チャット」と出すためと、旧配置を読むためにだけ残る。
+
+### 3.3 ヘッダーの開閉ボタンとタブ名（要件 FR-40・FR-41、D28・D31）
+
+- `DashboardToolbar`（`DF/Dashboard/DashboardToolbar.swift`）の `.navigation` の項目に、`SidebarToggleButton` と `HeaderTabTitle` を左から並べる。開閉ボタンは常に出す。対応待ちの件数の印はサイドバーを隠しているときだけ付ける。`DashboardToolbar` は `changeCount`（タブ名の「変更 N」用）を受け取る。
+- `HeaderTabTitle` は左寄せ・`DSFont.sessionTitle`・`textPrimary`・1 行で末尾を省略・最大幅 360pt。識別子は `header-tab-title`。文字は子タブの列と同じ静的関数 `ChildTabBar.titleText(for:viewModel:changeCount:locale:bundle:)` が作る（二重定義しない）。
+- 出すタブは `HeaderTabTitle.tab(router:viewModel:)` が決める。グリッド表示とプロジェクトが 0 件のときは出さない。プロジェクトもセッションも選んでいなければ `.newChat`（「新規チャット」）。それ以外はそのプロジェクトの配置の選択中のタブ（無ければ選択中のチャット）。
+- プロジェクト行の ＋（`SidebarRows.swift`）は、「⋯」と同じ `.buttonStyle(.plain)` にする（既定のボタンの背景をホバーで出さない。D30）。
 
 ## 4. 新規チャット画面 `NewChatView`（新規・`DF/NewChat/NewChatView.swift`）
 
@@ -168,7 +180,7 @@ NewChatView（入力欄は `NewChatView` の中にあり、`NewChatComposer` と
 - ホバーの見た目はアプリ全体で 1 つにそろえる（モデル選択の行の面の色）。対象: ポップオーバーの行、チップ、サイドバーのプロジェクト・セッション・ファイルの行、タブ、「ほか n」の一覧。標準のメニュー（右クリックのメニュー・メニューバー）はシステムの色のまま。
 - 下段の「ほか n」は同じ部品のポップオーバーで開き、行にホバーすると右端に ✕ を出す。✕ の動きはタブの ✕ と同じ（チャットはセッションの削除の確認、ほかは閉じる）。
 - サイドバーの開閉はアニメーションでなめらかに出し入れする（急に消さない）。
-- ヘッダーは見本（12 Header and Usage Bar）どおりにする。右のボタンに標準ツールバーのガラスの面を出さない。サイドバーを隠しているときは信号の右に開閉ボタンを出す。
+- ヘッダーは見本（12 Header and Usage Bar）どおりにする。右のボタンに標準ツールバーのガラスの面を出さない。信号の右にはサイドバーの開閉ボタンを常に出し、その右に選択中のタブの名前を左寄せで出す（2026-10-13 に改訂。§3.3）。
 - 最下部の使用量のバーは、ロゴと文字をバーの高さの縦中央に置く。
 
 ## 5. 送信してからの流れ
@@ -197,9 +209,9 @@ public func launchNewChat(_ request: NewChatLaunchRequest,
 
 呼び出し側（`NewChatView` の送信処理。今の `DashboardView.createSession` の役割を引き継ぐ）:
 
-1. `NewChatLaunchRequest` を作り、`router.selectedProjectID` の下書きを空にする。
+1. `NewChatLaunchRequest`（送信先は `router.newChatProjectID`）を作り、下書きを空にする。
 2. `DashboardViewModel.$reportsWorktreeCreation.withValue(true) { … }` の中で `launchNewChat` を呼ぶ（worktree 作成中のトースト）。
-3. 行が出たら `router.completeNewChat(sessionID:projectID:)` が「新規チャット」タブを外し、`.chat(新しい ID)` を選ぶ。
+3. 行が出たら `router.completeNewChat(sessionID:projectID:)` が送信先のプロジェクトのタブに `.chat(新しい ID)` を開いて選ぶ（§3.1）。
 4. 例外（VM ができる前の失敗）は、本文を下書きに戻してダイアログを出す（§5.3 の表）。起動の成否は `AccessibilityNotification.Announcement`（`NewChatLaunchAnnouncement`）で読み上げる。
 
 **行が出る時点**: 行は worktree の作成が終わってから出る（`registerSessionForWrite` が worktree 作成の後にあるため）。「既存ディレクトリ」ではほぼ即時、「新しい worktree」では作成の数秒はトーストだけが出る。要件 FR-7 の 2「すぐに」はこの意味に改訂する。行を worktree 作成より前に出すには、`spawnNewSessionImpl` が外から決めた `SessionID` を受け取る仕組みと、仮の行を本物に差し替える仕組みが要り、VM の寿命が 2 つになるので採らない。
@@ -318,13 +330,16 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 
 > **実装との差（2026-10-12 時点のコード）**: 確認ダイアログの廃止後も、worktree 作成失敗の確認だけは残っている。`StartScreenViews.swift` に `NewSessionRequest`・`SpawnGuard`（`.worktreeFailed` のみ）・`NewSessionCollisionGate`（`worktreeFailureLog`・`existingWorktree` のみ。`peers` は無い）・`SpawnGuardSheet` が残る。`NewSessionTable` 系・`NewSessionMenuModel`・`AgentStartCards`・`SelectProjectPlaceholderView`・`StateGlyph`・`tabInitials`・`claudeCoral` は本番コードに無い。
 
-## 9.1 配色（要件 §6.8）
+## 9.1 配色（要件 §6.8。ADR 0189 で藍色から白黒に改訂）
 
-- `DesignPalette.phloxLight`・`phloxDark` の `accent`・`accentFill`・`accentInk` を要件 §6.8 の値に替え、`accentFillColor`（`DesignPalette.swift:48`）を #3B469B にする。
-- UI のアクセント（`DSColor.accent`・`accentInk`。`Tokens.swift:223,294`）は `theme.palette` から取る。外部テーマの palette は背景の明るさで `phloxLight` か `phloxDark` を基準に選ぶ（`DesignPalette.swift:84,102-103`）ので、**明るいテーマは #3B469B、暗いテーマは #959CD0 が自動で入る**。暗い外部テーマに #3B469B（背景との比 2 前後）が入ることはない。
-- `AppTheme.claudeCoral`（`AppTheme.swift:95`）を消す。今これを読むのは、テーマ見本の印（`ThemePreviewModel.swift:44` の `theme.accent`）と、既定 2 テーマの `attention`（:250。読むのは本番で使われていない `idleHighlight` 系だけ）。`AppTheme.accent` は `palette.accent` にし、既定 2 テーマの `attention` は `palette.approval.mark` にする（画面への影響は無い）。
-- `selectionFill`・`textSelection`（`Tokens.swift:296,301`）の直書き #D97757 を `accent` から取る形にする。`focusRing`（:298）は不透明度を外す。
-- アクセントの使用箇所は実装時に役割（主要な操作・選択・フォーカス・リンク）で分け、どれにも当たらないものは中立の色に替える（要件 FR-29）。
+- `DesignPalette` に `accentOnFill`（`accentFill` の上の文字・記号の色）を足す。`phloxLight` は `accent`・`accentFill`・`accentInk` = #1D1D1F、`accentOnFill` = #FFFFFF。`phloxDark` は `accent`・`accentFill`・`accentInk` = #F2F2F4、`accentOnFill` = #1E1E20。`DSColor.accentOnFill`（`Tokens.swift`）で取る。
+- 外部テーマの palette は背景の明るさで `phloxLight` か `phloxDark` を基準に選ぶ（`DesignPalette.swift`）が、アクセント 4 つはそのテーマ自身の値から作る: `accent`・`accentFill`・`accentInk` = `textPrimary`、`accentOnFill` = `background`。どのテーマでも背景との比が最も高く、フォーカス枠（3:1）と文字（4.5:1）を満たす。
+- 送信ボタンのホバー・押下（`DSColor.sendHoverFill`・`sendPressedFill`）は、`accentFill` を窓の色へ 12%・24% 寄せた色にする（藍の直書きはやめた）。
+- 主ボタン・送信ボタン・`AccentSwitchToggleStyle` の「入」のノブなど、アクセントの面の上に置く白は `accentOnFill` に替える（`DashboardFeature`・`SessionFeature`・`DesignSystem`・`App`・`AgentConsoleStyle`）。固定の白のままだとダークで白い面に白い文字になる。
+- `AppTheme.claudeCoral` は消す。`AppTheme.accent` は `palette.accent` にし、既定 2 テーマの `attention` は `palette.approval.mark` にする（画面への影響は無い）。
+- `selectionFill`・`textSelection` は今の計算式のままで、`accent` が灰色になったので無彩色になる。`focusRing` は不透明。
+- アクセントの使用箇所は役割（主要な操作・選択・フォーカス・リンク）で分け、どれにも当たらないものは中立の色に替える（要件 FR-29）。
+- 設定画面のテーマの注記は「アクセントはテーマの文字色（白黒）。…」にする。
 - 検査は `DesignPaletteTests` に足す（要件 AC-16）。
 
 ## 10. 文言（`App/Localizable.xcstrings` に日本語キー＋英訳を手で足す）
@@ -333,7 +348,7 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 
 ## 11. 実装の順番
 
-プロジェクトのタブ（[project-tabs-design.md](project-tabs-design.md)）と同時に作る（project-tabs.md P9）。新規チャット画面は下段の「新規チャット」タブに入るので、タブの土台を先に作る。
+プロジェクトのタブ（[project-tabs-design.md](project-tabs-design.md)）と同時に作る（project-tabs.md P9）。新規チャット画面は（2026-10-13 以降）タブではなくモードだが、タブの土台（選択・保存）を先に作る順は変えない。
 
 | 段 | 内容 | 閉じる受け入れ基準 | 担当 |
 |---|---|---|---|
@@ -342,7 +357,7 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 | 2 | 起動の配管: `initialSettings`、`ChatLaunchError`、`keepsRowOnLaunchFailure`・`markLaunchFailed`・再起動（新しいセッションで起動し直す）、`StructuredAgentClient.start()` を投げる形に、`sendFirstMessage`・`SendRejected`・初回ターンの失敗で本文を戻す規則、`LastUsedChatSettings` の拡張、Codex のモデル候補の拡張 | AC-2・AC-5・AC-5a・AC-7・AC-15 | 難 |
 | 3a | タブのモデルと保存・移行（project-tabs-design §2〜4・§7）、子タブの持ち主の鍵の付け替え（§5） | PAC-1〜3・PAC-5 | 難 |
 | 3b | タブの画面（§8）・共通ターミナルの廃止（§6）・ヘッダー（`.unifiedCompact`・プロジェクト名と worktree のボタンの撤去）・キーボード（§9）・グリッドのタイルから子タブを外す・worktree のセッションの変更の欄 | PAC-4・PAC-6・PAC-8・PAC-9 | 通常 |
-| 4 | `NewChatDraftStore`・`NewChatView`（下段の「新規チャット」タブ）・入力欄の部品の切り出し・提案チップ | AC-2a・AC-5d〜5g・AC-8・AC-9a | 通常 |
+| 4 | `NewChatDraftStore`・`NewChatView`・入力欄の部品の切り出し・提案チップ | AC-2a・AC-5d〜5g・AC-8・AC-9a | 通常 |
 | 5 | 入口・`showNewChat`・メニュー・§9 の削除・設定画面、カスタムエージェントの廃止（§8.1） | AC-1・AC-4・AC-9 | 通常 |
 | 6 | 履歴から再開（§6） | AC-5c・AC-18 | 通常 |
 | 7 | 略号・図形・ハーネスの色の廃止と状態の文字化・未読の文字色・SVG ロゴ（§9）、配色（§9.1）、使用量のバーと対応待ちの撤去（要件 §6.9） | AC-12〜AC-14・AC-16・AC-20〜AC-22 | 通常 |

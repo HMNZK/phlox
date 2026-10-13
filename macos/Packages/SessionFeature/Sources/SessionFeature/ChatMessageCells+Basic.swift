@@ -141,27 +141,25 @@ struct AgentMessageCell: View {
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        // 04 A1: ホバーの時刻とコピーは場所を取らず、本文の右下に重ねる（モックはホバー行を常設しない）。
-        // 本文の枠の内側に置く。下へはみ出すと、直後の行（右寄せのターンのコストなど）と重なる。
+        // ホバーのコピーと時刻は本文の下に左寄せで置く（2026-10-13 ユーザー指示）。
+        // 行の高さは常に取り、出し入れで本文が動かないようにする。
         AvatarMessageRow {
-            AgentMessageBody(text: text)
-                .overlay(alignment: .bottomTrailing) {
-                    HStack(spacing: 6) {
-                        ChatTimestampText(timestamp: timestamp)
-                        MessageCopyButton(
-                            text: text,
-                            accessibilityIdentifier: "ChatMessage.copyButton.agent",
-                            scale: scale,
-                            isVisible: isHovering
-                        )
-                    }
-                    .padding(.leading, 6)
-                    .background(DSColor.windowBackground)
-                    .opacity(isHovering ? 1 : 0)
+            VStack(alignment: .leading, spacing: 4) {
+                AgentMessageBody(text: text)
+                HStack(spacing: 6) {
+                    MessageCopyButton(
+                        text: text,
+                        accessibilityIdentifier: "ChatMessage.copyButton.agent",
+                        scale: scale,
+                        isVisible: isHovering
+                    )
+                    ChatTimestampText(timestamp: timestamp)
                 }
-                .contentShape(Rectangle())
-                .onHover { isHovering = $0 }
-                .animation(.easeInOut(duration: 0.12), value: isHovering)
+                .opacity(isHovering ? 1 : 0)
+            }
+            .contentShape(Rectangle())
+            .onHover { isHovering = $0 }
+            .animation(.easeInOut(duration: 0.12), value: isHovering)
         }
     }
 }

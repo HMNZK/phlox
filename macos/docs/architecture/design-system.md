@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-12
+last-verified: 2026-10-13
 ---
 
 # Phlox デザインシステム（macOS 本体）
@@ -8,6 +8,8 @@ last-verified: 2026-10-12
 > 2026-07-07: カラースキーマをモノクロ基調＋Claude コーラルへ刷新、ライトテーマ3種追加、hairline のテーマ追随化、`AgentSessionIcon`・diff トークン新設（ADR 0042）。CLI は claude/codex/cursor の3種に限定（ADR 0041）。
 >
 > 2026-10-12: アクセントを藍色に替え（ADR 0184）、ハーネスの識別色・`AgentSessionIcon`・状態の図形を廃止した。この日、アクセント・テーマ一覧・ハーネスの識別・DesignSystem のファイル構成だけを実装（`Tokens.swift`・`AppTheme.swift`・`DesignPalette.swift`）に合わせて確認した。§2.1〜2.5・§4 の状態語彙・§7 は 2026-07-08 時点の記述（未再確認）。
+>
+> 2026-10-13: アクセントを藍色から白黒に替えた（ADR 0189。0184 のアクセント色を置換）。トークン `accentOnFill` を足した。この日確認したのは `DesignPalette.swift`・`Tokens.swift` の `accent` 系の値と、本文の下記の箇所（§2 のテーマ・`accent` のトークン・§3.3 のテーマの導出・既定 Phlox の主要値）だけ。
 
 - **ステータス**: Reference（実装に対応する正典）
 - **作成日**: 2026-06-19
@@ -22,7 +24,7 @@ last-verified: 2026-10-12
 Phlox には独立した SwiftUI パッケージ `DesignSystem` が存在し、**トークン層・テーマ層・コンポーネント層**の3層で構成される。
 
 - **トークン**: スペーシング（8pt グリッド）・角丸・フォント・レイアウト寸法・シャドウ・セマンティックカラーを一元定義（`Tokens.swift`）。
-- **テーマ**: UI chrome とターミナルを統合したテーマ群（ダーク6＋ライト4＝10テーマ）。既定は `Phlox`。**UI 基調はモノクロ（グレー階調）、アクセントは藍色**: 背景が明るいテーマは `#3B469B`、暗いテーマは `#959CD0`、主ボタンなど白文字を載せる面（`accentFill`）は全テーマ `#3B469B`（ADR 0184。旧コーラル `#D97757` は廃止）。起動時に確定し、切替は再起動で反映（`AppTheme.swift`）。明度は `AppTheme.preferredColorScheme`（background 相対輝度 ≥0.5 で `.light`）で単一導出し、ルート/設定/Usage が追随する。
+- **テーマ**: UI chrome とターミナルを統合したテーマ群（ダーク6＋ライト4＝10テーマ）。既定は `Phlox`。**UI 基調はモノクロ（グレー階調）、アクセントも白黒**: アクセントは各テーマの主文字色（ライトは黒 `#1D1D1F`、ダークは白 `#F2F2F4`。外部テーマはそのテーマの `textPrimary`）。主ボタン・送信ボタンの面（`accentFill`）も同じ色で、その上の文字・記号は背景色（`accentOnFill`。ライトは `#FFFFFF`、ダークは `#1E1E20`）で描く（ADR 0189。0184 の藍色と、旧コーラル `#D97757` は廃止）。起動時に確定し、切替は再起動で反映（`AppTheme.swift`）。明度は `AppTheme.preferredColorScheme`（background 相対輝度 ≥0.5 で `.light`）で単一導出し、ルート/設定/Usage が追随する。
 - **コンポーネント**: 状態・エージェント・ホバー操作の共有部品。クロスプラットフォーム部品と macOS 固有部品を `#if os(macOS)` で隔離。
 
 設計の中核思想は **「生値の直書きを排除し、色・間隔・状態の意味を1箇所でだけ定義する」**。同じ意味を2箇所で定義するとドリフト（ズレ）が必ず生じる、というデザインシステム最大の失敗モードを避けるための規律。
@@ -135,7 +137,8 @@ SomeCard().dsShadow(.card)   // 生 .shadow を書かない単一経路
 |---|---|
 | `background` / `surface` / `surfaceElevated` | 背景ランプ（最暗→面→持ち上げ面） |
 | `textPrimary` / `textSecondary` / `textTertiary` | テキスト3階層 |
-| `accent` | アクセント（藍色。ライト系テーマ `#3B469B`・ダーク系テーマ `#959CD0`。`theme.palette.accent` から取る）。白文字を載せる面は `accentFill`（`#3B469B`）、文字・リンクは `accentInk`（背景に対し 4.5:1 を保つよう調整） |
+| `accent` | アクセント（白黒。各テーマの主文字色。`theme.palette.accent` から取る）。主ボタン・送信の面は `accentFill`（同じ色）、その上の文字・記号は `accentOnFill`（背景色。固定の白を載せない）、文字・リンクは `accentInk`（同じ色） |
+| `accentOnFill` | `accentFill` の上に置く文字・記号の色（ライト `#FFFFFF`・ダーク `#1E1E20`。外部テーマは `background`）。`AccentSwitchToggleStyle` の「入」のノブも使う。`sendHoverFill`・`sendPressedFill` は `accentFill` を窓の色へ 12%・24% 寄せた色 |
 | `statusStarting` / `statusIdle` / `statusRunning` / `statusAwaitingApproval` / `statusCompleted` / `statusError` | 状態色（§4） |
 | `attentionMark` / `attentionInk` / `attentionTint`（`approval`・`question`・`error`・`stalled`） | 対応待ち・エラー・無応答の記号・文字・面（`DesignPalette` から） |
 | `sessionRowSelected` / `sessionRowSelectedBorder` | セッション行の選択 |
@@ -176,7 +179,7 @@ UI chrome（背景ランプ・テキスト・アクセント・状態色・識�
 
 ### 3.3 同梱テーマ（`ThemeStore.all`、先頭が既定）
 
-UI accent は**藍色**（ADR 0184）。値は `DesignPalette` が持ち、`AppTheme.accent` は `palette.accent` を返す。`AppTheme.fromPalette` は入力 accent を無視し、背景の明るさで `phloxLight`（`#3B469B`）か `phloxDark`（`#959CD0`）の palette を基準に導出する（明るいテーマは `#3B469B`、暗いテーマは `#959CD0` が自動で入る）。background/surface/text は各テーマの明度に応じたグレー階調（`fromPalette` は `bg.grayscale`/`fg.grayscale` から導出）。
+UI accent は**白黒**（ADR 0189。主文字色と同じ）。値は `DesignPalette` が持ち、`AppTheme.accent` は `palette.accent` を返す。`AppTheme.fromPalette` は入力 accent を無視し、背景の明るさで `phloxLight`（accent 系 `#1D1D1F`・`accentOnFill` `#FFFFFF`）か `phloxDark`（accent 系 `#F2F2F4`・`accentOnFill` `#1E1E20`）の palette を基準にし、accent・`accentFill`・`accentInk` はそのテーマの `textPrimary`、`accentOnFill` は `background` にする。background/surface/text は各テーマの明度に応じたグレー階調（`fromPalette` は `bg.grayscale`/`fg.grayscale` から導出）。
 
 | id | 名前 | 明度 |
 |---|---|---|
@@ -197,7 +200,7 @@ UI accent は**藍色**（ADR 0184）。値は `DesignPalette` が持ち、`AppT
 |---|---|
 | background / surface / surfaceElevated | `#1E1E20` / `#242427` / `#2F2F33`（`DesignPalette.phloxDark` の window / panel / popover） |
 | textPrimary / Secondary / Tertiary | `#F2F2F4` / `#ABABB1` / `#8E8E94` |
-| accent（藍色・暗い面用） | `#959CD0`（主ボタンの面 `accentFill` は `#3B469B`） |
+| accent（白黒） | `#F2F2F4`（`accentFill` も同じ。その上の `accentOnFill` は `#1E1E20`） |
 | statusRunning（緑） | `#34D399` |
 | statusAwaiting（黄・承認待ち） | `#F0AE4A`（`approval.mark`） |
 | statusError（赤） | `#EE5A5F`（`error.mark`） |

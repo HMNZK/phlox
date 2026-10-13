@@ -36,8 +36,9 @@ private func expectNewChat(
 ) {
     #expect(router.selectedSession == nil)
     #expect(router.viewMode == .single)
-    #expect(router.selectedProjectID == projectID)
-    #expect(router.tabs.layout(for: projectID).selected == .newChat)
+    #expect(router.newChatProjectID == projectID)
+    #expect(router.selectedProjectID == nil)
+    #expect(router.tabs.layout(for: projectID).items.isEmpty)
     #expect(router.newChatFocusToken == previousFocusToken + 1)
     #expect(dashboard.sessionNodes.count == previousSessionCount)
 }
@@ -129,4 +130,29 @@ func AC9_fileAndProjectMenusContainNoTerminalSessionEntry() {
         .newChat, .newTab, .openFile, .addProject, .divider, .exportConversation, .copyConversation,
     ])
     #expect(ProjectRowMenuItem.allCases == [.newChat, .rename, .delete])
+}
+
+// ヘッダーの名前は、新規チャット画面では「新規チャット」、プロジェクトでは選択中のタブ、グリッドでは出さない（FR-41）。
+@MainActor
+@Test func headerTitleFollowsTheShownScreen() async throws {
+    let (dashboard, router, projectA, _) = try await makeNewChatEntryFixture()
+    #expect(HeaderTabTitle.tab(router: router, viewModel: dashboard) == nil)
+
+    router.showNewChat(projectID: projectA)
+    #expect(HeaderTabTitle.tab(router: router, viewModel: dashboard) == .newChat)
+
+    router.selectedProjectID = projectA
+    router.openChildTab(.file("Sources/App.swift"))
+    #expect(HeaderTabTitle.tab(router: router, viewModel: dashboard) == .file("Sources/App.swift"))
+    #expect(ChildTabBar.titleText(for: .file("Sources/App.swift"), viewModel: dashboard, changeCount: 0,
+                                  locale: Locale(identifier: "ja"), bundle: .main) == "App.swift")
+
+    router.viewMode = .grid
+    #expect(HeaderTabTitle.tab(router: router, viewModel: dashboard) == nil)
+
+    let orphan = SessionID()
+    router.viewMode = .single
+    router.selectedProjectID = nil
+    router.selectedSession = orphan
+    #expect(HeaderTabTitle.tab(router: router, viewModel: dashboard) == .chat(orphan))
 }

@@ -31,8 +31,8 @@ public enum DSFont {
     public static let sectionHeader = Font.subheadline.weight(.semibold)
     public static let title = Font.title3.weight(.semibold)
     public static let heroTitle = Font.title2.weight(.semibold)
-    /// 22 / Semibold — 新規チャットの見出し（見本 `headingSize` の既定 22）。
-    public static let newChatHeading = Font.system(size: 22, weight: .semibold)
+    /// 30 / Semibold — 新規チャットの見出し（2026-10-13 ユーザー指示で見本の 22 から拡大）。
+    public static let newChatHeading = Font.system(size: 30, weight: .semibold)
     public static let mono = Font.system(.body, design: .monospaced)
     public static let monoCaption = Font.system(size: 11, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。
@@ -94,7 +94,6 @@ public enum DSLayout {
     public static let controlChipChevronGlyphSize: CGFloat = 8
     public static let controlChipContentGap: CGFloat = 5
     public static let controlChipHorizontalPadding: CGFloat = 7
-    public static let composerFocusRingWidth: CGFloat = 1
     public static let newChatCompactSettingsWidthThreshold: CGFloat = 600
     public static let newChatCompactLabelsWidthThreshold: CGFloat = 560
     public static let newChatComposerTextHeight: CGFloat = 40
@@ -281,7 +280,7 @@ public enum DSColor {
     public static var textSecondary: Color { theme.textSecondary.color }
     public static var textTertiary: Color { theme.textTertiary.color }
 
-    /// 主操作・選択・フォーカス・リンクに使う藍色のアクセント。
+    /// 主操作・選択・フォーカス・リンクに使うアクセント（主文字色と同じ白黒。ADR 0189）。
     public static var accent: Color { theme.palette.accent.color }
 
     public static var statusStarting: Color { theme.statusStarting.color }
@@ -339,13 +338,15 @@ public enum DSColor {
     public static var tabBarBackground: Color { palette.tabBar.color }
     public static var terminalBackground: Color { palette.terminal.color }
 
-    /// 白文字を載せる accent の面（主ボタン）。
+    /// accent の面（主ボタン・送信）。上の文字・記号は `accentOnFill`。
     public static var accentFill: Color { palette.accentFill.color }
+    /// `accentFill` の上の文字・記号。
+    public static var accentOnFill: Color { palette.accentOnFill.color }
     /// 新規チャットの未入力時の送信ボタン面（見本 `--off`: 前景色 8%）。
     public static var sendDisabledFill: Color { theme.textPrimary.color.opacity(0.08) }
     /// New Chat の送信ボタンをホバー／押下した面。
-    public static var sendHoverFill: Color { RGB(0x4B, 0x55, 0xA3).color }
-    public static var sendPressedFill: Color { RGB(0x34, 0x3E, 0x88).color }
+    public static var sendHoverFill: Color { palette.accentFill.mixed(palette.window, 0.12).color }
+    public static var sendPressedFill: Color { palette.accentFill.mixed(palette.window, 0.24).color }
     /// accent の文字（リンク・選択中タブ）。
     public static var accentInk: Color { palette.accentInk.color }
     /// 選択中の行。

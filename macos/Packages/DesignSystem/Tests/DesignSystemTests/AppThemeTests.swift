@@ -3,12 +3,9 @@ import Testing
 @testable import DesignSystem
 
 @Suite struct AppThemePaletteTests {
-    @Test func allThemesUseAccentForTheirBackgroundBrightness() {
+    @Test func allThemesUseTheirTextColorAsAccent() {
         for theme in ThemeStore.all {
-            let expected = theme.background.relativeLuminance >= 0.5
-                ? RGB(0x3B, 0x46, 0x9B)
-                : RGB(0x95, 0x9C, 0xD0)
-            #expect(theme.accent == expected, "\(theme.id) accent must follow its background brightness")
+            #expect(theme.accent == theme.textPrimary, "\(theme.id) accent must be monochrome (ADR 0189)")
         }
     }
 

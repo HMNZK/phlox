@@ -67,7 +67,7 @@ func clearGridFilter_resetsToNil() {
 }
 
 @Test @MainActor
-func acceptance_showNewChat_selectsProjectNewChatTabAndLeavesNoSessionSelected() {
+func acceptance_showNewChat_setsDestinationWithoutSelectingAProjectTab() {
     let projectID = ProjectID()
     let router = AppRouter(selectedSession: SessionID(), viewMode: .grid)
     let focusToken = router.newChatFocusToken
@@ -75,14 +75,15 @@ func acceptance_showNewChat_selectsProjectNewChatTabAndLeavesNoSessionSelected()
     router.showNewChat(projectID: projectID)
 
     #expect(router.viewMode == .single)
-    #expect(router.selectedProjectID == projectID)
+    #expect(router.newChatProjectID == projectID)
+    #expect(router.selectedProjectID == nil)
     #expect(router.selectedSession == nil)
-    #expect(router.tabs.layout(for: projectID).selected == .newChat)
+    #expect(router.tabs.layout(for: projectID).items.isEmpty)
     #expect(router.newChatFocusToken == focusToken + 1)
 }
 
 @Test @MainActor
-func acceptance_showNewChatWithoutExplicitProjectKeepsCurrentProject() {
+func acceptance_showNewChatWithoutExplicitProjectSendsToCurrentProject() {
     let projectID = ProjectID()
     let router = AppRouter(selectedSession: SessionID(), viewMode: .grid)
     router.selectProject(projectID)
@@ -91,8 +92,26 @@ func acceptance_showNewChatWithoutExplicitProjectKeepsCurrentProject() {
     router.showNewChat(projectID: nil)
 
     #expect(router.viewMode == .single)
-    #expect(router.selectedProjectID == projectID)
+    #expect(router.newChatProjectID == projectID)
+    #expect(router.selectedProjectID == nil)
     #expect(router.selectedSession == nil)
-    #expect(router.tabs.layout(for: projectID).selected == .newChat)
+    #expect(router.tabs.layout(for: projectID).items.isEmpty)
     #expect(router.newChatFocusToken == focusToken + 1)
+}
+
+// 新規チャット画面の ⌘W は、送信先のプロジェクトで前に出していたタブへ戻る。戻り先が無ければウィンドウを閉じる（false）。
+@Test @MainActor
+func closeOnNewChatReturnsToTheDestinationsTabOrClosesTheWindow() {
+    let project = ProjectID(), session = SessionID()
+    let router = AppRouter(viewMode: .single)
+    router.selectTab(.chat(session), in: project)
+    router.showNewChat(projectID: nil)
+
+    #expect(router.requestClose())
+    #expect(router.selectedProjectID == project)
+    #expect(router.selectedSession == session)
+    #expect(router.tabRequest == nil)
+
+    router.showNewChat(projectID: ProjectID())
+    #expect(!router.requestClose())
 }

@@ -247,7 +247,7 @@ struct ComposerMenuSection: Identifiable {
 }
 
 /// 選ぶだけの一覧（モデル・effort・ブランチ）。↑↓ で移動、↩ で決める、Esc で閉じる。
-/// 指している行（ポインタ・キー）は `--accentFill` に白。選んである行は ✓。
+/// 指している行（ポインタ・キー）は `--accentFill` に accentOnFill の文字。選んである行は ✓。
 struct ComposerMenuList<Footer: View>: View {
     var header: String? = nil
     var search: Binding<String>? = nil
@@ -363,7 +363,7 @@ struct ComposerMenuList<Footer: View>: View {
                 }
             }
             .font(DSFont.row)
-            .foregroundStyle(isHighlighted ? Color.white : (row.isEnabled ? DSColor.textPrimary : DSColor.textTertiary))
+            .foregroundStyle(isHighlighted ? DSColor.accentOnFill : (row.isEnabled ? DSColor.textPrimary : DSColor.textTertiary))
             .padding(.horizontal, 10)
             .frame(height: rowHeight)
             .background(isHighlighted ? DSColor.accentFill : .clear, in: RoundedRectangle(cornerRadius: 5, style: .continuous))

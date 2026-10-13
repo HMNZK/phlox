@@ -114,7 +114,7 @@ struct PaneDividerHandleView: View {
         let arrow = divider.axis == .horizontal ? "⟷" : "↕"
         return Text("\(arrow) \(percent)% · \(Int(leading.rounded()))pt ／ 最小 \(Int(PaneLayoutView.minimumPaneWidth)) × \(Int(PaneLayoutView.minimumPaneHeight))pt ／ ダブルクリックで等分")
             .font(.system(size: 11.5))
-            .foregroundStyle(Color.white)
+            .foregroundStyle(DSColor.accentOnFill)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 6))

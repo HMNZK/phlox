@@ -122,7 +122,7 @@ public struct DashboardView: View {
 
     public var body: some View {
         shellWithTabDialogs
-            .toolbar { DashboardToolbar(viewModel: viewModel, router: router) }
+            .toolbar { DashboardToolbar(viewModel: viewModel, router: router, changeCount: editorPanel.viewModel.changes.count) }
             .toolbarBackground(DSColor.toolbarBackground, for: .windowToolbar)
             .toolbarBackground(.visible, for: .windowToolbar)
             .environment(\.adjustTerminalFontSize) { [viewModel] delta in
@@ -215,7 +215,6 @@ public struct DashboardView: View {
                             Task {
                                 await router.forgetProject(projectID, terminals: sessionTerminals, simulatorHub: simulatorHub)
                                 await viewModel.removeProject(projectID)
-                                newChatDraftStore.discard(projectID)
                             }
                         },
                         DSDialogButton("キャンセル", role: .primary) { pendingProjectDeletion = nil },
@@ -556,7 +555,8 @@ public struct DashboardView: View {
             guard visible else { return }
             Task { await usageMonitor.refresh() }
         }
-        .safeAreaInset(edge: .bottom) {
+        // 既定の間隔（システムの値）を空けると、サイドバーと下端のバーの間に隙間ができる。
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             UsageBottomBarView(monitor: usageMonitor, router: router)
         }
     }
@@ -611,7 +611,7 @@ public struct DashboardView: View {
                         Text("新規チャット", bundle: localizationBundle)
                     }
                     .font(DSFont.dense.weight(.semibold))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(DSColor.accentOnFill)
                     .padding(.horizontal, 12)
                     .frame(height: 28)
                     .background(DSColor.accentFill, in: RoundedRectangle(cornerRadius: 7))

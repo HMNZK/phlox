@@ -51,6 +51,8 @@ public final class AppRouter {
     /// ユーザーが明示的に選択中のプロジェクト（R4: セレクトカードの表示条件）。
     /// サイドバーのプロジェクト行クリックで設定する。非永続。
     public var selectedProjectID: ProjectID?
+    /// 新規チャットの送信先。新規チャット画面はプロジェクトのタブに属さない（ADR 0188）。
+    public var newChatProjectID: ProjectID?
     public var mainRoute: MainRoute
     /// サイドバーの表示状態。メニュー（⌃⌘S）とビュー内トグルの双方から操作するため
     /// View の @State ではなく共有の Observable に置く。
@@ -136,26 +138,22 @@ public final class AppRouter {
         else if tab == .newChat { selectedSession = nil }
     }
 
+    /// 新規チャット画面を出す。プロジェクトのタブの選択を外し、送信先だけを決める（ADR 0188）。
     public func showNewChat(projectID: ProjectID?) {
         viewMode = .single
-        if let projectID { selectedProjectID = projectID }
+        if let projectID = projectID ?? selectedProjectID { newChatProjectID = projectID }
+        selectedProjectID = nil
         selectedSession = nil
-        if let selectedProjectID {
-            tabs.updateLayout(for: selectedProjectID) { $0.open(.newChat) }
-        }
         newChatFocusToken &+= 1
     }
 
     public func ensureProjectSelection(chatTabs: [ProjectTab]) {
         guard viewMode == .single, let projectID = selectedProjectID else { return }
-        guard !chatTabs.isEmpty else {
-            showNewChat(projectID: projectID)
-            return
-        }
+        // タブが 1 つも無いプロジェクトだけ新規チャット画面にする（D21）。ファイル等が開いていればそれを出す。
         let layout = tabs.layout(for: projectID)
         if let selected = layout.selected {
             selectTab(selected, in: projectID)
-        } else if let first = chatTabs.first {
+        } else if let first = chatTabs.first ?? layout.items.first {
             tabs.updateLayout(for: projectID) { $0.open(first) }
             selectTab(first, in: projectID)
         } else {
@@ -164,7 +162,7 @@ public final class AppRouter {
     }
 
     public func completeNewChat(sessionID: SessionID, projectID: ProjectID) {
-        tabs.updateLayout(for: projectID) { $0.close(.newChat); $0.open(.chat(sessionID)) }
+        tabs.updateLayout(for: projectID) { $0.open(.chat(sessionID)) }
         selectTab(.chat(sessionID), in: projectID)
     }
 
@@ -201,6 +199,7 @@ public final class AppRouter {
         simulatorHub?.removeProject(projectID)
         await terminals?.closeProject(projectID)
         if selectedProjectID == projectID { selectedProjectID = nil; selectedSession = nil }
+        if newChatProjectID == projectID { newChatProjectID = nil }
     }
 
     public func zoomFrontBrowser(by steps: Int?) -> Bool {
@@ -229,6 +228,12 @@ public final class AppRouter {
 
     @discardableResult
     public func requestClose() -> Bool {
+        // 新規チャット画面の ⌘W は、送信先のプロジェクトで前に出していたタブへ戻る。戻り先が無ければウィンドウを閉じる。
+        if viewMode == .single, selectedProjectID == nil, selectedSession == nil, let projectID = newChatProjectID {
+            guard let selected = tabs.layout(for: projectID).selected else { return false }
+            selectTab(selected, in: projectID)
+            return true
+        }
         guard let target = tabs.closeTarget(projectID: selectedProjectID, selectedSession: selectedSession, viewMode: viewMode) else { return false }
         return requestClose(target)
     }

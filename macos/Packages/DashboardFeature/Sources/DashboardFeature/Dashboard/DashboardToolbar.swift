@@ -22,6 +22,7 @@ enum ToolbarDensity: Equatable {
 struct DashboardToolbar: ToolbarContent {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
+    let changeCount: Int
     var body: some ToolbarContent {
         if #available(macOS 26.0, *) {
             items.sharedBackgroundVisibility(.hidden)
@@ -32,10 +33,11 @@ struct DashboardToolbar: ToolbarContent {
 
     @ToolbarContentBuilder
     private var items: some ToolbarContent {
-        // サイドバーを隠しているときだけ出す（project-tabs.md P6）。
+        // 開閉は常に出し、その右に選択中のタブの名前を出す（新規チャットの要件 FR-40・FR-41）。
         ToolbarItem(id: "dashboard-sidebar", placement: .navigation) {
-            if !(router.sidebarVisible && !router.sidebarLacksRoom) {
+            HStack(spacing: DSSpacing.s) {
                 SidebarToggleButton(router: router, attentionCount: viewModel.attentionEntries.count)
+                HeaderTabTitle(viewModel: viewModel, router: router, changeCount: changeCount)
             }
         }
         ToolbarItem(placement: .automatic) { Spacer() }
@@ -70,7 +72,37 @@ struct DashboardToolbar: ToolbarContent {
     }
 }
 
-/// サイドバー開閉。サイドバーの上端と、隠しているときのツールバー左端で使う。
+/// ヘッダーに出す選択中のタブの名前（新規チャットの要件 FR-41）。文字は子タブの列と同じ。
+struct HeaderTabTitle: View {
+    let viewModel: DashboardViewModel
+    @Bindable var router: AppRouter
+    let changeCount: Int
+    @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
+
+    /// 新規チャット画面は `.newChat`。グリッドとプロジェクトが無いときは出さない。
+    static func tab(router: AppRouter, viewModel: DashboardViewModel) -> ProjectTab? {
+        guard router.viewMode == .single, !viewModel.projects.isEmpty else { return nil }
+        let projectID = router.selectedProjectID ?? router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID }
+        guard let projectID else { return router.selectedSession.map(ProjectTab.chat) ?? .newChat }
+        return router.tabs.layout(for: projectID).selected ?? router.selectedSession.map(ProjectTab.chat)
+    }
+
+    var body: some View {
+        if let tab = Self.tab(router: router, viewModel: viewModel) {
+            Text(verbatim: ChildTabBar.titleText(for: tab, viewModel: viewModel, changeCount: changeCount,
+                                                 locale: locale, bundle: localizationBundle))
+                .font(DSFont.sessionTitle)
+                .foregroundStyle(DSColor.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 360, alignment: .leading)
+                .accessibilityIdentifier("header-tab-title")
+        }
+    }
+}
+
+/// サイドバー開閉。ヘッダーの左端に常に出す（新規チャットの要件 FR-40）。
 /// 隠しているときは対応待ちの件数を添える（01 D3）。
 struct SidebarToggleButton: View {
     @Bindable var router: AppRouter

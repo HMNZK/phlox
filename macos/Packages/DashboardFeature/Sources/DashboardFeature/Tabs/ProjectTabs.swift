@@ -11,6 +11,7 @@ public struct TerminalTabID: Hashable, Codable, Sendable {
 
 public enum ProjectTab: Hashable, Codable, Sendable {
     case chat(SessionID)
+    /// 旧版で保存した配置を読むためだけに残す。新規チャットはタブにしない（ADR 0188）。
     case newChat
     case terminal(TerminalTabID)
     case changes
@@ -21,8 +22,8 @@ public enum ProjectTab: Hashable, Codable, Sendable {
     var isChat: Bool { if case .chat = self { return true }; return false }
     var persists: Bool {
         switch self {
-        case .newChat, .changes, .file: true
-        case .chat, .terminal, .browser, .simulator: false
+        case .changes, .file: true
+        case .chat, .newChat, .terminal, .browser, .simulator: false
         }
     }
 
@@ -175,7 +176,10 @@ public final class ProjectTabStore {
     public init(defaults: UserDefaults? = nil) {
         self.defaults = defaults
         if let data = defaults?.data(forKey: Self.defaultsKey),
-           let decoded = try? JSONDecoder().decode(ProjectTabsSnapshot.self, from: data) { snapshot = decoded }
+           var decoded = try? JSONDecoder().decode(ProjectTabsSnapshot.self, from: data) {
+            decoded.projects = decoded.projects.mapValues(\.persistenceCopy)
+            snapshot = decoded
+        }
         else { snapshot = ProjectTabsSnapshot() }
     }
 

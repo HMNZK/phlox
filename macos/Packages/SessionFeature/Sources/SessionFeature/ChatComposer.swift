@@ -423,7 +423,7 @@ private struct ComposerRoundButton: View {
             ZStack {
                 Circle().fill(fill)
                 if isHovering && isEnabled && style == .send {
-                    Circle().fill(Color.white.opacity(0.14))
+                    Circle().fill(DSColor.accentOnFill.opacity(0.14))
                 }
                 symbol
             }
@@ -448,7 +448,7 @@ private struct ComposerRoundButton: View {
         case .send:
             Text(verbatim: "↑")
                 .font(DSFont.row.weight(.bold))
-                .foregroundStyle(isEnabled ? Color.white : DSColor.textTertiary)
+                .foregroundStyle(isEnabled ? DSColor.accentOnFill : DSColor.textTertiary)
         case .sending:
             Text(verbatim: "…")
                 .font(DSFont.row.weight(.bold))
@@ -478,7 +478,7 @@ struct ComposerSuggestionPopup: View {
         }
     }
 
-    /// 05 R3: 見出し・候補行（30pt・選択はアクセント地に白）・下端のキー操作の案内（PhloxReply.dc.html の sug）。
+    /// 05 R3: 見出し・候補行（30pt・選択はアクセント地に accentOnFill）・下端のキー操作の案内（PhloxReply.dc.html の sug）。
     var body: some View {
         let isSlash = controller.candidates.first?.kind == .slashCommand
         VStack(alignment: .leading, spacing: 1) {
@@ -559,7 +559,7 @@ struct ComposerSuggestionPopup: View {
                         .fixedSize()
                 }
             }
-            .foregroundStyle(isSelected ? Color.white : DSColor.textPrimary)
+            .foregroundStyle(isSelected ? DSColor.accentOnFill : DSColor.textPrimary)
             .padding(.horizontal, 8)
             .frame(height: ComposerSuggestionPopupMetrics.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)

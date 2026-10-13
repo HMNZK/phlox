@@ -1,6 +1,6 @@
 // task-2 受け入れテスト（PM 著・実装役は編集禁止）
-// 契約: tasks/task-2.md — `.turnUsage` 受信で lastTurnUsage / lastTurnCostUSD を更新し、
-// sessionTotalCostUSD にターンコストを累積する。
+// 契約: tasks/task-2.md — `.turnUsage` 受信で lastTurnUsage / lastTurnCostUSD を更新する。
+// （sessionTotalCostUSD への累積は、総コストの表示とともに ADR 0192 で廃止した。）
 
 import AgentDomain
 import Foundation
@@ -40,7 +40,7 @@ private func makeUsageVM(client: UsageFakeClient) -> ChatSessionViewModel {
 }
 
 @Test @MainActor
-func turnCost_accumulatesPerTurnAndSessionTotal() async throws {
+func turnCost_updatesPerTurn() async throws {
     let client = UsageFakeClient()
     let vm = makeUsageVM(client: client)
     try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
@@ -52,29 +52,10 @@ func turnCost_accumulatesPerTurnAndSessionTotal() async throws {
 
     #expect(vm.lastTurnUsage == firstUsage)
     #expect(vm.lastTurnCostUSD == 0.5)
-    #expect(vm.sessionTotalCostUSD == 0.5)
 
     client.yield(.turnUsage(TurnUsage(costUSD: 0.25)))
     client.yield(.turnCompleted(nativeSessionId: nil))
     try await waitUntil { vm.completedTurnSeq == 2 }
 
     #expect(vm.lastTurnCostUSD == 0.25)
-    #expect(vm.sessionTotalCostUSD == 0.75)
-}
-
-@Test @MainActor
-func turnCost_turnWithoutUsage_keepsSessionTotalAndClearsNothing() async throws {
-    let client = UsageFakeClient()
-    let vm = makeUsageVM(client: client)
-    try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
-
-    client.yield(.turnUsage(TurnUsage(costUSD: 0.5)))
-    client.yield(.turnCompleted(nativeSessionId: nil))
-    try await waitUntil { vm.completedTurnSeq == 1 }
-    #expect(vm.sessionTotalCostUSD == 0.5)
-
-    // usage の無いターン: 累計は変わらない（nil コスト加算で 0 加算になっても NaN にならない）
-    client.yield(.turnCompleted(nativeSessionId: nil))
-    try await waitUntil { vm.completedTurnSeq == 2 }
-    #expect(vm.sessionTotalCostUSD == 0.5)
 }

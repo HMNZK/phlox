@@ -122,8 +122,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 項目の形は変えないため、turnCost（金額の無いターンは最後の応答）の項目 ID ごとに持つ。保存しないので、復元した会話はコストだけ。
     public private(set) var turnUsageByItemID: [String: TurnUsage] = [:]
     public private(set) var lastTurnCostUSD: Double?
-    public private(set) var sessionTotalCostUSD: Double = 0
-    /// 保存した総コストを読み込んだか（読めたら転写からの推定で上書きしない）。
+    /// 保存した累計を読み込んだか（読めたら転写からの推定で上書きしない）。
     private var restoredSavedTotalCost = false
     /// Claude が直前に送った累計（`total_cost_usd`）。再開した会話では再開前の分も含むので保存した値から始める。nil はわからないとき（履歴から再開した直後）。
     private var claudeReportedTotalCostUSD: Double? = 0
@@ -818,7 +817,6 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func setHistoryTranscript(_ items: [ChatItem]) {
         setTranscript(items)
-        sessionTotalCostUSD = 0
         claudeReportedTotalCostUSD = nil
         touchOutput()
         // 起動時は transcript store に書かず、通常のターン境界 flush で保存する。
@@ -2385,10 +2383,9 @@ public final class ChatSessionViewModel: Identifiable {
             markRunningEventReceived(at: eventDate)
             lastTurnUsage = usage
             let cost = turnCost(from: usage.costUSD)
-            lastTurnCostUSD = cost.turn
-            pendingTurnCostUSD = cost.turn
+            lastTurnCostUSD = cost
+            pendingTurnCostUSD = cost
             pendingTurnUsage = usage
-            sessionTotalCostUSD += cost.addedToTotal
             persistTurnUsageSnapshot(usage)
             if usage.costUSD != nil { persistSessionTotalCost() }
         case .availableCommandsUpdated(let commands):
@@ -3225,28 +3222,26 @@ public final class ChatSessionViewModel: Identifiable {
             appendOrReplace(item)
         }
         if !restoredSavedTotalCost {
-            sessionTotalCostUSD = Self.legacyTotalCostUSD(of: persisted)
-            claudeReportedTotalCostUSD = sessionTotalCostUSD
+            claudeReportedTotalCostUSD = Self.legacyTotalCostUSD(of: persisted)
         }
         touchOutput()
         adoptTitleFromLocalTranscript(persisted)
     }
 
-    /// 1 ターンのコストと総コストに足す額。Claude の `total_cost_usd` はセッションの累計（再開前の分も含む）なので
+    /// 1 ターンのコスト。Claude の `total_cost_usd` はセッションの累計（再開前の分も含む）なので
     /// 直前の累計との差にする。累計が減ったとき（別の会話として始まった）は届いた値をそのまま 1 ターン分とみなす。
-    /// 直前の累計がわからないとき（履歴から再開した直後）は、ターンのコストを出さず累計をそのまま総コストに足す。
+    /// 直前の累計がわからないとき（履歴から再開した直後）は、累計をターンのコストと見せないよう nil にする。
     /// ほかのエージェントは届いた値のまま。
-    private func turnCost(from reported: Double?) -> (turn: Double?, addedToTotal: Double) {
-        guard let reported else { return (nil, 0) }
-        guard case .builtin(.claudeCode) = agentRef else { return (reported, reported) }
+    private func turnCost(from reported: Double?) -> Double? {
+        guard let reported else { return nil }
+        guard case .builtin(.claudeCode) = agentRef else { return reported }
         defer { claudeReportedTotalCostUSD = reported }
-        guard let previous = claudeReportedTotalCostUSD else { return (nil, reported) }
-        let turn = reported >= previous ? reported - previous : reported
-        return (turn, turn)
+        guard let previous = claudeReportedTotalCostUSD else { return nil }
+        return reported >= previous ? reported - previous : reported
     }
 
-    /// 総コストを保存する前の会話の総コスト。以前は Claude の累計（`total_cost_usd`）をそのままターンのコストに
-    /// 入れていたので、最後の項目が総額になる（コストを送るのは Claude だけ）。保存した総コストがあればそちらを使う。
+    /// 累計を保存する前の会話で、Claude が最後に送った累計。以前は Claude の累計（`total_cost_usd`）をそのままターンのコストに
+    /// 入れていたので、最後の項目が累計になる（コストを送るのは Claude だけ）。保存した累計があればそちらを使う。
     static func legacyTotalCostUSD(of items: [ChatItem]) -> Double {
         for item in items.reversed() {
             if case .turnCost(_, let costUSD, _) = item { return costUSD }
@@ -3271,7 +3266,6 @@ public final class ChatSessionViewModel: Identifiable {
         }
         do {
             if let saved = try await transcriptStore.loadSessionTotalCost(for: id) {
-                sessionTotalCostUSD = saved.totalUSD
                 claudeReportedTotalCostUSD = saved.lastReportedUSD
                 restoredSavedTotalCost = true
             }
@@ -3298,10 +3292,10 @@ public final class ChatSessionViewModel: Identifiable {
         ))
     }
 
-    /// 総コストの保存は直列にする（連続したターンの保存が逆順に終わって古い額が残らないように）。
+    /// 累計の保存は直列にする（連続したターンの保存が逆順に終わって古い額が残らないように）。
     private func persistSessionTotalCost() {
         guard let transcriptStore else { return }
-        let cost = SessionTotalCost(totalUSD: sessionTotalCostUSD, lastReportedUSD: claudeReportedTotalCostUSD ?? 0)
+        let cost = SessionTotalCost(lastReportedUSD: claudeReportedTotalCostUSD ?? 0)
         let sessionID = id
         let previous = totalCostSave
         totalCostSave = Task {

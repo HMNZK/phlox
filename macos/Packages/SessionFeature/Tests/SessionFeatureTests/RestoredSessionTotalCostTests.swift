@@ -5,9 +5,9 @@ import CodexAppServerKit
 import StructuredChatKit
 @testable import SessionFeature
 
-// 07 I1: 会話を復元したセッションでも、インスペクタの総コストが出る
-// （ライブで受け取った使用量だけを足していたため「—」になっていた）。
-// 総コストは保存した値を使う。保存が無い以前の会話は、ターンのコストに Claude の累計が入っているので最後の値が総額。
+// 会話を復元したセッションでも、次のターンのコストを Claude の累計の差で正しく出す。
+// 差の起点は保存した累計を使う。保存が無い以前の会話は、ターンのコストに Claude の累計が入っているので最後の値が起点。
+// （セッションの総コストの表示は ADR 0192 で廃止した。）
 
 private final class IdleClient: StructuredAgentClient, @unchecked Sendable {
     let events = AsyncStream<NormalizedChatEvent> { _ in }
@@ -38,34 +38,6 @@ private let legacyItems: [ChatItem] = [
     .turnCost(id: "c2", costUSD: 1.25, timestamp: at),
     .agentMessage(id: "a3", text: "費用なしの応答", timestamp: at),
 ]
-
-@MainActor
-private func restoredTotal(_ store: StoredTranscript) async -> Double {
-    let vm = ChatSessionViewModel(
-        id: SessionID(),
-        agentRef: .builtin(.claudeCode),
-        client: IdleClient(),
-        approvalBroker: ChatApprovalBroker(),
-        workingDirectory: "/tmp/phlox-restored-cost",
-        transcriptStore: store
-    )
-    await vm.restore(threadId: "thread-1", approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
-    return vm.sessionTotalCostUSD
-}
-
-@MainActor
-@Test func restoredSessionUsesSavedTotalCost() async {
-    let total = await restoredTotal(StoredTranscript(items: legacyItems, saved: SessionTotalCost(totalUSD: 3.5, lastReportedUSD: 3.5)))
-
-    #expect(total == 3.5)
-}
-
-@MainActor
-@Test func restoredSessionWithoutSavedTotalUsesLastCumulativeTurnCost() async {
-    let total = await restoredTotal(StoredTranscript(items: legacyItems, saved: nil))
-
-    #expect(total == 1.25)
-}
 
 // Claude の total_cost_usd はセッションの累計（再開前の分も含む）。ターンのコストは直前の累計との差にする。
 
@@ -120,13 +92,12 @@ private func waitForTurns(_ vm: ChatSessionViewModel, _ count: Int) async {
     await waitForTurns(vm, 2)
 
     #expect(vm.lastTurnCostUSD == 0.25)
-    #expect(vm.sessionTotalCostUSD == 0.75)
 }
 
 @MainActor
 @Test func resumedClaudeSessionCountsOnlyTheNewTurn() async {
     let client = YieldingClient()
-    let vm = claudeViewModel(client, store: StoredTranscript(items: legacyItems, saved: SessionTotalCost(totalUSD: 2.5, lastReportedUSD: 2.5)))
+    let vm = claudeViewModel(client, store: StoredTranscript(items: legacyItems, saved: SessionTotalCost(lastReportedUSD: 2.5)))
     await vm.restore(threadId: "thread-1", approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
     // 再開した CLI は再開前の 2.5 を含めた累計を送る。
@@ -134,28 +105,39 @@ private func waitForTurns(_ vm: ChatSessionViewModel, _ count: Int) async {
     await waitForTurns(vm, 1)
 
     #expect(vm.lastTurnCostUSD == 0.75)
-    #expect(vm.sessionTotalCostUSD == 3.25)
 }
 
-// 取り消しで会話がリセットされると累計は 0 から数え直すので、総コストと最後の累計は別に保存して復元する。
+// 累計を保存していない以前の会話は、転写の最後のターンのコスト（当時は累計が入っていた）を起点にする。
+@MainActor
+@Test func restoredSessionWithoutSavedCumulativeStartsFromTheLastTurnCost() async {
+    let client = YieldingClient()
+    let vm = claudeViewModel(client, store: StoredTranscript(items: legacyItems, saved: nil))
+    await vm.restore(threadId: "thread-1", approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+
+    client.finishTurn(reportedTotal: 1.5)
+    await waitForTurns(vm, 1)
+
+    #expect(vm.lastTurnCostUSD == 0.25)
+}
+
+// 取り消しで会話がリセットされると累計は 0 から数え直す。差の起点は保存した最後の累計にする。
 
 @MainActor
-@Test func restoredBaselineIsTheLastReportedCumulativeNotTheTotal() async {
+@Test func restoredBaselineIsTheSavedLastCumulative() async {
     let client = YieldingClient()
-    let vm = claudeViewModel(client, store: StoredTranscript(items: legacyItems, saved: SessionTotalCost(totalUSD: 2.7, lastReportedUSD: 0.2)))
+    let vm = claudeViewModel(client, store: StoredTranscript(items: legacyItems, saved: SessionTotalCost(lastReportedUSD: 0.2)))
     await vm.restore(threadId: "thread-1", approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
     client.finishTurn(reportedTotal: 0.25)
     await waitForTurns(vm, 1)
 
     #expect(abs((vm.lastTurnCostUSD ?? -1) - 0.05) < 1e-9)
-    #expect(abs(vm.sessionTotalCostUSD - 2.75) < 1e-9)
 }
 
 @MainActor
 @Test func revertStartsTheCumulativeFromZero() async {
     let client = YieldingClient()
-    let vm = claudeViewModel(client, store: StoredTranscript(items: legacyItems, saved: SessionTotalCost(totalUSD: 0.1, lastReportedUSD: 0.1)))
+    let vm = claudeViewModel(client, store: StoredTranscript(items: legacyItems, saved: SessionTotalCost(lastReportedUSD: 0.1)))
     await vm.restore(threadId: "thread-1", approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
 
     _ = await vm.revert(toUserMessageID: "u2")
@@ -164,14 +146,13 @@ private func waitForTurns(_ vm: ChatSessionViewModel, _ count: Int) async {
     await waitForTurns(vm, 1)
 
     #expect(vm.lastTurnCostUSD == 0.2)
-    #expect(abs(vm.sessionTotalCostUSD - 0.3) < 1e-9)
 }
 
 // 履歴（CLI の JSONL）から再開したときはコストの記録が無く、再開前の累計がわからない。
-// 最初に届いた累計をそのまま総コストにし、そのターンのコストは出さない（累計をターンのコストと見せない）。
+// 最初に届いた累計のターンはコストを出さない（累計をターンのコストと見せない）。次のターンからは差を出す。
 
 @MainActor
-@Test func resumingFromHistoryUsesTheFirstCumulativeAsTheTotal() async {
+@Test func resumingFromHistoryHidesTheFirstCumulative() async {
     let client = YieldingClient()
     let vm = ChatSessionViewModel(
         id: SessionID(),
@@ -195,14 +176,13 @@ private func waitForTurns(_ vm: ChatSessionViewModel, _ count: Int) async {
     await waitForTurns(vm, 2)
 
     #expect(abs((vm.lastTurnCostUSD ?? -1) - 0.02) < 1e-9)
-    #expect(vm.sessionTotalCostUSD == 2.96)
     #expect(vm.transcript.filter { if case .turnCost = $0 { true } else { false } }.count == 1)
 }
 
-// 総コストと最後の累計がファイルに保存され、次に開いたときに読み戻される。
+// 最後の累計がファイルに保存され、次に開いたときに読み戻される。
 
 @MainActor
-@Test func totalCostAndLastCumulativeSurviveReopening() async throws {
+@Test func lastCumulativeSurvivesReopening() async throws {
     let directory = FileManager.default.temporaryDirectory.appending(path: "phlox-cost-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = FileTranscriptStore(directoryURL: directory)
@@ -215,5 +195,19 @@ private func waitForTurns(_ vm: ChatSessionViewModel, _ count: Int) async {
     await waitForTurns(first, 1)
     await first.flushTranscriptNow()
 
-    #expect(try await store.loadSessionTotalCost(for: id) == SessionTotalCost(totalUSD: 0.5, lastReportedUSD: 0.5))
+    #expect(try await store.loadSessionTotalCost(for: id) == SessionTotalCost(lastReportedUSD: 0.5))
+}
+
+// 総コストの表示を廃止する前に保存したファイル（`totalUSD` を含む）も、最後の累計だけを読み戻す。
+@Test func savedFileWithTheRemovedTotalStillLoadsTheLastCumulative() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: "phlox-cost-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let id = SessionID()
+    try Data(#"{"totalUSD":2.7,"lastReportedUSD":0.2}"#.utf8)
+        .write(to: directory.appending(path: "\(id.rawValue.uuidString).cost.json"))
+
+    let loaded = try await FileTranscriptStore(directoryURL: directory).loadSessionTotalCost(for: id)
+
+    #expect(loaded == SessionTotalCost(lastReportedUSD: 0.2))
 }

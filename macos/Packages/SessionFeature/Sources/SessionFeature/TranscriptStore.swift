@@ -10,8 +10,7 @@ public protocol TranscriptStore: Sendable {
     func replaceTranscript(for sessionID: SessionID, with items: [ChatItem]) async throws
     func loadTurnUsageSnapshot(for sessionID: SessionID) async throws -> TurnUsage?
     func saveTurnUsageSnapshot(_ usage: TurnUsage, for sessionID: SessionID) async throws
-    /// セッションの総コスト（ターンのコストの合計）と Claude が最後に送った累計。累計は次のターンのコストを差で出すのに使う。
-    /// 総コストを出す画面はインスペクタのタブごと廃止した（ADR 0192）。
+    /// Claude が最後に送った累計。再開した会話で、次のターンのコストを累計の差で出すのに使う。
     func loadSessionTotalCost(for sessionID: SessionID) async throws -> SessionTotalCost?
     func saveSessionTotalCost(_ cost: SessionTotalCost, for sessionID: SessionID) async throws
     /// 転写に載らない表示の状態。再起動後も返信の下の内訳・「N分前に応答」・サブエージェントを同じに出すために持つ。
@@ -32,13 +31,12 @@ public struct ChatDisplayState: Codable, Equatable, Sendable {
     }
 }
 
-/// 総コストと、Claude が最後に送った累計（`total_cost_usd`）。累計は取り消しで 0 に戻るので総コストとは別に持つ。
+/// Claude が最後に送った累計（`total_cost_usd`）。セッションの総コストの表示は廃止した（ADR 0192）。
+/// 以前に保存したファイルにある `totalUSD` は読み飛ばす。
 public struct SessionTotalCost: Codable, Equatable, Sendable {
-    public var totalUSD: Double
     public var lastReportedUSD: Double
 
-    public init(totalUSD: Double, lastReportedUSD: Double) {
-        self.totalUSD = totalUSD
+    public init(lastReportedUSD: Double) {
         self.lastReportedUSD = lastReportedUSD
     }
 }

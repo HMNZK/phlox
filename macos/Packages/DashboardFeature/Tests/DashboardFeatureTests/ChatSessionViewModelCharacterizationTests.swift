@@ -93,7 +93,6 @@ func characterization_init_exposesStartingSessionDefaults() {
     #expect(vm.status == .starting)
     #expect(vm.transcript.isEmpty)
     #expect(vm.restoreState == .notRestored)
-    #expect(vm.sessionTotalCostUSD == 0)
     #expect(vm.completedTurnSeq == 0)
     #expect(vm.draft == "")
     #expect(vm.pendingApprovals.isEmpty)

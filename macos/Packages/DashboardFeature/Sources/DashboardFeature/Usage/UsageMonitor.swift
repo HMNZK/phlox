@@ -7,8 +7,6 @@ import StructuredChatKit
 @Observable
 public final class UsageMonitor {
     public private(set) var usages: [AgentKind: CLIUsage]
-    public private(set) var lastRefreshedAt: Date?
-    public private(set) var isRefreshing: Bool
     /// 取得に失敗し、前回の値を出し続けている CLI（07 U4）。成功するか前回の値を出さなくなったら消す。
     public private(set) var failures: [AgentKind: UsageFailure] = [:]
 
@@ -36,8 +34,6 @@ public final class UsageMonitor {
         self.now = Date.init
         self.usages = [:]
         self.lastSuccessfulUsages = [:]
-        self.lastRefreshedAt = nil
-        self.isRefreshing = false
     }
 
     init(
@@ -52,8 +48,6 @@ public final class UsageMonitor {
         self.now = now
         self.usages = [:]
         self.lastSuccessfulUsages = [:]
-        self.lastRefreshedAt = nil
-        self.isRefreshing = false
     }
 
     public func start() {
@@ -61,11 +55,6 @@ public final class UsageMonitor {
         refreshTask = Task { [weak self] in
             await self?.runRefreshLoop()
         }
-    }
-
-    /// いちばん新しい取得成功の時刻（「最終更新」）。
-    public var lastSucceededAt: Date? {
-        lastSuccessfulUsages.values.map(\.updatedAt).max()
     }
 
     public func stop() {
@@ -76,12 +65,6 @@ public final class UsageMonitor {
     public func refresh(kinds: [AgentKind] = AgentKind.allCases) async {
         let selectedProviders = kinds.compactMap { providers[$0] }
         guard !selectedProviders.isEmpty else { return }
-
-        isRefreshing = true
-        defer {
-            isRefreshing = false
-            lastRefreshedAt = Date()
-        }
 
         let results = await withTaskGroup(of: CLIUsage.self, returning: [CLIUsage].self) { group in
             for provider in selectedProviders {
@@ -142,7 +125,6 @@ public final class UsageMonitor {
             kind: usage.kind,
             state: .ok(normalized),
             updatedAt: usage.updatedAt,
-            action: usage.action,
             dataAsOf: usage.dataAsOf
         )
     }

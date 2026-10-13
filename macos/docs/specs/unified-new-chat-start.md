@@ -296,8 +296,8 @@ AI が既定値で決めた事項（異論があれば変える）:
 - **FR-35** バーにはハーネスごとに、ロゴ（D16 の色）と全部の枠の**残り**を横に並べる: Claude「5時間 72%・週次 40%」、Codex「5時間 99%・週次 85%」、Cursor「Auto 80%・API 95%」（枠の名前は今の `UsageBucket.label`）。幅に余裕があればリセットまでの時間（例「5時間 72%（2時間後）」）も出す。今の `UsageDisplay`（`remainingTimeText`・`sidebarResetDisplay`。`UsageDisplay.swift:156`）の整形を使う。
 - **FR-36** 残りが少ない枠（今の基準 20% 未満。`UsageDisplay.swift:29`）は注意の色の文字にし、「残りわずか」を読み上げに含める。今の ▲ の印は使わない（D14）。取得できないハーネスは「取得できません」の文字（今の「—」はやめる）。表示するハーネスは今の「未取得の CLI も表示」の設定に従う。
 - **FR-37** 狭いときは、リセットまでの時間 → 枠の名前の順に省き、数値は省かない。最小幅（720pt）でも全ハーネスの数値が 1 行に収まること。
-- **FR-38** バーを押すと今どおりインスペクタの使用量を開く（`router.showUsageInInspector()`）。インスペクタを開いていてもバーは出す（今のヘッダーのチップはインスペクタ表示中は消えていた。ADR 0112）。設定「ヘッダーに使用量を表示」（`phlox.usage.showInHeader`、`SettingsView.swift:477`）は「画面下部に使用量を表示」に改名し、キーはそのまま使う。
-- **FR-39** バーは 1 つのボタンとして読み上げ、値にすべての枠の残りを入れる（例「使用量。Claude 5時間 残り 72%、週次 残り 40%。…」）。インスペクタを重ねて表示するときの下端（`DashboardView.swift:416`）はバーの高さ分上げる。
+- **FR-38** バーは押しても何も開かない（2026-10-13 にインスペクタの使用量タブを廃止。ADR 0192。それまでは押すとインスペクタの使用量を開いた）。インスペクタを開いていてもバーは出す（今のヘッダーのチップはインスペクタ表示中は消えていた。ADR 0112）。設定「ヘッダーに使用量を表示」（`phlox.usage.showInHeader`、`SettingsView.swift:477`）は「画面下部に使用量を表示」に改名し、キーはそのまま使う。
+- **FR-39** バーは 1 つのまとまりとして読み上げ、値にすべての枠の残りを入れる（例「使用量。Claude 5時間 残り 72%、週次 残り 40%。…」）。インスペクタを重ねて表示するときの下端（`DashboardView.swift:416`）はバーの高さ分上げる。
 - **FR-40** サイドバーの開閉ボタンをヘッダーの左に常に出す（D28）。隠しているときだけ対応待ちの件数の印を付ける（今どおり）。
 - **FR-41** ヘッダーの開閉ボタンの右に、選択中のタブの名前を左寄せで出す（D31）。文字は子タブの列と同じもの（セッション名、ファイル名、「ターミナル」、「変更 N」など）。新規チャット画面では「新規チャット」。グリッド表示では出さない。長いときは末尾を省略する。
 
@@ -392,7 +392,7 @@ AI が既定値で決めた事項（異論があれば変える）:
 | 図形を消す画面 | `SidebarRows.swift:227,552-600`、`AttentionListPopover.swift:27,270`、`GridTileParts.swift:382,427` |
 | 未読の丸 | `SidebarRows.swift:568`、`DashboardSidebarView.swift:237`、`GridTileParts.swift:144`、`AttentionListPopover.swift:156` |
 | 状態の文字を足す | サイドバーのセッション行（`SidebarRows.swift:209-247`） |
-| ロゴ | `DesignSystem/AgentBrandIcon.swift`（SVG に替え、略号・記号の代わりの表示を消す）。使う所は `UsageSidebarView.swift:266` |
+| ロゴ | `DesignSystem/AgentBrandIcon.swift`（SVG に替え、略号・記号の代わりの表示を消す）。使う所は `UsageBottomBarView.swift` |
 | ハーネスの色（FR-30） | `AppTheme.agentColors`（`AppTheme.swift:81,229,247,269,295,455`）・`DSColor.agentColor(for:)`（`Tokens.swift:373-381`）・`agentInitialFill`・`AgentDescriptor.colorRGB`（`AgentDescriptor.swift:103` ほか、組込の 3 色 :174,192,209）と、それを渡している所（`SessionTreeSidebarSection.swift:16`、`SessionSpawnService.swift:832`、`ControllableSession.swift:162`、`ChatSessionView.swift:179`、`ChatTranscriptView.swift:388`）。iOS は同じ `AgentDomain` を使うので、iOS のテスト（`PhloxCoreTests.swift:320,336`）の作り方も直す（iOS アプリの動きは変わらない） |
 | アクセント（§6.8） | `DesignPalette.swift:48,55,69`、`AppTheme.swift:95,221,250,400,415,430`、`Tokens.swift:296,298,301`、`ThemePreviewModel.swift:44`、設定画面の見本の直書き（`App/SettingsView.swift:748`）、コメントの値（`AccentSwitchToggleStyle.swift:4`） |
 | ヘッダーと使用量（§6.9） | 消す: `AttentionListPopover.swift` 一式、`DashboardToolbar` の `AttentionButton`・`usageChip`（:162-185）、`UsageTopBarView.swift`、`UsageDisplay.topBarChips`、⌥⌘J の項目、`AppRouter.attentionListPresented`。足す: 使用量のバー（`DashboardView.navigationShell` の末尾）。変える: `ViewModeToggle` の位置、設定の文言。上の行の `AttentionListPopover`・`UsageTopBarView` の行番号は、ファイルごと消すので個別に直さなくてよい |
@@ -471,7 +471,7 @@ AI が既定値で決めた事項（異論があれば変える）:
 | AC-18 | 履歴の一覧が読み込み中・空・失敗（再試行あり）を区別して出す | 単体テスト（読み込みを失敗させた fake） |
 | AC-19 | ウィンドウ幅 720pt・サイドバー表示で、入力欄の下段が切れず重ならない。送信ボタンにフォーカスがあるとき、枠が面と見分けられる（枠と面がどちらもアクセント色のため） | `DesignSnapshotRenderTests` で 720pt と、フォーカスのある送信ボタン（ライト・ダーク）を撮って目視（ユーザー承認） |
 | AC-21 | ヘッダーに対応待ちのボタンと使用量が無く、単体／グリッドの切替が右寄せ。⌥⌘J のメニューが無く、⌘J は動く | 単体テスト（メニューの組み立て）＋ `ViewModeAccessibilityTests` |
-| AC-22 | 下部のバーに全ハーネスの全枠の残りが出る。少ない枠は注意の色、取得できないものは「取得できません」。720pt でも数値が省かれない。押すとインスペクタの使用量が開く | 単体テスト（整形と省き方）＋ `DesignSnapshotRenderTests`（1440pt・720pt、目視） |
+| AC-22 | 下部のバーに全ハーネスの全枠の残りが出る。少ない枠は注意の色、取得できないものは「取得できません」。720pt でも数値が省かれない | 単体テスト（整形と省き方）＋ `DesignSnapshotRenderTests`（1440pt・720pt、目視） |
 | AC-20 | ハーネスごとの色とコーラルが本番コードに無い | ビルドで確かめる（`agentColors`・`colorRGB`・`agentInitialFill`・`claudeCoral` が無い）＋ `rg -i 'D97757|E08865|B4552F|F0A383|A94A28|0xD9, 0x77, 0x57|0xE0, 0x88, 0x65|0xB4, 0x55, 0x2F|0xF0, 0xA3, 0x83|0xA9, 0x4A, 0x28' macos/Packages macos/App --glob '!**/Tests/**'` が 0 件 |
 
 ### 書き換え・削除するテスト

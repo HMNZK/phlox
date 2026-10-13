@@ -33,8 +33,6 @@ import Testing
         return
     }
     #expect(reason == "Cursorアプリ未検出")
-    // UsageSidebarView が「Cursorをインストール」ボタン(cursor.com/downloads)を出すための導線。
-    #expect(usage.action == .installCursor)
 }
 
 @Test func cursorUsageProvider_http200ReturnsBuckets() async throws {

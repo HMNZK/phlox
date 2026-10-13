@@ -5,6 +5,8 @@ last-verified: 2026-07-19
 
 # ADR 0099: Usage の鮮度注記は可視テキストを撤去し、鮮度シグナルは dimming のみで表す
 
+> **追記（2026-10-13）**: インスペクタの使用量タブ（`UsageSidebarView`・`UsageCLICard`）は廃止した（ADR 0192）。
+
 > **関係**: [ADR 0039](0039-claude-usage-statusline-terminal-only.md) が定めた「行を消さず鮮度を可視化する」方針のうち、**鮮度注記を可視 `Text` として描画する**部分を本 ADR が覆す（partially supersedes）。ADR 0039 の他の決定（Claude Usage 行を `.unavailable` でも常に表示・stale 時は%を薄く表示・`ClaudeUsageStaleness.note` のロジック自体）は現行のまま。
 > **このファイルの役割**: 鮮度注記テキストを画面から外した理由と、鮮度シグナルの残し方。
 

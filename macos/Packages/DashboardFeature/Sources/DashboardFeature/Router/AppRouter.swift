@@ -31,12 +31,6 @@ public enum SidebarRequest: Equatable, Sendable {
     case changeFolder(SessionID)
 }
 
-public enum InspectorTab: Hashable, CaseIterable, Sendable {
-    case session
-    case files
-    case usage
-}
-
 public enum MainRoute: String, Sendable {
     case sessions
 }
@@ -64,10 +58,8 @@ public final class AppRouter {
     /// サイドバーの表示状態。メニュー（⌃⌘S）とビュー内トグルの双方から操作するため
     /// View の @State ではなく共有の Observable に置く。
     public var sidebarVisible: Bool
-    /// 右側インスペクター（使用量サイドバー）の表示状態。
+    /// 右側インスペクター（ファイルツリー）の表示状態。
     public var inspectorVisible: Bool
-    /// インスペクタの「セッション / 使用量」（07）。
-    public var inspectorTab: InspectorTab = .usage
     /// プロジェクトタブの右クリック「プロジェクト名を変更…」。サイドバーがその行を編集に入れる。
     public var projectRenameRequest: ProjectID?
     /// プロジェクトの項目・選択・分割。メニューと画面で共有する。
@@ -126,15 +118,8 @@ public final class AppRouter {
         inspectorVisible.toggle()
     }
 
-    /// 使用量チップのクリック（07）。インスペクタを開いて「使用量」を前に出す。
-    public func showUsageInInspector() {
-        inspectorTab = .usage
-        inspectorVisible = true
-    }
-
     /// ⌃⌘B：インスペクタを開いてファイルツリーを表示する。
     public func showFilesInInspector() {
-        inspectorTab = .files
         inspectorVisible = true
     }
 

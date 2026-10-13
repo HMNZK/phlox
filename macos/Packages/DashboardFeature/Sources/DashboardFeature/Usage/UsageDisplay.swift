@@ -48,7 +48,7 @@ enum UsageDisplay {
     }
 
     /// 下部バーのハーネスと全バケットを AgentKind 順で返す。
-    /// 出すハーネスはインスペクタと同じ「未取得の CLI も表示」の設定に従う（`visibleKinds`）。
+    /// 出すハーネスは「未取得の CLI も表示」の設定に従う（`visibleKinds`）。
     static func bottomBarGroups(
         usages: [AgentKind: CLIUsage],
         showUnavailable: Bool = true
@@ -120,7 +120,7 @@ enum UsageDisplay {
             return "\(group.kind.displayName)、\(values.joined(separator: AppLocalizedString.string("、", locale: locale, bundle: bundle)))"
         }
         let joined = details.joined(separator: AppLocalizedString.string("、", locale: locale, bundle: bundle))
-        return String(format: AppLocalizedString.string("使用量: %@。クリックで詳細", locale: locale, bundle: bundle), joined)
+        return String(format: AppLocalizedString.string("使用量: %@", locale: locale, bundle: bundle), joined)
     }
 
     // MARK: - リセット残り時間
@@ -130,9 +130,6 @@ enum UsageDisplay {
         "5h": 3600,
         "weekly": 86_400,
     ]
-
-    /// リセットが残りわずか（5h≤1時間 / 週次≤1日）のときの警告色。
-    static let urgentResetColor = Color(.sRGB, red: 240 / 255, green: 50 / 255, blue: 55 / 255, opacity: 1)
 
     /// このバケットのリセットが残りわずかか。閾値はバケット種別ごと（5h:1時間 / weekly:1日）。
     /// resetsAt を持たない、または閾値定義のないバケット（Cursor 等）は常に false。
@@ -165,13 +162,13 @@ enum UsageDisplay {
         absoluteResetFormatter.string(from: date)
     }
 
-    /// サイドバーのリセット表示テキストと、それを赤で出すか。
+    /// リセット表示テキストと、それが残りわずかか。
     struct ResetDisplay: Equatable {
         let text: String
         let isUrgent: Bool
     }
 
-    /// サイドバーのバケット行に出すリセット表示を返す。resetsAt が無ければ nil。
+    /// 下部バーの読み上げに入れるリセット表示を返す。resetsAt が無ければ nil。
     /// - 5h: 常に残り時間（例 "3h50m"）。残り1時間以下で urgent（赤）。
     /// - weekly: 残り1日超は絶対時刻（例 "06/14 15:30"）、1日以下は残り時間（例 "20h30m"）で urgent（赤）。
     /// - その他（resetsAt を持つ Cursor 等）: 絶対時刻のみ。urgent なし。
@@ -188,14 +185,6 @@ enum UsageDisplay {
             ? remainingTimeText(until: resetsAt, now: now)
             : absoluteResetText(resetsAt)
         return ResetDisplay(text: text, isUrgent: urgent)
-    }
-
-    // MARK: - 残量文字列（要約・詳細の唯一の生成点）
-
-    /// 残量文字列「残りN%」を返す。usedPercent は 0…100 にクランプしてから 100 から引き、Int/round する。
-    static func remainingPercentText(usedPercent: Double) -> String {
-        let clamped = max(0, min(100, usedPercent))
-        return "残り\(Int(round(100 - clamped)))%"
     }
 
 }

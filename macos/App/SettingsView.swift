@@ -441,13 +441,13 @@ struct SettingsView: View {
             SettingsDivider()
             SettingsRow {
                 Toggle(isOn: $showUnavailableUsage) {
-                    SettingsLabel(title: Text("取得できない CLI も表示する"), detail: Text("未インストールの CLI をインスペクタに「未取得」として並べる"))
+                    SettingsLabel(title: Text("取得できない CLI も表示する"), detail: Text("未インストールの CLI を画面下部のバーに「取得できません」として並べる"))
                 }
             }
             SettingsDivider()
             SettingsRow {
                 Toggle(isOn: $showUsageInHeader) {
-                    SettingsLabel(title: Text("画面下部に使用量を表示する"), detail: Text("インスペクタの開閉とは関係なく表示する"))
+                    SettingsLabel(title: Text("画面下部に使用量を表示する"))
                 }
             }
         }

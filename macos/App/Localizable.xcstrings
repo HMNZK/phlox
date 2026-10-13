@@ -1465,13 +1465,13 @@
         }
       }
     },
-    "使用量: %@。クリックで詳細": {
+    "使用量: %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: %@. Click for details"
+            "value": "Usage: %@"
           }
         }
       }
@@ -8188,17 +8188,6 @@
         }
       }
     },
-    "インスペクタの開閉とは関係なく表示する": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shown whether or not the inspector is open"
-          }
-        }
-      }
-    },
     "ターミナルパネル・グリッドのターミナル・単体表示で共通": {
       "extractionState": "manual",
       "localizations": {
@@ -8254,13 +8243,13 @@
         }
       }
     },
-    "未インストールの CLI をインスペクタに「未取得」として並べる": {
+    "未インストールの CLI を画面下部のバーに「取得できません」として並べる": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "List CLIs that aren’t installed in the inspector as “Not fetched”"
+            "value": "List CLIs that aren’t installed in the bottom bar as “Unavailable”"
           }
         }
       }

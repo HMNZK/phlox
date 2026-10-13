@@ -107,7 +107,7 @@ struct NewChatHistoryPopover: View {
                                 entry: entry,
                                 workingDirectory: entry.sourceWorkingDirectory
                             ),
-                            lastUsedText: UsageText.ago(entry.lastModified, now: .now, locale: locale),
+                            lastUsedText: RelativeTimeText.ago(entry.lastModified, now: .now, locale: locale),
                             locationLabel: locationLabel(for: entry),
                             locationNote: locationNote(for: entry),
                             accessibilityIdentifier: "newChat.history.entry.\(entry.sessionID)",
@@ -155,5 +155,17 @@ struct NewChatHistoryPopover: View {
 
     private static func normalized(_ path: String) -> String {
         URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
+    }
+}
+
+enum RelativeTimeText {
+    /// 「2 時間前」。
+    static func ago(_ date: Date, now: Date, locale: Locale) -> String {
+        // `now` を基準にする。差が 0 や取得時刻がわずかに先（時計の粒度）でも「0 秒後」とせず過去として書く。
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .numeric
+        formatter.unitsStyle = .abbreviated
+        formatter.locale = locale
+        return formatter.localizedString(fromTimeInterval: min(date.timeIntervalSince(now), -1))
     }
 }

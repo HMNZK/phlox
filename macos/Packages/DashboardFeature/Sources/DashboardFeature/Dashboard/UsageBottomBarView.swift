@@ -4,7 +4,6 @@ import DesignSystem
 
 struct UsageBottomBarView: View {
     let monitor: UsageMonitor
-    @Bindable var router: AppRouter
 
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsage = true
     @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailable = false
@@ -17,23 +16,15 @@ struct UsageBottomBarView: View {
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 let groups = UsageDisplay.bottomBarGroups(usages: monitor.usages, showUnavailable: showUnavailable)
                 if !groups.isEmpty {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            router.showUsageInInspector()
-                        }
-                    } label: {
-                        GeometryReader { geometry in
-                            row(groups, width: geometry.size.width, now: context.date)
-                                .padding(.horizontal, DSSpacing.m)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                        }
-                        .frame(height: DSLayout.usageBarHeight)
-                        .contentShape(Rectangle())
+                    GeometryReader { geometry in
+                        row(groups, width: geometry.size.width, now: context.date)
+                            .padding(.horizontal, DSSpacing.m)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
+                    .frame(height: DSLayout.usageBarHeight)
                     .background(DSColor.toolbarBackground)
                     .overlay(alignment: .top) { Rectangle().fill(DSColor.separator).frame(height: 1) }
-                    .help(Text("使用量の詳細を開く"))
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Text(UsageDisplay.bottomBarAccessibilityLabel(
                         groups: groups, now: context.date, locale: locale, bundle: localizationBundle
                     )))

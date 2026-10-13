@@ -535,13 +535,9 @@ public struct DashboardView: View {
         .onChange(of: viewModel.unseenCompletionCount) { _, _ in
             markCompletionSeen(for: router.selectedSession)
         }
-        .onChange(of: router.inspectorVisible) { _, visible in
-            guard visible else { return }
-            Task { await usageMonitor.refresh() }
-        }
         // 既定の間隔（システムの値）を空けると、サイドバーと下端のバーの間に隙間ができる。
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            UsageBottomBarView(monitor: usageMonitor, router: router)
+            UsageBottomBarView(monitor: usageMonitor)
         }
     }
 
@@ -733,8 +729,6 @@ public struct DashboardView: View {
     private func inspectorContent(isOverlay: Bool) -> some View {
         InspectorView(
             router: router,
-            monitor: usageMonitor,
-            session: router.selectedSession.flatMap { viewModel.sessionNode(id: $0) },
             project: viewModel.projects.first { $0.id == router.selectedProjectID },
             fileTreeModels: $fileTreeModels,
             files: fileTabs,

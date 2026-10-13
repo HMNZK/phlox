@@ -20,30 +20,6 @@ import Testing
     #expect(!visible.contains(.cursor))
 }
 
-@Test func claudeUsage_stalenessNote_missingDataExplainsHowToUpdate() {
-    let now = Date(timeIntervalSince1970: 1_700_000_000)
-    #expect(ClaudeUsageStaleness.note(now: now, dataAsOf: nil)
-        == "未取得（ターミナルの Claude セッション実行時に更新されます）")
-}
-
-@Test func claudeUsage_stalenessNote_freshDataHasNoNote() {
-    let now = Date(timeIntervalSince1970: 1_700_000_000)
-    #expect(ClaudeUsageStaleness.note(now: now, dataAsOf: now.addingTimeInterval(-29 * 60)) == nil)
-}
-
-@Test func claudeUsage_stalenessNote_boundaries() {
-    let now = Date(timeIntervalSince1970: 1_700_000_000)
-    func note(minutesAgo: Double) -> String? {
-        ClaudeUsageStaleness.note(now: now, dataAsOf: now.addingTimeInterval(-minutesAgo * 60))
-    }
-    #expect(note(minutesAgo: 30) == "30 分前に取得 · 古い可能性")
-    #expect(note(minutesAgo: 59) == "59 分前に取得 · 古い可能性")
-    #expect(note(minutesAgo: 60) == "1 時間前に取得 · 古い可能性")
-    #expect(note(minutesAgo: 23 * 60) == "23 時間前に取得 · 古い可能性")
-    #expect(note(minutesAgo: 24 * 60) == "1 日前に取得 · 古い可能性")
-    #expect(note(minutesAgo: 72 * 60) == "3 日前に取得 · 古い可能性")
-}
-
 @Test func claudeUsage_provider_carriesDataTimestampFromCache() async throws {
     let dir = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("claude-usage-acceptance-\(UUID().uuidString)", isDirectory: true)

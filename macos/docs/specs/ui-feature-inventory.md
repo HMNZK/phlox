@@ -39,7 +39,7 @@ last-verified: 2026-10-13
 
 - 左サイドバー: `DashboardSidebarView`。`router.sidebarVisible` で開閉、幅 `sidebarWidth`（既定280, `DashboardView.swift:13`）。ドラッグでリサイズ（`ResizeGripView`, `:328-345`。掴みしろ20pt、hover/drag中accent色3pt発光バー、`Packages/DesignSystem/Sources/DesignSystem/ResizeGripView.swift:11-65`）。
 - 中央 detail: `DashboardDetailView`（`Dashboard/DashboardDetailView.swift`）。`router.viewMode`（`Router/AppRouter.swift:6-10`）により single / grid / team の3モード切替。
-- 右インスペクタ: `UsageSidebarView`（使用量+セッション情報）。`router.inspectorVisible` で開閉、幅 `inspectorWidth`（既定300）。
+- 右インスペクタ: `InspectorView`（ファイルツリーだけ。2026-10-13 に使用量とセッション情報のタブを廃止。ADR 0192）。`router.inspectorVisible` で開閉、幅 `inspectorWidth`（既定300）。
 - 右端ドロワー: `TerminalPanelView` / `EditorPanelView`。`router.terminalPanelVisible` / `editorPanelVisible` の組で開閉。両方表示時は `VSplitView` で縦積み（`DashboardView.swift:648-659`）。既定幅560pt・最小280pt（`PanelDrawerLayout.swift:9-10`）。ドラッグでリサイズ（`:367-403`）。
 
 ビューモード（`ViewMode`, `Router/AppRouter.swift:6-10`）:
@@ -302,19 +302,9 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 
 ---
 
-## 7. 右インスペクタ（`Dashboard/UsageSidebarView.swift`, `SessionInfoPanel.swift`）
+## 7. 右インスペクタ（`Dashboard/InspectorView.swift`）
 
-| 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定 | 根拠 file:line |
-|---|---|---|---|---|---|
-| 選択中チャットセッションのメタ情報 | — | 経過時間（1秒更新）・総コスト（$表示）・現在Gitブランチ（30秒更新）・プロジェクト名 | appServerセッション選択時のみ表示 | — | `SessionInfoPanel.swift:25-97`, `UsageSidebarView.swift:25-32`, `DashboardView.swift:513-519` |
-| CLI使用量カード一覧 | スクロール | 各CLIのバケット別 使用率ゲージ・残量%・リセット時刻 | ok/unavailable、Claudeのみ鮮度注記あり | 「未取得のCLIを表示」設定（12.6節） | `UsageSidebarView.swift:17-54,102-213`, `UsageSettings.swift:10`, `ClaudeUsageStaleness.swift`（参照のみ、未読） |
-| Cursor未インストール時の誘導 | ボタン→ブラウザでダウンロードページを開く | — | unavailable かつ installCursorアクション時のみ | — | `UsageSidebarView.swift:135-147`, `UsageModels.swift:20-23` |
-| 使用量手動更新 | 更新ボタン | 最終更新時刻 | 更新中はスピナー表示・ボタン無効化 | — | `UsageSidebarView.swift:67-99` |
-| 使用量チップ（トップバー） | 2.1節既出 | — | — | — | — |
-
-使用量関連の設定は設定ウィンドウ「詳細」タブ（12.6節）に集約: 自動更新・Claude使用量取得・未取得CLI表示・ヘッダー表示のON/OFFトグル。
-
----
+ファイルツリー（`FileTreeInspectorView`）だけを出す。タブの切り替えは無い。2026-10-13 に「使用量」（CLI ごとのカード・リセット時刻・手動更新・Cursor の誘導）と「セッション」（経過時間・総コスト・Git ブランチ）のタブを機能ごと廃止した（ADR 0192）。使用量は画面下部のバー（§2）で見る。
 
 ## 8. 右端ドロワー
 
@@ -691,7 +681,6 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 | 空状態(プロジェクト0件) | 「+」ボタンのみ | サイドバー/detail | 3章, 9章 |
 | 空状態(プロジェクト選択済・セッション未選択) | 新規チャット画面（`NewChatView`） | detail中央（モード。上段のタブは選ばない） | 9章 |
 | 読込中(Agent Console) | ロード中フラグ、CLI無しで`AgentConsoleUnavailableNotice` | Agent Console | 13章 |
-| ロード中(使用量) | スピナー表示・ボタン無効化 | インスペクタ | 7章 |
 | 圧縮中(isCompacting) | シマーテキスト+犬アニメ6ステージ | single/グリッド | 4.1節 |
 | ドラッグ中(グリッド) | ハイライト矩形(`fillSelected`)、ライブゴースト分割線 | グリッド | 5章 |
 
@@ -954,8 +943,7 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 - `Dashboard/AgentChatRowPolicy.swift`（`AgoraAgentMessageBubble`, `AgoraThinkingIndicatorRow`）
 - `Dashboard/AgentStartCards.swift`
 - `Dashboard/GridSessionPicker.swift`
-- `Dashboard/SessionInfoPanel.swift`
-- `Dashboard/UsageSidebarView.swift`（`UsageCLICard`, `UsageBucketRow`含む）
+- `Dashboard/InspectorView.swift`
 - `Dashboard/UsageTopBarView.swift`
 - `Dashboard/PaneLayoutPresetMenu.swift`
 - `Dashboard/DashboardDetailView.swift`（旧 `StartAreaPolicy`・`SelectProjectPlaceholderView`・`StartOnboardingView` は廃止）

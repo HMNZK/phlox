@@ -59,7 +59,7 @@ public final class CursorUsageProvider: UsageProvider {
             case .success(let usage):
                 return usage
             case .failure(.appNotFound):
-                return CLIUsage(kind: kind, state: .unavailable(reason: String(localized: "Cursorアプリ未検出")), updatedAt: now, action: .installCursor)
+                return CLIUsage(kind: kind, state: .unavailable(reason: String(localized: "Cursorアプリ未検出")), updatedAt: now)
             case .failure(.authenticationRequired):
                 lastFailure = .authenticationRequired
             case .failure(.temporary):

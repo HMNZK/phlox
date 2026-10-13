@@ -234,11 +234,10 @@ struct FileTreeModelTests {
         #expect(missing.branch.isEmpty)
     }
 
-    @Test("ショートカットの要求はインスペクタを開きファイルを選ぶ")
+    @Test("ショートカットの要求はインスペクタを開く")
     func showFiles() {
         let router = AppRouter()
         router.showFilesInInspector()
         #expect(router.inspectorVisible)
-        #expect(router.inspectorTab == .files)
     }
 }

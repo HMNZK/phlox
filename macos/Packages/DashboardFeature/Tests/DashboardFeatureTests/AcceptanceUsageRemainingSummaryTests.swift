@@ -8,14 +8,6 @@ struct AcceptanceUsageRemainingSummaryTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
     private let japanese = Locale(identifier: "ja")
 
-    @Test("残量は使用率を四捨五入して算出し、範囲内に収める")
-    func remainingPercentTextRoundsAndClamps() {
-        #expect(UsageDisplay.remainingPercentText(usedPercent: 33.4) == "残り67%")
-        #expect(UsageDisplay.remainingPercentText(usedPercent: 66.5) == "残り34%")
-        #expect(UsageDisplay.remainingPercentText(usedPercent: 120) == "残り0%")
-        #expect(UsageDisplay.remainingPercentText(usedPercent: -5) == "残り100%")
-    }
-
     @Test("残り20%未満の値は注意の読み上げを含む")
     func lowRemainingIsIncludedInAccessibility() {
         let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 81)

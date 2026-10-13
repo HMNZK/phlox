@@ -14,8 +14,8 @@ last-verified: 2026-10-12
 ## 全体像
 
 ```
-InspectorView（UsageSidebarView.swift）── [セッション | ファイル | 使用量]   AppRouter.inspectorTab: InspectorTab
-        └ .files: FileTreeInspectorView ── FileTreeModel（ルートごと） ── FileTreeLoader（actor）
+InspectorView（InspectorView.swift。ファイルだけ。ADR 0192）
+        └ FileTreeInspectorView ── FileTreeModel（ルートごと） ── FileTreeLoader（actor）
                           │ 行クリック・Return・右クリック「右に分割して開く」
                           ▼
 FileTabDocuments.openFileTab(projectID:root:relativePath:split:router:requestedWorkingDirectory:currentWorkingDirectory:)
@@ -69,7 +69,7 @@ FileTabDocuments.openFileTab(projectID:root:relativePath:split:router:requestedW
 - ブランチ名は `WorkingTreeService.branchLabel()`: ブランチ名／`detached HEAD <短縮コミット>`／`Git 管理外`／取得失敗は空文字。
 - 再読込の契機: 更新ボタン・フォルダ展開・ファイル保存成功（`Notification.Name.fileTreeFileSaved` を `DashboardView` が受けて `FileTreeModel.fileSaved`）・「ファイル」タブの表示時（`FileTreeInspectorView` の `.task(id: プロジェクト ID + プロジェクトのフォルダ)`）。ファイル監視は無い。
 - ツリー自体はディスクへ書き込まない。
-- ショートカット: ⌃⌘B（`PhloxApp.swift` のメニュー項目「ファイルツリー」）→ `AppRouter.showFilesInInspector()`（`inspectorTab = .files`・`inspectorVisible = true`）。
+- ショートカット: ⌃⌘B（`PhloxApp.swift` のメニュー項目「ファイルツリー」）→ `AppRouter.showFilesInInspector()`（`inspectorVisible = true`）。
 
 ## 開く共通関数
 

@@ -29,7 +29,7 @@ last-verified: 2026-09-14
 | `ChatInputHistoryScrubber.swift` | 左中央の入力履歴スクラバー（積み重ねた横線。囲い無し）。ホバーで履歴パネル（一覧ポップアップ共通の外枠 `dsPopupSurface()`。ADR 0190）を開く。スクラバーの線とパネル行は共有の選択位置で連動し、選択中の線を白く長く、行を `dsPopupRowHighlight` で強調。線・行のいずれをクリックしても該当入力へジャンプ。選択位置はスクロール位置にも追従。単一チャット表示（`ChatSessionView`）のみ |
 | `InputHistoryPolicy.swift` | 入力履歴の純関数群（`entries(from:)`＝transcript 順に `.userMessage` 抽出、`scrubberTicks(from:cap:)`＝スクラバー表示用に最新側を上限件数で返す）。型 `InputHistoryEntry(id,text)` |
 
-`Dashboard/` 側の新規: `SidebarPresentation.swift`（相対時刻・アイコン規則）・`GridSessionSelectionFilter.swift`・`GridSessionPicker.swift`・`SessionInfoPanel.swift`。`Spawn/ClaudeSessionHistory.swift`（履歴ディスカバリ・転写ローダ）。`GitBranchReader.swift` は 2026-07-10 に SessionFeature へ移設（Dashboard 側は typealias）。
+`Dashboard/` 側の新規: `SidebarPresentation.swift`（相対時刻・アイコン規則）・`GridSessionSelectionFilter.swift`・`GridSessionPicker.swift`（`SessionInfoPanel.swift` は 2026-10-13 にインスペクタの「セッション」タブごと廃止。ADR 0192）。`Spawn/ClaudeSessionHistory.swift`（履歴ディスカバリ・転写ローダ）。`GitBranchReader.swift` は 2026-07-10 に SessionFeature へ移設（Dashboard 側は typealias）。
 
 ## 状態の正本
 

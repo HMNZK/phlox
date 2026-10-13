@@ -1,5 +1,5 @@
 // task-15 受け入れテスト（PM 著・実装役は編集禁止）
-// 契約: tasks/task-15.md — セッション情報パネル（経過時間・ブランチ）の純関数群。
+// 契約: tasks/task-15.md — 現在のブランチを読む純関数（セッション情報パネルは ADR 0192 で廃止）。
 
 import Foundation
 import Testing
@@ -56,20 +56,4 @@ private func makeTempRepoDir() throws -> URL {
     let dir = try makeTempRepoDir()
     defer { try? FileManager.default.removeItem(at: dir) }
     #expect(GitBranchReader.currentBranch(at: dir.path) == nil)
-}
-
-// MARK: - SessionElapsedFormat
-
-@Test func sessionInfoPanel_elapsedFormatBoundaries() {
-    let base = Date(timeIntervalSince1970: 1_700_000_000)
-    func label(_ seconds: TimeInterval) -> String {
-        SessionElapsedFormat.label(from: base, to: base.addingTimeInterval(seconds))
-    }
-    #expect(label(0) == "00:00")
-    #expect(label(59) == "00:59")
-    #expect(label(60) == "01:00")
-    #expect(label(3599) == "59:59")
-    #expect(label(3600) == "1:00:00")
-    #expect(label(3661) == "1:01:01")
-    #expect(label(-5) == "00:00")
 }

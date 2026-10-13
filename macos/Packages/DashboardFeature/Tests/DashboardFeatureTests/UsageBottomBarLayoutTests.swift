@@ -31,7 +31,7 @@ struct UsageBottomBarLayoutTests {
 
         let monitor = UsageMonitor(providers: [:])
         await monitor.refresh()
-        let host = NSHostingView(rootView: UsageBottomBarView(monitor: monitor, router: AppRouter())
+        let host = NSHostingView(rootView: UsageBottomBarView(monitor: monitor)
             .environment(\.locale, Locale(identifier: "ja"))
             .environment(\.colorScheme, light ? .light : .dark))
         let bounds = NSRect(x: 0, y: 0, width: width, height: DSLayout.usageBarHeight)

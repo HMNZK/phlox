@@ -1047,7 +1047,6 @@ struct DesignSnapshotRenderTests {
         let router = AppRouter(viewMode: .single, sidebarVisible: frame.id != "1c", inspectorVisible: true)
         router.selectedSession = sessionID
         router.selectedProjectID = project.id
-        router.inspectorTab = .files
         router.tabs.updateLayout(for: project.id) {
             $0.open(.file(path))
             $0.open(.simulator)

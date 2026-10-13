@@ -261,6 +261,7 @@ struct DesignSnapshotRenderTests {
             .init(id: "10-A2-light-ja", name: "新規チャット A2", width: 1440, height: 900, light: true, language: "ja"),
             .init(id: "10-C1-dark-ja", name: "新規チャット C1", width: 720, height: 900, language: "ja"),
             .init(id: "10-N2-dark-en", name: "新規チャット N2", width: 720, height: 900, language: "en"),
+            .init(id: "10-C2-dark-en", name: "新規チャット 900pt幅", width: 900, height: 560, language: "en"),
             .init(id: "10-N3-light-en", name: "新規チャット N3", width: 1440, height: 900, light: true, language: "en"),
             .init(id: "10-M1-dark-ja", name: "ハーネス・モデルメニュー", width: 1440, height: 900, language: "ja"),
             .init(id: "10-M2-light-en", name: "ハーネス・モデルメニュー", width: 720, height: 900, light: true, language: "en"),
@@ -898,6 +899,14 @@ struct DesignSnapshotRenderTests {
         let isUnavailable = frame.id.contains("-R")
         let isFocusedSend = frame.id.contains("-F")
         let hasOpenMenu = frame.id.contains("-M")
+        if frame.id == "10-C2-dark-en" {
+            scene.draft.selectHarness(.builtin(.claudeCode))
+            scene.draft.settings = CodexAppServerSessionSettings(
+                selectedModel: "sonnet",
+                selectedEffort: "high",
+                selectedPermissionProfile: "bypassPermissions"
+            )
+        }
         if isUnavailable {
             scene.draft.selectHarness(.builtin(.codex))
             scene.draft.text = "まず現状を確認してください"

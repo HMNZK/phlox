@@ -28,19 +28,22 @@ private struct NewChatChipLabel: View {
     let harnessKind: AgentKind?
     let compact: Bool
     let usesMiddleTruncation: Bool
+    let allowsTruncation: Bool
 
     init(
         title: String?,
         systemImage: String? = nil,
         harnessKind: AgentKind? = nil,
         compact: Bool = false,
-        usesMiddleTruncation: Bool = false
+        usesMiddleTruncation: Bool = false,
+        allowsTruncation: Bool = false
     ) {
         self.title = title
         self.systemImage = systemImage
         self.harnessKind = harnessKind
         self.compact = compact
         self.usesMiddleTruncation = usesMiddleTruncation
+        self.allowsTruncation = allowsTruncation
     }
 
     var body: some View {
@@ -52,6 +55,7 @@ private struct NewChatChipLabel: View {
                 Image(systemName: systemImage)
                     .font(DSFont.controlIcon)
                     .frame(width: DSLayout.controlChipIconSize, height: DSLayout.controlChipIconSize)
+                    .fixedSize()
                     .accessibilityHidden(true)
             }
             if let title, !compact {
@@ -59,12 +63,15 @@ private struct NewChatChipLabel: View {
                     .font(DSFont.auxiliary)
                     .lineLimit(1)
                     .truncationMode(usesMiddleTruncation ? .middle : .tail)
+                    .fixedSize(horizontal: !allowsTruncation, vertical: false)
             }
             Image(systemName: "chevron.down")
                 .font(DSFont.controlChevron)
                 .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
+                .fixedSize()
                 .accessibilityHidden(true)
         }
+        .fixedSize(horizontal: !allowsTruncation, vertical: false)
         .foregroundStyle(DSColor.textSecondary)
         .padding(.horizontal, DSLayout.controlChipHorizontalPadding)
         .frame(height: DSLayout.controlChipHeight)
@@ -95,7 +102,7 @@ private struct NewChatSendButtonStyle: ButtonStyle {
         }
 
         private var fill: Color {
-            guard canSend else { return DSColor.fillSubtle }
+            guard canSend else { return DSColor.sendDisabledFill }
             if configuration.isPressed { return DSColor.sendPressedFill }
             if isHovering { return DSColor.sendHoverFill }
             return DSColor.accentFill
@@ -245,17 +252,20 @@ struct NewChatView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let compact = geometry.size.width < 620
+            let composerWidth = max(0, min(760, geometry.size.width - 48))
+            let compactSettings = composerWidth < DSLayout.newChatCompactSettingsWidthThreshold
+            let compactLabels = composerWidth < DSLayout.newChatCompactLabelsWidthThreshold
             VStack(spacing: 0) {
                 Spacer(minLength: 12)
                 HStack(spacing: 10) {
                     Text(verbatim: localized(greeting))
-                        .font(DSFont.heroTitle)
+                        .font(DSFont.newChatHeading)
+                        .tracking(-0.1)
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(2)
                 }
                 .padding(.bottom, 20)
-                composer(isCompact: compact)
+                composer(width: composerWidth, compactSettings: compactSettings, compactLabels: compactLabels)
                     .padding(.bottom, 16)
                 suggestions
                 historyResumeButton
@@ -302,7 +312,7 @@ struct NewChatView: View {
         }
     }
 
-    private func composer(isCompact: Bool) -> some View {
+    private func composer(width: CGFloat, compactSettings: Bool, compactLabels: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ComposerDraftInput(
                 text: $draft.text,
@@ -312,12 +322,17 @@ struct NewChatView: View {
                 focusToken: focusToken,
                 accessibilityPrefix: "newChat",
                 inputAccessibilitySuffix: "messageInput",
+                emptyTextHeight: DSLayout.newChatComposerTextHeight,
                 onSubmit: { send() },
                 onCycleEffort: cycleEffort,
                 onFocusChange: { inputFocused = $0 },
                 onTab: { harnessPickerFocused = true; return true }
             )
             .id(suggestionControllerKey)
+            .frame(height: DSLayout.newChatComposerTextHeight + 6, alignment: .topLeading)
+            .padding(.leading, DSSpacing.xxs)
+            .padding(.trailing, -DSSpacing.xxs)
+            .padding(.bottom, DSSpacing.xs)
             .accessibilityIdentifier("newChat.composer")
             if let reason = sendUnavailableReason {
                 Text(verbatim: reason)
@@ -328,41 +343,59 @@ struct NewChatView: View {
                     .padding(.top, 2)
                     .accessibilityIdentifier("newChat.sendUnavailableReason")
             }
-            HStack(spacing: DSSpacing.chip) {
-                ComposerAttachPlaceholder(
-                    text: $draft.text,
-                    attachmentStore: draft.attachments,
-                    agentRef: draft.agentRef,
-                    imageAttachmentsSupported: selectedKind != .cursor,
-                    accessibilityIdentifier: "newChat.attachments"
-                )
-                harnessModelPicker
-                if isCompact {
-                    compactSettingsMenu
-                } else {
-                    if !effortOptions.isEmpty { effortPicker }
-                    permissionPicker
+            HStack(spacing: 0) {
+                HStack(spacing: DSSpacing.xxs) {
+                    ComposerAttachPlaceholder(
+                        text: $draft.text,
+                        attachmentStore: draft.attachments,
+                        agentRef: draft.agentRef,
+                        imageAttachmentsSupported: selectedKind != .cursor,
+                        accessibilityIdentifier: "newChat.attachments"
+                    )
+                    harnessModelPicker(allowsTruncation: compactLabels)
+                    if compactSettings {
+                        compactSettingsMenu
+                    } else {
+                        if !effortOptions.isEmpty { effortPicker }
+                        permissionPicker
+                    }
                 }
-                Spacer(minLength: 6)
-                projectPicker(isCompact: isCompact)
-                workspacePicker(isCompact: isCompact)
-                sendButton
+
+                Spacer(minLength: DSSpacing.s)
+
+                HStack(spacing: DSSpacing.xxs) {
+                    projectPicker(isCompact: compactLabels)
+                    workspacePicker(isCompact: compactLabels)
+                    Color.clear.frame(width: DSSpacing.chip)
+                    sendButton
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 3)
-            .padding(.bottom, 14)
+            .frame(height: DSLayout.newChatComposerControlRowHeight)
+            .padding(.leading, DSLayout.newChatComposerLeadingInset)
+            .padding(.trailing, DSLayout.newChatComposerTrailingInset)
+            .padding(.top, DSLayout.newChatComposerToolbarTopInset)
+            .padding(.bottom, DSLayout.newChatComposerToolbarBottomInset)
             .focusSection()
         }
+        .frame(width: width, alignment: .leading)
         .background {
-            let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+            let shape = RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
             shape.fill(DSColor.fieldBackground)
-                .overlay(shape.strokeBorder(DSColor.fieldBorder, lineWidth: 1))
+                .overlay(shape.strokeBorder(
+                    inputFocused ? DSColor.focusRing : DSColor.fieldBorder,
+                    lineWidth: inputFocused ? DSLayout.composerFocusRingWidth : 1
+                ))
         }
         .background {
             if inputFocused {
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                RoundedRectangle(
+                    cornerRadius: DSRadius.l + DSLayout.composerFocusRingWidth,
+                    style: .continuous
+                )
                     .fill(DSColor.focusRing)
-                    .padding(-3)
+                    .padding(-DSLayout.composerFocusRingWidth)
             }
         }
         .dsDialog(item: $spawnGuard) { item in
@@ -391,7 +424,7 @@ struct NewChatView: View {
         }
     }
 
-    private var harnessModelPicker: some View {
+    private func harnessModelPicker(allowsTruncation: Bool) -> some View {
         SelectablePopoverButton(
             options: modelPickerOptions,
             selectedID: selectedModelMenuID,
@@ -406,7 +439,7 @@ struct NewChatView: View {
             showsFocusRing: true,
             onSelect: { selectModel(id: $0.id) }
         ) { _ in
-            NewChatChipLabel(title: selectedModelTitle, harnessKind: selectedKind)
+            NewChatChipLabel(title: selectedModelTitle, harnessKind: selectedKind, allowsTruncation: allowsTruncation)
         }
         .focused($harnessPickerFocused)
     }
@@ -505,8 +538,8 @@ struct NewChatView: View {
             showsFocusRing: true,
             onSelect: selectCompactSetting
         ) { _ in
-            Image(systemName: "ellipsis.circle")
-                .font(.system(size: 14))
+            Image(systemName: "ellipsis")
+                .font(DSFont.controlIcon)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(width: 24, height: 28)
                 .contentShape(Rectangle())
@@ -612,7 +645,7 @@ struct NewChatView: View {
             send()
         } label: {
             Image(systemName: "arrow.up")
-                .font(DSFont.row.weight(.semibold))
+                .font(DSFont.sendButtonIcon)
                 .foregroundStyle(canSend ? Color.white : DSColor.textTertiary)
                 .frame(width: DSLayout.toolbarIconButtonSize, height: DSLayout.toolbarIconButtonSize)
                 .contentShape(Circle())
@@ -633,9 +666,23 @@ struct NewChatView: View {
         .accessibilityIdentifier("newChat.sendButton")
     }
 
+    /// 1 行に収まらなければ見本どおり 3 個と 2 個の 2 行に折り返す。
     private var suggestions: some View {
+        let all = Array(NewChatSuggestions.all.enumerated())
+        return ViewThatFits(in: .horizontal) {
+            suggestionRow(all)
+            VStack(spacing: DSSpacing.s) {
+                suggestionRow(Array(all.prefix(3)))
+                suggestionRow(Array(all.dropFirst(3)))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func suggestionRow(_ items: [(offset: Int, element: (title: String, text: String, symbol: String))]) -> some View {
         HStack(spacing: DSSpacing.s) {
-            ForEach(Array(NewChatSuggestions.all.enumerated()), id: \.offset) { index, suggestion in
+            ForEach(items, id: \.offset) { index, suggestion in
                 Button {
                     draft.appendSuggestion(suggestion.text)
                     focusToken &+= 1
@@ -660,8 +707,7 @@ struct NewChatView: View {
                 .accessibilityIdentifier("newChat.suggestion.\(index + 1)")
             }
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .contain)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var historyResumeButton: some View {

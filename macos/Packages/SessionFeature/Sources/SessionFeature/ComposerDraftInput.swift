@@ -16,8 +16,9 @@ public struct ComposerDraftInput: View {
     private let onCycleEffort: () -> Bool
     private let onFocusChange: ((Bool) -> Void)?
     private let onTab: (() -> Bool)?
+    private let emptyTextHeight: CGFloat?
 
-    @State private var editorHeight = ComposerHeightBounds.single.min
+    @State private var editorHeight: CGFloat
     @State private var isComposing = false
     @State private var suggestionController: ComposerSuggestionController
     @Environment(\.localizationBundle) private var localizationBundle
@@ -33,6 +34,7 @@ public struct ComposerDraftInput: View {
         focusToken: Int = 0,
         accessibilityPrefix: String = "ChatComposer",
         inputAccessibilitySuffix: String = "input",
+        emptyTextHeight: CGFloat? = nil,
         onSubmit: @escaping () -> Void,
         onCycleEffort: @escaping () -> Bool = { false },
         onFocusChange: ((Bool) -> Void)? = nil,
@@ -49,10 +51,16 @@ public struct ComposerDraftInput: View {
         self.onCycleEffort = onCycleEffort
         self.onFocusChange = onFocusChange
         self.onTab = onTab
+        self.emptyTextHeight = emptyTextHeight
+        _editorHeight = State(initialValue: emptyTextHeight ?? ComposerHeightBounds.single.min)
         _suggestionController = State(wrappedValue: ComposerSuggestionController.production(workingDirectory: workingDirectory))
     }
 
     public var body: some View {
+        let minimumEditorHeight = emptyTextHeight ?? ComposerHeightBounds.single.min
+        let collapsedEditorHeight = text.isEmpty && !isComposing ? emptyTextHeight : nil
+        let visibleEditorHeight = collapsedEditorHeight ?? editorHeight
+        let maximumEditorHeight = collapsedEditorHeight ?? ComposerHeightBounds.single.max
         VStack(alignment: .leading, spacing: 2) {
             ComposerAttachmentStrip(store: attachmentStore, layout: .standard, onRemove: removeAttachment)
                 .padding(.top, attachmentStore.attachments.isEmpty ? 0 : DSSpacing.s)
@@ -61,8 +69,8 @@ public struct ComposerDraftInput: View {
                     text: $text,
                     isComposing: $isComposing,
                     measuredHeight: $editorHeight,
-                    minHeight: ComposerHeightBounds.single.min,
-                    maxHeight: ComposerHeightBounds.single.max,
+                    minHeight: minimumEditorHeight,
+                    maxHeight: maximumEditorHeight,
                     suggestionController: suggestionController,
                     onSubmit: onSubmit,
                     onPasteImageOutcome: addPastedImage,
@@ -82,7 +90,7 @@ public struct ComposerDraftInput: View {
                     inputAccessibilityLabel: NSLocalizedString(accessibilityRole, bundle: localizationBundle, comment: ""),
                     tabMovesFocus: true
                 )
-                .frame(minHeight: ComposerHeightBounds.single.min, idealHeight: editorHeight, maxHeight: ComposerHeightBounds.single.max)
+                .frame(minHeight: minimumEditorHeight, idealHeight: visibleEditorHeight, maxHeight: maximumEditorHeight)
                 .accessibilityLabel(Text(LocalizedStringKey(accessibilityRole), bundle: localizationBundle))
                 .accessibilityValue(Text(verbatim: accessibilityValue))
                 .accessibilityIdentifier("\(accessibilityPrefix).\(inputAccessibilitySuffix)")
@@ -97,7 +105,7 @@ public struct ComposerDraftInput: View {
                         .allowsHitTesting(false)
                 }
             }
-            .frame(height: editorHeight)
+            .frame(height: visibleEditorHeight)
             .padding(.horizontal, -ComposerPlaceholderMetrics.textInsets.width)
         }
         .padding(.horizontal, 12)
@@ -114,6 +122,9 @@ public struct ComposerDraftInput: View {
         }
         .reportsComposerPopup(suggestionController.isPresented)
         .onChange(of: text) { oldValue, newValue in
+            if oldValue.isEmpty, !newValue.isEmpty, let emptyTextHeight {
+                editorHeight = emptyTextHeight
+            }
             attachmentStore.removeAttachmentsMissing(fromOldText: oldValue, newText: newValue)
         }
     }

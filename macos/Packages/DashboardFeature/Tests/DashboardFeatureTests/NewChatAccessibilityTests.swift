@@ -1,5 +1,8 @@
 import Foundation
 import Testing
+import AppKit
+import SwiftUI
+import Vision
 import AgentDomain
 import DesignSystem
 import PTYKit
@@ -9,6 +12,62 @@ import PTYKit
 @Suite("AC-17 新規チャットの読み上げ")
 @MainActor
 struct NewChatAccessibilityTests {
+    @Test func labelsAreNotTruncatedAt900ptEquivalentWidth() async throws {
+        let suite = "phlox.new-chat-layout-900.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let project = Project(name: "Aster", directoryPath: "/tmp/aster", createdAt: Date(), isManagedDirectory: false)
+        let projects = InMemoryProjectStore()
+        try await projects.save([project])
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(
+            pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() }, projects: projects
+        ))
+        await dashboard.start()
+
+        let draftStore = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
+        let draft = draftStore.draft(for: project.id)
+        draft.selectHarness(.builtin(.claudeCode))
+        let model = try #require(AgentModelCatalog.models(for: .claudeCode).first { $0.id == "sonnet" })
+        draft.settings = CodexAppServerSessionSettings(
+            selectedModel: model.id,
+            selectedEffort: "high",
+            selectedPermissionProfile: "bypassPermissions"
+        )
+
+        let view = NewChatView(
+            viewModel: dashboard,
+            router: AppRouter(),
+            draftStore: draftStore,
+            draft: draft,
+            project: project,
+            onLaunchFailure: { _, _ in }
+        )
+        .frame(width: 640, height: 500) // 900pt の窓から 260pt サイドバーを引いた幅。
+        .environment(\.locale, Locale(identifier: "ja"))
+        .environment(\.colorScheme, .dark)
+
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let renderer = ImageRenderer(content: view)
+        renderer.proposedSize = ProposedViewSize(width: 640, height: 500)
+        renderer.scale = 2
+        let image = try #require(renderer.nsImage)
+        let cgImage = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["ja-JP", "en-US"]
+        request.usesLanguageCorrection = false
+        try VNImageRequestHandler(cgImage: cgImage).perform([request])
+        let recognizedText = (request.results ?? [])
+            .compactMap { $0.topCandidates(1).first?.string }
+            .joined(separator: " ")
+
+        #expect(recognizedText.localizedCaseInsensitiveContains(model.displayName), "モデル名が省略されず表示されること")
+        #expect(recognizedText.localizedCaseInsensitiveContains(project.name), "プロジェクト名が省略されず表示されること")
+        #expect(recognizedText.contains("既存ディレクトリ"), "作業場所名が省略されず表示されること")
+    }
+
     @Test func controlsExposeSeparateRolesAndValues() async throws {
         let suite = "phlox.new-chat-accessibility.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

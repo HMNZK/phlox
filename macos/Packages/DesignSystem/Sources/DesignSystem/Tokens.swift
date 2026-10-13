@@ -31,6 +31,8 @@ public enum DSFont {
     public static let sectionHeader = Font.subheadline.weight(.semibold)
     public static let title = Font.title3.weight(.semibold)
     public static let heroTitle = Font.title2.weight(.semibold)
+    /// 22 / Semibold — 新規チャットの見出し（見本 `headingSize` の既定 22）。
+    public static let newChatHeading = Font.system(size: 22, weight: .semibold)
     public static let mono = Font.system(.body, design: .monospaced)
     public static let monoCaption = Font.system(size: 11, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。
@@ -58,9 +60,11 @@ public enum DSFont {
     /// 11 / Regular — 時刻・メタ・キー
     public static let meta = Font.system(size: 11)
     /// New Chat の制御チップ内アイコン。
-    public static let controlIcon = Font.system(size: DSLayout.controlChipIconSize)
+    public static let controlIcon = Font.system(size: DSLayout.controlChipIconGlyphSize)
     /// New Chat の制御チップの開閉記号。
-    public static let controlChevron = Font.system(size: DSLayout.controlChipChevronSize, weight: .medium)
+    public static let controlChevron = Font.system(size: DSLayout.controlChipChevronGlyphSize)
+    /// 新規チャットの送信記号。
+    public static let sendButtonIcon = Font.system(size: DSLayout.sendButtonIconSize, weight: .semibold)
 
     /// `body` の実寸。`Font` から実寸を取り出せないため、CATextLayer 等の
     /// Core Animation 経路（`ShimmerTextView`）に渡す値として明示する。
@@ -85,9 +89,21 @@ public enum DSLayout {
     public static let suggestionChipBorderWidth: CGFloat = 1
     public static let controlChipHeight: CGFloat = 28
     public static let controlChipIconSize: CGFloat = 14
+    public static let controlChipIconGlyphSize: CGFloat = 13
     public static let controlChipChevronSize: CGFloat = 10
+    public static let controlChipChevronGlyphSize: CGFloat = 8
     public static let controlChipContentGap: CGFloat = 5
     public static let controlChipHorizontalPadding: CGFloat = 7
+    public static let composerFocusRingWidth: CGFloat = 1
+    public static let newChatCompactSettingsWidthThreshold: CGFloat = 600
+    public static let newChatCompactLabelsWidthThreshold: CGFloat = 560
+    public static let newChatComposerTextHeight: CGFloat = 40
+    public static let newChatComposerControlRowHeight: CGFloat = 34
+    public static let newChatComposerToolbarTopInset: CGFloat = 6
+    public static let newChatComposerToolbarBottomInset: CGFloat = 6
+    public static let newChatComposerLeadingInset: CGFloat = 14
+    public static let newChatComposerTrailingInset: CGFloat = 10
+    public static let sendButtonIconSize: CGFloat = 14
     public static let menuWidth: CGFloat = 240
     public static let harnessMenuWidth: CGFloat = 320
     public static let harnessMenuHeight: CGFloat = 420
@@ -325,6 +341,8 @@ public enum DSColor {
 
     /// 白文字を載せる accent の面（主ボタン）。
     public static var accentFill: Color { palette.accentFill.color }
+    /// 新規チャットの未入力時の送信ボタン面（見本 `--off`: 前景色 8%）。
+    public static var sendDisabledFill: Color { theme.textPrimary.color.opacity(0.08) }
     /// New Chat の送信ボタンをホバー／押下した面。
     public static var sendHoverFill: Color { RGB(0x4B, 0x55, 0xA3).color }
     public static var sendPressedFill: Color { RGB(0x34, 0x3E, 0x88).color }

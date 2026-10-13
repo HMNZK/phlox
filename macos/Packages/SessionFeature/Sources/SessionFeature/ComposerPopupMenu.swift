@@ -15,6 +15,7 @@ struct ComposerChipLabel: View {
                 Image(systemName: leadingSystemImage)
                     .font(DSFont.controlIcon)
                     .frame(width: DSLayout.controlChipIconSize, height: DSLayout.controlChipIconSize)
+                    .fixedSize()
                     .accessibilityHidden(true)
             }
             Text(verbatim: title)
@@ -26,6 +27,7 @@ struct ComposerChipLabel: View {
                 Image(systemName: "chevron.down")
                     .font(DSFont.controlChevron)
                     .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
+                    .fixedSize()
                     .accessibilityHidden(true)
             }
         }

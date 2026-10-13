@@ -22,10 +22,10 @@ The copyright notices below are retained as required by those licenses.
 
 ## Bundled fonts
 
-- **DotGothic16** — SIL Open Font License 1.1. Copyright 2020 The DotGothic16
-  Project Authors (<https://github.com/fontworks-fonts/DotGothic16>). Used for
+- **BestTen-DOT** — M+ FONT LICENSE. Copyright (C) 2021 FLOP DESIGN; Copyright
+  (C) 2002-2021 M+ FONTS PROJECT (<https://booth.pm/ja/items/2747965>). Used for
   the new-chat greeting heading in the macOS app. The font and its license text
-  (`OFL.txt`) are bundled under
+  (`BestTen-LICENSE.txt`) are bundled under
   `macos/Packages/DashboardFeature/Sources/DashboardFeature/NewChat/Fonts`.
 
 ## Swift Package Manager dependencies

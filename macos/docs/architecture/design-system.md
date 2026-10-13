@@ -91,7 +91,7 @@ Packages/DesignSystem/
 | `sectionHeader` | `subheadline.semibold` | セクション見出し |
 | `title` | `title3.semibold` | タイトル |
 | `heroTitle` | `title2.semibold` | 大見出し |
-| `newChatHeading` | `custom("DotGothic16-Regular", fixedSize: 32)` | 新規チャットの挨拶の見出し。同梱のドット書体（ADR 0191）。書体は DashboardFeature が持ち、`NewChatHeadingFont.font` が初回の参照で登録する |
+| `newChatHeading` | `custom("BestTenDOT", fixedSize: 30)` | 新規チャットの挨拶の見出し。同梱のドット書体（ADR 0191）。書体は DashboardFeature が持ち、`NewChatHeadingFont.font` が初回の参照で登録する |
 | `mono` | `system(.body, .monospaced)` | コード・ID |
 | `monoCaption` | `system(.caption, .monospaced)` | コード補助 |
 | `iconTiny` | `system(size: 9, weight: .bold)` | バッジ等の極小アイコン（**本文に使わない**） |

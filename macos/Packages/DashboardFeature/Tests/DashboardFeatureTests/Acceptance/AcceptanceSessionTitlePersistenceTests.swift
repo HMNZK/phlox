@@ -231,7 +231,8 @@ private func fourTitleStates() -> [(String, SessionTitleSource?, String?, String
     ]
 }
 
-@Suite("task-44: session title persistence")
+// 2 つのテストが標準エラー（プロセス全体の fd 2）を差し替えるので、並べて走らせない（互いの dup がパイプの書き口を持ち続け、読み取りが終わらなくなる）。
+@Suite("task-44: session title persistence", .serialized)
 struct AcceptanceSessionTitlePersistenceTests {
     @Test @MainActor
     func 新規生成は花名状態で保存され_name_代入では手動化しない() async throws {

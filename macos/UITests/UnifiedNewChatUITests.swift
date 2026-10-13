@@ -99,12 +99,19 @@ final class UnifiedNewChatUITests: XCTestCase {
 
         let effort = app.descendants(matching: .any)["newChat.effortPicker"]
         let permission = app.descendants(matching: .any)["newChat.permissionPicker"]
+        let overflow = app.descendants(matching: .any)["newChat.settingsOverflow"]
         let project = app.descendants(matching: .any)["newChat.projectPicker"]
         let workspace = app.descendants(matching: .any)["newChat.workspacePicker"]
-        XCTAssertEqual(effort.label, "推論の深さ")
-        XCTAssertTrue((effort.value as? String)?.isEmpty == false)
-        XCTAssertEqual(permission.label, "権限")
-        XCTAssertTrue((permission.value as? String)?.isEmpty == false)
+        // 既定の 900pt の窓では effort・権限を「…」へ畳む（要件 E6）。
+        if overflow.exists {
+            XCTAssertEqual(overflow.label, "設定")
+            XCTAssertTrue((overflow.value as? String)?.contains("、") == true, "畳んだ effort・権限の値を読み上げられない")
+        } else {
+            XCTAssertEqual(effort.label, "推論の深さ")
+            XCTAssertTrue((effort.value as? String)?.isEmpty == false)
+            XCTAssertEqual(permission.label, "権限")
+            XCTAssertTrue((permission.value as? String)?.isEmpty == false)
+        }
         XCTAssertEqual(project.label, "プロジェクト")
         XCTAssertEqual(project.value as? String, "Aster")
         XCTAssertEqual(workspace.label, "作業場所")
@@ -363,7 +370,9 @@ final class UnifiedNewChatUITests: XCTestCase {
     private func selectNewWorktreeUsingKeyboard(_ workspace: XCUIElement, app: XCUIApplication) throws {
         // XCUITest の Menu 焦点判定は偽陰性になる。焦点枠で確認したチップ順を使う。
         try focusUsingKeyboard(app.buttons["newChat.harnessModelPicker"], app: app)
-        for _ in 0..<4 { app.typeKey(.tab, modifierFlags: []) }
+        // 畳んだときは effort・権限の 2 つが「…」1 つになる。
+        let chipsBeforeWorkspace = app.descendants(matching: .any)["newChat.settingsOverflow"].exists ? 3 : 4
+        for _ in 0..<chipsBeforeWorkspace { app.typeKey(.tab, modifierFlags: []) }
         app.typeKey(.space, modifierFlags: [])
         let choice = app.buttons["新しい worktree"].firstMatch
         try requireExists(choice, "Spaceで作業場所のメニューを開けない")

@@ -302,7 +302,7 @@ struct ComposerSettingsControlsView: View {
         .accessibilityLabel(Text(verbatim: title))
         .accessibilityIdentifier(accessibilityIdentifier)
         .composerPopup(isPresented: binding(for: .permission)) {
-            ComposerPopupSurface(width: 340, cornerRadius: 10, padding: 10) {
+            ComposerPopupSurface(width: 340, padding: 10) {
                 ComposerPermissionPanel(
                     title: panelTitle,
                     subtitle: String(format: AppLocalizedString.string("%@ · %lld 種", locale: locale), agentName, choices.count),

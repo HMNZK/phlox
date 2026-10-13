@@ -9,8 +9,8 @@ import DesignSystem
 struct ComposerSuggestionDescriptionTests {
     private let description = "先頭から最後まで読める説明です。コマンド名と出どころは固定し、この長い説明だけが一定の速さで進みます。末尾です。"
 
-    @Test("流す説明文は選択行の面の上の色（accentOnFill）で、テーマを替えると描き直す")
-    func scrollingDescriptionUsesAccentOnFill() throws {
+    @Test("流す説明文は選択行でも反転しない主文字色（textPrimary）で、テーマを替えると描き直す")
+    func scrollingDescriptionUsesTextPrimary() throws {
         let defaults = UserDefaults.standard
         let previous = defaults.object(forKey: ThemeStore.themeKey)
         defer {
@@ -24,12 +24,12 @@ struct ComposerSuggestionDescriptionTests {
         defaults.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
         view.setText(description)
         let dark = try #require(ink())
-        #expect(dark == NSColor(DSColor.accentOnFill).usingColorSpace(.sRGB))
-        #expect(dark.brightnessComponent < 0.5, "ダークの白い面に白い文字を載せない")
+        #expect(dark == NSColor(DSColor.textPrimary).usingColorSpace(.sRGB))
+        #expect(dark.brightnessComponent > 0.5, "ダークの暗い面に暗い文字を載せない")
 
         defaults.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
         view.setText(description)
-        #expect(try #require(ink()).brightnessComponent > 0.5)
+        #expect(try #require(ink()).brightnessComponent < 0.5, "ライトの明るい面に明るい文字を載せない")
     }
 
     @Test func overflowingDescriptionReachesTheEndAndRepeatsWithReadingPauses() throws {

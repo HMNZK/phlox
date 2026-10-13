@@ -14,8 +14,8 @@ struct ChatHistoryRevertPicker: View {
     @State private var selection: String?
     @FocusState private var isFocused: Bool
 
-    /// PhloxChat.dc.html の showRevert: 幅 480・ポップオーバー地・角丸 12・内側 8。
-    /// 見出しと説明 → 行（高さ 30・13pt・右に時刻。選択行はアクセント塗り＋accentOnFill の文字）→ 区切り線の下にキーの案内。
+    /// PhloxChat.dc.html の showRevert: 幅 480・ポップオーバー地・内側 8。
+    /// 見出しと説明 → 行（高さ 30・13pt・右に時刻。選択行は `dsPopupRowHighlight`（ADR 0190））→ 区切り線の下にキーの案内。
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             VStack(alignment: .leading, spacing: 2) {
@@ -57,8 +57,7 @@ struct ChatHistoryRevertPicker: View {
         .frame(width: 480)
         // 高さは中身に合わせる（maxHeight の柔軟な枠だと提示された高さいっぱいに広がり、中身が縦の中央に浮く）。
         .fixedSize(horizontal: false, vertical: true)
-        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .dsShadow(.cardHover)
+        .dsPopupSurface()
         .focusable()
         .focused($isFocused)
         .focusEffectDisabled()
@@ -122,17 +121,13 @@ struct ChatHistoryRevertPicker: View {
                 Text(verbatim: Self.timeFormatter.string(from: item.timestamp))
                     .font(DSFont.meta)
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? DSColor.accentOnFill : DSColor.textSecondary)
-                    .opacity(0.8)
+                    .foregroundStyle(DSColor.textSecondary)
             }
             .font(DSFont.row)
-            .foregroundStyle(isSelected ? DSColor.accentOnFill : DSColor.textPrimary)
+            .foregroundStyle(DSColor.textPrimary)
             .padding(.horizontal, 10)
             .frame(height: 30)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected ? DSColor.accentFill : Color.clear)
-            )
+            .dsPopupRowHighlight(isSelected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

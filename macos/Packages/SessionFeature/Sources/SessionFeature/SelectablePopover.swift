@@ -211,12 +211,7 @@ public struct SelectablePopover: View {
         }
         .padding(DSLayout.menuPadding)
         .frame(width: width)
-        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: DSRadius.attention, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DSRadius.attention, style: .continuous)
-                .strokeBorder(DSColor.popoverEdge, lineWidth: DSLayout.controlBorderWidth)
-        }
-        .dsShadow(DSShadow.popover)
+        .dsPopupSurface()
         .focusable(searchText == nil)
         .focusEffectDisabled()
         .focused($listFocused)
@@ -463,10 +458,7 @@ private struct SelectablePopoverRow: View {
                 .accessibilityLabel(Text(option.closeAccessibilityLabel ?? localized("閉じる")))
             }
         }
-        .background(
-            isHighlighted || (isPointerHighlighted && isHovering) ? DSColor.selectionFill : .clear,
-            in: RoundedRectangle(cornerRadius: DSRadius.row)
-        )
+        .dsPopupRowHighlight(isHighlighted || (isPointerHighlighted && isHovering))
         .onHover {
             isHovering = $0
             onHoverChange($0)

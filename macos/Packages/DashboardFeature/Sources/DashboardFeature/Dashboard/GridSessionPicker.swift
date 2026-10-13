@@ -10,6 +10,9 @@ struct GridSessionPicker: View {
     let onToggle: (SessionID) -> Void
     let onShowAll: () -> Void
 
+    private enum Row: Hashable { case showAll, session(SessionID) }
+    @State private var hovered: Row?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onShowAll) {
@@ -23,9 +26,11 @@ struct GridSessionPicker: View {
                 }
                 .padding(.horizontal, DSSpacing.m)
                 .padding(.vertical, DSSpacing.s)
+                .dsPopupRowHighlight(hovered == .showAll)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { setHovered(.showAll, $0) }
 
             Divider().overlay(DSColor.separator)
 
@@ -39,17 +44,20 @@ struct GridSessionPicker: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(candidates, id: \.id) { session in
                             sessionRow(session)
-                            if session.id != candidates.last?.id {
-                                Divider().overlay(DSColor.separator)
-                            }
                         }
                     }
                 }
                 .frame(maxHeight: 280)
             }
         }
+        .padding(DSLayout.menuPadding)
         .frame(width: 260)
-        .background(DSColor.surfaceElevated)
+        .background(DSColor.popoverBackground)
+    }
+
+    /// 隣の行へ移ると「入った」が「出た」より先に届くことがあるので、出たときは自分が強調中のときだけ消す。
+    private func setHovered(_ row: Row, _ inside: Bool) {
+        if inside { hovered = row } else if hovered == row { hovered = nil }
     }
 
     private func sessionRow(_ session: SessionNode) -> some View {
@@ -68,8 +76,10 @@ struct GridSessionPicker: View {
             }
             .padding(.horizontal, DSSpacing.m)
             .padding(.vertical, DSSpacing.s)
+            .dsPopupRowHighlight(hovered == .session(session.id))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { setHovered(.session(session.id), $0) }
     }
 }

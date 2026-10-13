@@ -881,7 +881,7 @@ A・C 型は `.dialogSeverity(.critical)`（注意アイコン）、破壊的な
 | R2 強調 | `/コマンド` は accentInk 13.5 semibold、`@ファイル` は qstInk の等幅 12.5、キーワードは stlInk（紫）13.5 semibold | `ChatComposer.swift`、`Tokens.swift`（`composerKeyword`） |
 | R2 入力履歴の刻み | 入力欄の右上に縦棒（幅 3・高さ 6/8/10、選択中 12 は accent）。ポップアップが開いている間は隠す。一覧は上に開く | `ChatInputHistoryScrubber.swift`、`ChatSessionView.swift` |
 | R1・R4・R5 送信・中断ボタン | 直径 26・「↑」13 bold・無効と送信中は segBg に fg3。承認・質問待ちの間も ■ | `ChatComposer.swift` |
-| R3 候補 | 入力欄の上に幅 460 で出す。見出し「コマンド / ファイル」・30pt の 1 行（名前・説明・出どころ）・選択は accentFill に白・下端にキーの案内。選択行へ自動で送る。長い名前は途中を省略（出どころを押し出さない）。グリッドのタイルでは 5 行 | `ChatComposer.swift`、`GridChatColumn.swift` |
+| R3 候補 | 入力欄の上に幅 460 で出す。見出し「コマンド / ファイル」・30pt の 1 行（名前・説明・出どころ）・選択は `dsPopupRowHighlight`（淡い面・文字は変えない。ADR 0190。当初は accentFill に白）・下端にキーの案内。選択行へ自動で送る。長い名前は途中を省略（出どころを押し出さない）。グリッドのタイルでは 5 行 | `ChatComposer.swift`、`GridChatColumn.swift` |
 | R8 添付 | チップ（30 高・22pt のサムネイル・#N・名前・サイズ・丸い ✕「添付を外す」）。上限の通知「5 枚目は追加できません。画像は 1 枚 4MB・最大 4 枚・合計 8MB までです。」を赤い箱で | `ChatComposer.swift`、`ComposerAttachments.swift` |
 | R9 送信失敗 | 本文 12.5 textPrimary、「再送」24 高の枠付きボタン | `ChatReplyArea.swift` |
 | R6 承認カード | 余白 11/13/12・間 9・11pt の菱形・「n分前から」・‹ › 20pt・題 13.5。対象の枠（カード地・角丸 7）。ボタン 28 高・角丸 7・12.5、キー表記は白 85% / fg3 | `ChatReplyApproval.swift` |

@@ -478,7 +478,7 @@ struct ComposerSuggestionPopup: View {
         }
     }
 
-    /// 05 R3: 見出し・候補行（30pt・選択はアクセント地に accentOnFill）・下端のキー操作の案内（PhloxReply.dc.html の sug）。
+    /// 05 R3: 見出し・候補行（30pt・選択は `dsPopupRowHighlight`。ADR 0190）・下端のキー操作の案内（PhloxReply.dc.html の sug）。
     var body: some View {
         let isSlash = controller.candidates.first?.kind == .slashCommand
         VStack(alignment: .leading, spacing: 1) {
@@ -522,12 +522,7 @@ struct ComposerSuggestionPopup: View {
         }
         .padding(6)
         .frame(maxWidth: 460, alignment: .leading)
-        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(DSColor.popoverEdge, lineWidth: 0.5)
-        )
-        .dsShadow(.popover)
+        .dsPopupSurface()
     }
 
     private var selectedCandidateID: SuggestionCandidate.ID? {
@@ -559,14 +554,11 @@ struct ComposerSuggestionPopup: View {
                         .fixedSize()
                 }
             }
-            .foregroundStyle(isSelected ? DSColor.accentOnFill : DSColor.textPrimary)
+            .foregroundStyle(DSColor.textPrimary)
             .padding(.horizontal, 8)
             .frame(height: ComposerSuggestionPopupMetrics.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected ? DSColor.accentFill : Color.clear)
-            )
+            .dsPopupRowHighlight(isSelected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -497,7 +497,7 @@ struct NewTabChooser: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 26)
-        .background(isFocused ? DSColor.fillSelected : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+        .dsPopupRowHighlight(isFocused)
         .contentShape(Rectangle())
         .onTapGesture { open(item) }
         .onHover { if $0 { focused = item } }

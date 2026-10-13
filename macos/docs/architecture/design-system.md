@@ -258,6 +258,7 @@ AppKit／ポインティングデバイス前提のため macOS に隔離。iOS�
 | `HoverableSoftButtonStyle` | ソフト塗りテキストボタン: 常時淡い面、ホバー／押下で明るく |
 | `HoverableSurfaceButtonStyle` | 行／ヘッダ／選択肢用: 既定は面なし、ホバー／押下で面・枠を強める（押下時 `scaleEffect` 0.995） |
 | `HoverCursorState` | `NSCursor` の push/pop 対応ずれ（祖先のカーソルを誤って pop する）を防ぐ純粋ロジック。disabled へのホバーでは push しない |
+| `dsPopupRowHighlight(_:)`・`dsPopupSurface()` | 選択肢のポップアップの行の強調（ホバーとキーボードで同じ `selectionFill`・角 `DSRadius.row`・文字色は変えない）と、自前で浮かせる外枠（`popoverBackground`・0.5pt `popoverEdge`・角 `DSRadius.attention`・`DSShadow.popover`）。一覧形式のポップアップは必ずこの 2 つを使う（システムの `.popover` に載せるものは外枠を使わず面だけ塗る。例外と対象外は ADR 0190） |
 | `DSSidePane` | 左右のサイドバー（サイドバー・インスペクタ）の開閉枠。幅を 0 まで縮めて端から出し入れし、閉じている間は操作・読み上げの対象から外す。`unloadsWhenClosed` を付けると閉じる動きの後に中身を外す（インスペクタ。閉じている間にファイル一覧を読み直さない）。境目の線の幅は `DSLayout.paneSeparatorWidth` を幅の計算と共有する。動きは `.dsPaneAnimation(value:)`（`DSAnimation.pane`、動きを減らす設定では動かさない）で付ける。左右の開閉は必ずこの 2 つを使い、動きを揃える（2026-10-13 ユーザー指示） |
 
 > 設計メモ: hover 系を macOS 専用にしているのは「移植しないため」ではなく、**AppKit 依存で iOS に存在しない**ため。状態の「語彙」（`StatusBadge`）と、純 SwiftUI の視覚表現（`StatusCapsuleBadge` / `StatusLabel`）はコアで共有されている。

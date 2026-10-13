@@ -97,7 +97,6 @@ struct ChatInputHistoryScrubber: View {
     }
 
     private var historyPanel: some View {
-        let shape = RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
         let selected = selectedID
         return ScrollView {
             LazyVStack(spacing: DSSpacing.xxs) {
@@ -114,12 +113,8 @@ struct ChatInputHistoryScrubber: View {
         }
         .frame(width: Self.panelWidth)
         .frame(maxHeight: Self.panelMaxHeight)
-        .clipShape(shape)
-        .modifier(GlassPanelBackground(cornerRadius: DSRadius.l))
-        .overlay {
-            shape.strokeBorder(DSColor.separator, lineWidth: 1)
-        }
-        .dsShadow(.cardHover)
+        .clipShape(RoundedRectangle(cornerRadius: DSRadius.attention, style: .continuous))
+        .dsPopupSurface()
         .animation(.easeOut(duration: 0.12), value: selected)
         .accessibilityIdentifier("ChatInputHistoryScrubber.panel")
     }
@@ -175,21 +170,6 @@ struct ChatInputHistoryScrubber: View {
     }
 }
 
-/// Liquid Glass 風のパネル面。macOS 26 以降は本物の `.glassEffect`、
-/// それ未満は半透明マテリアルへフォールバックする。
-private struct GlassPanelBackground: ViewModifier {
-    let cornerRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        if #available(macOS 26.0, *) {
-            content.glassEffect(.regular, in: shape)
-        } else {
-            content.background(.ultraThinMaterial, in: shape)
-        }
-    }
-}
-
 private struct ChatInputHistoryRow: View {
     let entry: InputHistoryEntry
     let isSelected: Bool
@@ -208,10 +188,7 @@ private struct ChatInputHistoryRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, DSSpacing.m)
                 .padding(.vertical, DSSpacing.s)
-                .background(
-                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .fill(isSelected ? DSColor.fillSelected : Color.clear)
-                )
+                .dsPopupRowHighlight(isSelected)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

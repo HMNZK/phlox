@@ -70,9 +70,9 @@ final class SuggestionDescriptionScrollView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
-    /// 文字は選択行の面（`accentFill`）の上の色。テーマが変わったら描き直す。
+    /// 文字は行の強調（`dsPopupRowHighlight`。ADR 0190）でも反転しない主文字色。テーマが変わったら描き直す。
     func setText(_ text: String) {
-        let ink = NSColor(DSColor.accentOnFill)
+        let ink = NSColor(DSColor.textPrimary)
         guard self.text != text || self.ink != ink else { return }
         self.text = text
         self.ink = ink

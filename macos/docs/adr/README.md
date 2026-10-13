@@ -12,6 +12,7 @@ last-verified: 2026-10-13
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0190 | [選択肢のポップアップの見た目を 1 つの部品にまとめる](0190-shared-popup-menu-look.md) | accepted |
 | 0189 | [アクセントの色をやめ、白黒にする](0189-monochrome-accent.md) | accepted |
 | 0188 | [新規チャットの下書きをプロジェクトから切り離し、送信したときにそのプロジェクトのタブを作る](0188-project-independent-new-chat-draft.md) | accepted |
 | 0187 | [上段をプロジェクトのタブにし、タブ列をサイドバーと一致させる](0187-project-tabs.md) | accepted（新規チャットの子タブは 0188 で置換） |

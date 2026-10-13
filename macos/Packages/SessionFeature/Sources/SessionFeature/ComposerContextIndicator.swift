@@ -217,7 +217,7 @@ struct ComposerContextIndicator: View {
     }
 }
 
-/// PhloxReply.dc.html の O8: 右寄せ・幅 240・`--popover`・角丸 9・影。
+/// PhloxReply.dc.html の O8: 右寄せ・幅 240。外枠は `dsPopupSurface()`（ADR 0190）。
 private struct ComposerContextPopover: View {
     let summary: (title: String, tokens: String)
     var warning: String? = nil
@@ -242,12 +242,7 @@ private struct ComposerContextPopover: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(width: 240, alignment: .leading)
-        .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(DSColor.popoverEdge, lineWidth: 0.5)
-        )
-        .dsShadow(.popover)
+        .dsPopupSurface()
     }
 }
 
@@ -297,7 +292,7 @@ private struct ComposerBranchControl: View {
         .disabled(isCheckingOut)
         .accessibilityLabel(Text(verbatim: AppLocalizedString.string("ブランチ", locale: locale) + " " + currentBranch))
         .composerPopup(isPresented: pickerIsPresented, alignment: .trailing) {
-            ComposerPopupSurface(width: 300, cornerRadius: 10, padding: 6) {
+            ComposerPopupSurface(width: 300, padding: 6) {
                 branchPicker
             }
         }

@@ -39,10 +39,9 @@ struct ComposerChipLabel: View {
     }
 }
 
-/// 入力欄の上に浮かせる箱（PhloxReply.dc.html の popover）: `--popover` の面・影・0.5pt の縁。
+/// 入力欄の上に浮かせる箱（外枠は `dsPopupSurface()`。ADR 0190）。
 struct ComposerPopupSurface<Content: View>: View {
     var width: CGFloat
-    var cornerRadius: CGFloat = 9
     var padding: CGFloat = 5
     @ViewBuilder let content: () -> Content
 
@@ -50,12 +49,7 @@ struct ComposerPopupSurface<Content: View>: View {
         content()
             .padding(padding)
             .frame(width: width, alignment: .leading)
-            .background(DSColor.popoverBackground, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(DSColor.popoverEdge, lineWidth: 0.5)
-            )
-            .dsShadow(.popover)
+            .dsPopupSurface()
     }
 }
 
@@ -247,7 +241,7 @@ struct ComposerMenuSection: Identifiable {
 }
 
 /// 選ぶだけの一覧（モデル・effort・ブランチ）。↑↓ で移動、↩ で決める、Esc で閉じる。
-/// 指している行（ポインタ・キー）は `--accentFill` に accentOnFill の文字。選んである行は ✓。
+/// 指している行（ポインタ・キー）は `dsPopupRowHighlight`（ADR 0190）。選んである行は ✓。
 struct ComposerMenuList<Footer: View>: View {
     var header: String? = nil
     var search: Binding<String>? = nil
@@ -363,10 +357,10 @@ struct ComposerMenuList<Footer: View>: View {
                 }
             }
             .font(DSFont.row)
-            .foregroundStyle(isHighlighted ? DSColor.accentOnFill : (row.isEnabled ? DSColor.textPrimary : DSColor.textTertiary))
+            .foregroundStyle(row.isEnabled ? DSColor.textPrimary : DSColor.textTertiary)
             .padding(.horizontal, 10)
             .frame(height: rowHeight)
-            .background(isHighlighted ? DSColor.accentFill : .clear, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .dsPopupRowHighlight(isHighlighted)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -594,10 +588,7 @@ struct ComposerPermissionPanel: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 7)
-            .background(
-                selected || highlightedIndex == index ? DSColor.fillSubtle : .clear,
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
+            .dsPopupRowHighlight(highlightedIndex == index)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -1,5 +1,6 @@
 import SwiftUI
 import AgentDomain
+import DesignSystem
 import StructuredChatKit
 
 public struct ChatItemView: View, Equatable {
@@ -56,8 +57,18 @@ public struct ChatItemView: View, Equatable {
 
     public var body: some View {
         switch item {
-        case .userMessage(_, let text, let timestamp, let attachments):
-            UserMessageCell(text: text, timestamp: timestamp, attachments: attachments)
+        case .userMessage(let id, let text, let timestamp, let attachments):
+            if id.hasPrefix(ChatSessionViewModel.pendingFirstMessageIDPrefix) {
+                VStack(alignment: .trailing, spacing: DSSpacing.xs) {
+                    UserMessageCell(text: text, timestamp: timestamp, attachments: attachments)
+                    Text("送信待ち · 起動が終わると送ります")
+                        .font(DSFont.meta)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .accessibilityIdentifier("ChatMessage.pendingFirstMessage")
+                }
+            } else {
+                UserMessageCell(text: text, timestamp: timestamp, attachments: attachments)
+            }
         case .agentMessage(_, let text, let timestamp):
             AgentMessageCell(text: text, timestamp: timestamp, descriptor: agentDescriptor)
             if let turnUsage {

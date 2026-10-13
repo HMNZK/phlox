@@ -202,7 +202,7 @@ UI accent は**藍色**（ADR 0184）。値は `DesignPalette` が持ち、`AppT
 | statusAwaiting（黄・承認待ち） | `#F0AE4A`（`approval.mark`） |
 | statusError（赤） | `#EE5A5F`（`error.mark`） |
 | statusCompleted | `#6EE7B7` |
-| 対応待ちの色 | `approval`（承認待ち）・`question`（質問待ち）・`error`・`stalled`（無応答）の 4 種。`DesignPalette` が `mark`（記号）・`ink`（文字）・`tintOpacity`（面）で持つ。ダーク既定の承認待ちは mark `#F0AE4A`・ink `#F4BD68` |
+| 対応待ちの色 | `approval`（承認待ち）・`question`（質問あり）・`error`・`stalled`（無応答）の 4 種。`DesignPalette` が `mark`（記号）・`ink`（文字）・`tintOpacity`（面）で持つ。ダーク既定の承認待ちは mark `#F0AE4A`・ink `#F4BD68` |
 
 ### 3.4 `ThemeStore`（起動時確定 + キャッシュ）
 

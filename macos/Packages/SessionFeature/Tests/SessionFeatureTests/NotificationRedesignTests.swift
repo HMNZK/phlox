@@ -54,7 +54,7 @@ struct NotificationRedesignTests {
 
     @Test func summary_countsByKind_inListOrder() {
         #expect(SessionNotificationText.summaryTitle(projectName: "phlox", count: 3, locale: ja) == "phlox で 3 件が対応待ち")
-        #expect(SessionNotificationText.summarySubtitle(kinds: [.question, .approval, .approval], locale: ja) == "承認待ち 2 · 質問待ち 1")
+        #expect(SessionNotificationText.summarySubtitle(kinds: [.question, .approval, .approval], locale: ja) == "承認待ち 2 · 質問あり 1")
         #expect(SessionNotificationText.summaryBody(newestName: "準備", count: 3, locale: ja) == "準備 ほか 2 件")
     }
 

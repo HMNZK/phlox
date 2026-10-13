@@ -39,19 +39,32 @@ public final class NewChatDraft {
     public var settings: CodexAppServerSessionSettings
 
     private let lastUsedChatSettingsStore: LastUsedChatSettingsStore
+    private let isFullAccessEnabled: (AgentKind) -> Bool
 
-    init(lastUsedChatSettingsStore: LastUsedChatSettingsStore) {
+    init(
+        lastUsedChatSettingsStore: LastUsedChatSettingsStore,
+        isFullAccessEnabled: @escaping (AgentKind) -> Bool = { BypassSettings.isEnabled(for: $0) }
+    ) {
         self.lastUsedChatSettingsStore = lastUsedChatSettingsStore
+        self.isFullAccessEnabled = isFullAccessEnabled
         let kind = Self.initialKind(lastHarness: lastUsedChatSettingsStore.lastHarness)
         self.agentRef = .builtin(kind)
-        self.settings = Self.initialSettings(for: kind, saved: lastUsedChatSettingsStore.lastUsed(agentID: kind.rawValue))
+        self.settings = Self.initialSettings(
+            for: kind,
+            saved: lastUsedChatSettingsStore.lastUsed(agentID: kind.rawValue),
+            fullAccess: isFullAccessEnabled(kind)
+        )
     }
 
     public func selectHarness(_ ref: AgentRef) {
         guard ref != agentRef else { return }
         let kind = ref.builtinKind
         agentRef = ref
-        settings = Self.initialSettings(for: kind, saved: lastUsedChatSettingsStore.lastUsed(agentID: ref.id))
+        settings = Self.initialSettings(
+            for: kind,
+            saved: lastUsedChatSettingsStore.lastUsed(agentID: ref.id),
+            fullAccess: isFullAccessEnabled(kind)
+        )
     }
 
     public func appendSuggestion(_ suggestion: String) {
@@ -121,13 +134,18 @@ public final class NewChatDraft {
         return kind
     }
 
-    private static func initialSettings(for kind: AgentKind, saved: LastUsedChatSettings?) -> CodexAppServerSessionSettings {
+    /// 保存値が無いときの Claude の権限は、設定のフルアクセス（`BypassSettings`）に従う。
+    private static func initialSettings(
+        for kind: AgentKind,
+        saved: LastUsedChatSettings?,
+        fullAccess: Bool
+    ) -> CodexAppServerSessionSettings {
         let model = saved?.model ?? AgentModelCatalog.defaultModel(for: kind)
         let modelOption = AgentModelCatalog.models(for: kind).first { $0.id == model }
         return CodexAppServerSessionSettings(
             selectedModel: model,
             selectedEffort: saved?.effort ?? modelOption?.defaultReasoningEffort ?? (kind == .claudeCode ? "high" : nil),
-            selectedPermissionProfile: saved?.permission ?? (kind == .claudeCode ? "bypassPermissions" : nil),
+            selectedPermissionProfile: saved?.permission ?? (kind == .claudeCode ? (fullAccess ? "bypassPermissions" : "auto") : nil),
             isPlanMode: saved?.isPlanMode ?? false
         )
     }

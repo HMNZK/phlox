@@ -5217,6 +5217,17 @@
         }
       }
     },
+    "送信待ち · 起動が終わると送ります": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting to send · Sends when startup finishes"
+          }
+        }
+      }
+    },
     "通知を許可…": {
       "extractionState": "manual",
       "localizations": {

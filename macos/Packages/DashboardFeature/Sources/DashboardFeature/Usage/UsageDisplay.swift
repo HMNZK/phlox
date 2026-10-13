@@ -48,10 +48,12 @@ enum UsageDisplay {
     }
 
     /// 下部バーのハーネスと全バケットを AgentKind 順で返す。
+    /// 出すハーネスはインスペクタと同じ「未取得の CLI も表示」の設定に従う（`visibleKinds`）。
     static func bottomBarGroups(
-        usages: [AgentKind: CLIUsage]
+        usages: [AgentKind: CLIUsage],
+        showUnavailable: Bool = true
     ) -> [BottomBarGroup] {
-        AgentKind.allCases.compactMap { kind -> BottomBarGroup? in
+        visibleKinds(usages: usages, showUnavailable: showUnavailable).compactMap { kind -> BottomBarGroup? in
             guard let usage = usages[kind] else {
                 return BottomBarGroup(kind: kind, buckets: nil)
             }

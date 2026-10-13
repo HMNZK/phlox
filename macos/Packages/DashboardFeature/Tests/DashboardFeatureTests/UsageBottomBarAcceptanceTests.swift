@@ -29,6 +29,19 @@ struct UsageBottomBarAcceptanceTests {
         #expect(try #require(groups.first(where: { $0.kind == .cursor })?.buckets).map(\.id) == ["auto", "api"])
     }
 
+    @Test("「未取得の CLI も表示」がオフなら、取得できないハーネスを出さない（FR-36）")
+    func hidesUnavailableHarnessWhenSettingIsOff() {
+        let usages: [AgentKind: CLIUsage] = [
+            .codex: CLIUsage(kind: .codex, state: .ok([
+                UsageBucket(id: "5h", label: "5時間", usedPercent: 28),
+            ]), updatedAt: now),
+            .cursor: CLIUsage(kind: .cursor, state: .unavailable(reason: "Cursorアプリ未検出"), updatedAt: now),
+        ]
+
+        #expect(UsageDisplay.bottomBarGroups(usages: usages, showUnavailable: false).map(\.kind) == [.codex])
+        #expect(UsageDisplay.bottomBarGroups(usages: usages, showUnavailable: true).map(\.kind) == AgentKind.allCases)
+    }
+
     @Test("未取得のハーネスも表示し、理由の代わりに定型文を使う")
     func unavailableHarnessUsesFixedText() throws {
         let usages: [AgentKind: CLIUsage] = [

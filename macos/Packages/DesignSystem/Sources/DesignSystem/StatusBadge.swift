@@ -4,7 +4,7 @@ import AgentDomain
 /// セッション状態の表示語彙（ラベル・色・ヘルプ）を一元提供する名前空間。
 /// StatusLabel / StatusCapsuleBadge がここから引く。
 ///
-/// 再設計（12 Design System）の語彙: 起動中・待機・実行中・承認待ち・質問待ち・完了・エラー・無応答。
+/// 再設計（12 Design System）の語彙: 起動中・待機・実行中・承認待ち・質問あり・完了・エラー・無応答。
 /// 「入力待ち」「承認」「却下」「停止」は使わない。色が付くのは対応待ちの 4 状態だけ。
 public enum StatusBadge {
     public static func englishLabel(for status: SessionStatus) -> String {
@@ -39,7 +39,7 @@ public enum StatusBadge {
         case .awaitingApproval:
             "承認待ち"
         case .awaitingUserQuestion:
-            "質問待ち"
+            "質問あり"
         case .completed:
             "完了"
         case .error:
@@ -150,7 +150,7 @@ public enum SessionDisplayState: Sendable, Equatable {
         case .idle: "待機"
         case .running: "実行中"
         case .approval: "承認待ち"
-        case .question: "質問待ち"
+        case .question: "質問あり"
         case .doneUnread, .done: "完了"
         case .error: "エラー"
         case .stalled: "無応答"

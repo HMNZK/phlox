@@ -30,6 +30,26 @@ struct DashboardDetailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// 新規チャットの起動に失敗した行の「再起動」「閉じる」。単体表示とグリッドで同じものを使う。
+    private var launchFailureActions: ChatLaunchFailureActions {
+        ChatLaunchFailureActions(
+            restart: { id in
+                guard case .appServer(let session) = viewModel.sessionNode(id: id), let projectID = session.projectID else { return }
+                Task {
+                    do {
+                        _ = try await viewModel.restartNewChat(id) { newID in
+                            router.completeNewChat(sessionID: newID, projectID: projectID)
+                        }
+                    } catch {
+                        onNewChatLaunchFailure(session.agentRef, error)
+                    }
+                }
+            },
+            close: { id in Task { await viewModel.removeSession(id) } },
+            isRestarting: { viewModel.restartingNewChatIDs.contains($0) }
+        )
+    }
+
     private var filteredGridSessions: [SessionNode] {
         viewModel.filteredGridSessionNodes(projectID: router.gridFilterProjectID)
     }
@@ -75,6 +95,7 @@ struct DashboardDetailView: View {
                     onOpenSingle: { router.openSingle(sessionID: $0) },
                     parentNames: parentNames
                 )
+                .environment(\.chatLaunchFailureActions, launchFailureActions)
                 // ⌃⌥＋矢印で分割線を動かすときの下限の判定に、グリッドの実際の大きさを使う。
                 // SessionGridView の余白（左右 s・下 s・上 xs）を除いた、タイルを並べる領域。
                 .onGeometryChange(for: CGSize.self, of: \.size) { size in
@@ -100,22 +121,9 @@ struct DashboardDetailView: View {
                 ChatSessionView(
                     viewModel: session,
                     projectName: viewModel.projects.first(where: { $0.id == session.projectID })?.name,
-                    onLaunchFailureRestart: {
-                        guard let projectID = session.projectID else { return }
-                        Task {
-                            do {
-                                _ = try await viewModel.restartNewChat(session.id) { newID in
-                                    router.completeNewChat(sessionID: newID, projectID: projectID)
-                                }
-                            } catch {
-                                onNewChatLaunchFailure(session.agentRef, error)
-                            }
-                        }
-                    },
-                    isLaunchFailureRestarting: viewModel.restartingNewChatIDs.contains(session.id),
-                    onLaunchFailureClose: {
-                        Task { await viewModel.removeSession(session.id) }
-                    }
+                    onLaunchFailureRestart: { launchFailureActions.restart(session.id) },
+                    isLaunchFailureRestarting: launchFailureActions.isRestarting(session.id),
+                    onLaunchFailureClose: { launchFailureActions.close(session.id) }
                 )
                     // 「この会話から再開」で同じ ID の VM が差し替わったら、ビューも作り直して末尾へ寄せ直す（04 B3）。
                     .id(ObjectIdentifier(session))

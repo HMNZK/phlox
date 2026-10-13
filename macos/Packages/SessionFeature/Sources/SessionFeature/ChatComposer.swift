@@ -200,7 +200,9 @@ struct ChatComposer: View {
     /// 状態ごとの案内（PhloxReply.dc.html の placeholder）。
     private var placeholderText: String {
         let key: String
-        if !viewModel.replyApprovals.isEmpty {
+        if viewModel.status == .starting {
+            key = "起動しています…"
+        } else if !viewModel.replyApprovals.isEmpty {
             key = "承認待ちの間も入力できます（送信は承認後）"
         } else if ChatReplyArea<EmptyView>.hasPendingQuestion(in: viewModel.transcript) {
             key = "質問に答えるか、ここから別の指示を送れます"

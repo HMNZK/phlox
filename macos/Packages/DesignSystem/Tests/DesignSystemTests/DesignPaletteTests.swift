@@ -136,7 +136,7 @@ import Testing
     @Test("語彙は 12 Design System の表どおりで、使わない言葉を含まない")
     func vocabulary() {
         let all: [SessionDisplayState] = [.starting, .idle, .running, .approval, .question, .doneUnread, .done, .error, .stalled]
-        #expect(all.map(\.label) == ["起動中", "待機", "実行中", "承認待ち", "質問待ち", "完了", "完了", "エラー", "無応答"])
+        #expect(all.map(\.label) == ["起動中", "待機", "実行中", "承認待ち", "質問あり", "完了", "完了", "エラー", "無応答"])
         for s in all {
             let l = s.label
             #expect(!["入力待ち", "停止", "却下", "ハング"].contains(l))

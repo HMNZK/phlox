@@ -4,7 +4,7 @@ import AppKit
 import AgentDomain
 import DesignSystem
 
-/// 11 通知: 通知の種類ごとの文言。「待ち」は承認待ち・質問待ちにだけ使う（完了は「作業が完了しました」）。
+/// 11 通知: 通知の種類ごとの文言。状態の語はサイドバーと同じ（承認待ち・質問あり）（完了は「作業が完了しました」）。
 public enum SessionNotificationText {
     public enum Kind: Equatable, Sendable {
         case completed
@@ -66,7 +66,7 @@ public enum SessionNotificationText {
         String(format: AppLocalizedString.string("%@ で %lld 件が対応待ち", locale: locale), projectName, count)
     }
 
-    /// 「承認待ち 2 · 質問待ち 1」。種類の並びは一覧と同じ。
+    /// 「承認待ち 2 · 質問あり 1」。種類の並びは一覧と同じ。
     public static func summarySubtitle(kinds: [AttentionKind], locale: Locale) -> String {
         AttentionKind.allCases.compactMap { kind in
             let n = kinds.filter { $0 == kind }.count

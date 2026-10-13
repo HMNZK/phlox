@@ -150,11 +150,14 @@ public final class ChatSessionViewModel: Identifiable {
         attachmentStore.restore(merged.attachments)
     }
 
+    /// 起動中に預かった初回メッセージの行 ID の頭。会話欄はこの行に「送信待ち」を添える（要件 E5）。
+    public static let pendingFirstMessageIDPrefix = "pending-first-"
+
     public func prepareFirstMessage(_ text: String, attachments: [ComposerAttachment]) {
         awaitsNewChatFirstResponse = true
         guard !text.isEmpty || !attachments.isEmpty else { return }
         attachmentStore.restore(attachments)
-        let item = ChatItem.userMessage(id: "pending-first-\(id.rawValue)", text: text, timestamp: Date(),
+        let item = ChatItem.userMessage(id: "\(Self.pendingFirstMessageIDPrefix)\(id.rawValue)", text: text, timestamp: Date(),
             attachments: attachments.map { ChatUserAttachment(filename: $0.filename, mediaType: $0.mediaType) })
         pendingFirstMessage = item
         appendOrReplace(item)

@@ -7,6 +7,7 @@ struct UsageBottomBarView: View {
     @Bindable var router: AppRouter
 
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsage = true
+    @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailable = false
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var localizationBundle
 
@@ -14,7 +15,7 @@ struct UsageBottomBarView: View {
     var body: some View {
         if showUsage {
             TimelineView(.periodic(from: .now, by: 60)) { context in
-                let groups = UsageDisplay.bottomBarGroups(usages: monitor.usages)
+                let groups = UsageDisplay.bottomBarGroups(usages: monitor.usages, showUnavailable: showUnavailable)
                 if !groups.isEmpty {
                     Button {
                         withAnimation(.easeInOut(duration: 0.18)) {

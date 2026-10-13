@@ -19,7 +19,7 @@ struct AcceptanceSessionStatusWordsTests {
         #expect(StatusBadge.label(for: .starting) == "起動中")
         #expect(StatusBadge.label(for: .running) == "実行中")
         #expect(StatusBadge.label(for: .idle) == "待機") // 再設計（12 Design System）で語彙変更
-        #expect(StatusBadge.label(for: .awaitingUserQuestion) == "質問待ち") // 再設計（12 Design System）で語彙変更
+        #expect(StatusBadge.label(for: .awaitingUserQuestion) == "質問あり") // 新規チャット仕様 FR-24 で語彙変更
         #expect(StatusBadge.label(for: .awaitingApproval(prompt: "x")) == "承認待ち")
         #expect(StatusBadge.label(for: .completed(exitCode: 0)) == "完了") // 再設計（12 Design System）で語彙変更
         #expect(StatusBadge.label(for: .completed(exitCode: 137)) == "完了")

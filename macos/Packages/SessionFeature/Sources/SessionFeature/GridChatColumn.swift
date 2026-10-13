@@ -5,6 +5,27 @@ import AgentDomain
 import CodexAppServerKit
 import DesignSystem
 
+/// 新規チャットの起動に失敗した行の「再起動」「閉じる」。グリッドのタイルへ環境で渡す（単体表示は引数で渡す）。
+public struct ChatLaunchFailureActions {
+    public let restart: (SessionID) -> Void
+    public let close: (SessionID) -> Void
+    public let isRestarting: (SessionID) -> Bool
+
+    public init(
+        restart: @escaping (SessionID) -> Void,
+        close: @escaping (SessionID) -> Void,
+        isRestarting: @escaping (SessionID) -> Bool
+    ) {
+        self.restart = restart
+        self.close = close
+        self.isRestarting = isRestarting
+    }
+}
+
+extension EnvironmentValues {
+    @Entry public var chatLaunchFailureActions: ChatLaunchFailureActions? = nil
+}
+
 /// グリッド表示の appServer タイル用。読み取り専用のトランスクリプトに、承認バナーと
 /// 各タイルから直接返信できる composer を足す（single へ切り替えずグリッドのまま返信・承認可能にする）。
 struct GridChatColumn: View {
@@ -14,6 +35,7 @@ struct GridChatColumn: View {
     @State private var fileChangeRevealRequest: FileChangeRevealRequest?
     @State private var composerHeight: CGFloat = 0
     @Environment(\.locale) private var locale
+    @Environment(\.chatLaunchFailureActions) private var launchFailureActions
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
     /// ウィンドウの live resize（ドラッグ）中か。ADR 0116。
@@ -34,7 +56,10 @@ struct GridChatColumn: View {
                     contentMaxWidth: ComposerLayout.transcriptContentMaxWidth(mainColumnWidth: formattingWidth),
                     bottomScrollContentMargin: composerHeight,
                     requestedScrollTarget: $requestedTranscriptTarget,
-                    presentationContext: .gridTile
+                    presentationContext: .gridTile,
+                    onLaunchFailureRestart: launchFailureActions.map { actions in { actions.restart(viewModel.id) } },
+                    isLaunchFailureRestarting: launchFailureActions?.isRestarting(viewModel.id) ?? false,
+                    onLaunchFailureClose: launchFailureActions.map { actions in { actions.close(viewModel.id) } }
                 )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .environment(\.fileChangeRevealRequest, fileChangeRevealRequest)

@@ -262,19 +262,14 @@ struct GridTileCompactBody: View {
             }
         } else if viewModel.status == .running {
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                HStack(spacing: 7) {
-                    Circle()
-                        .strokeBorder(DSColor.textSecondary, style: StrokeStyle(lineWidth: 1.6, dash: [1.5, 2]))
-                        .frame(width: 12, height: 12)
-                    (ThinkingIndicatorCell.detailText(
-                        recap: viewModel.thinkingRecap(now: context.date),
-                        assessment: viewModel.hangAssessment(now: context.date)
-                    ) ?? Text("実行中"))
-                        .italic()
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(DSColor.textSecondary)
-                        .lineLimit(1)
-                }
+                (ThinkingIndicatorCell.detailText(
+                    recap: viewModel.thinkingRecap(now: context.date),
+                    assessment: viewModel.hangAssessment(now: context.date)
+                ) ?? Text("実行中"))
+                    .italic()
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
             }
         }
     }

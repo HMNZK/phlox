@@ -78,6 +78,20 @@ struct NewChatDraftStoreTests {
         #expect(draft.settings.isPlanMode == true)
     }
 
+    @Test func claudePermissionWithoutSavedValueFollowsFullAccessSetting() throws {
+        let suite = "phlox.new-chat-full-access.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = LastUsedChatSettingsStore(defaults: defaults)
+
+        let restricted = NewChatDraft(lastUsedChatSettingsStore: settings, isFullAccessEnabled: { _ in false })
+        let full = NewChatDraft(lastUsedChatSettingsStore: settings, isFullAccessEnabled: { _ in true })
+
+        #expect(restricted.agentRef == .builtin(.claudeCode))
+        #expect(restricted.settings.selectedPermissionProfile == "auto")
+        #expect(full.settings.selectedPermissionProfile == "bypassPermissions")
+    }
+
     @Test func AC2a_requestCapturesAndClearsTheDraftBeforeLaunch() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }

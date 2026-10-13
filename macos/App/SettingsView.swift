@@ -26,6 +26,7 @@ struct SettingsView: View {
     @AppStorage(UsageSettings.claudeScrapeKey) private var claudeScrape = true
     @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailableUsage = false
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsageInHeader = true
+    @AppStorage(UsageSettings.bottomBarStyleKey) private var usageBarStyle = UsageSettings.BottomBarStyle.bar
 
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
@@ -449,6 +450,19 @@ struct SettingsView: View {
                 Toggle(isOn: $showUsageInHeader) {
                     SettingsLabel(title: Text("画面下部に使用量を表示する"))
                 }
+            }
+            SettingsDivider()
+            SettingsRow {
+                SettingsLabel(title: Text("使用量の表示"), detail: Text("各枠の残りを横棒か数値で出す"))
+                Picker(selection: $usageBarStyle) {
+                    Text("バー").tag(UsageSettings.BottomBarStyle.bar)
+                    Text("数値").tag(UsageSettings.BottomBarStyle.percent)
+                } label: {
+                    Text("使用量の表示")
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
             }
         }
     }

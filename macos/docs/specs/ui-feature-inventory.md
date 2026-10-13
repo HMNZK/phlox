@@ -28,7 +28,7 @@ last-verified: 2026-10-13
 ```
 [ヘッダー 38pt: 左=サイドバートグル（常に出す）＋選択中のタブの名前（左寄せ）  右=表示モード（単体/グリッド）・インスペクタトグル]
 [左サイドバー(可変幅、既定280)] | [中央（単体）: 上段=プロジェクトのタブ / 下段=そのプロジェクトのチャット→項目（ターミナル・変更・ファイル・ブラウザ・シミュレーター）のタブ / 本体] | [右インスペクタ(可変幅、既定300)]
-[最下部: 使用量のバー（全幅 24pt。全ハーネスの全枠を横に並べる）]
+[最下部: 使用量のバー（全幅 24pt。全ハーネスの全枠を横に並べる。既定は残りの横棒、設定で数値%）]
 ```
 
 ---
@@ -480,7 +480,8 @@ Control API経由（デスクトップUI外、リモート/モバイル制御用
 | 使用量サイドバー自動更新 | Toggle | — | — | `phlox.usage.autoRefresh`（既定true） | `App/SettingsView.swift:281-283` |
 | Claude使用量取得 | Toggle | — | — | `phlox.usage.claudeScrape`（既定true） | `App/SettingsView.swift:284-286` |
 | 未取得CLIも表示 | Toggle | — | — | `phlox.usage.showUnavailable`（既定false） | `App/SettingsView.swift:287-289` |
-| ヘッダーに使用量表示 | Toggle | — | — | `phlox.usage.showInHeader`（既定true） | `App/SettingsView.swift:290-292` |
+| 画面下部に使用量を表示 | Toggle | — | — | `phlox.usage.showInHeader`（既定true） | `App/SettingsView.swift`（`usageForm`） |
+| 使用量の表示（バー／数値） | Picker | — | — | `phlox.usage.bottomBarStyle`（既定 `bar`） | `App/SettingsView.swift`（`usageForm`） |
 | プライバシーポリシーリンク | Link | 外部URL `https://phlox.cc/privacy` | — | — | `App/SettingsView.swift:300-303` |
 | アプリ情報表示 | — | バンドル名/バージョン/ビルド | 読み取り専用 | — | `App/SettingsView.swift:309-311,660-666` |
 
@@ -753,7 +754,8 @@ DashboardFeature内には`keyboardShortcut`/`onKeyPress`/`commands(`の定義は
 | `phlox.usage.autoRefresh` | Bool | true | — | 使用量サイドバー自動更新 | `App/SettingsView.swift:24,281-283` |
 | `phlox.usage.claudeScrape` | Bool | true | — | Claude使用量取得 | `App/SettingsView.swift:25,284-286` |
 | `phlox.usage.showUnavailable` | Bool | false | — | 未取得CLIの表示 | `App/SettingsView.swift:26,287-289` |
-| `phlox.usage.showInHeader` | Bool | true | — | ヘッダー使用量表示 | `App/SettingsView.swift:27,290-292` |
+| `phlox.usage.showInHeader` | Bool | true | — | 画面下部の使用量のバー表示 | `App/SettingsView.swift` |
+| `phlox.usage.bottomBarStyle` | String | `bar` | `bar`／`percent` | 下部バーの各枠を横棒か数値で出す | `App/SettingsView.swift` |
 | `appUpdater.automaticallyChecksForUpdates`（永続先未確認） | Bool | — | — | 起動時自動アップデート確認 | `App/SettingsView.swift:188-194`（Sparkle内部かUserDefaultsか未確認） |
 | `phlox.chat.subAgentPaneFraction`（廃止） | — | — | — | サブエージェント右パネルの幅（パネル廃止に伴い未使用。既存の保存値は無視される） | — |
 | ChatFontSettings（チャット本文文字倍率） | Double | 1.0 | 0.8〜2.0, step0.1 | チャット本文フォントサイズ | `Packages/DesignSystem/Sources/DesignSystem/ChatFontSettings.swift:7-33` |

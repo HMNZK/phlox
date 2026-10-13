@@ -1,6 +1,50 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "使用量の表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage display"
+          }
+        }
+      }
+    },
+    "各枠の残りを横棒か数値で出す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show each limit's remaining amount as a bar or a number"
+          }
+        }
+      }
+    },
+    "バー": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bar"
+          }
+        }
+      }
+    },
+    "数値": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Number"
+          }
+        }
+      }
+    },
     "何から始めますか？": {
       "extractionState": "manual",
       "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What would you like to work on?"}}}

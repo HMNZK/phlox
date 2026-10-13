@@ -77,13 +77,23 @@ enum UsageDisplay {
         now: Date,
         locale: Locale
     ) -> String {
-        let remaining = Int(round(100 - max(0, min(100, bucket.usedPercent))))
+        let remaining = Int(round(remainingPercent(usedPercent: bucket.usedPercent)))
         var text = showsLabel ? "\(bucket.label) \(remaining)%" : "\(remaining)%"
-        if showsReset, let reset = bottomBarResetText(for: bucket, now: now, locale: locale) {
-            let isEnglish = locale.language.languageCode?.identifier == "en"
-            text += isEnglish ? " (\(reset))" : "（\(reset)）"
+        if showsReset, let reset = bottomBarResetSuffix(for: bucket, now: now, locale: locale) {
+            text += reset
         }
         return text
+    }
+
+    /// 残りの割合（0〜100）。横棒の長さと数値の表示で同じ量を使う。
+    static func remainingPercent(usedPercent: Double) -> Double {
+        100 - max(0, min(100, usedPercent))
+    }
+
+    /// 数値・横棒の後ろに付けるリセットまでの時間（「（2時間後）」）。
+    static func bottomBarResetSuffix(for bucket: UsageBucket, now: Date, locale: Locale) -> String? {
+        guard let reset = bottomBarResetText(for: bucket, now: now, locale: locale) else { return nil }
+        return locale.language.languageCode?.identifier == "en" ? " (\(reset))" : "（\(reset)）"
     }
 
     static func bottomBarResetText(for bucket: UsageBucket, now: Date, locale: Locale) -> String? {

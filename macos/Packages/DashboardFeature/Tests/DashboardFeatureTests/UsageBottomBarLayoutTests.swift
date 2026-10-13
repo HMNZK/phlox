@@ -1,14 +1,29 @@
+import AgentDomain
 import AppKit
 import DesignSystem
 import SwiftUI
 import Testing
 @testable import DashboardFeature
 
+private struct FixedUsageProvider: UsageProvider {
+    let kind: AgentKind = .codex
+    func fetch() async -> CLIUsage {
+        CLIUsage(kind: .codex, state: .ok([
+            UsageBucket(id: "5h", label: "5時間", usedPercent: 28),
+            UsageBucket(id: "weekly", label: "週次", usedPercent: 85),
+        ]), updatedAt: .now)
+    }
+}
+
 @Suite("使用量バーの縦中央", .serialized)
 @MainActor
 struct UsageBottomBarLayoutTests {
-    @Test(arguments: [720.0, 1440.0], [false, true])
-    func logoAndTextAreCentered(width: Double, light: Bool) async throws {
+    // 横棒（既定）と数値の両方で、ロゴと中身がバーの縦中央に来る。
+    @Test(arguments: [720.0, 1440.0], [
+        (false, UsageSettings.BottomBarStyle.bar), (true, .bar), (false, .percent), (true, .percent),
+    ])
+    func logoAndTextAreCentered(width: Double, appearance: (light: Bool, style: UsageSettings.BottomBarStyle)) async throws {
+        let light = appearance.light
         // swift test は xcassets をコンパイルしないため、実ロゴを描く前に actool を通す。
         let resources = try #require(AgentBrandIcon.assetBundle.resourceURL)
         if !FileManager.default.fileExists(atPath: resources.appendingPathComponent("Assets.car").path) {
@@ -26,10 +41,11 @@ struct UsageBottomBarLayoutTests {
         var arguments = saved
         arguments[ThemeStore.themeKey] = light ? AppTheme.phloxLight.id : AppTheme.phlox.id
         arguments[UsageSettings.showInHeaderKey] = true
+        arguments[UsageSettings.bottomBarStyleKey] = appearance.style.rawValue
         defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
         defer { defaults.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
 
-        let monitor = UsageMonitor(providers: [:])
+        let monitor = UsageMonitor(providers: [.codex: FixedUsageProvider()])
         await monitor.refresh()
         let host = NSHostingView(rootView: UsageBottomBarView(monitor: monitor)
             .environment(\.locale, Locale(identifier: "ja"))
@@ -65,7 +81,7 @@ struct UsageBottomBarLayoutTests {
             let bottom = try #require(inkRows.max())
             let center = Double(top + bottom + 1) / (2 * scale)
             #expect(abs(center - DSLayout.usageBarHeight / 2) <= 1.5,
-                    "幅 \(width)、light=\(light)、範囲 \(range): 描画の縦中央 \(center)")
+                    "幅 \(width)、light=\(light)、\(appearance.style)、範囲 \(range): 描画の縦中央 \(center)")
         }
     }
 }

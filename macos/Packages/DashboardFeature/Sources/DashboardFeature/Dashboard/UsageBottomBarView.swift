@@ -7,6 +7,7 @@ struct UsageBottomBarView: View {
 
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsage = true
     @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailable = false
+    @AppStorage(UsageSettings.bottomBarStyleKey) private var style = UsageSettings.BottomBarStyle.bar
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var localizationBundle
 
@@ -68,15 +69,35 @@ struct UsageBottomBarView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private func bucketText(_ bucket: UsageBucket, showsLabel: Bool, showsReset: Bool, now: Date) -> some View {
-        let text = UsageDisplay.bottomBarBucketText(
-            bucket, showsLabel: showsLabel, showsReset: showsReset, now: now, locale: locale
-        )
         let isLow = UsageDisplay.isLowRemaining(usedPercent: bucket.usedPercent)
-        return Text(verbatim: text)
-            .font(DSFont.meta.weight(isLow ? .semibold : .regular))
+        let font = DSFont.meta.weight(isLow ? .semibold : .regular)
+        let color = isLow ? DSColor.attentionInk(.approval) : DSColor.textSecondary
+        switch style {
+        case .percent:
+            Text(verbatim: UsageDisplay.bottomBarBucketText(
+                bucket, showsLabel: showsLabel, showsReset: showsReset, now: now, locale: locale
+            ))
+            .font(font)
             .monospacedDigit()
-            .foregroundStyle(isLow ? DSColor.attentionInk(.approval) : DSColor.textSecondary)
+            .foregroundStyle(color)
             .accessibilityHidden(true)
+        case .bar:
+            HStack(spacing: 5) {
+                if showsLabel {
+                    Text(verbatim: bucket.label).font(font).foregroundStyle(color)
+                }
+                DSMeterBar(
+                    fraction: UsageDisplay.remainingPercent(usedPercent: bucket.usedPercent) / 100,
+                    tint: isLow ? DSColor.attentionMark(.approval) : DSColor.textSecondary
+                )
+                .frame(width: 36)
+                if showsReset, let reset = UsageDisplay.bottomBarResetSuffix(for: bucket, now: now, locale: locale) {
+                    Text(verbatim: reset).font(font).monospacedDigit().foregroundStyle(color)
+                }
+            }
+            .accessibilityHidden(true)
+        }
     }
 }

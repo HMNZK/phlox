@@ -9,6 +9,13 @@ public enum UsageSettings {
     public static let claudeScrapeKey = "phlox.usage.claudeScrape"
     public static let showUnavailableKey = "phlox.usage.showUnavailable"
     public static let showInHeaderKey = "phlox.usage.showInHeader"
+    /// 画面下部のバーで各枠の残りを横棒か数値（%）で出すか（既定は横棒）。
+    public static let bottomBarStyleKey = "phlox.usage.bottomBarStyle"
+
+    public enum BottomBarStyle: String, CaseIterable, Sendable {
+        case bar
+        case percent
+    }
 
     public static var defaultsDictionary: [String: Any] {
         [
@@ -16,6 +23,7 @@ public enum UsageSettings {
             claudeScrapeKey: true,
             showUnavailableKey: false,
             showInHeaderKey: true,
+            bottomBarStyleKey: BottomBarStyle.bar.rawValue,
         ]
     }
 

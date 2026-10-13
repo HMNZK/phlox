@@ -22,6 +22,19 @@ struct HeaderUsageVisibilityAcceptanceTests {
         #expect(try #require(UsageSettings.defaultsDictionary[UsageSettings.showInHeaderKey] as? Bool))
     }
 
+    @Test func 各枠は初期状態で横棒で出す() {
+        #expect(UsageSettings.bottomBarStyleKey == "phlox.usage.bottomBarStyle")
+        #expect(UsageSettings.defaultsDictionary[UsageSettings.bottomBarStyleKey] as? String == UsageSettings.BottomBarStyle.bar.rawValue)
+    }
+
+    @Test func 横棒の長さは数値と同じ残りの割合() {
+        #expect(UsageDisplay.remainingPercent(usedPercent: 28) == 72)
+        #expect(UsageDisplay.remainingPercent(usedPercent: 120) == 0)
+        #expect(UsageDisplay.remainingPercent(usedPercent: -5) == 100)
+        let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 28)
+        #expect(UsageDisplay.bottomBarBucketText(bucket, showsLabel: true, showsReset: false, now: now, locale: Locale(identifier: "ja")) == "5時間 72%")
+    }
+
     @Test func 未取得を含む全ハーネスを定義順で出す() {
         let groups = UsageDisplay.bottomBarGroups(usages: mixedUsages)
         #expect(groups.map(\.kind) == [.claudeCode, .codex, .cursor])

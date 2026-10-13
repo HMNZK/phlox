@@ -177,48 +177,47 @@ import Testing
     #expect(!UsageDisplay.isResetUrgent(for: bucket, now: now))
 }
 
-@Test func sidebarResetDisplay_fiveHourShowsRemainingTimeAndUrgentWhenLow() {
+@Test func resetAnnouncement_fiveHourShowsRemainingTimeWhenLow() {
     let now = Date(timeIntervalSince1970: 1_000_000)
     let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 95, resetsAt: now.addingTimeInterval(30 * 60))
 
-    let display = UsageDisplay.sidebarResetDisplay(for: bucket, now: now)
+    let display = UsageDisplay.resetAnnouncementText(for: bucket, now: now)
 
-    #expect(display == UsageDisplay.ResetDisplay(text: "30m", isUrgent: true))
+    #expect(display == "30m")
 }
 
-@Test func sidebarResetDisplay_fiveHourRemainingTimeNotUrgentWhenAmple() {
+@Test func resetAnnouncement_fiveHourShowsRemainingTimeWhenAmple() {
     let now = Date(timeIntervalSince1970: 1_000_000)
     let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 20, resetsAt: now.addingTimeInterval(4 * 3600))
 
-    let display = UsageDisplay.sidebarResetDisplay(for: bucket, now: now)
+    let display = UsageDisplay.resetAnnouncementText(for: bucket, now: now)
 
-    #expect(display == UsageDisplay.ResetDisplay(text: "4h0m", isUrgent: false))
+    #expect(display == "4h0m")
 }
 
-@Test func sidebarResetDisplay_weeklyShowsRemainingTimeAndUrgentWithinOneDay() {
+@Test func resetAnnouncement_weeklyShowsRemainingTimeWithinOneDay() {
     let now = Date(timeIntervalSince1970: 1_000_000)
     let bucket = UsageBucket(id: "weekly", label: "週次", usedPercent: 80, resetsAt: now.addingTimeInterval(20 * 3600 + 30 * 60))
 
-    let display = UsageDisplay.sidebarResetDisplay(for: bucket, now: now)
+    let display = UsageDisplay.resetAnnouncementText(for: bucket, now: now)
 
-    #expect(display == UsageDisplay.ResetDisplay(text: "20h30m", isUrgent: true))
+    #expect(display == "20h30m")
 }
 
-@Test func sidebarResetDisplay_weeklyShowsAbsoluteTimeNotUrgentBeyondOneDay() throws {
+@Test func resetAnnouncement_weeklyShowsAbsoluteTimeBeyondOneDay() throws {
     let now = Date(timeIntervalSince1970: 1_000_000)
     let bucket = UsageBucket(id: "weekly", label: "週次", usedPercent: 40, resetsAt: now.addingTimeInterval(3 * 86_400))
 
-    let display = try #require(UsageDisplay.sidebarResetDisplay(for: bucket, now: now))
+    let display = try #require(UsageDisplay.resetAnnouncementText(for: bucket, now: now))
 
-    #expect(!display.isUrgent)
-    #expect(display.text.range(of: #"^\d{2}/\d{2} \d{2}:\d{2}$"#, options: .regularExpression) != nil)
+    #expect(display.range(of: #"^\d{2}/\d{2} \d{2}:\d{2}$"#, options: .regularExpression) != nil)
 }
 
-@Test func sidebarResetDisplay_nilWhenNoResetDate() {
+@Test func resetAnnouncement_nilWhenNoResetDate() {
     let now = Date(timeIntervalSince1970: 1_000_000)
     let bucket = UsageBucket(id: "5h", label: "5時間", usedPercent: 50)
 
-    #expect(UsageDisplay.sidebarResetDisplay(for: bucket, now: now) == nil)
+    #expect(UsageDisplay.resetAnnouncementText(for: bucket, now: now) == nil)
 }
 
 // MARK: - 残量色・ブランドアイコン

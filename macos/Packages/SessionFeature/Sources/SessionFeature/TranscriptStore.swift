@@ -10,7 +10,8 @@ public protocol TranscriptStore: Sendable {
     func replaceTranscript(for sessionID: SessionID, with items: [ChatItem]) async throws
     func loadTurnUsageSnapshot(for sessionID: SessionID) async throws -> TurnUsage?
     func saveTurnUsageSnapshot(_ usage: TurnUsage, for sessionID: SessionID) async throws
-    /// セッションの総コスト（ターンのコストの合計）。インスペクタの「総コスト」を復元するために持つ。
+    /// セッションの総コスト（ターンのコストの合計）と Claude が最後に送った累計。累計は次のターンのコストを差で出すのに使う。
+    /// 総コストを出す画面はインスペクタのタブごと廃止した（ADR 0192）。
     func loadSessionTotalCost(for sessionID: SessionID) async throws -> SessionTotalCost?
     func saveSessionTotalCost(_ cost: SessionTotalCost, for sessionID: SessionID) async throws
     /// 転写に載らない表示の状態。再起動後も返信の下の内訳・「N分前に応答」・サブエージェントを同じに出すために持つ。

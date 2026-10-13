@@ -10,7 +10,7 @@ public final class UsageMonitor {
     /// 取得に失敗し、前回の値を出し続けている CLI（07 U4）。成功するか前回の値を出さなくなったら消す。
     public private(set) var failures: [AgentKind: UsageFailure] = [:]
 
-    /// 取得に失敗しても前回の値は出し続ける（07 U4・見本「下の値は 2 時間前のものです」）。古さは注記と帯で示す。
+    /// 取得に失敗しても前回の値は出し続ける（07 U4）。スマホへは古さを伝えられないので取得できない扱いで送る（`syncedUsages`）。
     nonisolated static let defaultStalenessInterval: TimeInterval = .infinity
     private static let fastRefreshKinds = AgentRegistry.allDescriptors
         .filter { [.codex, .cursor].contains($0.usageProviderKind) }
@@ -154,9 +154,12 @@ public final class UsageMonitor {
     private func runRefreshLoop() async {
         var codexCursorTick = 0
         var claudeTick = 0
+        // 自動更新がオフでも起動時に 1 回は取る（手動の更新はインスペクタごと廃止した。ADR 0192）。
+        var isFirstPass = true
 
         while !Task.isCancelled {
-            if Self.autoRefreshEnabled {
+            if isFirstPass || Self.autoRefreshEnabled {
+                isFirstPass = false
                 var kinds: [AgentKind] = []
                 if codexCursorTick == 0 {
                     kinds.append(contentsOf: Self.fastRefreshKinds)

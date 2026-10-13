@@ -122,8 +122,8 @@ enum UsageDisplay {
                 if isLowRemaining(usedPercent: bucket.usedPercent) {
                     value += "、\(AppLocalizedString.string("残りわずか", locale: locale, bundle: bundle))"
                 }
-                if let reset = sidebarResetDisplay(for: bucket, now: now) {
-                    value += "、\(String(format: AppLocalizedString.string("リセット %@", locale: locale, bundle: bundle), reset.text))"
+                if let reset = resetAnnouncementText(for: bucket, now: now) {
+                    value += "、\(String(format: AppLocalizedString.string("リセット %@", locale: locale, bundle: bundle), reset))"
                 }
                 return value
             }
@@ -135,7 +135,7 @@ enum UsageDisplay {
 
     // MARK: - リセット残り時間
 
-    /// リセット残りが「わずか」と判定する閾値（秒）。5時間枠は残り1時間、週次は残り1日。
+    /// リセット残りが「わずか」と判定する閾値（秒）。5時間枠は残り1時間、週次は残り1日（週次の書き方を残り時間に変える境目）。
     private static let urgentResetThresholds: [String: TimeInterval] = [
         "5h": 3600,
         "weekly": 86_400,
@@ -172,29 +172,21 @@ enum UsageDisplay {
         absoluteResetFormatter.string(from: date)
     }
 
-    /// リセット表示テキストと、それが残りわずかか。
-    struct ResetDisplay: Equatable {
-        let text: String
-        let isUrgent: Bool
-    }
-
     /// 下部バーの読み上げに入れるリセット表示を返す。resetsAt が無ければ nil。
-    /// - 5h: 常に残り時間（例 "3h50m"）。残り1時間以下で urgent（赤）。
-    /// - weekly: 残り1日超は絶対時刻（例 "06/14 15:30"）、1日以下は残り時間（例 "20h30m"）で urgent（赤）。
-    /// - その他（resetsAt を持つ Cursor 等）: 絶対時刻のみ。urgent なし。
-    static func sidebarResetDisplay(for bucket: UsageBucket, now: Date) -> ResetDisplay? {
+    /// - 5h: 常に残り時間（例 "3h50m"）。
+    /// - weekly: 残り1日超は絶対時刻（例 "06/14 15:30"）、1日以下は残り時間（例 "20h30m"）。
+    /// - その他（resetsAt を持つ Cursor 等）: 絶対時刻のみ。
+    static func resetAnnouncementText(for bucket: UsageBucket, now: Date) -> String? {
         guard let resetsAt = bucket.resetsAt else { return nil }
-        let urgent = isResetUrgent(for: bucket, now: now)
         let usesRemaining: Bool
         switch bucket.id {
         case "5h": usesRemaining = true
-        case "weekly": usesRemaining = urgent
+        case "weekly": usesRemaining = isResetUrgent(for: bucket, now: now)
         default: usesRemaining = false
         }
-        let text = usesRemaining
+        return usesRemaining
             ? remainingTimeText(until: resetsAt, now: now)
             : absoluteResetText(resetsAt)
-        return ResetDisplay(text: text, isUrgent: urgent)
     }
 
 }

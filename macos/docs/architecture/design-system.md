@@ -294,7 +294,6 @@ AppKit／ポインティングデバイス前提のため macOS に隔離。iOS�
 
 対応するトークンが存在しない／一回限りで、トークン化が不適切と判断した生値。**生値の放置を黙殺しないため明文化**する。これらは違反ではなく意図的な例外として扱う。
 
-- **使用率グラデの中間色**: `Usage/UsageDisplay.swift` の緑→黄→赤の連続補間（statusline `rate_color` 移植）と警告赤 `urgentResetColor`。中間色は段階補間のためトークン化不可。
 - **IME 未確定オーバーレイ色**: `TerminalUI/MarkedTextOverlayView.swift` の固定 sRGB（Claude 純正キャレットに寄せた色）。対応トークンなし。
 - **accent 発光シャドウ**: `Packages/DesignSystem/Sources/DesignSystem/ResizeGripView.swift` の accent 色グロー。`DSShadow` は黒影のみで glow 概念を持たない。（Run 2 で DashboardFeature から DesignSystem へ下層化・public 化・`#if os(macOS)` 化。DS 真実源内に置かれた生値の一回限り例外。）
 - **一回限りのアイコン pt**: 14/18/32/40/48/64pt 等、`DSIconSize`(10/12/15) に無い特大・単発サイズ。

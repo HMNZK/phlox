@@ -477,7 +477,7 @@ Control API経由（デスクトップUI外、リモート/モバイル制御用
 | 最大エージェント数 | TextField(.number) | — | 範囲チェック無し | `phlox.agora.maxAgents`（既定5） | `App/SettingsView.swift:266` |
 | ターンタイムアウト（秒） | TextField(.number) | — | 範囲チェック無し | `phlox.agora.turnTimeoutSeconds`（既定180） | `App/SettingsView.swift:267` |
 | スケジューラ | Picker（自由発言/ラウンドロビン、xcstrings未登録の直書き`Text`） | — | — | `phlox.agora.scheduler`（既定`.freeSpeech`） | `App/SettingsView.swift:268-273` |
-| 使用量サイドバー自動更新 | Toggle | — | — | `phlox.usage.autoRefresh`（既定true） | `App/SettingsView.swift:281-283` |
+| 使用量の自動更新（オフでも起動時に 1 回は取得） | Toggle | — | — | `phlox.usage.autoRefresh`（既定true） | `App/SettingsView.swift`（`usageForm`） |
 | Claude使用量取得 | Toggle | — | — | `phlox.usage.claudeScrape`（既定true） | `App/SettingsView.swift:284-286` |
 | 未取得CLIも表示 | Toggle | — | — | `phlox.usage.showUnavailable`（既定false） | `App/SettingsView.swift:287-289` |
 | 画面下部に使用量を表示 | Toggle | — | — | `phlox.usage.showInHeader`（既定true） | `App/SettingsView.swift`（`usageForm`） |
@@ -751,7 +751,7 @@ DashboardFeature内には`keyboardShortcut`/`onKeyPress`/`commands(`の定義は
 | `phlox.agora.maxAgents` | Int | 5 | — | 議論機能の最大エージェント数 | `App/SettingsView.swift:41-42,266` |
 | `phlox.agora.turnTimeoutSeconds` | Int | 180 | — | 議論機能のターンタイムアウト | `App/SettingsView.swift:44-45,267` |
 | `phlox.agora.scheduler` | String(enum) | `.freeSpeech` | freeSpeech/roundRobin | 議論スケジューラ方式 | `App/SettingsView.swift:47-48,268-273` |
-| `phlox.usage.autoRefresh` | Bool | true | — | 使用量サイドバー自動更新 | `App/SettingsView.swift:24,281-283` |
+| `phlox.usage.autoRefresh` | Bool | true | — | 使用量の自動更新 | `App/SettingsView.swift` |
 | `phlox.usage.claudeScrape` | Bool | true | — | Claude使用量取得 | `App/SettingsView.swift:25,284-286` |
 | `phlox.usage.showUnavailable` | Bool | false | — | 未取得CLIの表示 | `App/SettingsView.swift:26,287-289` |
 | `phlox.usage.showInHeader` | Bool | true | — | 画面下部の使用量のバー表示 | `App/SettingsView.swift` |

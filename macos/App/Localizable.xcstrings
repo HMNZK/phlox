@@ -1,6 +1,10 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "オフでも起動時に 1 回は取得する": {
+      "extractionState": "manual",
+      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Still fetches once at launch when off"}}}
+    },
     "使用量の表示": {
       "extractionState": "manual",
       "localizations": {
@@ -897,17 +901,6 @@
         }
       }
     },
-    "使用量を更新": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh usage"
-          }
-        }
-      }
-    },
     "再試行": {
       "extractionState": "manual",
       "localizations": {
@@ -1091,17 +1084,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not fetched"
-          }
-        }
-      }
-    },
-    "未更新": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not updated"
           }
         }
       }
@@ -4413,17 +4395,6 @@
         }
       }
     },
-    "セッションが選択されていません": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No session selected"
-          }
-        }
-      }
-    },
     "状態": {
       "extractionState": "manual",
       "localizations": {
@@ -4479,17 +4450,6 @@
         }
       }
     },
-    "ターミナル型のセッションはコストを取得できないため「—」と表示します。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terminal sessions cannot report cost, so it shows “—”."
-          }
-        }
-      }
-    },
     "チャット型": {
       "extractionState": "manual",
       "localizations": {
@@ -4512,28 +4472,6 @@
         }
       }
     },
-    "表示できる使用量がありません": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No usage to show"
-          }
-        }
-      }
-    },
-    "使用量を更新できませんでした": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t update usage"
-          }
-        }
-      }
-    },
     "%@（%@）。": {
       "extractionState": "manual",
       "localizations": {
@@ -4545,28 +4483,6 @@
         }
       }
     },
-    "下の値は %@のものです。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The values below are from %@."
-          }
-        }
-      }
-    },
-    "自動更新・Claude の取得・未取得の CLI の表示は 設定 > 詳細": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto-refresh, Claude fetching, and showing unavailable CLIs are in Settings > Advanced"
-          }
-        }
-      }
-    },
     "更新中": {
       "extractionState": "manual",
       "localizations": {
@@ -4574,116 +4490,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Refreshing"
-          }
-        }
-      }
-    },
-    "更新中…": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refreshing…"
-          }
-        }
-      }
-    },
-    "最終更新 %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last updated %@"
-          }
-        }
-      }
-    },
-    "（失敗 %@）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": " (failed %@)"
-          }
-        }
-      }
-    },
-    "自動更新 オン": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto-refresh on"
-          }
-        }
-      }
-    },
-    "自動更新 オフ": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto-refresh off"
-          }
-        }
-      }
-    },
-    "%@後にリセット": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resets in %@"
-          }
-        }
-      }
-    },
-    "取得中…": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading…"
-          }
-        }
-      }
-    },
-    "%@の値": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Value from %@"
-          }
-        }
-      }
-    },
-    "%@に取得": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fetched %@"
-          }
-        }
-      }
-    },
-    "Cursor をインストールしに行く ↗": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Install Cursor ↗"
           }
         }
       }
@@ -4728,17 +4534,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resets %@"
-          }
-        }
-      }
-    },
-    " · 上限間近": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": " · Near limit"
           }
         }
       }
@@ -8547,50 +8342,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Move Divider Down"
-          }
-        }
-      }
-    },
-    "未取得（ターミナルの Claude セッション実行時に更新されます）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not fetched (updates when a Claude session runs in the terminal)"
-          }
-        }
-      }
-    },
-    "%lld 分前に取得 · 古い可能性": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fetched %lldm ago · may be outdated"
-          }
-        }
-      }
-    },
-    "%lld 時間前に取得 · 古い可能性": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fetched %lldh ago · may be outdated"
-          }
-        }
-      }
-    },
-    "%lld 日前に取得 · 古い可能性": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fetched %lldd ago · may be outdated"
           }
         }
       }

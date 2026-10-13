@@ -10,6 +10,7 @@ last-verified: 2026-10-12
 > **設計時点の記述（2026-10-12 確認）**: 本書は設計時点の記録として残す。次の点は、その後の「プロジェクト単位のタブ」（[ADR 0187](../adr/0187-project-tabs.md)、[project-tabs.md](project-tabs.md)）で変わり、本文の記述は現行と違う。現行は architecture 側を見る。
 > - ファイルタブはセッションではなくプロジェクトのタブ（`ProjectTab.file`。`ChildTab` は無い）。`openFileTab` の鍵は `sessionID` ではなく `projectID`。ツリーのルートはプロジェクトのフォルダ（Git ルートの解決はしない）。
 > - 共通ターミナルは廃止された（ADR 0187）ので、「共通ターミナルの選択を解除する」手順（FR-3・§3.2 (d)）と「⌘P は共通ターミナル表示中にファイルタブが見えない」不足（§3.2 (d)・§4）は存在しない。
+> - インスペクタの「セッション」「使用量」のタブは廃止され、インスペクタはファイルツリーだけになった（ADR 0192）。本書の `InspectorTab`・`UsageSidebarView.swift`・「セッション / ファイル / 使用量」の記述は設計時点のもので、現行は `Dashboard/InspectorView.swift`。
 > - タブの永続化は新しいキー `phlox.projectTabs.v1`（旧 `phlox.sessionTabs.v1` は初回だけ読み移す）。NFR-6 の「`phlox.sessionTabs.v1` を変更しない」は、旧キーを書き換えない意味で保たれている。
 
 > **このドキュメントの役割**: 右サイドバー（インスペクタ）に VS Code 風のディレクトリツリーを足し、

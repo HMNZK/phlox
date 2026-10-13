@@ -150,6 +150,27 @@ import Testing
     #expect(fiveHour.resetsAt == nil)
 }
 
+// 手動の更新はインスペクタごと廃止したので、自動更新がオフでも起動時の 1 回は取る（ADR 0192）。
+@MainActor
+@Test func usageMonitor_fetchesOnceAtStartEvenWhenAutoRefreshIsOff() async throws {
+    let defaults = UserDefaults.phloxDefaults()
+    let saved = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+    var arguments = saved
+    arguments[UsageSettings.autoRefreshKey] = false
+    defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+    defer { defaults.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
+    let usage = CLIUsage(kind: .codex, state: .ok([UsageBucket(id: "5h", label: "5時間", usedPercent: 10)]), updatedAt: .now)
+    let monitor = UsageMonitor(providers: [.codex: StubUsageProvider(usage: usage)])
+
+    monitor.start()
+    defer { monitor.stop() }
+    for _ in 0..<200 where monitor.usages[.codex] == nil {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    #expect(monitor.usages[.codex] != nil)
+}
+
 private struct StubUsageProvider: UsageProvider {
     let usage: CLIUsage
     var kind: AgentKind { usage.kind }

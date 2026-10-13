@@ -430,7 +430,7 @@ struct SettingsView: View {
         SettingsGroupBox("使用量") {
             SettingsRow {
                 Toggle(isOn: $usageAutoRefresh) {
-                    SettingsLabel(title: Text("自動で更新する"))
+                    SettingsLabel(title: Text("自動で更新する"), detail: Text("オフでも起動時に 1 回は取得する"))
                 }
             }
             SettingsDivider()

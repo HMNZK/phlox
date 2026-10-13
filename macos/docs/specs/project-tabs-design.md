@@ -55,9 +55,9 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 ## 3. 選択とルーター
 
 - 下段で `.chat(id)` を選ぶ ⇔ `router.selectedSession = id`。サイドバーでセッションを選ぶと、そのプロジェクトに切り替えて `.chat(id)` を選ぶ（今の `reveal` の置き換え）。
-- 新規チャット画面はタブではなく**モード**（PE4。2026-10-13 に改訂。ADR 0188）。`router.showNewChat(projectID:)` は送信先 `router.newChatProjectID` を決め（引数が無ければ今の `selectedProjectID`）、`selectedProjectID = nil`・`selectedSession = nil` にする。出している間は上段のどのタブも選ばない。タブが 1 つも無いプロジェクトを選んだとき（`ensureProjectSelection`）は選択を外さず、`newChatProjectID` をそのプロジェクトにするだけで、`ChildTabPanes` が空の配置の代わりに新規チャット画面を出す（D21）。下書きは `NewChatDraftStore` にアプリで 1 つ。
+- 新規チャット画面はタブではなく**モード**（PE4。2026-10-13 に改訂。ADR 0188）。`router.showNewChat(projectID:)` は送信先 `router.newChatProjectID` を決め（引数が無ければ今の `selectedProjectID`）、`selectedSession = nil`・`selectedProjectID = 送信先` にして `router.showsNewChat = true` にする。送信先が無ければ `selectedProjectID = nil`（どのタブも選ばない新規チャット）。`showsNewChat` の間は `SessionTabsContainer` が子タブの区画の代わりに新規チャット画面を出し、子タブはどれも選択表示にしない。`selectTab`・`openChildTab`・別のプロジェクト／セッションの選択で `false` に戻る。タブが 1 つも無いプロジェクトを選んだとき（`ensureProjectSelection`）も同じ状態にする（D21）。下書きは `NewChatDraftStore` にアプリで 1 つ。
 - 送信して行が出たら `router.completeNewChat(sessionID:projectID:)` が送信先のプロジェクトの配置に `.chat(新しい ID)` を開いて選ぶ（プロジェクトも選択される）。
-- `router.ensureProjectSelection(chatTabs:)`: プロジェクトの配置に選択中のタブがあればそれを選ぶ。無ければチャットか開いている項目の先頭を開いて選ぶ。タブが 1 つも無いプロジェクトだけ `showNewChat(projectID:)` で新規チャット画面を出す（新規チャットの要件 D21）。
+- `router.ensureProjectSelection(chatTabs:)`: プロジェクトの配置に選択中のタブがあればそれを選ぶ。無ければチャットか開いている項目の先頭を開いて選ぶ。タブが 1 つも無いプロジェクトは、選んだまま `showsNewChat = true` にして新規チャット画面を出す（新規チャットの要件 D21）。
 - `forgetProject` は、削除するプロジェクトが `newChatProjectID` なら空にする。
 - 単体表示だけで使う。グリッドのタイルは会話だけを出し、子タブを持たない（PE8。`GridTileParts`・`PaneLayoutView` から子タブを外す）。
 

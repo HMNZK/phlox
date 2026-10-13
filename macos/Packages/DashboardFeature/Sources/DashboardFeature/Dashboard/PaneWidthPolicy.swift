@@ -18,7 +18,7 @@ enum PaneWidthPolicy {
     static let inspectorRange = DSLayout.inspectorWidth
     static let centerMinWidth: CGFloat = 480
     /// 境界線 1 本の幅。
-    static let separatorWidth: CGFloat = 1
+    static let separatorWidth = DSLayout.paneSeparatorWidth
 
     static func resolve(
         windowWidth: CGFloat,

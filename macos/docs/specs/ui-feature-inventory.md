@@ -47,7 +47,7 @@ last-verified: 2026-10-13
 2. **grid**: `SessionGridView` で複数セッションをタイル表示、プロジェクト絞り込み・セッション選択の2軸フィルタあり（`DashboardDetailView.swift:42-54`）。→ 5章
 3. **team**（「チームビュー (Beta)」, `TeamViewBranding.swift:5`）: `TeamTimelineView` で複数エージェントの発言を1本のタイムラインに集約表示。→ 6章
 
-空プロジェクト時は `detailEmptyState`（`DashboardDetailView.swift`）。プロジェクトがあり、セッション未選択（どのプロジェクトのタブも選ばない新規チャットのモード）の単体表示では `NewChatView`（`StartAreaPolicy.content` が `.newChat`。旧 起動カードは廃止）。→ 9章
+セッション未選択の単体表示では、プロジェクトが 0 件でも `NewChatView`（`DashboardDetailView.swift`。旧 起動カードとフォルダの登録案内は廃止）。送信先のプロジェクトが決まっていれば、そのプロジェクトを選んだまま子タブの場所に出す（`router.showsNewChat`）。→ 9章
 
 ### 2.1 ヘッダー（`Dashboard/DashboardToolbar.swift`）
 
@@ -369,13 +369,13 @@ TerminalUIパッケージ（`Packages/TerminalUI/Sources/TerminalUI`、PTY疑似
 
 ---
 
-## 9. 新規チャット画面（`NewChat/NewChatView.swift`, `Dashboard/StartAreaPolicy.swift`）
+## 9. 新規チャット画面（`NewChat/NewChatView.swift`）
 
 旧「空状態・起動カード」（`AgentStartCards.swift`、チャット/ターミナルのモードボタン）は 2026-10-12 に廃止し、共通の新規チャット画面に置き換えた（[ADR 0183](../adr/0183-unified-new-chat-start-screen.md)、要件は [unified-new-chat-start.md](unified-new-chat-start.md)、設計は [unified-new-chat-start-design.md](unified-new-chat-start-design.md)）。単体表示では、どのプロジェクトのタブにも属さない画面（モード）として出る。出している間は上段のタブを選択せず、送信先は `router.newChatProjectID`（`ProjectTab.newChat` は旧い保存を読むためだけに残る。ADR 0188）。送信するまでセッションも CLI のプロセスも作らない。
 
 | 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定 | 根拠 file:line |
 |---|---|---|---|---|---|
-| プロジェクト 0 件の導線 | ボタン | フォルダ追加の案内（NSOpenPanel） | `StartAreaPolicy` が `.projectOnboarding` | — | `StartAreaPolicy.swift`、`DashboardDetailView.swift`（`detailEmptyState`） |
+| 送信先のフォルダを選ぶ | ポップアップの項目 | 新規チャット画面のプロジェクトのチップの最後の「フォルダを選ぶ…」（NSOpenPanel）。プロジェクトは送信したときに作る | 常時（0 件ならこれだけ） | — | `NewChatView.swift`（`newChat.projectPicker`）、`ProjectFolderPanel.swift` |
 | 挨拶の見出し | — | Phlox のアイコン＋ 10 種類の文言からランダムに 1 つ（画面を出すたびに選び直し、入力中は替えない） | — | — | `NewChatView.swift`（`NewChatGreetings`） |
 | メッセージ入力欄 | 文字入力・貼り付け・↩ で送信。画像の貼り付け・「＋」で添付。`/` でコマンド候補、`@` でファイル候補（プロジェクトと作業場所を基準に取り直す） | 本文・添付 | 下書き（アプリに 1 つ。メモリだけ。全ウィンドウで共有） | — | `NewChatView.swift`（`newChat.composer`・`newChat.attachments`）、`NewChatDraftStore.swift` |
 | ハーネス・モデルのチップ | クリックでポップオーバー（上に絞り込み欄、ハーネスごとの区切りにモデル、選択中にチェック、既定に「既定」のタグ） | ハーネスのロゴ（`AgentBrandIcon`）とモデルの表示名 | 未検出のハーネスは区切りごと「未検出」で選べない | 初期値は `phlox.newChat.lastHarness` と最後に使った設定 | `NewChatView.swift`（`newChat.harnessModelPicker`・`newChat.modelMenu`・`newChat.modelSearch`）、`NewChatDraftStore.swift`（`NewChatModelMenuSection`） |
@@ -958,7 +958,7 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 - `Dashboard/UsageSidebarView.swift`（`UsageCLICard`, `UsageBucketRow`含む）
 - `Dashboard/UsageTopBarView.swift`
 - `Dashboard/PaneLayoutPresetMenu.swift`
-- `Dashboard/StartAreaPolicy.swift`（`SelectProjectPlaceholderView`）
+- `Dashboard/DashboardDetailView.swift`（旧 `StartAreaPolicy`・`SelectProjectPlaceholderView`・`StartOnboardingView` は廃止）
 - `Editor/EditorPanelView.swift`
 - `Editor/GitCommitPanel.swift`（`ChangeScopeNotice`含む）
 - `UserTerminal/TerminalPanelView.swift`

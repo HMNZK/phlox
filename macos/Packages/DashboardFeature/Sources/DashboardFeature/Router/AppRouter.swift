@@ -45,14 +45,21 @@ public enum MainRoute: String, Sendable {
 @MainActor
 @Observable
 public final class AppRouter {
-    public var selectedSession: SessionID?
+    public var selectedSession: SessionID? {
+        didSet { if selectedSession != nil { showsNewChat = false } }
+    }
     public var viewMode: ViewMode
     public var gridFilterProjectID: ProjectID?
     /// ユーザーが明示的に選択中のプロジェクト（R4: セレクトカードの表示条件）。
     /// サイドバーのプロジェクト行クリックで設定する。非永続。
-    public var selectedProjectID: ProjectID?
-    /// 新規チャットの送信先。新規チャット画面はプロジェクトのタブに属さない（ADR 0188）。
+    public var selectedProjectID: ProjectID? {
+        didSet { if selectedProjectID != oldValue { showsNewChat = false } }
+    }
+    /// 新規チャットの送信先。送信するまでプロジェクトのタブは作らない（ADR 0188）。
     public var newChatProjectID: ProjectID?
+    /// 選択中のプロジェクトの子タブの代わりに新規チャット画面を出しているか（要件 FR-1a）。
+    /// 子タブ・別のプロジェクト・セッションを選ぶと外れる。
+    public var showsNewChat = false
     public var mainRoute: MainRoute
     /// サイドバーの表示状態。メニュー（⌃⌘S）とビュー内トグルの双方から操作するため
     /// View の @State ではなく共有の Observable に置く。
@@ -133,22 +140,25 @@ public final class AppRouter {
 
     public func selectTab(_ tab: ProjectTab, in projectID: ProjectID) {
         selectedProjectID = projectID
+        showsNewChat = false
         tabs.updateLayout(for: projectID) { $0.select(tab) }
         if case .chat(let id) = tab { selectedSession = id }
         else if tab == .newChat { selectedSession = nil }
     }
 
-    /// 新規チャット画面を出す。プロジェクトのタブの選択を外し、送信先だけを決める（ADR 0188）。
+    /// 新規チャット画面を出す。送信先が決まればそのプロジェクトを選んだまま出し、決まらなければどのプロジェクトも選ばない（要件 FR-1a）。
     public func showNewChat(projectID: ProjectID?) {
         viewMode = .single
-        if let projectID = projectID ?? selectedProjectID { newChatProjectID = projectID }
-        selectedProjectID = nil
+        let destination = projectID ?? selectedProjectID
+        if let destination { newChatProjectID = destination }
         selectedSession = nil
+        selectedProjectID = destination
+        showsNewChat = destination != nil
         newChatFocusToken &+= 1
     }
 
     public func ensureProjectSelection(chatTabs: [ProjectTab]) {
-        guard viewMode == .single, let projectID = selectedProjectID else { return }
+        guard viewMode == .single, !showsNewChat, let projectID = selectedProjectID else { return }
         // タブが 1 つも無いプロジェクトは、選んだまま子タブの場所に新規チャット画面を出す（D21）。ファイル等が開いていればそれを出す。
         let layout = tabs.layout(for: projectID)
         if let selected = layout.selected {
@@ -159,6 +169,7 @@ public final class AppRouter {
         } else {
             selectedSession = nil
             newChatProjectID = projectID
+            showsNewChat = true
         }
     }
 
@@ -177,6 +188,7 @@ public final class AppRouter {
         viewMode = .single
         if tab == .browser, browsers[projectID] == nil { browsers[projectID] = BrowserTabModel() }
         tabs.updateLayout(for: projectID) { $0.open(tab) }
+        showsNewChat = false
         if case .chat(let id) = tab { selectedSession = id }
         else if tab == .newChat { selectedSession = nil }
     }
@@ -253,13 +265,15 @@ public final class AppRouter {
 
     /// 新規チャット画面を出しているときの送信先。送信後も `newChatProjectID` は残るので、画面に出ているときだけ返す。
     private var newChatDestinationOnScreen: ProjectID? {
-        viewMode == .single && selectedProjectID == nil && selectedSession == nil ? newChatProjectID : nil
+        guard viewMode == .single, selectedSession == nil else { return nil }
+        guard let selectedProjectID else { return newChatProjectID }
+        return showsNewChat ? selectedProjectID : nil
     }
 
     /// 上段のプロジェクトタブを、サイドバーと同じ順で巡回する。
     public func cycleProject(by offset: Int, ordered projects: [ProjectID]) {
         guard !projects.isEmpty else { return }
-        // 新規チャット画面ではプロジェクトを選んでいないので、送信先から数える（ADR 0188）。
+        // どのプロジェクトも選ばない新規チャット画面では、送信先から数える（ADR 0188）。
         let index = (selectedProjectID ?? newChatDestinationOnScreen).flatMap { projects.firstIndex(of: $0) } ?? (offset > 0 ? -1 : 0)
         let count = projects.count
         selectProjectFromSidebar(projects[((index + offset % count) % count + count) % count])
@@ -305,6 +319,7 @@ public final class AppRouter {
     public func showProject(_ projectID: ProjectID) {
         let changesProject = selectedProjectID != projectID
         selectProject(projectID)
+        showsNewChat = false
         gridFilterProjectID = projectID
         if viewMode == .single && changesProject {
             selectedSession = nil

@@ -98,22 +98,25 @@ struct NewChatLaunchRequest {
 ```swift
 public func showNewChat(projectID: ProjectID?) {
     viewMode = .single                 // グリッドでは selectedSession を外しても画面が変わらないため
-    if let projectID = projectID ?? selectedProjectID { newChatProjectID = projectID }   // 送信先。引数が無ければ今のプロジェクト
-    selectedProjectID = nil            // 新規チャットはモード。どのプロジェクトのタブも選ばない
+    let destination = projectID ?? selectedProjectID   // 送信先。引数が無ければ今のプロジェクト
+    if let destination { newChatProjectID = destination }
     selectedSession = nil
+    selectedProjectID = destination    // 送信先を選んだまま重ねる。決まらなければどのプロジェクトも選ばない（FR-1a）
+    showsNewChat = destination != nil
     newChatFocusToken &+= 1            // 入力欄へのフォーカス要求（FR-4）
 }
 ```
 
 - 新規チャット画面は**モード**で、タブではない（D27）。`ProjectTab.newChat` は旧版が保存した配置を読むためだけに残す。`persists` は偽で、`ProjectTabStore` の読み込みが保存用コピー（`persistenceCopy`）を通すので、旧い `.newChat` は捨てられる。
 - 送信して行が出たら `completeNewChat(sessionID:projectID:)` が送信先のプロジェクトの配置に `.chat(新しい ID)` を開いて選ぶ（プロジェクトのタブも選択される）。
-- `ensureProjectSelection`: プロジェクトの配置に選択中のタブがあればそれを選ぶ。無ければチャットか開いている項目の先頭を開いて選ぶ。どちらも無い（タブが 1 つも無い）プロジェクトだけ `showNewChat(projectID:)` で送信先にして新規チャット画面を出す（D21）。
+- `ensureProjectSelection`: プロジェクトの配置に選択中のタブがあればそれを選ぶ。無ければチャットか開いている項目の先頭を開いて選ぶ。どちらも無い（タブが 1 つも無い）プロジェクトは、選んだまま `newChatProjectID` をそのプロジェクトにして `showsNewChat = true` にする（D21）。`showsNewChat` の間は何もしない。
+- `showsNewChat` を外すのは `selectTab`（子タブを選ぶ。ファイルを開く `FileTabDocuments.openFileTab` もここを通す）・`openChildTab`・`showProject`、`selectedProjectID` が別のプロジェクトに変わったとき、セッションを選んだとき。
 
 すべての入口がこれを呼ぶ。入口の UI 操作は `NewChatEntryActions`（`DF/Dashboard/NewChatEntryActions.swift`。`fileMenu`・`sidebarFooter`・`projectPlus`・`projectMenu`・`gridEmptyState`）に集め、プロジェクトが未指定のときの既定は `DashboardViewModel.defaultProjectIDForNewChat` が決める。`newSessionTablePresented` は消した。下段の「＋」のメニュー（`NewTabChooser`）の「新規チャット」も `showNewChat` を呼ぶ（タブは作らない）。`NewChatView` のプロジェクト選択は `router.newChatProjectID` を書き換えるだけで、`showNewChat` は呼ばない。
 
 | 入口 | 呼び出し |
 |---|---|
-| ⌘N「新規チャット」（`App/PhloxApp.swift` のファイルメニュー） | `NewChatEntryActions.fileMenu()`。`.disabled(projects.isEmpty)` は無い（0 件なら `StartAreaPolicy` が先にオンボーディングを出す） |
+| ⌘N「新規チャット」（`App/PhloxApp.swift` のファイルメニュー） | `NewChatEntryActions.fileMenu()`。`.disabled(projects.isEmpty)` は無い（0 件でも新規チャット画面を出す。FR-3） |
 | サイドバー下端「＋ 新規チャット」（`DashboardView.swift`） | `sidebarFooter()` |
 | プロジェクト行の ＋（`SidebarRows.swift`） | `projectPlus(project.id)`。「⋯」と同じ `.plain` のボタン（D30） |
 | プロジェクトメニュー「新規チャット」（`DashboardSidebarView.swift`） | `projectMenu(project.id)` |
@@ -121,7 +124,7 @@ public func showNewChat(projectID: ProjectID?) {
 
 ### 3.2 主画面の分岐
 
-- `StartAreaPolicy`（`DF/Dashboard/StartAreaPolicy.swift`）のケースは `projectOnboarding` / `sessionContent` / `newChat` の 3 つ（プロジェクトが 0 件ならオンボーディング、セッションを選んでいれば会話、それ以外は新規チャット）。`selectProjectPlaceholder` と `SelectProjectPlaceholderView` は消した（FR-2a。未選択でも新規チャット画面を出し、プロジェクト選択が空）。
+- `DashboardDetailView` の単体表示は、セッションを選んでいれば会話、それ以外は新規チャット（プロジェクトが 0 件でも。FR-3）。判定用の `StartAreaPolicy` とフォルダの登録案内 `StartOnboardingView` は消した。`selectProjectPlaceholder` と `SelectProjectPlaceholderView` は消した（FR-2a。未選択でも新規チャット画面を出し、プロジェクト選択が空）。
 - `DashboardDetailView` の単体表示は、セッションもタブも選んでいないとき（`displayTab == .newChat`）`NewChatView` を出し、送信先に `router.newChatProjectID` のプロジェクトを渡す。`startHeader` と `isolates:` は消した。
 - 上のタブ（`ProjectTab`）の `.newChat` は、ヘッダーのタブ名（§3.3）が「新規チャット」と出すためと、旧配置を読むためにだけ残る。
 

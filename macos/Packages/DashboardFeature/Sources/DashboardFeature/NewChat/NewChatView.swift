@@ -37,6 +37,7 @@ private struct NewChatChipLabel: View {
     let compact: Bool
     let usesMiddleTruncation: Bool
     let allowsTruncation: Bool
+    let showsChevron: Bool
 
     init(
         title: String?,
@@ -44,7 +45,8 @@ private struct NewChatChipLabel: View {
         harnessKind: AgentKind? = nil,
         compact: Bool = false,
         usesMiddleTruncation: Bool = false,
-        allowsTruncation: Bool = false
+        allowsTruncation: Bool = false,
+        showsChevron: Bool = true
     ) {
         self.title = title
         self.systemImage = systemImage
@@ -52,6 +54,7 @@ private struct NewChatChipLabel: View {
         self.compact = compact
         self.usesMiddleTruncation = usesMiddleTruncation
         self.allowsTruncation = allowsTruncation
+        self.showsChevron = showsChevron
     }
 
     var body: some View {
@@ -73,11 +76,13 @@ private struct NewChatChipLabel: View {
                     .truncationMode(usesMiddleTruncation ? .middle : .tail)
                     .fixedSize(horizontal: !allowsTruncation, vertical: false)
             }
-            Image(systemName: "chevron.down")
-                .font(DSFont.controlChevron)
-                .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
-                .fixedSize()
-                .accessibilityHidden(true)
+            if showsChevron {
+                Image(systemName: "chevron.down")
+                    .font(DSFont.controlChevron)
+                    .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
+                    .fixedSize()
+                    .accessibilityHidden(true)
+            }
         }
         .fixedSize(horizontal: !allowsTruncation, vertical: false)
         .foregroundStyle(DSColor.textSecondary)
@@ -169,7 +174,7 @@ struct NewChatView: View {
         .init(role: localized(selectedKind == .cursor ? "mode" : "権限"), value: selectedPermissionTitle)
     }
     var projectAccessibility: NewChatAccessibilityCopy {
-        .init(role: localized("プロジェクト"), value: project?.name ?? localized("未選択"))
+        .init(role: localized("プロジェクト"), value: destinationName ?? localized("未選択"))
     }
     var workspaceAccessibility: NewChatAccessibilityCopy {
         .init(role: localized("作業場所"), value: localized(draft.usesWorktree ? "新しい worktree" : "既存ディレクトリ"))
@@ -183,14 +188,14 @@ struct NewChatView: View {
     }
     private var canSend: Bool {
         draft.canSend(
-            projectExists: project.map { selectedProjectExists($0.id) } ?? false,
+            projectExists: hasDestination,
             harnessDetected: detectedHarnessIDs.contains(draft.agentRef.id),
             modelAcceptsImages: modelAcceptsImages
         ) && !isLaunching
     }
     private var sendUnavailableReason: String? {
         draft.sendUnavailableReason(
-            projectExists: project.map { selectedProjectExists($0.id) } ?? false,
+            projectExists: hasDestination,
             harnessDetected: detectedHarnessIDs.contains(draft.agentRef.id),
             modelAcceptsImages: modelAcceptsImages,
             locale: locale,
@@ -198,9 +203,15 @@ struct NewChatView: View {
         )
     }
     private var validationMessage: String? { showsSendValidation ? sendUnavailableReason : nil }
-    private var showsProjectError: Bool { validationMessage != nil && project.map { selectedProjectExists($0.id) } != true }
+    private var showsProjectError: Bool { validationMessage != nil && !hasDestination }
+    /// 送信先のフォルダ。プロジェクトか、送信するまでプロジェクトにしないフォルダ。
+    private var destinationDirectory: String? { project?.directoryPath ?? draft.pendingFolderPath }
+    private var destinationName: String? {
+        project?.name ?? draft.pendingFolderPath.map { URL(fileURLWithPath: $0).lastPathComponent }
+    }
+    private var hasDestination: Bool { project.map { selectedProjectExists($0.id) } ?? (draft.pendingFolderPath != nil) }
     private var suggestionDirectory: String? {
-        project.map { NewChatSuggestionDirectory.path(projectDirectory: $0.directoryPath, usesWorktree: draft.usesWorktree) }
+        destinationDirectory.map { NewChatSuggestionDirectory.path(projectDirectory: $0, usesWorktree: draft.usesWorktree) }
     }
     private var effortOptions: [ComposerSettingOption] {
         guard let kind = selectedKind else { return [] }
@@ -306,9 +317,12 @@ struct NewChatView: View {
             .onChange(of: router.newChatFocusToken) { _, _ in
                 focusToken &+= 1
             }
-            .task(id: project?.directoryPath) {
-                guard let project else { isGitRepository = nil; return }
-                isGitRepository = await WorkingTreeService(repositoryRoot: project.directoryURL).isGitRepository()
+            .onChange(of: router.newChatProjectID) { _, id in
+                if id != nil { draft.pendingFolderPath = nil }
+            }
+            .task(id: destinationDirectory) {
+                guard let destinationDirectory else { isGitRepository = nil; return }
+                isGitRepository = await WorkingTreeService(repositoryRoot: URL(fileURLWithPath: destinationDirectory)).isGitRepository()
             }
             .task(id: historyKey) {
                 guard historyKey != nil else { historyModel.reset(); return }
@@ -581,21 +595,26 @@ struct NewChatView: View {
                     title: item.name,
                     isSelected: project?.id == item.id
                 )
-            },
+            } + [SelectablePopoverOption(
+                id: Self.chooseFolderOptionID, value: nil, title: localized("フォルダを選ぶ…"),
+                leadingSystemImage: "folder.badge.plus", isSelected: false
+            )],
             selectedID: project?.id.description,
             accessibilityLabel: projectAccessibility.role,
             accessibilityValue: projectAccessibility.value,
             accessibilityIdentifier: "newChat.projectPicker",
             width: DSLayout.menuWidth,
-            isEnabled: !viewModel.projects.isEmpty,
             showsFocusRing: true,
             onSelect: { option in
-                if let selectedProject = viewModel.projects.first(where: { $0.id.description == option.id }) {
+                if option.id == Self.chooseFolderOptionID {
+                    // ポップアップが閉じてからパネルを出す。
+                    DispatchQueue.main.async { chooseFolder() }
+                } else if let selectedProject = viewModel.projects.first(where: { $0.id.description == option.id }) {
                     selectProject(selectedProject.id)
                 }
             }
         ) { _ in
-            footerLabel(icon: "folder", title: project?.name ?? localized("プロジェクト"), compact: isCompact)
+            footerLabel(icon: "folder", title: destinationName ?? localized("プロジェクト"), compact: isCompact)
                 .overlay {
                     if showsProjectError {
                         RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
@@ -624,7 +643,7 @@ struct NewChatView: View {
             accessibilityLabel: workspaceAccessibility.role,
             accessibilityValue: workspaceAccessibility.value,
             accessibilityIdentifier: "newChat.workspacePicker",
-            isEnabled: project != nil,
+            isEnabled: destinationDirectory != nil,
             showsFocusRing: true,
             onSelect: { selectWorkspace($0.value == "true") }
         ) { _ in
@@ -785,8 +804,25 @@ struct NewChatView: View {
     }
 
     func selectProject(_ id: ProjectID) {
+        draft.pendingFolderPath = nil
         router.newChatProjectID = id
     }
+
+    static let chooseFolderOptionID = "chooseFolder"
+
+    /// 選んだフォルダを送信先にする。プロジェクトは送信したときに作る（要件 FR-3）。
+    private func chooseFolder() {
+        guard let url = ProjectFolderPanel.choose(locale: locale) else { return }
+        let path = url.standardizedFileURL.path
+        if let existing = viewModel.projects.first(where: { $0.directoryURL.standardizedFileURL.path == path }) {
+            selectProject(existing.id)
+        } else {
+            router.newChatProjectID = nil
+            draft.pendingFolderPath = path
+        }
+    }
+
+
 
     func selectWorkspace(_ usesWorktree: Bool) {
         draft.usesWorktree = usesWorktree
@@ -824,8 +860,9 @@ struct NewChatView: View {
     }
 
     private func send(workingDirectoryOverride: String? = nil) {
-        guard canSend, let project, selectedProjectExists(project.id),
-              let request = draft.makeLaunchRequest(projectID: project.id, workingDirectoryOverride: workingDirectoryOverride) else { return }
+        guard canSend, let projectID = draft.projectIDForSend(selected: project?.id, in: viewModel) else { return }
+        router.newChatProjectID = projectID
+        guard let request = draft.makeLaunchRequest(projectID: projectID, workingDirectoryOverride: workingDirectoryOverride) else { return }
         launch(request, isHistoryResume: false)
     }
 
@@ -846,7 +883,7 @@ struct NewChatView: View {
     }
 
     private func launch(_ request: NewChatLaunchRequest, isHistoryResume: Bool) {
-        guard !isLaunching, let project else { return }
+        guard !isLaunching else { return }
         isLaunching = true
         AccessibilityNotification.Announcement(NewChatLaunchAnnouncement.text(
             phase: .starting, resumesHistory: isHistoryResume, locale: locale, bundle: localizationBundle
@@ -867,7 +904,10 @@ struct NewChatView: View {
             } catch {
                 if !isHistoryResume { draft.restoreLaunchDraft(from: request) }
                 if let log = NewSessionCollisionGate.worktreeFailureLog(error) {
-                    let existing = await NewSessionCollisionGate.existingWorktree(in: log, repository: project.directoryURL)
+                    var existing: String?
+                    if let repository = viewModel.projects.first(where: { $0.id == request.projectID })?.directoryURL {
+                        existing = await NewSessionCollisionGate.existingWorktree(in: log, repository: repository)
+                    }
                     spawnGuard = .worktreeFailed(
                         NewSessionRequest(ref: request.agentRef, projectID: request.projectID, backend: .appServer),
                         agentName: SpawnFailureDialogText.agentName(for: request.agentRef),

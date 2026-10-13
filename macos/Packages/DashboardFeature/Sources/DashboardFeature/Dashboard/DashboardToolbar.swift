@@ -51,9 +51,8 @@ struct DashboardToolbar: ToolbarContent {
 
     private var inspectorToggleButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                router.toggleInspector()
-            }
+            // 動きは DashboardView の dsPaneAnimation でサイドバーと揃える。
+            router.toggleInspector()
         } label: {
             Image(systemName: "sidebar.right")
                 .font(.system(size: DSIconSize.l, weight: .medium))
@@ -83,6 +82,7 @@ struct HeaderTabTitle: View {
     /// 新規チャット画面は `.newChat`。グリッドとプロジェクトが無いときは出さない。
     static func tab(router: AppRouter, viewModel: DashboardViewModel) -> ProjectTab? {
         guard router.viewMode == .single, !viewModel.projects.isEmpty else { return nil }
+        if router.showsNewChat { return .newChat }
         let projectID = router.selectedProjectID ?? router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID }
         guard let projectID else { return router.selectedSession.map(ProjectTab.chat) ?? .newChat }
         return router.tabs.layout(for: projectID).selected ?? router.selectedSession.map(ProjectTab.chat) ?? .newChat

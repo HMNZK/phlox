@@ -1,6 +1,7 @@
 import Foundation
 import AgentDomain
 import PTYKit
+import SessionFeature
 import Testing
 @testable import DashboardFeature
 
@@ -37,7 +38,9 @@ private func expectNewChat(
     #expect(router.selectedSession == nil)
     #expect(router.viewMode == .single)
     #expect(router.newChatProjectID == projectID)
-    #expect(router.selectedProjectID == nil)
+    // 送信先のプロジェクトは選んだまま、タブは作らずに新規チャットを重ねる（要件 FR-1a。2026-10-13 改訂）。
+    #expect(router.selectedProjectID == projectID)
+    #expect(router.showsNewChat)
     #expect(router.tabs.layout(for: projectID).items.isEmpty)
     #expect(router.newChatFocusToken == previousFocusToken + 1)
     #expect(dashboard.sessionNodes.count == previousSessionCount)
@@ -155,4 +158,24 @@ func AC9_fileAndProjectMenusContainNoTerminalSessionEntry() {
     router.selectedProjectID = nil
     router.selectedSession = orphan
     #expect(HeaderTabTitle.tab(router: router, viewModel: dashboard) == .chat(orphan))
+}
+
+// 新規チャットでフォルダを選んでもプロジェクトは作らず、送信したときに初めて作る（要件 FR-3）。
+@MainActor
+@Test func choosingAFolderCreatesTheProjectOnlyWhenSending() async throws {
+    let (dashboard, _, projectA, _) = try await makeNewChatEntryFixture()
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("phlox-new-chat-\(UUID())")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let store = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: UserDefaults(suiteName: "phlox-new-chat-folder-\(UUID())")!))
+    let projectCount = dashboard.projects.count
+
+    store.draft.pendingFolderPath = folder.path
+    #expect(dashboard.projects.count == projectCount, "選んだだけでは作らない")
+
+    let id = try #require(store.draft.projectIDForSend(selected: nil, in: dashboard))
+    #expect(dashboard.projects.count == projectCount + 1)
+    #expect(dashboard.projects.first { $0.id == id }?.directoryPath == folder.path)
+    #expect(store.draft.pendingFolderPath == nil)
+    #expect(store.draft.projectIDForSend(selected: projectA, in: dashboard) == projectA)
 }

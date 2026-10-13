@@ -2496,6 +2496,16 @@
         }
       }
     },
+    "フォルダを選ぶ…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Folder…"
+          }
+        }
+      }
+    },
     "フォルダを追加…": {
       "localizations": {
         "en": {

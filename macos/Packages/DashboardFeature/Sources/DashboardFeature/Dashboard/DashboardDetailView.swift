@@ -10,10 +10,7 @@ struct DashboardDetailView: View {
     @Binding var pendingDeletion: SelectedSessionNode?
     let onRenameSession: (SessionID) -> Void
     @Binding var pendingWorkspaceChange: SessionViewModel?
-    let onChooseProjectDirectory: () -> Void
     let onNewChatLaunchFailure: (AgentRef, Error) -> Void
-    /// 初回起動の案内をすべて出すか（08 S1: 一度もプロジェクトを追加していない）。
-    var showsAllOnboardingSteps = true
     var displayTab: ProjectTab? = nil
 
     private var displayedSessionID: SessionID? {
@@ -67,43 +64,35 @@ struct DashboardDetailView: View {
 
     @ViewBuilder
     private var detailMainContent: some View {
-        switch StartAreaPolicy.content(
-            hasSelectedSession: router.selectedSession != nil,
-            hasProjects: !viewModel.projects.isEmpty
-        ) {
-        case .projectOnboarding:
-            detailEmptyState
-        case .sessionContent, .newChat:
-            switch router.viewMode {
-            case .single:
-                singleDetail
-            case .grid:
-                SessionGridView(
-                    sessions: filteredGridSessions,
-                    paneLayout: viewModel.paneLayoutForDisplay(),
-                    focusedID: $router.selectedSession,
-                    onRemove: { session in pendingDeletion = SelectedSessionNode(session) },
-                    onRename: { session in onRenameSession(session.id) },
-                    onChangeWorkspace: { session in pendingWorkspaceChange = session },
-                    onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
-                    projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) }),
-                    onRemoveFromGrid: { session in
-                        if let next = viewModel.removeFromGrid(session.id), router.selectedSession == session.id {
-                            router.selectedSession = next
-                        }
-                    },
-                    onOpenSingle: { router.openSingle(sessionID: $0) },
-                    parentNames: parentNames
+        switch router.viewMode {
+        case .single:
+            singleDetail
+        case .grid:
+            SessionGridView(
+                sessions: filteredGridSessions,
+                paneLayout: viewModel.paneLayoutForDisplay(),
+                focusedID: $router.selectedSession,
+                onRemove: { session in pendingDeletion = SelectedSessionNode(session) },
+                onRename: { session in onRenameSession(session.id) },
+                onChangeWorkspace: { session in pendingWorkspaceChange = session },
+                onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
+                projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) }),
+                onRemoveFromGrid: { session in
+                    if let next = viewModel.removeFromGrid(session.id), router.selectedSession == session.id {
+                        router.selectedSession = next
+                    }
+                },
+                onOpenSingle: { router.openSingle(sessionID: $0) },
+                parentNames: parentNames
+            )
+            .environment(\.chatLaunchFailureActions, launchFailureActions)
+            // ⌃⌥＋矢印で分割線を動かすときの下限の判定に、グリッドの実際の大きさを使う。
+            // SessionGridView の余白（左右 s・下 s・上 xs）を除いた、タイルを並べる領域。
+            .onGeometryChange(for: CGSize.self, of: \.size) { size in
+                viewModel.gridCanvasSize = CGSize(
+                    width: size.width - DSSpacing.s * 2,
+                    height: size.height - DSSpacing.s - DSSpacing.xs
                 )
-                .environment(\.chatLaunchFailureActions, launchFailureActions)
-                // ⌃⌥＋矢印で分割線を動かすときの下限の判定に、グリッドの実際の大きさを使う。
-                // SessionGridView の余白（左右 s・下 s・上 xs）を除いた、タイルを並べる領域。
-                .onGeometryChange(for: CGSize.self, of: \.size) { size in
-                    viewModel.gridCanvasSize = CGSize(
-                        width: size.width - DSSpacing.s * 2,
-                        height: size.height - DSSpacing.s - DSSpacing.xs
-                    )
-                }
             }
         }
     }
@@ -129,15 +118,8 @@ struct DashboardDetailView: View {
                     .id(ObjectIdentifier(session))
             }
         } else {
-            singleSelectEmptyState
+            newChatView(project: newChatProject)
         }
-    }
-
-    private var detailEmptyState: some View {
-        StartOnboardingView(
-            showsAllSteps: showsAllOnboardingSteps,
-            onAddFolder: onChooseProjectDirectory
-        )
     }
 
     private var newChatProject: Project? {
@@ -152,17 +134,5 @@ struct DashboardDetailView: View {
             project: project,
             onLaunchFailure: onNewChatLaunchFailure
         )
-    }
-
-    @ViewBuilder
-    private var singleSelectEmptyState: some View {
-        switch StartAreaPolicy.content(hasSelectedSession: false) {
-        case .projectOnboarding:
-            detailEmptyState
-        case .newChat:
-            newChatView(project: newChatProject)
-        case .sessionContent:
-            EmptyView()
-        }
     }
 }

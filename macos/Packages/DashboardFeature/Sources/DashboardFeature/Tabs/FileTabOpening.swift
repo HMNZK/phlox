@@ -50,6 +50,8 @@ extension FileTabDocuments {
             }
             else { $0.open(.file(relativePath)) }
         }
+        // 選択の変更は selectTab に通す（新規チャット画面を重ねていれば外す。要件 FR-1a）。
+        if let selected = router.tabs.layout(for: projectID).selected { router.selectTab(selected, in: projectID) }
         return true
     }
 }

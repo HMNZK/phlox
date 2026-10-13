@@ -19,6 +19,8 @@ public final class NewChatDraft {
     public var text = ""
     public let attachments = ComposerAttachmentStore()
     public var usesWorktree = false
+    /// プロジェクトにまだしていない送信先のフォルダ。送信したときにプロジェクトを作る（要件 FR-3）。
+    public var pendingFolderPath: String?
     public var agentRef: AgentRef
     public var settings: CodexAppServerSessionSettings
 
@@ -85,6 +87,15 @@ public final class NewChatDraft {
             harnessDetected: harnessDetected,
             modelAcceptsImages: modelAcceptsImages
         ) == nil
+    }
+
+    /// 送信先のプロジェクト。フォルダだけを選んでいれば、ここで初めてプロジェクトにする（要件 FR-3）。
+    func projectIDForSend(selected: ProjectID?, in dashboard: DashboardViewModel) -> ProjectID? {
+        if let selected, dashboard.projects.contains(where: { $0.id == selected }) { return selected }
+        guard let path = pendingFolderPath,
+              let id = dashboard.addProject(name: URL(fileURLWithPath: path).lastPathComponent, directoryPath: path) else { return nil }
+        pendingFolderPath = nil
+        return id
     }
 
     func makeLaunchRequest(projectID: ProjectID, workingDirectoryOverride: String? = nil) -> NewChatLaunchRequest? {

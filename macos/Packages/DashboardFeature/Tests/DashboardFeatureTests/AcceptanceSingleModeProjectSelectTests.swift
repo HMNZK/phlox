@@ -17,7 +17,7 @@ import AgentDomain
     #expect(router.selectedProjectID == project)
     #expect(router.selectedSession == nil)
     #expect(router.tabs.layout(for: project).items.isEmpty)
-    #expect(StartAreaPolicy.content(hasSelectedSession: false) == .newChat)
+    #expect(router.showsNewChat)
 }
 
 // チャットが無くても、開いているタブがあればそれを出す。

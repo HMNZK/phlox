@@ -132,6 +132,8 @@ public enum DSLayout {
     public static let focusRingGap: CGFloat = 2
     public static let usageBarHeight: CGFloat = 24
     public static let tabBarHeight: CGFloat = 34
+    /// サイドバー・インスペクタと中央の境目の線（`DSSidePane` と幅の計算で共有する）。
+    public static let paneSeparatorWidth: CGFloat = 1
     public static let childTabBarHeight: CGFloat = 36
     public static let listRowHeight: CGFloat = 28
     public static let cardHeaderHeight: CGFloat = 32

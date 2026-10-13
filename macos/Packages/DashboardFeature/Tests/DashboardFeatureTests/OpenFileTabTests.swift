@@ -27,6 +27,22 @@ struct OpenFileTabTests {
         #expect(files.existing(for: id, path: "a.txt")?.root == "/B")
     }
 
+    @Test("新規チャットを重ねている間にファイルを開くと、そのファイルを出す")
+    func openingAFileLeavesNewChatOverTheProject() {
+        let files = FileTabDocuments()
+        let router = AppRouter(viewMode: .single)
+        let id = ProjectID()
+        router.showNewChat(projectID: id)
+
+        #expect(files.openFileTab(
+            projectID: id, root: "/A", relativePath: "a.txt", router: router,
+            requestedWorkingDirectory: "/A", currentWorkingDirectory: "/A"
+        ))
+
+        #expect(!router.showsNewChat)
+        #expect(router.tabs.layout(for: id).selected == .file("a.txt"))
+    }
+
     @Test("作業場所が変わった要求は文書とタブを作らない")
     func discardsRequestAfterWorkspaceChanges() {
         let files = FileTabDocuments()

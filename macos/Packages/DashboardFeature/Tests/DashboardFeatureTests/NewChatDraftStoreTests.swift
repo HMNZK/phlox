@@ -48,7 +48,7 @@ struct NewChatDraftStoreTests {
 
         #expect(store.draft.text == "プロジェクトを選ぶ前の書きかけ")
         #expect(router.newChatProjectID == projectB)
-        #expect(router.selectedProjectID == nil)
+        #expect(router.selectedProjectID == projectB)
         #expect(!router.tabs.layout(for: projectA).items.contains(.newChat))
         #expect(!router.tabs.layout(for: projectB).items.contains(.newChat))
     }

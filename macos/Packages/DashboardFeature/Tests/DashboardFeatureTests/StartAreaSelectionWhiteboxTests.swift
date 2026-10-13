@@ -84,11 +84,3 @@ struct StartAreaSelectionWhiteboxTests {
         #expect(dashboard.sessionNodes.count == sessionCount)
     }
 }
-
-@Test
-func startAreaPolicy_routesToNewChatOrProjectOnboarding() {
-    #expect(StartAreaPolicy.content(hasSelectedSession: true) == .sessionContent)
-    #expect(StartAreaPolicy.content(hasSelectedSession: false) == .newChat)
-    #expect(StartAreaPolicy.content(hasSelectedSession: false, hasProjects: false) == .projectOnboarding)
-    #expect(StartAreaPolicy.content(hasSelectedSession: true, hasProjects: false) == .projectOnboarding)
-}

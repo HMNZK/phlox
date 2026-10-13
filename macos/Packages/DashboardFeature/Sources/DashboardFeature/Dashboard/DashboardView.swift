@@ -12,7 +12,6 @@ public struct DashboardView: View {
     @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
     @Environment(\.localizationBundle) private var localizationBundle
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var sidebarWidth: CGFloat = DSLayout.sidebarWidth.ideal
     @State private var sidebarWidthAtDragStart: CGFloat = DSLayout.sidebarWidth.ideal
@@ -21,8 +20,6 @@ public struct DashboardView: View {
     /// 01 E6: 幅はウィンドウごとに保存する。開閉は全ウィンドウで共有の `AppRouter` が持つため、ここでは保存しない。
     @SceneStorage("pane.sidebarWidth") private var savedSidebarWidth = Double(DSLayout.sidebarWidth.ideal)
     @SceneStorage("pane.inspectorWidth") private var savedInspectorWidth = Double(DSLayout.inspectorWidth.ideal)
-    /// 一度でもプロジェクトを追加したか（08 S1: 2 回目以降は案内を手順 1 だけにする）。
-    @AppStorage("phlox.start.hasAddedProject", store: UserDefaults.phloxDefaults()) private var hasAddedProject = false
     @Environment(\.locale) private var locale
 
     @State private var spawnError: SpawnError?
@@ -322,16 +319,9 @@ public struct DashboardView: View {
             let windowWidth = geometry.size.width
             let layout = paneLayout(windowWidth: windowWidth)
             HStack(spacing: 0) {
-                HStack(spacing: 0) {
+                DSSidePane(edge: .leading, isOpen: layout.showsSidebar, width: layout.sidebar) {
                     sidebarColumn
-                        .frame(width: layout.sidebar)
-                    verticalSeparator
                 }
-                .frame(width: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0, alignment: .trailing)
-                .clipped()
-                .disabled(!layout.showsSidebar)
-                .allowsHitTesting(layout.showsSidebar)
-                .accessibilityHidden(!layout.showsSidebar)
 
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
@@ -350,17 +340,15 @@ public struct DashboardView: View {
                                 .background(router.viewMode == .grid ? DSColor.gridAreaBackground : DSColor.windowBackground)
                         }
 
-                        if router.inspectorVisible, !layout.inspectorIsOverlay {
-                            verticalSeparator
+                        DSSidePane(edge: .trailing, isOpen: router.inspectorVisible && !layout.inspectorIsOverlay,
+                                   width: layout.inspector, unloadsWhenClosed: true) {
                             inspectorContent
-                                .frame(width: layout.inspector)
                                 .background(DSColor.panelBackground)
                         }
-
                     }
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: router.inspectorVisible)
+            .dsPaneAnimation(value: router.inspectorVisible)
             // 幅が足りないときの重ね表示。SwiftUI の overlay は端末の NSView より前面に描ける。
             .overlay(alignment: .topTrailing) {
                 if router.inspectorVisible, layout.inspectorIsOverlay {
@@ -390,8 +378,8 @@ public struct DashboardView: View {
                     .transition(.move(edge: .leading))
                 }
             }
-            .animation(reduceMotion ? nil : DSAnimation.pane, value: layout.showsSidebar)
-            .animation(reduceMotion ? nil : DSAnimation.pane, value: router.sidebarPeeking)
+            .dsPaneAnimation(value: layout.showsSidebar)
+            .dsPaneAnimation(value: router.sidebarPeeking)
             // リサイズ用の掴みしろもオーバーレイにする。HStack 内の区切り線へ overlay で
             // 当たり判定を広げる方式だと、ターミナル(AppKit NSView)側に張り出した分が
             // NSView に遮られてホバー・ドラッグを受け取れないため、最前面のオーバーレイとして
@@ -513,13 +501,12 @@ public struct DashboardView: View {
                 router.clearGridFilter()
             }
             viewModel.gridSessionFilterProjectID = newMode == .grid ? router.gridFilterProjectID : nil
-            withAnimation(.easeInOut(duration: 0.18)) {
-                router.sidebarVisible = SidebarVisibilityPolicy.visibility(
-                    afterSwitchingTo: newMode,
-                    currentVisible: router.sidebarVisible,
-                    hasGridFilter: router.gridFilterProjectID != nil
-                )
-            }
+            // 動きは dsPaneAnimation で付く（動きを減らす設定も見る）。
+            router.sidebarVisible = SidebarVisibilityPolicy.visibility(
+                afterSwitchingTo: newMode,
+                currentVisible: router.sidebarVisible,
+                hasGridFilter: router.gridFilterProjectID != nil
+            )
         }
         .onChange(of: router.gridFilterProjectID) { _, newValue in
             viewModel.gridSessionFilterProjectID = router.viewMode == .grid ? newValue : nil
@@ -547,9 +534,6 @@ public struct DashboardView: View {
         }
         .onChange(of: viewModel.unseenCompletionCount) { _, _ in
             markCompletionSeen(for: router.selectedSession)
-        }
-        .onChange(of: viewModel.projects.isEmpty, initial: true) { _, isEmpty in
-            if !isEmpty { hasAddedProject = true }
         }
         .onChange(of: router.inspectorVisible) { _, visible in
             guard visible else { return }
@@ -730,7 +714,6 @@ public struct DashboardView: View {
                 pendingDeletion: $pendingDeletion,
                 onRenameSession: beginSessionRename,
                 pendingWorkspaceChange: $pendingWorkspaceChange,
-                onChooseProjectDirectory: chooseProjectDirectory,
                 onNewChatLaunchFailure: { ref, error in
                     let raw = error.localizedDescription
                     spawnError = SpawnError(
@@ -739,7 +722,6 @@ public struct DashboardView: View {
                         opensAgentConsole: SpawnFailureDialogText.opensAgentConsole(for: error)
                     )
                 },
-                showsAllOnboardingSteps: !hasAddedProject,
                 displayTab: displayTab
             )
     }
@@ -964,16 +946,14 @@ public struct DashboardView: View {
     /// ワークスペース（Project）用のフォルダ選択。NSOpenPanel は次 runloop で提示する。
     private func chooseProjectDirectory() {
         Task { @MainActor in
-            let panel = NSOpenPanel()
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.allowsMultipleSelection = false
-            panel.prompt = AppLocalizedString.string("追加", locale: locale)
-            panel.message = AppLocalizedString.string("プロジェクトとして使うフォルダを選択してください。", locale: locale)
-            guard panel.runModal() == .OK, let url = panel.url else { return }
+            guard let url = ProjectFolderPanel.choose(locale: locale) else { return }
             let name = url.lastPathComponent
             if let projectID = viewModel.addProject(name: name, directoryPath: url.path) {
                 expandedProjectIDs.insert(projectID)
+                // 送信先の無い新規チャット画面から追加したら、そのまま送信先にする（要件 FR-3）。
+                if router.viewMode == .single, router.selectedProjectID == nil, router.selectedSession == nil {
+                    router.showNewChat(projectID: projectID)
+                }
             }
         }
     }

@@ -27,10 +27,14 @@ struct SessionTabsContainer<Conversation: View>: View {
                     router: router, viewModel: viewModel, project: project, layout: layout, chats: chats,
                     changeCount: editorPanel.viewModel.changes.count, files: files, simulatorHub: simulatorHub
                 )
-                ChildTabPanes(
-                    router: router, projectID: projectID, layout: layout, chats: chats,
-                    content: { tab in pane(tab, project: project) }
-                )
+                if router.showsNewChat {
+                    pane(.newChat, project: project)
+                } else {
+                    ChildTabPanes(
+                        router: router, projectID: projectID, layout: layout, chats: chats,
+                        content: { tab in pane(tab, project: project) }
+                    )
+                }
             } else {
                 conversation(nil)
             }
@@ -217,7 +221,8 @@ struct ChildTabBar: View {
     var body: some View {
         GeometryReader { geometry in
             let tabs = layout.tabs(chats: chats)
-            let selected = layout.selected ?? chats.first
+            // 新規チャット画面を重ねている間は、どの子タブも選択表示にしない（要件 FR-1a）。
+            let selected = router.showsNewChat ? nil : layout.selected ?? chats.first
             let maximumWidth: CGFloat = geometry.size.width < 700 ? 150 : 200
             let overflowLayout = TabBarOverflowLayout.make(
                 contentWidths: tabs.map { tabWidth($0, selected: selected == $0, shown: layout.isShown($0), maximum: maximumWidth) },

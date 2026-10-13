@@ -45,7 +45,6 @@ extension ProjectTab {
     var closeAccessibilityLabel: String {
         switch self {
         case .chat: "セッションを削除…"
-        case .newChat: "外す（下書きは残ります）"
         default: "閉じる"
         }
     }

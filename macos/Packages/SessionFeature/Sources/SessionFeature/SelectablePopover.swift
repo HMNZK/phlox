@@ -373,8 +373,8 @@ public struct SelectablePopoverButton<Label: View>: View {
             .overlay {
                 if showsFocusRing && triggerFocused && !isPresented {
                     RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
-                        .strokeBorder(DSColor.focusRing, lineWidth: DSLayout.focusRingWidth)
-                        .padding(-DSLayout.focusRingWidth)
+                        // 白黒のアクセントでは focusRing の 2pt が強すぎるので、控えめな 1pt にする（2026-10-13 ユーザー指示）。
+                        .strokeBorder(DSColor.textSecondary, lineWidth: 1)
                 }
             }
             .disabled(!isEnabled)

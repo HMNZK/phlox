@@ -85,7 +85,7 @@ struct HeaderTabTitle: View {
         guard router.viewMode == .single, !viewModel.projects.isEmpty else { return nil }
         let projectID = router.selectedProjectID ?? router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID }
         guard let projectID else { return router.selectedSession.map(ProjectTab.chat) ?? .newChat }
-        return router.tabs.layout(for: projectID).selected ?? router.selectedSession.map(ProjectTab.chat)
+        return router.tabs.layout(for: projectID).selected ?? router.selectedSession.map(ProjectTab.chat) ?? .newChat
     }
 
     var body: some View {

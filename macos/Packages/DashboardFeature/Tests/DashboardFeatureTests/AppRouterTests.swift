@@ -115,3 +115,29 @@ func closeOnNewChatReturnsToTheDestinationsTabOrClosesTheWindow() {
     router.showNewChat(projectID: ProjectID())
     #expect(!router.requestClose())
 }
+
+// 新規チャット画面の「前／次のプロジェクト」は送信先のプロジェクトから数える。
+@Test @MainActor
+func cycleProjectOnNewChatStartsFromTheDestination() {
+    let a = ProjectID(), b = ProjectID(), c = ProjectID()
+    let router = AppRouter(viewMode: .single)
+    router.showNewChat(projectID: b)
+
+    router.cycleProject(by: -1, ordered: [a, b, c])
+
+    // タブの無いプロジェクトを新規チャットにするのは画面側の ensureProjectSelection（ここでは選択だけ見る）。
+    #expect(router.selectedProjectID == a)
+}
+
+@Test @MainActor
+func cycleProjectIgnoresStaleDestinationOutsideNewChat() {
+    let a = ProjectID(), b = ProjectID(), c = ProjectID()
+    let router = AppRouter(viewMode: .single)
+    router.showNewChat(projectID: b)
+    router.viewMode = .grid
+    router.clearProjectScope()
+
+    router.cycleProject(by: 1, ordered: [a, b, c])
+
+    #expect(router.selectedProjectID == a)
+}

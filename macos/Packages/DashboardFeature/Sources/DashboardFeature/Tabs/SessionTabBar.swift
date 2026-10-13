@@ -18,7 +18,7 @@ struct SessionTabBar: View {
             let layout = TabBarOverflowLayout.make(
                 itemCount: viewModel.projects.count,
                 selectedIndex: selectedIndex,
-                availableWidth: max(0, geometry.size.width - 12),
+                availableWidth: max(0, geometry.size.width - 6),
                 maxItemWidth: 180,
                 minItemWidth: 96,
                 addButtonWidth: 30,
@@ -34,8 +34,7 @@ struct SessionTabBar: View {
                         onClose: { _ = router.requestClose(.project(project.id)) },
                         onRename: { rename(project.id) }
                     )
-                    .frame(width: layout.itemWidth, height: 30)
-                    .offset(y: 1)
+                    .frame(width: layout.itemWidth)
                     .accessibilityIdentifier(TabAccessibilityIdentifier.project(index + 1))
                 }
                 if layout.overflowCount > 0 {
@@ -70,7 +69,8 @@ struct SessionTabBar: View {
                 }
                 projectAddButton
             }
-            .padding(.horizontal, 6)
+            // 選択中のタブを上（ヘッダー）と左（サイドバー）に付ける（2026-10-13 ユーザー指示）。
+            .padding(.trailing, 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(height: DSLayout.tabBarHeight)
@@ -232,13 +232,7 @@ private struct ProjectTabButton: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(.leading, 12)
                 .padding(.trailing, 28)
-                .background(
-                    isSelected ? DSColor.windowBackground : (isHovering ? DSColor.fillSubtle : .clear),
-                    in: RoundedRectangle(cornerRadius: DSRadius.row)
-                )
-                .overlay(alignment: .top) {
-                    if isSelected { Rectangle().fill(DSColor.separator).frame(height: 1) }
-                }
+                .background(isSelected ? DSColor.windowBackground : (isHovering ? DSColor.fillSubtle : .clear))
                 .overlay(alignment: .leading) {
                     if isSelected { Rectangle().fill(DSColor.separator).frame(width: 1) }
                 }

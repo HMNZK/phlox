@@ -349,10 +349,10 @@ struct DashboardSidebarView: View {
         return SidebarProjectRow(
             project: project,
             isExpanded: isExpanded,
-            isSelected: router.selectedProjectID == project.id,
+            // セッションを選ばずにこのプロジェクトを選んでいる（↑↓の現在位置）。
+            isSelected: router.selectedSession == nil && router.selectedProjectID == project.id,
             // 単体表示ではプロジェクトを選ぶだけで表示範囲が付くので、面はグリッドのときだけ敷く（2026-10-13 ユーザー指示）。
             isScoped: router.viewMode == .grid && router.gridFilterProjectID == project.id,
-            showsScopeMark: router.viewMode == .grid && router.gridFilterProjectID == project.id,
             collapsedSummary: .make(states),
             isRenaming: renaming == .project(project.id),
             renameDraft: $renameDraft,

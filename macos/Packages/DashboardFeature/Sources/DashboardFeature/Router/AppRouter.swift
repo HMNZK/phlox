@@ -149,7 +149,7 @@ public final class AppRouter {
 
     public func ensureProjectSelection(chatTabs: [ProjectTab]) {
         guard viewMode == .single, let projectID = selectedProjectID else { return }
-        // タブが 1 つも無いプロジェクトだけ新規チャット画面にする（D21）。ファイル等が開いていればそれを出す。
+        // タブが 1 つも無いプロジェクトは、選んだまま子タブの場所に新規チャット画面を出す（D21）。ファイル等が開いていればそれを出す。
         let layout = tabs.layout(for: projectID)
         if let selected = layout.selected {
             selectTab(selected, in: projectID)
@@ -157,7 +157,8 @@ public final class AppRouter {
             tabs.updateLayout(for: projectID) { $0.open(first) }
             selectTab(first, in: projectID)
         } else {
-            showNewChat(projectID: projectID)
+            selectedSession = nil
+            newChatProjectID = projectID
         }
     }
 
@@ -229,7 +230,7 @@ public final class AppRouter {
     @discardableResult
     public func requestClose() -> Bool {
         // 新規チャット画面の ⌘W は、送信先のプロジェクトで前に出していたタブへ戻る。戻り先が無ければウィンドウを閉じる。
-        if viewMode == .single, selectedProjectID == nil, selectedSession == nil, let projectID = newChatProjectID {
+        if let projectID = newChatDestinationOnScreen {
             guard let selected = tabs.layout(for: projectID).selected else { return false }
             selectTab(selected, in: projectID)
             return true
@@ -250,10 +251,16 @@ public final class AppRouter {
         return true
     }
 
+    /// 新規チャット画面を出しているときの送信先。送信後も `newChatProjectID` は残るので、画面に出ているときだけ返す。
+    private var newChatDestinationOnScreen: ProjectID? {
+        viewMode == .single && selectedProjectID == nil && selectedSession == nil ? newChatProjectID : nil
+    }
+
     /// 上段のプロジェクトタブを、サイドバーと同じ順で巡回する。
     public func cycleProject(by offset: Int, ordered projects: [ProjectID]) {
         guard !projects.isEmpty else { return }
-        let index = selectedProjectID.flatMap { projects.firstIndex(of: $0) } ?? (offset > 0 ? -1 : 0)
+        // 新規チャット画面ではプロジェクトを選んでいないので、送信先から数える（ADR 0188）。
+        let index = (selectedProjectID ?? newChatDestinationOnScreen).flatMap { projects.firstIndex(of: $0) } ?? (offset > 0 ? -1 : 0)
         let count = projects.count
         selectProjectFromSidebar(projects[((index + offset % count) % count + count) % count])
     }

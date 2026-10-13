@@ -2,7 +2,7 @@ import Testing
 import AgentDomain
 @testable import DashboardFeature
 
-// タブが 1 つも無いプロジェクトを選ぶと、そのプロジェクトを送信先にして新規チャットを開く（D21）。
+// タブが 1 つも無いプロジェクトを選ぶと、選んだまま、そのプロジェクトを送信先にして新規チャットを開く（D21。2026-10-13 改訂）。
 @MainActor
 @Test func selectProjectFromSidebar_inSingleModeShowsNewChatWhenProjectHasNoTabs() {
     let router = AppRouter(viewMode: .single)
@@ -14,7 +14,7 @@ import AgentDomain
 
     #expect(router.viewMode == .single)
     #expect(router.newChatProjectID == project)
-    #expect(router.selectedProjectID == nil)
+    #expect(router.selectedProjectID == project)
     #expect(router.selectedSession == nil)
     #expect(router.tabs.layout(for: project).items.isEmpty)
     #expect(StartAreaPolicy.content(hasSelectedSession: false) == .newChat)

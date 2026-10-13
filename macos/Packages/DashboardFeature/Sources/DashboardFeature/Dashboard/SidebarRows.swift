@@ -24,7 +24,6 @@ struct SidebarProjectRow<Menu: View>: View {
     let isExpanded: Bool
     let isSelected: Bool
     let isScoped: Bool
-    let showsScopeMark: Bool
     let collapsedSummary: SidebarCollapsedSummary
     let isRenaming: Bool
     @Binding var renameDraft: String
@@ -101,6 +100,12 @@ struct SidebarProjectRow<Menu: View>: View {
         .padding(.horizontal, 8)
         .frame(minHeight: 28)
         .background(emphasis.fill, in: RoundedRectangle(cornerRadius: DSRadius.row))
+        .overlay {
+            // 面を付けない代わりに、入力欄のチップと同じ控えめな枠で現在位置を示す（2026-10-13 ユーザー指示）。
+            if isSelected && !isScoped {
+                RoundedRectangle(cornerRadius: DSRadius.row).strokeBorder(DSColor.textSecondary, lineWidth: 1)
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             onSelect(NSEvent.modifierFlags.contains(.command))
@@ -123,7 +128,7 @@ struct SidebarProjectRow<Menu: View>: View {
         if !isExpanded, !collapsedSummary.isEmpty {
             SidebarSummaryText(summary: collapsedSummary)
         }
-        if showsScopeMark {
+        if isScoped {
             GridScopeShape()
                 .stroke(DSColor.textSecondary, lineWidth: 1.4)
                 .frame(width: 12, height: 11)

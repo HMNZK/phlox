@@ -142,8 +142,8 @@ NewChatView（入力欄は `NewChatView` の中にあり、`NewChatComposer` と
 ├ 入力欄
 │  ├ IMESafeTextView（既存。VM 非依存。SF/ChatComposer.swift）
 │  ├ 添付の列（ComposerAttachmentStore を表示する既存の部品）
-│  ├ 送れない理由の 1 行（要件 E7）
 │  └ 下段: 左「＋ / ハーネス・モデル / effort・権限・mode」、右「プロジェクト / 作業場所 / 送信」（要件 E6）
+├ 送れない理由の 1 行（入力欄の下。送ろうとしたときだけ。要件 E7）
 ├ 提案チップ 5 個（文言は要件 §5.5）
 └ 履歴から再開…（§6。`NewChatHistoryPopover`）
 ```
@@ -171,7 +171,7 @@ NewChatView（入力欄は `NewChatView` の中にあり、`NewChatComposer` と
 
 ### 4.4 送信できる条件
 
-`本文が空でない || 添付がある` かつ `プロジェクトが選択済み` かつ `ハーネスが検出済み` かつ `画像の添付が無い || 選んだハーネス・モデルが画像を受け付ける`。送れないときは要件 E7 の文言（原因と直し方）を 1 行で出す。添付は消さない。
+`本文が空でない || 添付がある` かつ `プロジェクトが選択済み` かつ `ハーネスが検出済み` かつ `画像の添付が無い || 選んだハーネス・モデルが画像を受け付ける`。送ろうとしたのに送れないときだけ、要件 E7 の文言（原因と直し方）を入力欄の下に 1 行で出す。添付は消さない。
 
 ### 4.5 実画面の確認で決めたこと（2026-10-12 ユーザー指示）
 
@@ -188,7 +188,7 @@ NewChatView（入力欄は `NewChatView` の中にあり、`NewChatComposer` と
 ### 4.5 アクセシビリティと操作の状態（要件 NFR-4〜7）
 
 - チップは `ComposerSettingChip`（§4.2）にまとめ、`accessibilityLabel`（役割）と `accessibilityValue`（今の値）を付ける。入力欄は `accessibilityLabel("メッセージ")`。
-- ホバー・押下中・無効は既存の `HoverableSurfaceButtonStyle`（`DesignSystem/Interaction.swift:276`）を使う。フォーカス枠は `focusRing`（要件 §6.8 で不透明にする）。
+- ホバー・押下中・無効は既存の `HoverableSurfaceButtonStyle`（`DesignSystem/Interaction.swift:276`）を使う。フォーカス枠は `focusRing`（要件 §6.8 で不透明にする）。ただし下段のチップ（`SelectablePopoverButton`）は 1pt の `textSecondary`（要件 §5.1）。
 - 起動中・起動完了・起動失敗に変わったら `AccessibilityNotification.Announcement` を出す（既存の使い方は `ComposerSettingsControls.swift:1149`）。出すのは `launchNewChat` の呼び出し側の 1 か所。
 - 幅が足りないときは、今のセッション画面の下段と同じ判定（`ComposerSettingsOverflowMenu`）で effort・権限を「…」にまとめる。
 

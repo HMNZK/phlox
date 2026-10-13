@@ -55,7 +55,7 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 ## 3. 選択とルーター
 
 - 下段で `.chat(id)` を選ぶ ⇔ `router.selectedSession = id`。サイドバーでセッションを選ぶと、そのプロジェクトに切り替えて `.chat(id)` を選ぶ（今の `reveal` の置き換え）。
-- 新規チャット画面はタブではなく**モード**（PE4。2026-10-13 に改訂。ADR 0188）。`router.showNewChat(projectID:)` は送信先 `router.newChatProjectID` を決め（引数が無ければ今の `selectedProjectID`）、`selectedProjectID = nil`・`selectedSession = nil` にする。出している間は上段のどのタブも選ばない。下書きは `NewChatDraftStore` にアプリで 1 つ。
+- 新規チャット画面はタブではなく**モード**（PE4。2026-10-13 に改訂。ADR 0188）。`router.showNewChat(projectID:)` は送信先 `router.newChatProjectID` を決め（引数が無ければ今の `selectedProjectID`）、`selectedProjectID = nil`・`selectedSession = nil` にする。出している間は上段のどのタブも選ばない。タブが 1 つも無いプロジェクトを選んだとき（`ensureProjectSelection`）は選択を外さず、`newChatProjectID` をそのプロジェクトにするだけで、`ChildTabPanes` が空の配置の代わりに新規チャット画面を出す（D21）。下書きは `NewChatDraftStore` にアプリで 1 つ。
 - 送信して行が出たら `router.completeNewChat(sessionID:projectID:)` が送信先のプロジェクトの配置に `.chat(新しい ID)` を開いて選ぶ（プロジェクトも選択される）。
 - `router.ensureProjectSelection(chatTabs:)`: プロジェクトの配置に選択中のタブがあればそれを選ぶ。無ければチャットか開いている項目の先頭を開いて選ぶ。タブが 1 つも無いプロジェクトだけ `showNewChat(projectID:)` で新規チャット画面を出す（新規チャットの要件 D21）。
 - `forgetProject` は、削除するプロジェクトが `newChatProjectID` なら空にする。
@@ -101,7 +101,7 @@ public struct ProjectTabsSnapshot: Codable, Equatable, Sendable {
 
 | 部品 | 変更 |
 |---|---|
-| `DF/Tabs/SessionTabBar.swift` | 上段＝プロジェクトのタブ。✕ は選択中・ホバー中だけ出し、説明は「プロジェクトを削除…」。右クリックに「プロジェクト名を変更…」（今の `router.projectRenameRequest` を立てる。サイドバーを隠していれば出す）。右端の ＋ はプロジェクトの追加（⌘O と同じ）。入りきらなければ 180→96pt に縮め、残りを「ほか n ⌄」 |
+| `DF/Tabs/SessionTabBar.swift` | 上段＝プロジェクトのタブ。✕ は選択中・ホバー中だけ出し、説明は「プロジェクトを削除…」。右クリックに「プロジェクト名を変更…」（今の `router.projectRenameRequest` を立てる。サイドバーを隠していれば出す）。右端の ＋ はプロジェクトの追加（⌘O と同じ）。タブは帯の高さいっぱいで、左端に余白を空けない（新規チャットの要件 D33）。入りきらなければ 180→96pt に縮め、残りを「ほか n ⌄」 |
 | `DF/Tabs/SessionTabsContainer.swift` の前半 | 下段（`ChildTabBar`）＝チャット → 項目。チャットの ✕ の説明は「セッションを削除…」、ほかは「閉じる」。＋ のメニュー（`NewTabChooser`）は 新規チャット ⌘N（タブは作らず、新規チャット画面を出す）/ ターミナル / 変更 / ファイルを開く… / ブラウザ / シミュレーター、下端に「ターミナル・変更・ファイルは <プロジェクト> のフォルダで開きます」。タブは文字幅（上限あり）で、＋ は最後のタブの直後。入りきらなければ残りを「ほか n ⌄」に畳む |
 | `DF/Dashboard/DashboardToolbar.swift` | `titleBlock`・`worktreeMenu`・`WorktreeMenuButton`を消した。残るのは、左の `.navigation` 項目のサイドバーの開閉（常に出す。対応待ちの件数の印だけ隠しているときに付ける。新規チャットの要件 FR-40）とその右のタブ名 `HeaderTabTitle`（選択中のタブの名前を左寄せで出す。同 FR-41。詳細は [unified-new-chat-start-design.md](unified-new-chat-start-design.md) §3.3）、`ViewModeToggle`（右寄せ。アイコンだけで、名前は読み上げとヘルプに出す）、インスペクタの開閉。どれも SwiftUI の標準ツールバー（`ToolbarContent`。`DashboardView` の `.toolbar`）に置き、信号との縦位置はシステムが揃える |
 | `DF/Dashboard/WindowChromeConfigurator.swift` | `toolbarStyle = .unifiedCompact`。空の `NSToolbar` は付けない（SwiftUI のヘッダーを覆って描かれなくしていた）。ヘッダーの高さは標準のツールバーで決まり、2026-10-12 の実測は 40pt（モックは 38pt） |

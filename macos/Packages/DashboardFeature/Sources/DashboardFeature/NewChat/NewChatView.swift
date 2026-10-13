@@ -202,9 +202,6 @@ struct NewChatView: View {
     private var suggestionDirectory: String? {
         project.map { NewChatSuggestionDirectory.path(projectDirectory: $0.directoryPath, usesWorktree: draft.usesWorktree) }
     }
-    private var suggestionControllerKey: String? {
-        suggestionDirectory.map { "\($0):\(draft.usesWorktree)" }
-    }
     private var effortOptions: [ComposerSettingOption] {
         guard let kind = selectedKind else { return [] }
         let values: [String]
@@ -296,9 +293,7 @@ struct NewChatView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 24)
             .padding(.vertical, 18)
-            .onChange(of: sendUnavailableReason) { _, reason in
-                if reason == nil { showsSendValidation = false }
-            }
+            .onChange(of: sendUnavailableReason) { showsSendValidation = false }
             .onAppear {
                 showsSendValidation = newChatSendValidationInitiallyShown
                 greeting = NewChatGreetings.random()
@@ -352,8 +347,7 @@ struct NewChatView: View {
                 onCycleEffort: cycleEffort,
                 onTab: { harnessPickerFocused = true; return true }
             )
-            .id(suggestionControllerKey)
-            .frame(height: DSLayout.newChatComposerTextHeight + 6, alignment: .topLeading)
+            .id(suggestionDirectory)
             .padding(.leading, DSSpacing.xxs)
             .padding(.trailing, -DSSpacing.xxs)
             .padding(.bottom, DSSpacing.xs)

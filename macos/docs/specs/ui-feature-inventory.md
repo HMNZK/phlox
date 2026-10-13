@@ -84,7 +84,7 @@ last-verified: 2026-10-13
 | プロジェクト削除 | 「…」メニュー→削除／右クリック | 確認ダイアログ（子孫件数を含む文言、フォルダ自体は削除されない旨） | 破壊的操作 | — | `DashboardSidebarView.swift:137-139, 356-357`, `DashboardView.swift:129-147`, `DashboardViewModelSupportingTypes.swift:19-33` |
 | 新規チャット（プロジェクト行の「＋」） | プロジェクト行の「＋」（ホバー時。「⋯」と同じ枠なしのボタン。メニューは挟まず押した時点で切り替え）、右クリック・「⋯」の「新規チャット」、サイドバー下端の「＋ 新規チャット ⌘N」 | `NewChatEntryActions` が `router.showNewChat(projectID:)` を呼ぶ。そのプロジェクトを送信先にして新規チャット画面（タブではなくモード）を出す。セッションは作らない | — | 9 章・10 章 | `SidebarRows.swift`（プロジェクト行の「＋」）、`DashboardSidebarView.swift`（プロジェクトメニューの「新規チャット」）、`DashboardView.swift`（`sidebarFooter`）、`NewChatEntryActions.swift` |
 | 未割当セッション表示 | — | 「その他」セクション | — | — | `DashboardSidebarView.swift:71-81` |
-| セッション行表示 | — | セッション名。右端に状態の文字（「実行中」「承認待ち」「質問あり」「エラー」「無応答」「完了」。待機中は経過時間）。略号・状態の図形・未読の丸は出さない（ADR 0184） | 実行中は名前全体が点滅（動きを減らす設定では静止）。未読は題名を主文字色・やや太く | — | `SidebarRows.swift`、`SidebarRowEmphasis.swift` |
+| セッション行表示 | — | セッション名。右端に状態の文字（「実行中」「承認待ち」「質問あり」「エラー」「無応答」「完了」。待機中は何も出さない）。略号・状態の図形・未読の丸は出さない（ADR 0184） | 実行中は名前全体が点滅（動きを減らす設定では静止）。未読は題名を主文字色・やや太く | — | `SidebarRows.swift`、`SidebarRowEmphasis.swift` |
 | セッションツリー展開/折りたたみ | 子持ち行のシェブロン | `SessionTreeViewModel.Row` | 展開/折りたたみ | — | `DashboardSidebarView.swift:146-153, 176-189, 525-542` |
 | セッション選択 | 行クリック | `router.selectedSession` | 選択中はグレーの面 | — | `DashboardSidebarView.swift`, `SidebarRowEmphasis.swift` |
 | セッション名ホバー | 名前にマウスホバー | 名前・エージェント・状態・経過時間・プロジェクト名とセッション数・作業ディレクトリをカード表示 | ポインタをカードへ移しても表示を維持 | — | `SidebarRows.swift` |
@@ -382,7 +382,7 @@ TerminalUIパッケージ（`Packages/TerminalUI/Sources/TerminalUI`、PTY疑似
 | effort・権限（Cursor は mode）のチップ | クリックで選択（権限の項目に「計画」を含む）。⇧Tab で effort を巡回。幅 620pt 未満では 1 つの「…」メニューにまとめる | 選んだハーネスの候補（Codex の effort は `model/list` の結果、権限は内蔵の 3 つ） | モデルが effort を持たなければ出さない | `phlox.lastUsedChatSettings.<agentID>.*` | `NewChatView.swift`（`newChat.effortPicker`・`newChat.permissionPicker`・`newChat.settingsOverflow`） |
 | プロジェクトのメニュー | クリックで送信先のプロジェクトを選び直す（本文・添付・設定は残り、上段のタブの選択は変えない） | プロジェクト名 | プロジェクト未選択なら送れない | — | `NewChatView.swift`（`newChat.projectPicker`） |
 | 作業場所のメニュー | 「既存ディレクトリ」（初期値）/「新しい worktree」 | — | git リポジトリでなければ「新しい worktree」は選べない（理由を説明文で出す） | worktree の判断はこの選択と、復元時は保存済みの作業フォルダ（プロジェクト設定は廃止） | `NewChatView.swift`（`newChat.workspacePicker`） |
-| 送信 | ↩ またはボタン（アクセントの丸） | — | 本文も添付も空なら押せない。送れない理由（プロジェクト未選択・ハーネス未検出・画像を送れない）は入力欄の上に 1 行 | — | `NewChatView.swift`（`newChat.sendButton`・`newChat.sendUnavailableReason`） |
+| 送信 | ↩ またはボタン（アクセントの丸） | — | 本文も添付も空なら押せない。送れない理由（プロジェクト未選択・ハーネス未検出・画像を送れない）は送ろうとしたときだけ入力欄の下にエラーの色で 1 行（プロジェクト未選択ならチップも赤枠） | — | `NewChatView.swift`（`newChat.sendButton`・`newChat.sendUnavailableReason`） |
 | 提案チップ 5 個 | クリックで定型文を入力欄に足す（送信はしない） | コードレビュー・バグ修正・テスト追加・コードの説明・リファクタ | — | — | `NewChatView.swift`（`newChat.suggestion.<n>`） |
 | 履歴から再開… | クリックでポップオーバー。選ぶとその会話を再開 | 本体フォルダと、そのプロジェクトの過去の worktree（`Project.worktreePaths`）の会話。読み込み中・履歴なし・失敗と「再試行」を区別 | 選択中のハーネスが Claude Code か Codex で、履歴があるときだけ出す | — | `NewChatHistoryPopover.swift`（`newChat.historyResume`・`newChat.history.entry.<id>`・`newChat.history.retry`）、`DashboardViewModel.swift`（`newChatHistoryEntries`） |
 
@@ -679,7 +679,7 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 | 状態 | 視覚表現 | 主に現れる画面 | 根拠 |
 |---|---|---|---|
 | starting | サイドバーの行の右端に文字（「起動中」）。タブ・グリッドの見出しには状態を出さない（ADR 0184、要件 D19） | サイドバー | `SidebarRows.swift`、`StatusBadge.swift` |
-| idle | サイドバーの行の右端に経過時間（「42分前」など） | サイドバー | `SidebarRows.swift` |
+| idle | 何も出さない（2026-10-13 ユーザー指示で経過時間をやめた） | サイドバー | `SidebarRows.swift` |
 | running | サイドバーの行の右端に文字（「実行中」）と、題名を流れる明るい帯（動きを減らす設定では静止）。Thinkingインジケータ。グリッドの赤枠3pt(要注意) | サイドバー/グリッド/single | `SidebarRows.swift`, `ThinkingIndicatorCell` |
 | awaitingApproval(prompt) | ApprovalBanner表示 | single/グリッド | 4.2節 |
 | awaitingUserQuestion | UserQuestionCell表示 | single/グリッド | 4.1節 |

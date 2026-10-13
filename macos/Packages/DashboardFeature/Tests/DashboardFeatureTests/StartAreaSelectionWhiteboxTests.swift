@@ -77,6 +77,7 @@ struct StartAreaSelectionWhiteboxTests {
         router.ensureProjectSelection(chatTabs: dashboard.chatTabs(in: projectB))
 
         #expect(router.newChatProjectID == projectB)
+        #expect(router.selectedProjectID == projectB)
         #expect(router.selectedSession == nil)
         #expect(router.viewMode == .single)
         #expect(router.tabs.layout(for: projectB).items.isEmpty)

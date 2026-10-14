@@ -97,6 +97,18 @@ run_swift_test() {
     "$COMPACT_COMMAND" "${pkg} / ${label}" swift test --package-path "Packages/$pkg" "$@"
 }
 
+# SwiftPM は xcassets をコンパイルしないので、DesignSystem のロゴ（Icons.xcassets）を描くテストの
+# ために、テストの前に資源バンドルへ Assets.car を作る。テストの中で作ると、先に走った別のテストが
+# 画像を引いて「無い」ことを覚えた後になり、ビルドし直した直後の全件実行でだけロゴが描かれず落ちる。
+prepare_asset_catalog() {  # <package>
+  swift build --build-tests --package-path "Packages/$1" >/dev/null 2>&1 || return 1
+  local bundle
+  bundle="$(swift build --show-bin-path --package-path "Packages/$1")/DesignSystem_DesignSystem.bundle"
+  if [ ! -d "$bundle/Icons.xcassets" ] || [ -f "$bundle/Assets.car" ]; then return 0; fi
+  xcrun actool --compile "$bundle" --platform macosx --minimum-deployment-target 14.0 \
+    "$bundle/Icons.xcassets" >/dev/null
+}
+
 cd "$MACOS_DIR" || { echo "run-swift-tests: macos ディレクトリが無い: $MACOS_DIR" >&2; exit 1; }
 
 failed=""
@@ -106,6 +118,9 @@ for pkg in $PACKAGES; do
     failed="$failed $pkg(missing)"
     continue
   fi
+
+  # 失敗しても続ける。ビルドの失敗は直後の swift test が原因つきで報告する。
+  prepare_asset_catalog "$pkg" || echo "run-swift-tests: ${pkg} の資源の準備に失敗（原因は続く swift test が出す）" >&2
 
   serial_arg="$(serial_args_for "$pkg")"
   serial_args=()

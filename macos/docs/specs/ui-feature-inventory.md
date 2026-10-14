@@ -374,7 +374,7 @@ TerminalUIパッケージ（`Packages/TerminalUI/Sources/TerminalUI`、PTY疑似
 | 作業場所のメニュー | 「既存ディレクトリ」（初期値）/「新しい worktree」 | — | git リポジトリでなければ「新しい worktree」は選べない（理由を説明文で出す） | worktree の判断はこの選択と、復元時は保存済みの作業フォルダ（プロジェクト設定は廃止） | `NewChatView.swift`（`newChat.workspacePicker`） |
 | 送信 | ↩ またはボタン（アクセントの丸） | — | 本文も添付も空なら押せない。送れない理由（プロジェクト未選択・ハーネス未検出・画像を送れない）は送ろうとしたときだけ入力欄の下にエラーの色で 1 行（プロジェクト未選択ならチップも赤枠） | — | `NewChatView.swift`（`newChat.sendButton`・`newChat.sendUnavailableReason`） |
 | 提案チップ 5 個 | クリックで定型文を入力欄に足す（送信はしない） | コードレビュー・バグ修正・テスト追加・コードの説明・リファクタ | — | — | `NewChatView.swift`（`newChat.suggestion.<n>`） |
-| 履歴から再開… | クリックでポップオーバー。選ぶとその会話を再開 | 本体フォルダと、そのプロジェクトの過去の worktree（`Project.worktreePaths`）の会話。読み込み中・履歴なし・失敗と「再試行」を区別 | 選択中のハーネスが Claude Code か Codex で、履歴があるときだけ出す | — | `NewChatHistoryPopover.swift`（`newChat.historyResume`・`newChat.history.entry.<id>`・`newChat.history.retry`）、`DashboardViewModel.swift`（`newChatHistoryEntries`） |
+| 履歴から再開… | 提案チップの列の最後に、同じ見た目のチップで出す。クリックでポップオーバー。選ぶとその会話を再開 | 本体フォルダと、そのプロジェクトの過去の worktree（`Project.worktreePaths`）の会話。読み込み中・履歴なし・失敗と「再試行」を区別 | 選択中のハーネスが Claude Code か Codex で、履歴があるときだけ出す | — | `NewChatHistoryPopover.swift`（`newChat.historyResume`・`newChat.history.entry.<id>`・`newChat.history.retry`）、`DashboardViewModel.swift`（`newChatHistoryEntries`） |
 
 ---
 

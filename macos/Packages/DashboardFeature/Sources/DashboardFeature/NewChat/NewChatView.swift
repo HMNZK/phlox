@@ -297,7 +297,6 @@ struct NewChatView: View {
                         .accessibilityIdentifier("newChat.sendUnavailableReason")
                 }
                 suggestions
-                historyResumeButton
                 Spacer(minLength: 12)
             }
             .frame(maxWidth: 760)
@@ -685,86 +684,82 @@ struct NewChatView: View {
         .accessibilityIdentifier("newChat.sendButton")
     }
 
-    /// 1 行に収まらなければ見本どおり 3 個と 2 個の 2 行に折り返す。
+    /// 提案チップの最後に「履歴から再開…」を並べ、1 行に収まらなければ 3 個ずつの 2 行に折り返す。
     private var suggestions: some View {
         let all = Array(NewChatSuggestions.all.enumerated())
         return ViewThatFits(in: .horizontal) {
-            suggestionRow(all)
+            suggestionRow(all, includesHistory: true)
             VStack(spacing: DSSpacing.s) {
-                suggestionRow(Array(all.prefix(3)))
-                suggestionRow(Array(all.dropFirst(3)))
+                suggestionRow(Array(all.prefix(3)), includesHistory: false)
+                suggestionRow(Array(all.dropFirst(3)), includesHistory: true)
             }
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
     }
 
-    private func suggestionRow(_ items: [(offset: Int, element: (title: String, text: String, symbol: String))]) -> some View {
+    private func suggestionRow(
+        _ items: [(offset: Int, element: (title: String, text: String, symbol: String))],
+        includesHistory: Bool
+    ) -> some View {
         HStack(spacing: DSSpacing.s) {
             ForEach(items, id: \.offset) { index, suggestion in
                 Button {
                     draft.appendSuggestion(suggestion.text)
                     focusToken &+= 1
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: suggestion.symbol)
-                            .font(DSFont.meta)
-                            .accessibilityHidden(true)
-                        Text(verbatim: localized(suggestion.title))
-                            .font(DSFont.auxiliary)
-                    }
-                    .foregroundStyle(DSColor.textSecondary)
-                    .padding(.horizontal, 10)
-                    .frame(height: DSLayout.controlChipHeight)
-                    .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
-                            .strokeBorder(DSColor.controlBorder, lineWidth: DSLayout.suggestionChipBorderWidth)
-                    }
+                    suggestionChipLabel(title: localized(suggestion.title), symbol: suggestion.symbol)
                 }
                 .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row))
                 .accessibilityIdentifier("newChat.suggestion.\(index + 1)")
+            }
+            if includesHistory && showsHistoryResumeButton {
+                historyResumeButton
             }
         }
         .fixedSize(horizontal: true, vertical: false)
     }
 
+    private func suggestionChipLabel(title: String, symbol: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(DSFont.meta)
+                .accessibilityHidden(true)
+            Text(verbatim: title)
+                .font(DSFont.auxiliary)
+        }
+        .foregroundStyle(DSColor.textSecondary)
+        .padding(.horizontal, 10)
+        .frame(height: DSLayout.controlChipHeight)
+        .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
+                .strokeBorder(DSColor.controlBorder, lineWidth: DSLayout.suggestionChipBorderWidth)
+        }
+    }
+
     private var historyResumeButton: some View {
-        Group {
-            if showsHistoryResumeButton {
-                Button {
-                    historyPopoverPresented = true
-                    Task { await loadHistoryEntries() }
-                } label: {
-                    Text("履歴から再開…")
-                        .font(DSFont.auxiliary.weight(.medium))
-                        .foregroundStyle(DSColor.textSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 24)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("newChat.historyResume")
-                .popover(isPresented: $historyPopoverPresented, arrowEdge: .bottom) {
-                    if let project {
-                        NewChatHistoryPopover(
-                            model: historyModel,
-                            project: project,
-                            usesWorktree: draft.usesWorktree,
-                            locale: locale,
-                            onRetry: { Task { await loadHistoryEntries() } },
-                            onSelect: { resumeHistory($0.sessionID) }
-                        )
-                        .environment(\.locale, locale)
-                    }
-                }
-            } else {
-                Color.clear
-                    .frame(height: 24)
-                    .accessibilityHidden(true)
+        Button {
+            historyPopoverPresented = true
+            Task { await loadHistoryEntries() }
+        } label: {
+            suggestionChipLabel(title: localized("履歴から再開…"), symbol: "clock.arrow.circlepath")
+        }
+        .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row))
+        .accessibilityIdentifier("newChat.historyResume")
+        .popover(isPresented: $historyPopoverPresented, arrowEdge: .bottom) {
+            if let project {
+                NewChatHistoryPopover(
+                    model: historyModel,
+                    project: project,
+                    usesWorktree: draft.usesWorktree,
+                    locale: locale,
+                    onRetry: { Task { await loadHistoryEntries() } },
+                    onSelect: { resumeHistory($0.sessionID) }
+                )
+                .environment(\.locale, locale)
             }
         }
-        .frame(height: 24)
-        .frame(maxWidth: .infinity)
     }
 
     private func loadHistoryEntries() async {

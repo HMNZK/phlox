@@ -53,6 +53,7 @@ struct UsageBottomBarView: View {
                                     bucket,
                                     showsLabel: stage != .percentageOnly,
                                     showsReset: stage == .full,
+                                    barWidth: stage == .full ? 64 : 36,
                                     now: now
                                 )
                             }
@@ -70,7 +71,7 @@ struct UsageBottomBarView: View {
     }
 
     @ViewBuilder
-    private func bucketText(_ bucket: UsageBucket, showsLabel: Bool, showsReset: Bool, now: Date) -> some View {
+    private func bucketText(_ bucket: UsageBucket, showsLabel: Bool, showsReset: Bool, barWidth: CGFloat, now: Date) -> some View {
         let isLow = UsageDisplay.isLowRemaining(usedPercent: bucket.usedPercent)
         let font = DSFont.meta.weight(isLow ? .semibold : .regular)
         let color = isLow ? DSColor.attentionInk(.approval) : DSColor.textSecondary
@@ -92,7 +93,7 @@ struct UsageBottomBarView: View {
                     fraction: UsageDisplay.remainingPercent(usedPercent: bucket.usedPercent) / 100,
                     tint: isLow ? DSColor.attentionMark(.approval) : DSColor.textSecondary
                 )
-                .frame(width: 36)
+                .frame(width: barWidth)
                 if showsReset, let reset = UsageDisplay.bottomBarResetSuffix(for: bucket, now: now, locale: locale) {
                     Text(verbatim: reset).font(font).monospacedDigit().foregroundStyle(color)
                 }

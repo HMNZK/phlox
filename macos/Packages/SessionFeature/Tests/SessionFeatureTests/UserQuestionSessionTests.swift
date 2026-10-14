@@ -5,7 +5,8 @@
 //   - markCompletionSeen() でラッチが解除される。質問の解決は新たな通知・ラッチを発火しない
 //   - 解決通知の冪等性・中断時は未回答カードだけ失効・二重回答は 1 回だけ受理
 
-import Foundation
+import AppKit
+import SwiftUI
 import Testing
 import AgentDomain
 import StructuredChatKit
@@ -341,5 +342,46 @@ func concurrentDoubleRespondAcceptsOnlyOne() async throws {
         #expect(answers == ["色は?": ["red"]], "answers は実際に送信された1回目の値")
     } else {
         Issue.record("expected answered userQuestion card")
+    }
+}
+
+// 返答エリアの質問カードを会話画面ごと実際のウィンドウに載せて、長い質問が折り返されるかを見る。
+// 守る不具合: 会話欄が低い（グリッドのタイルなど）と返答エリアのカードが押し縮められ、長い質問が 1 行に切り詰められる。
+@MainActor
+@Suite("返答エリアの質問カード: 実際に描かれた画面")
+struct ReplyAreaQuestionLayoutTests {
+    @Test(arguments: [800.0, 300.0, 250.0])
+    func 長い質問は返答エリアでも折り返して全文を表示する(windowHeight: Double) async throws {
+        let windowWidth = 1250.0
+        let length = 200
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        let client = QuestionClient()
+        let vm = makeLifecycleViewModel(client: client)
+        let base = "macOS 版は同じ内容（見本どおりの開始画面＋「Codex: gpt-6.1-sol」形式のチップ）の仕様書・ClaudeDesign 用プロンプト・確定モック・実装が、未マージのブランチにあります。iOS 版はどう扱いますか？"
+        let long = String(String(repeating: base, count: 5).prefix(length))
+        let q = ChatUserQuestion(question: long, header: "対象",
+                                 options: [ChatUserQuestionOption(label: "A", description: "説明")], multiSelect: false)
+        client.yield(.turnStarted)
+        client.yield(.userQuestionRequested(requestId: "q-long", questions: [q]))
+        try await waitForCard(vm, requestId: "q-long")
+
+        let hosting = NSHostingView(rootView: ChatSessionView(viewModel: vm).environment(\.locale, Locale(identifier: "ja_JP")))
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: windowWidth, height: windowHeight), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        hosting.frame = CGRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
+        for _ in 0..<5 {
+            hosting.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        func find(_ object: AnyObject) -> AnyObject? {
+            if object.accessibilityRole() == .staticText, (object.accessibilityValue() as? String) == long { return object }
+            for child in object.accessibilityChildren() ?? [] { if let found = find(child as AnyObject) { return found } }
+            return nil
+        }
+        let text = try #require(find(hosting), "質問の本文が見つからない")
+        let height = text.accessibilityFrame().height
+        #expect(height > 30, "長い質問が 1 行に切り詰められている: windowHeight=\(windowHeight) height=\(height)")
     }
 }

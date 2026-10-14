@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>ゴミ箱に入れる確認</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position:relative;width:440px;box-sizing:border-box;border-radius:12px;background:#1E1E20;padding:60px 18px 28px;display:flex;justify-content:center;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;-webkit-font-smoothing:antialiased;color:#F2F2F4;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+  <div style="position:absolute;left:0;right:0;top:0;height:52px;background:#2A2A2D;border-bottom:1px solid rgba(242,242,244,0.10);display:flex;align-items:center;gap:8px;padding:0 14px;">
+    <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;"></span><span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;"></span><span style="width:12px;height:12px;border-radius:50%;background:#28C840;"></span>
+    <span style="font-size:12px;font-weight:600;color:#ABABB1;margin-left:10px;">Phlox-oss</span>
+  </div>
+  <div style="position:absolute;left:0;right:0;top:52px;bottom:0;background:rgba(0,0,0,0.32);"></div>
+  <div role="alertdialog" aria-label="{{ title }}" style="position:relative;width:320px;box-sizing:border-box;background:#2F2F33;border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.14);padding:20px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;">
+    <div aria-hidden="true" style="width:56px;height:56px;border-radius:13px;flex:none;background:linear-gradient(140deg,#7A5CF5 0%,#B45CE6 50%,#EC6AA8 100%);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 0.5px rgba(255,255,255,0.28),0 1px 3px rgba(0,0,0,0.35);"><svg width="40" height="40" viewBox="0 0 24 24"><path d="M7 8.5L16.5 7M7 8.5l5 8.5M16.5 7L12 17" stroke="#fff" stroke-opacity="0.8" stroke-width="1.6" fill="none"></path><circle cx="7" cy="8.5" r="2.4" fill="#fff"></circle><circle cx="16.5" cy="7" r="2.4" fill="#fff"></circle><circle cx="12" cy="17" r="2.4" fill="#fff"></circle></svg></div>
+    <div style="font-size:13px;font-weight:700;line-height:1.45;text-wrap:balance;word-break:keep-all;overflow-wrap:anywhere;">{{ title }}</div>
+    <div style="font-size:11.5px;line-height:1.6;text-wrap:pretty;">{{ body }}</div>
+    <div role="list" aria-label="{{ listAria }}" style="width:100%;box-sizing:border-box;text-align:left;background:#1E1E20;border-radius:6px;box-shadow:0 0 0 0.5px rgba(255,255,255,0.10);display:flex;flex-direction:column;padding:3px 0;">
+      <sc-for list="{{ items }}" as="r" hint-placeholder-count="1">
+        <div role="listitem" aria-label="{{ r.aria }}" style="{{ r.s }}">
+          <sc-if value="{{ r.isFolder }}"><svg aria-hidden="true" width="12" height="10" viewBox="0 0 16 13" fill="none" stroke="#ABABB1" stroke-width="1.3" style="flex:none;"><path d="M1 2.4 V11.2 Q1 12 1.8 12 H14.2 Q15 12 15 11.2 V4.3 Q15 3.5 14.2 3.5 H7.4 L6 1.6 H1.8 Q1 1.6 1 2.4 Z"></path></svg></sc-if>
+          <sc-if value="{{ r.isFile }}"><span aria-hidden="true" style="width:9px;height:11px;border-radius:2px;box-shadow:inset 0 0 0 1.1px #ABABB1;flex:none;"></span></sc-if>
+          <span style="flex:1;min-width:0;display:flex;flex-direction:column;">
+            <span style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.t }}</span>
+            <span style="font-size:10.5px;color:#ABABB1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.m }}</span>
+          </span>
+          <sc-if value="{{ r.tag }}"><span style="font-size:10.5px;color:#F2F2F4;border-radius:4px;padding:1px 5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.22);flex:none;white-space:nowrap;">{{ r.tag }}</span></sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ note }}"><div style="font-size:11px;line-height:1.55;color:#ABABB1;text-wrap:pretty;">{{ note }}</div></sc-if>
+    <div style="display:flex;gap:8px;width:100%;margin-top:4px;flex-direction:column;">
+      <button type="button" style="height:28px;border:0;border-radius:6px;display:flex;align-items:center;justify-content:center;font:inherit;font-size:13px;font-weight:600;color:#1E1E20;background:#F2F2F4;">{{ primary }}<span style="font-size:11px;font-weight:400;margin-left:6px;">↩</span></button>
+      <button type="button" style="{{ secondStyle }}">{{ secondary }}</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":440,"height":520},"variant":{"editor":"enum","options":["a","b","c","d","e"],"default":"a"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const v = this.props.variant || 'a';
+    const row = (t, m, tag, folder) => ({ t, m, tag: tag || '', isFolder: !!folder, isFile: !folder, aria: `${t}、${m}${tag ? '、' + tag : ''}`, s:{ display:'flex', alignItems:'center', gap:8, minHeight:34, padding:'3px 10px', boxSizing:'border-box' } });
+    const C = {
+      a:{ title:'notes.md をゴミ箱に入れますか？', body:'ゴミ箱から元に戻せます。', items:[row('notes.md','Phlox-oss · docs/guides/')], note:'', primary:'ゴミ箱に入れる', secondary:'キャンセル', danger:false },
+      b:{ title:'file-tree.md をゴミ箱に入れますか？', body:'開いているタブを閉じます。未保存の変更は失われます。', items:[row('file-tree.md','Phlox-oss · docs/guides/','未保存の変更')], note:'ファイルはゴミ箱から戻せますが、保存していない変更は戻りません。保存するには、キャンセルしてタブで ⌘S を押します。', primary:'キャンセル', secondary:'ゴミ箱に入れる', danger:true },
+      c:{ title:'docs と中の 12 項目をゴミ箱に入れますか？', body:'フォルダ 3・ファイル 9 を含みます。開いているタブ 1 個を閉じます。ゴミ箱から元に戻せます。', items:[row('docs','Phlox-oss · フォルダ · 12 項目','',true), row('file-tree.md','docs/guides/ · 閉じるタブ','開いているタブ')], note:'', primary:'ゴミ箱に入れる', secondary:'キャンセル', danger:false }
+    };
+    C.d = { title:'notes.md をゴミ箱に入れますか？', body:'開いているタブを閉じます。ゴミ箱から元に戻せます。', items:[row('notes.md','Phlox-oss · docs/guides/','開いているタブ')], note:'', primary:'ゴミ箱に入れる', secondary:'キャンセル', danger:false };
+    C.e = { title:'macos と中の 1,000 項目以上をゴミ箱に入れますか？', body:'数えるのは 1,000 項目までです。ゴミ箱から元に戻せます。', items:[row('macos','Phlox-oss · フォルダ · 1,000 項目以上','',true)], note:'', primary:'ゴミ箱に入れる', secondary:'キャンセル', danger:false };
+    const c = C[v] || C.a;
+    c.items.forEach((r, i) => { if (i > 0) r.s = { ...r.s, borderTop:'1px solid rgba(255,255,255,0.08)' }; });
+    return {
+      title:c.title, body:c.body, items:c.items, note:c.note, primary:c.primary, secondary:c.secondary,
+      listAria: v === 'c' ? 'ゴミ箱に入れるもの' : 'ゴミ箱に入れるファイル',
+      secondStyle:{ height:28, border:0, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', font:'inherit', fontSize:13, fontWeight: c.danger ? 600 : 400, color: c.danger ? '#FF8A8D' : '#F2F2F4', background:'#3A3A3E', boxShadow:'0 0 0 0.5px rgba(255,255,255,0.12), 0 0.5px 1px rgba(0,0,0,0.1)' }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>メインウィンドウ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="{{ rootStyle }}">
+  <div style="height:38px;flex:none;display:flex;align-items:center;background:var(--bar);border-bottom:1px solid var(--sep);">
+    <div style="width:260px;flex:none;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;">
+      <span style="width:12px;height:12px;border-radius:6px;background:#FF5F57;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#FEBC2E;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#28C840;"></span>
+      <div style="flex:1;"></div>
+      <button type="button" aria-label="サイドバー" title="サイドバーを隠す" style="width:28px;height:28px;border:0;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);background:transparent;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM6.5 3.5v9"></path></svg></button>
+    </div>
+    <div style="flex:1;min-width:0;padding:0 12px;font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ headTitle }}</div>
+    <div style="display:flex;align-items:center;gap:8px;padding:0 10px;">
+      <div style="height:24px;padding:2px;box-sizing:border-box;border-radius:6px;background:var(--segBg);display:flex;gap:2px;">
+        <button type="button" aria-label="単体" title="単体" style="{{ segSingle }}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h10v9H3z"></path></svg></button>
+        <button type="button" aria-label="グリッド" title="グリッド" style="{{ segGrid }}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h4v4H3zM9 3.5h4v4H9zM3 9.5h4v3H3zM9 9.5h4v3H9z"></path></svg></button>
+      </div>
+      <sc-if value="{{ toggleInHeader }}" hint-placeholder-val="{{ false }}">
+        <div style="position:relative;display:flex;">
+          <button type="button" aria-label="下部パネル" aria-pressed="{{ panelOpen }}" title="{{ toggleTitle }}" style="{{ toggleStyleH }}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM2.5 9.5h11"></path></svg></button>
+          <sc-if value="{{ toggleTip }}"><div role="tooltip" style="position:absolute;top:32px;right:-40px;z-index:9;padding:4px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;color:var(--fg);white-space:nowrap;">{{ toggleTitle }}</div></sc-if>
+        </div>
+      </sc-if>
+      <button type="button" aria-label="インスペクタ" title="インスペクタ" style="width:28px;height:28px;border:0;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);background:transparent;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM9.5 3.5v9"></path></svg></button>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;position:relative;">
+    <div style="width:260px;flex:none;box-sizing:border-box;background:var(--side);border-right:1px solid var(--sep);display:flex;flex-direction:column;">
+      <div style="flex:1;min-height:0;padding:10px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden;">
+        <div style="height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:11px;font-weight:600;color:var(--fg2);">プロジェクト<span title="プロジェクトを追加 ⌘O" style="display:flex;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"></path></svg></span></div>
+        <sc-for list="{{ sideProjects }}" as="sp" hint-placeholder-count="2">
+          <div style="height:28px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--fg2)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="{{ sp.chev }}"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--fg2)" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+            <span style="flex:1;font-size:13px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">{{ sp.name }}</span>
+            <span style="font-size:11px;font-weight:600;color:var(--apvInk);flex:none;">{{ sp.right }}</span>
+          </div>
+          <sc-for list="{{ sp.sessions }}" as="ss" hint-placeholder-count="3">
+            <div style="{{ ss.style }}">
+              <span style="{{ ss.titleStyle }}">{{ ss.title }}</span>
+              <span style="{{ ss.rightStyle }}">{{ ss.right }}</span>
+            </div>
+          </sc-for>
+        </sc-for>
+        <sc-if value="{{ noProject }}" hint-placeholder-val="{{ false }}"><div style="padding:6px 8px;font-size:12px;line-height:1.6;color:var(--fg2);">プロジェクトはまだありません</div></sc-if>
+      </div>
+      <div style="border-top:1px solid var(--sep);padding:8px;">
+        <div style="height:28px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:13px;color:var(--fg2);"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg><span style="flex:1;">新規チャット</span><span style="font-size:11px;">⌘N</span></div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);">
+      <div style="height:34px;flex:none;display:flex;align-items:flex-end;background:var(--tabbar);border-bottom:1px solid var(--sep);padding:0 6px;">
+        <sc-for list="{{ projectTabs }}" as="pt" hint-placeholder-count="2">
+          <div title="{{ pt.label }}" style="{{ pt.style }}">
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ pt.label }}</span>
+            <sc-if value="{{ pt.close }}"><span title="プロジェクトを削除…" style="width:16px;height:16px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></sc-if>
+          </div>
+        </sc-for>
+        <div title="プロジェクトを追加" style="width:26px;height:26px;margin:0 0 4px 4px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+        <div style="flex:1;"></div>
+        <sc-if value="{{ toggleInProjectRow }}" hint-placeholder-val="{{ false }}">
+          <div style="position:relative;display:flex;margin:0 0 4px;">
+            <button type="button" aria-label="下部パネル" aria-pressed="{{ panelOpen }}" aria-disabled="{{ noProject }}" title="{{ toggleTitle }}" style="{{ toggleStyleT }}"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM2.5 9.5h11"></path></svg></button>
+            <sc-if value="{{ toggleTip }}"><div role="tooltip" style="position:absolute;top:30px;right:0;z-index:9;padding:4px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;color:var(--fg);white-space:nowrap;">{{ toggleTitle }}</div></sc-if>
+          </div>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ showSubRow }}" hint-placeholder-val="{{ true }}">
+        <div style="height:36px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--sep);position:relative;">
+          <sc-for list="{{ subTabs }}" as="st" hint-placeholder-count="5">
+            <div title="{{ st.label }}" style="{{ st.style }}">
+              <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ st.label }}</span>
+              <sc-if value="{{ st.close }}"><span title="{{ st.xTip }}" style="width:16px;height:16px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></sc-if>
+            </div>
+          </sc-for>
+          <div title="タブを追加" style="width:26px;height:26px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+          <div style="flex:1;min-width:8px;"></div>
+          <sc-if value="{{ toggleInSubRow }}" hint-placeholder-val="{{ false }}">
+            <div style="position:relative;display:flex;">
+              <button type="button" aria-label="下部パネル" aria-pressed="{{ panelOpen }}" title="{{ toggleTitle }}" style="{{ toggleStyleT }}"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM2.5 9.5h11"></path></svg></button>
+              <sc-if value="{{ toggleTip }}"><div role="tooltip" style="position:absolute;top:30px;right:0;z-index:9;padding:4px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;color:var(--fg);white-space:nowrap;">{{ toggleTitle }}</div></sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isChat }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;min-height:0;display:flex;">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;padding:24px 20px 0;">
+            <div style="flex:1;min-height:0;width:100%;max-width:760px;display:flex;flex-direction:column;gap:16px;overflow:hidden;">
+              <div style="display:flex;justify-content:flex-end;"><div style="max-width:560px;padding:10px 12px;border-radius:10px;background:var(--sel);font-size:13px;line-height:1.55;color:var(--fg);">{{ userMsg }}</div></div>
+              <div style="font-size:13px;line-height:1.6;color:var(--fg);max-width:640px;">{{ assistantMsg }}</div>
+            </div>
+            <div style="width:100%;max-width:760px;padding-bottom:16px;">
+              <div style="{{ inputStyle }}">
+                <div style="min-height:40px;font-size:13px;line-height:20px;color:var(--fg3);display:flex;align-items:flex-start;"><sc-if value="{{ inputFocused }}"><span aria-hidden="true" style="width:1.5px;height:16px;margin-top:2px;background:var(--fg);margin-right:1px;"></span></sc-if>メッセージを入力（/ でコマンド）</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--fg2);">
+                  <div style="flex:1;min-width:0;display:flex;align-items:center;gap:2px;overflow:hidden;">
+                    <div style="width:28px;height:28px;flex:none;display:flex;align-items:center;justify-content:center;"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+                    <div title="Claude Code: Fable 5.1" style="height:28px;padding:0 7px;flex:none;display:flex;align-items:center;gap:5px;white-space:nowrap;color:var(--fg);">Fable 5.1<svg aria-hidden="true" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--fg3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.75L6 7.25l2.5-2.5"></path></svg></div>
+                    <sc-if value="{{ wideChips }}" hint-placeholder-val="{{ true }}">
+                      <div style="height:28px;padding:0 7px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 11a5.5 5.5 0 0111 0M8 11l2.6-3.2"></path></svg>高</div>
+                      <div style="height:28px;padding:0 7px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.3" stroke-linejoin="round"><path d="M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z"></path></svg>acceptEdits</div>
+                    </sc-if>
+                    <sc-if value="{{ narrowChips }}" hint-placeholder-val="{{ false }}">
+                      <div title="effort: 高 · 権限" style="width:24px;height:24px;flex:none;display:flex;align-items:center;justify-content:center;gap:2px;"><span style="width:3px;height:3px;border-radius:2px;background:var(--fg2);"></span><span style="width:3px;height:3px;border-radius:2px;background:var(--fg2);"></span><span style="width:3px;height:3px;border-radius:2px;background:var(--fg2);"></span></div>
+                    </sc-if>
+                  </div>
+                  <div style="height:28px;padding:0 7px;flex:none;display:flex;align-items:center;gap:5px;white-space:nowrap;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;">{{ branchChip }}</div>
+                  <div title="中断" style="width:28px;height:28px;flex:none;border-radius:14px;background:var(--accentFill);display:flex;align-items:center;justify-content:center;"><span style="width:9px;height:9px;border-radius:2px;background:var(--onAccent);"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <sc-if value="{{ split }}" hint-placeholder-val="{{ false }}">
+            <div role="region" aria-label="ターミナル 1、zsh、~/Projects/Phlox-oss" style="flex:1;min-width:0;box-sizing:border-box;border-left:1px solid var(--sep);display:flex;flex-direction:column;background:var(--term);">
+              <div style="height:28px;flex:none;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid rgba(255,255,255,0.10);font-size:11px;color:#ABABB1;">ターミナル 1<span>·</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;">zsh</span><span>·</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;">~/Projects/Phlox-oss</span></div>
+              <div style="flex:1;padding:10px 12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;line-height:18px;color:#E6E6E8;white-space:pre;overflow:hidden;">ryosuke@mac Phlox-oss % swift test --filter BottomPanelModelTests
+Test Suite 'BottomPanelModelTests' passed.
+  Executed 12 tests, with 0 failures in 0.94 seconds
+ryosuke@mac Phlox-oss % <span aria-hidden="true" style="display:inline-block;width:7px;height:15px;vertical-align:-3px;box-shadow:inset 0 0 0 1px #E6E6E8;"></span></div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ false }}">
+        <div style="{{ gridStyle }}">
+          <sc-for list="{{ tiles }}" as="tl" hint-placeholder-count="3">
+            <div style="{{ tl.style }}">
+              <div style="height:30px;flex:none;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--sep);font-size:12px;font-weight:500;color:var(--fg);"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ tl.title }}</span></div>
+              <div style="flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
+                <div style="align-self:flex-end;max-width:85%;padding:8px 10px;border-radius:8px;background:var(--sel);font-size:12px;line-height:1.5;color:var(--fg);">{{ tl.user }}</div>
+                <div style="font-size:12px;line-height:1.6;color:var(--fg);">{{ tl.reply }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ noProject }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding-bottom:60px;text-align:center;">
+          <div style="font-size:15px;font-weight:600;color:var(--fg);">プロジェクトがありません</div>
+          <div style="font-size:12px;line-height:1.6;color:var(--fg2);">フォルダを追加すると、ここでセッションを始められます</div>
+          <button type="button" style="height:28px;padding:0 14px;border:0;border-radius:6px;background:var(--accentFill);color:var(--onAccent);font:inherit;font-size:13px;font-weight:600;margin-top:4px;">プロジェクトを追加… <span style="font-weight:400;font-size:11px;">⌘O</span></button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ true }}">
+        <dc-import name="BottomPanel" theme="{{ theme }}" spec="{{ panelSpec }}" variant="{{ panelVar }}" project="{{ projectKey }}" width="{{ centerW }}" height="{{ panelH }}" hint-size="{{ panelHint }}"></dc-import>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ overlayOn }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:8px;right:8px;bottom:8px;width:280px;border-radius:10px;box-shadow:var(--shadow);overflow:hidden;z-index:8;">
+        <dc-import name="GitTab" theme="{{ theme }}" variant="normal" overlay="{{ true }}" width="280" height="{{ overlayH }}" hint-size="{{ overlayHint }}"></dc-import>
+      </div>
+    </sc-if>
+    <sc-if value="{{ inspGitV2 }}" hint-placeholder-val="{{ false }}">
+      <dc-import name="GitTab" theme="{{ theme }}" variant="normal" width="280" height="{{ bodyH }}" hint-size="{{ sideHint }}"></dc-import>
+    </sc-if>
+    <sc-if value="{{ inspFilesV2 }}" hint-placeholder-val="{{ false }}">
+      <dc-import name="FileTreeOps" variant="normal" width="280" height="{{ bodyH }}" hint-size="{{ sideHint }}"></dc-import>
+    </sc-if>
+  </div>
+
+  <div role="group" aria-label="{{ usageAria }}" style="height:24px;flex:none;box-sizing:border-box;display:flex;align-items:center;gap:18px;padding:0 14px;background:var(--bar);border-top:1px solid var(--sep);font-size:11px;color:var(--fg2);white-space:nowrap;overflow:hidden;">
+    <sc-for list="{{ usage }}" as="u" hint-placeholder-count="3">
+      <span style="display:flex;align-items:center;gap:6px;"><span style="color:var(--fg2);font-weight:600;">{{ u.name }}</span><span>{{ u.text }}</span></span>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"toggle":{"editor":"enum","options":["A","B"],"default":"A"},"view":{"editor":"enum","options":["single","grid"],"default":"single"},"panel":{"editor":"boolean","default":true},"focus":{"editor":"enum","options":["term","input"],"default":"term"},"panelVariant":{"editor":"enum","options":["focused","unfocused","exited","splitterHover"],"default":"focused"},"project":{"editor":"enum","options":["phlox","ios"],"default":"phlox"},"inspector":{"editor":"enum","options":["files","git","none"],"default":"files"},"sidebarVariant":{"editor":"text","default":"normal"},"split":{"editor":"boolean","default":false},"panelSpec":{"editor":"enum","options":["v1","v2"],"default":"v1"},"sideSpec":{"editor":"enum","options":["v1","v2"],"default":"v1"},"overlay":{"editor":"boolean","default":false},"tileCount":{"editor":"int","default":3},"noProject":{"editor":"boolean","default":false},"toggleState":{"editor":"enum","options":["normal","hover","pressed"],"default":"normal"},"panelHeight":{"editor":"int","default":300},"width":{"editor":"int","default":1440},"height":{"editor":"int","default":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const bool = (x, d) => x === undefined || x === null ? d : (x === true || x === 'true');
+    const V = {
+      dark:{'--bg':'#1E1E20','--side':'#262629','--bar':'#2A2A2D','--tabbar':'#232326','--panel':'#242427','--field':'#1A1A1C','--popover':'#2F2F33','--term':'#141416','--sep':'rgba(242,242,244,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--hover':'rgba(242,242,244,0.06)','--press':'rgba(242,242,244,0.12)','--sel':'rgba(242,242,244,0.09)','--selStrong':'rgba(242,242,244,0.24)','--accent':'#F2F2F4','--accentFill':'#F2F2F4','--onAccent':'#1E1E20','--ctl':'#3A3A3E','--ctlBorder':'rgba(242,242,244,0.12)','--segBg':'rgba(242,242,244,0.08)','--fieldBorder':'rgba(242,242,244,0.14)','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)','--apvInk':'#F4BD68'},
+      light:{'--bg':'#FFFFFF','--side':'#F2F2F4','--bar':'#F6F6F7','--tabbar':'#ECECEF','--panel':'#F8F8F9','--field':'#FFFFFF','--popover':'#FFFFFF','--term':'#1B1B1D','--sep':'rgba(29,29,31,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--hover':'rgba(29,29,31,0.05)','--press':'rgba(29,29,31,0.10)','--sel':'rgba(29,29,31,0.075)','--selStrong':'rgba(29,29,31,0.17)','--accent':'#1D1D1F','--accentFill':'#1D1D1F','--onAccent':'#FFFFFF','--ctl':'#FFFFFF','--ctlBorder':'rgba(29,29,31,0.16)','--segBg':'rgba(29,29,31,0.065)','--fieldBorder':'rgba(29,29,31,0.14)','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)','--apvInk':'#8A5300'}
+    };
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const W = Number(p.width) || 1440, H = Number(p.height) || 900;
+    const toggle = 'B';
+    const grid = p.view === 'grid';
+    const noProject = bool(p.noProject, false);
+    const panelOpen = bool(p.panel, true) && !noProject;
+    const split = bool(p.split, false) && !grid;
+    const focus = p.focus === 'input' ? 'input' : 'term';
+    const proj = p.project === 'ios' ? 'ios' : 'phlox';
+    const inspector = noProject ? 'none' : (p.inspector || 'files');
+    const overlay = bool(p.overlay, false) && inspector !== 'none';
+    const hasInspector = inspector !== 'none' && !overlay;
+    const centerW = W - 260 - (hasInspector ? 280 : 0);
+    const tileCount = Number(p.tileCount) || 3;
+    const bodyH = H - 38 - 24;
+    const panelH = Number(p.panelHeight) || 300;
+    const panelVar = focus === 'input' ? 'unfocused' : (p.panelVariant || 'focused');
+    const panelSpec = p.panelSpec === 'v2' ? 'v2' : 'v1';
+    const panelFocusV2 = false;
+
+    const S = {
+      phlox:[
+        { title:'下部パネルのターミナルを実装', right:'実行中' },
+        { title:'Git タブの差分表示を追加', right:'8分' },
+        { title:'承認ダイアログの文言を統一', right:'承認待ち', attn:true }
+      ],
+      ios:[
+        { title:'ウィジェットの更新間隔を調整', right:'承認待ち', attn:true },
+        { title:'通知の許可ダイアログを日本語化', right:'12分' }
+      ]
+    };
+    if (tileCount >= 4) S.phlox.push({ title:'使用量のバーの省き方を確認', right:'25分' });
+    const selSession = grid ? -1 : (proj === 'ios' ? 1 : 0);
+    const sess = (list, active) => list.map((x, i) => {
+      const sel = active && i === selSession;
+      return { title:x.title, right:x.right,
+        style:{ height:28, borderRadius:6, display:'flex', alignItems:'center', gap:8, padding:'0 8px 0 32px', background: sel ? 'var(--selStrong)' : 'transparent' },
+        titleStyle:{ flex:1, minWidth:0, fontSize:13, fontWeight: x.attn ? 600 : (sel ? 500 : 400), color: x.attn || sel ? 'var(--fg)' : 'var(--fg2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' },
+        rightStyle:{ fontSize:11, flex:'none', color: x.attn ? 'var(--apvInk)' : (sel ? 'var(--fg)' : 'var(--fg2)'), fontWeight: x.attn ? 600 : 400 } };
+    });
+    const open = { transform:'rotate(90deg)' }, closed = { transform:'none' };
+    const sideProjects = noProject ? [] : [
+      { name:'Phlox-oss', right: proj === 'phlox' ? '' : '承認待ち 1', chev: proj === 'phlox' ? open : closed, sessions: proj === 'phlox' ? sess(S.phlox, true) : [] },
+      { name:'ios-companion', right: proj === 'ios' ? '' : '承認待ち 1', chev: proj === 'ios' ? open : closed, sessions: proj === 'ios' ? sess(S.ios, true) : [] }
+    ];
+
+    const ptBase = { height:30, boxSizing:'border-box', padding:'0 8px 0 12px', display:'flex', alignItems:'center', gap:6, fontSize:12, borderRadius:'7px 7px 0 0', flex:'0 1 180px', marginBottom:-1, minWidth:0 };
+    const projectTabs = noProject ? [] : ['Phlox-oss','ios-companion'].map((label, i) => {
+      const sel = (i === 0) === (proj === 'phlox');
+      return { label, close: sel, style:{ ...ptBase, background: sel ? 'var(--bg)' : 'transparent', color: sel ? 'var(--fg)' : 'var(--fg2)', fontWeight: sel ? 600 : 400, boxShadow: sel ? 'inset 1px 0 0 var(--sep), inset -1px 0 0 var(--sep), inset 0 1px 0 var(--sep)' : 'none' } };
+    });
+
+    const subsSrc = S[proj].map(x => ({ label:x.title, kind:'chat' })).concat(proj === 'phlox' ? [{ label:'ターミナル 1', kind:'term' }, { label:'変更', kind:'changes' }] : [{ label:'変更', kind:'changes' }]);
+    const selIdx = selSession, visIdx = split ? 3 : -1;
+    const tip = { chat:'セッションを削除…', term:'閉じる', changes:'閉じる' };
+    const stBase = { height:26, boxSizing:'border-box', padding:'0 6px 0 10px', borderRadius:6, display:'flex', alignItems:'center', gap:4, fontSize:12, minWidth:0, flex:'0 1 auto', maxWidth:200 };
+    const subTabs = subsSrc.map((t, i) => {
+      const sel = i === selIdx, vis = i === visIdx;
+      return { label:t.label, close: sel || vis, xTip: tip[t.kind], style:{ ...stBase, background: sel ? (panelFocusV2 ? 'var(--hover)' : 'var(--sel)') : vis ? 'var(--hover)' : 'transparent', color: sel || vis ? 'var(--fg)' : 'var(--fg2)', fontWeight: sel ? 500 : 400 } };
+    });
+
+    const ts = p.toggleState || 'normal';
+    const tBase = { border:0, padding:0, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--fg2)', background:'transparent' };
+    const tState = ts === 'hover' ? { background:'var(--hover)', color:'var(--fg)' } : ts === 'pressed' ? { background:'var(--press)', color:'var(--fg)' } : {};
+    const tDis = noProject ? { opacity:0.4 } : {};
+    const segOn = { width:30, border:0, padding:0, borderRadius:4, background:'var(--ctl)', boxShadow:'0 0 0 0.5px var(--ctlBorder)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--fg)' };
+    const segOff = { width:30, border:0, padding:0, borderRadius:4, background:'transparent', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--fg2)' };
+
+    const T = [
+      ['下部パネルのターミナルを実装','下部パネルの見出しに、シェルの名前と作業フォルダを出してください。','BottomPanelHeader を追加しました。swift build は通っています。'],
+      ['Git タブの差分表示を追加','Git タブで、選んだファイルの差分を下に出してください。','GitChangesList を「変更」タブと共有にしました。'],
+      ['承認ダイアログの文言を統一','承認ダイアログのボタンの文言を揃えてください。','swift test --filter ApprovalCopy の実行の許可を待っています。'],
+      ['使用量のバーの省き方を確認','使用量のバーの省き方を 1100pt で確認してください。','1100pt 未満でリセットまでの時間を省くようにしました。']
+    ];
+    const tiles = T.slice(0, tileCount).map(([title, user, reply], i) => ({ title, user, reply, style:{ borderRadius:8, background:'var(--bg)', boxShadow: i === 0 ? '0 0 0 2px var(--accent)' : 'inset 0 0 0 1px var(--sep)', display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' } }));
+    const inputFocused = focus === 'input' && !grid;
+    const chatCompact = split || centerW < 700;
+    const usage = [
+      { name:'Claude Code', text: W >= 1100 ? '5時間 残り 64%（2時間14分後）· 週次 残り 41%（3日後）' : '5時間 64% · 週次 41%' },
+      { name:'Codex', text: W >= 1100 ? '5時間 残り 92%（4時間後）· 週次 残り 85%（5日後）' : '5時間 92% · 週次 85%' },
+      { name:'Cursor', text: W >= 1100 ? '月次 残り 70%（18日後）' : '月次 70%' }
+    ];
+
+    return {
+      theme, centerW, bodyH, panelH, panelVar, panelSpec, panelOpen, split, noProject, hasInspector,
+      inspGitV2: hasInspector && inspector === 'git',
+      inspFilesV2: hasInspector && inspector !== 'git',
+      headTitle: (noProject || grid) ? '' : (S[proj][selSession] ? S[proj][selSession].title : ''),
+      overlayOn: overlay, overlayH: bodyH - 16, overlayHint: '280px,' + (bodyH - 16) + 'px',
+      gridStyle: { flex:1, minHeight:0, display:'grid', gridTemplateColumns: tileCount >= 4 ? 'repeat(2,minmax(0,1fr))' : 'repeat(3,minmax(0,1fr))', gridAutoRows:'minmax(0,1fr)', gap:8, padding:8 },
+      projectKey: proj, inspectorTab: inspector === 'git' ? 'git' : 'files', sidebarVariant: p.sidebarVariant || 'normal',
+      panelHint: centerW + 'px,' + panelH + 'px', sideHint: '280px,' + bodyH + 'px',
+      rootStyle: { ...V[theme], width:W, height:H, flex:'none', position:'relative', background:'var(--bg)', color:'var(--fg)', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column', fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif", fontSize:13, WebkitFontSmoothing:'antialiased', boxShadow: theme === 'dark' ? '0 0 0 0.5px rgba(0,0,0,0.7), 0 24px 60px rgba(0,0,0,0.35)' : '0 0 0 0.5px rgba(0,0,0,0.22), 0 24px 60px rgba(0,0,0,0.16)' },
+      segSingle: grid ? segOff : segOn, segGrid: grid ? segOn : segOff,
+      toggleInHeader: toggle === 'B',
+      toggleInSubRow: toggle === 'A' && !grid && !noProject,
+      toggleInProjectRow: toggle === 'A' && (grid || noProject),
+      toggleTitle: noProject ? '下部パネル（プロジェクトがありません）' : panelOpen ? '下部パネルを隠す（⌃`）' : '下部パネルを表示（⌃`）',
+      toggleTip: ts === 'hover',
+      toggleStyleH: { ...tBase, width:28, height:28, ...tState, ...tDis },
+      toggleStyleT: { ...tBase, width:26, height:26, ...tState, ...tDis },
+      sideProjects, projectTabs, subTabs, showSubRow: !grid && !noProject,
+      isChat: !grid && !noProject, isGrid: grid && !noProject, tiles,
+      userMsg: proj === 'ios' ? 'ウィジェットの更新間隔を 15 分にしてください。' : '下部パネルの見出しに、シェルの名前と作業フォルダを出してください。',
+      assistantMsg: proj === 'ios' ? 'TimelineProvider の更新間隔を 15 分に変えました。シミュレーターで確認しています。' : 'BottomPanelHeader を追加し、見出しに「下部パネル · zsh · ~/Projects/Phlox-oss」を出すようにしました。swift build は通っています（6.84 秒）。',
+      branchChip: proj === 'ios' ? 'main' : 'feature/bottom-panel',
+      inputFocused,
+      inputStyle: { boxSizing:'border-box', background:'var(--field)', borderRadius:12, padding:'12px 10px 8px 14px', boxShadow: inputFocused ? 'inset 0 0 0 1px var(--accent), 0 0 0 1px var(--accent)' : 'inset 0 0 0 1px var(--fieldBorder)' },
+      wideChips: !chatCompact, narrowChips: chatCompact,
+      usage, usageAria: '使用量。Claude Code 5時間 残り 64%、週次 残り 41%。Codex 5時間 残り 92%、週次 残り 85%。Cursor 月次 残り 70%'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -9,6 +9,7 @@ import StructuredChatKit
 /// - 秘密の質問の入力欄が平文の欄になる／回答済みカードが秘密の回答をそのまま表示する
 ///   （型に isSecret が乗っても View が分岐していなければ、利用者には平文のまま見える）
 /// - 自由入力欄にフォーカスしても選択肢のチェックが残り、意図と違う回答が送られる
+/// - 自由入力欄で 1〜9 を打つとカードの選択に横取りされ、数字が入らない
 @MainActor
 @Suite("UserQuestionCell: 実際に描かれた画面")
 struct UserQuestionCellTests {
@@ -129,5 +130,26 @@ struct UserQuestionCellTests {
         let submitAfter = try #require(hosted.button(named: "回答を送信"))
         let canSubmitAfter = submitAfter.isAccessibilityEnabled()
         #expect(!canSubmitAfter, "選択が外れたのに送信できてしまう")
+    }
+
+    // MARK: - 数字キー
+
+    @Test func 自由入力欄では数字キーが文字として入る() throws {
+        let hosted = host(question(isSecret: false, options: ["A", "B"]))
+        let field = try #require(hosted.textFields().first)
+        #expect(hosted.window.makeFirstResponder(field))
+        hosted.settle()
+        for character in ["1", "2", "0"] {
+            let event = try #require(NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                windowNumber: hosted.window.windowNumber, context: nil,
+                characters: character, charactersIgnoringModifiers: character, isARepeat: false, keyCode: 0
+            ))
+            hosted.window.sendEvent(event)
+        }
+        hosted.settle()
+        let editor = hosted.window.fieldEditor(false, for: field)
+        let typed = editor?.string ?? field.stringValue
+        #expect(typed == "120", "自由入力欄で数字が入らない（カードの 1〜9 の選択に横取りされる）: \(typed)")
     }
 }

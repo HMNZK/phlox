@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>FT ファイルツリーの操作</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div style="width:640px;flex:none;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#5B5B60;">FT · 要件書 §4（FO-1〜FO-11）· 2026-10-14 の決定を反映</div>
+      <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">ファイルツリーの操作</div>
+      <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">2 File Tree のツリー（行 28pt・字下げ 14pt・フォルダが先・自然順・リンクの印）に、右クリックの項目・見出しの「＋」・その場の入力欄・確認・失敗の表示を足した。.git と .DS_Store はツリーに出ない。右クリックと「＋」のメニューは macOS 標準のメニューなので、システムの見た目で描いた。</div>
+    </div>
+    <div style="flex:1;background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:18px;font-weight:700;">色と見た目の決まり</div>
+      <div style="display:grid;grid-template-columns:200px 1fr;font-size:12.5px;line-height:1.55;">
+        <sc-for list="{{ colors }}" as="c" hint-placeholder-count="7">
+          <div style="padding:6px 8px;border-top:1px solid rgba(0,0,0,0.06);font-weight:600;">{{ c.k }}</div><div style="padding:6px 8px;border-top:1px solid rgba(0,0,0,0.06);text-wrap:pretty;">{{ c.v }}</div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:26px;font-weight:700;">{{ g.title }}</div>
+        <div style="font-size:14px;line-height:1.6;color:#3A3A3E;max-width:1400px;text-wrap:pretty;">{{ g.lead }}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,280px);column-gap:48px;row-gap:56px;">
+        <sc-for list="{{ g.cells }}" as="c" hint-placeholder-count="6">
+          <div id="{{ c.id }}" style="display:flex;flex-direction:column;gap:12px;width:280px;">
+            <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+            <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+              <dc-import name="FileTreeOps" variant="{{ c.v }}" height="900" hint-size="280px,900px"></dc-import>
+            </div>
+            <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ c.caption }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-size:26px;font-weight:700;">D. ゴミ箱に入れる確認（FO-5・FO-8）</div>
+    <div style="font-size:14px;line-height:1.6;color:#3A3A3E;max-width:1400px;text-wrap:pretty;">ゴミ箱は戻せるので、ふだんは軽い形（既定のボタンは「ゴミ箱に入れる」、削除の色は使わない）。開いているタブに未保存の変更があるときだけ、取り返しがつかない操作の見た目（既定のボタンは「キャンセル」、ゴミ箱のボタンは削除の色の文字）。どちらも Return で既定のボタン、Esc で取り消し、⌘⌫ は効かない。</div>
+    <div style="display:grid;grid-template-columns:repeat(4,440px);column-gap:40px;row-gap:56px;">
+      <sc-for list="{{ dlgs }}" as="d" hint-placeholder-count="5">
+        <div id="{{ d.id }}" style="display:flex;flex-direction:column;gap:10px;width:440px;">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ d.id }}</span>
+            <span style="font-size:14px;font-weight:600;">{{ d.title }}</span>
+            <span style="{{ d.chipStyle }}">{{ d.chip }}</span>
+          </div>
+          <div style="font-size:11.5px;line-height:1.55;color:#5B5B60;">契機: {{ d.trigger }}</div>
+          <dc-import name="TrashAlert" variant="{{ d.v }}" hint-size="440px,520px"></dc-import>
+          <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ d.caption }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">キーボードと VoiceOver</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+          <sc-for list="{{ keys }}" as="k" hint-placeholder-count="11">
+            <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-weight:600;">{{ k.k }}</span><span style="text-wrap:pretty;">{{ k.v }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">ふるまいの決まり</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+          <sc-for list="{{ rules }}" as="k" hint-placeholder-count="8">
+            <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-weight:600;">{{ k.k }}</span><span style="text-wrap:pretty;">{{ k.v }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">要件対応表（FO-1〜FO-11）</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+          <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="11">
+            <div style="display:grid;grid-template-columns:70px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ q.id }}</span><span style="{{ q.ts }}">{{ q.t }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">確定したこと（2026-10-14）</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:16px 18px;display:flex;flex-direction:column;gap:12px;font-size:13px;line-height:1.7;">
+          <sc-for list="{{ asks }}" as="a" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:2px;"><b>{{ a.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ a.v }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":6400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const colors = [
+      { k:'右クリック・「＋」のメニュー', v:'macOS 標準のメニュー（NSMenu）。面・文字・区切り・強調はシステムの見た目。強調の色は利用者の macOS のアクセントカラーで、図は既定の青。項目のキーはシステムの書き方で右に。' },
+      { k:'操作できない理由', v:'メニューの先頭に見出し（macOS 14 のセクション見出し）で対象を書き、操作できない項目は淡色。例「ルートの外を指すリンク」。' },
+      { k:'アプリの中の選択', v:'キー操作中の選択は主文字色の 24%（今のアプリの選択の塗り）、行の文字はすべて主文字色。開いているファイルは 9% / 5% ＋太字（今どおり）。' },
+      { k:'右クリックした行の輪', v:'inset 2pt の主文字色（アクセント）。' },
+      { k:'ツリーのフォーカス枠', v:'inset 2pt の主文字色（不透明）。' },
+      { k:'確認の既定のボタン', v:'主ボタンの面 #F2F2F4 に #1E1E20 の文字。取り返しがつかない形のときだけ、ゴミ箱のボタンを削除の色の文字に。' },
+      { k:'誤り・失敗の印', v:'エラーの印 #EE5A5F の丸い輪と「!」、文は主文字色。' }
+    ];
+    const C = (id, title, v, caption) => ({ id, title, v, caption });
+    const groups = [
+      { title:'M. 右クリックメニューと見出しの「＋」', lead:'既存の 3 項目（右に分割して開く・Finder で表示・パスをコピー）はそのままの位置に残し、間に「新規」と「名前の変更・ゴミ箱」の 2 つのまとまりを区切り線で挟んで足した。キーは右に（新規ファイル ⌥⌘N・新規フォルダ ⇧⌥⌘N・ゴミ箱に入れる ⌘⌫）。名前を変更の Return はメニューのキーにせず、ツリーが受ける（Finder と同じ）ので、メニューには ↩ を出さない。', cells:[
+        C('M1','ファイルの行','ctxFile','新規は親フォルダ（Files）の中に作る。⌥⌘N・⇧⌥⌘N も選んでいる行の場所に作る（FO-1）。'),
+        C('M2','フォルダの行','ctxFolder','フォルダの行には「右に分割して開く」が無い（今どおり）。新規はそのフォルダ（guides）の中に作る。'),
+        C('M3','空白部分（ルート）','ctxBlank','行の無いところ。ツリー全体に輪（Finder と同じ）。先頭の見出し「Phlox-oss（ルート）」。ルートそのものは名前の変更・ゴミ箱の対象外なので淡色。新規はルート直下。'),
+        C('M4','ルート外を指す symlink','ctxOutside','先頭の見出し「ルートの外を指すリンク」。作成・名前の変更・ゴミ箱を淡色に。Finder で表示は解決先を開く（今どおり）。'),
+        C('M5','見出しの「＋」','plusMenu','更新ボタンの左。プルダウンのメニューで、先頭の見出し「Phlox-oss の直下に作成」。選んでいる行に関係なくルート直下（FO-1）。'),
+        C('M6','キーボードで行を選んだ','normal','右クリックせずに、行を選んで ⌥⌘N・⇧⌥⌘N・↩・⌘⌫ で同じ操作ができる。開くのは ⌘↓ かクリック。')
+      ]},
+      { title:'E. その場の入力（新規・名前の変更・名前の誤り）', lead:'入力欄は行の中で高さ 22pt・角丸 5・入力欄の地 #1A1A1C。フォーカスの枠（不透明 2pt）を足しても 26pt で、行 28pt に収まる。理由は欄の下に浮かぶ吹き出しで出し、下の行を押し下げない（FO-4）。', cells:[
+        C('E1','新規ファイル · 出した直後','newFile','guides を展開し、ファイルの先頭（空の名前の並び位置）に、ファイルの印と空の欄。打つ間は行を動かさず、確定したら名前の並び位置へ移す。Return で作成、Esc で行ごと消える。'),
+        C('E2','新規フォルダ · 出した直後','newFolder','docs を展開し、フォルダの先頭（adr の上）。作ったフォルダは開かない（FO-2）。'),
+        C('E3','名前の誤り · 同じ名前のファイル','errSame','「同じ名前のファイルがあります」。打つたびに検査し、直れば消える。誤りの間は Return で確定しない。大文字小文字だけの違いは誤りにしない。'),
+        C('E4','名前の誤り · 同じ名前のフォルダ','errSameFolder','相手がフォルダなら「同じ名前のフォルダがあります」と言い分ける（FO-4）。'),
+        C('E5','名前の誤り · /','errSlash','「名前に / は使えません」。「.」「..」は「「.」と「..」は名前に使えません」。'),
+        C('E6','名前の誤り · 空','errEmpty','空のまま Return を押したとき「名前を入力してください」。打ち始める前（E1）には出さない。'),
+        C('E7','名前の変更','rename','行を選んで Return（Finder と同じ）か、メニュー。行の名前がその場で欄になり、拡張子より前（FileTreeModel）が選ばれている（FO-3）。Esc で元の名前に戻る。')
+      ]},
+      { title:'R. 操作の後と失敗', lead:'操作が終わるとフォルダを読み直し、新しい行・名前を変えた行を選んで見える位置まで動かす（FO-10）。キー入力はツリーに戻す。失敗は見出しとツリーの間に帯で出す（FO-11）。', cells:[
+        C('R1','新規ファイルを作った後','created','notes.md は名前の並び位置（file-tree.md と step-1-setup.md の間）で選択（24%・文字は主文字色）。ファイルタブで開いて前に出たので太字。'),
+        C('R2','名前を変えた後','renamed','FileTreeModel.swift → FileTreeState.swift。並び直した位置で選択。開いていたタブも新しいパスに付け替わる（FO-7。画面には出ない）。'),
+        C('R3','失敗の一時表示','fail','「名前を変更できませんでした: 権限がありません」。見出しには重ねず、その下に帯を入れてツリーを下げる。右に閉じるボタン（✕）。時間では消さず、次のツリーの操作か ✕ で消える。出たときに VoiceOver が読み上げる。')
+      ]}
+    ];
+    const light = { fontSize:11, fontWeight:600, color:'#3A3A3E', background:'rgba(0,0,0,0.06)', borderRadius:5, padding:'2px 7px' };
+    const heavy = { fontSize:11, fontWeight:600, color:'#B4232A', background:'rgba(224,72,78,0.10)', borderRadius:5, padding:'2px 7px' };
+    const D = (id, v, title, heavyType, trigger, caption) => ({ id, v, title, chip: heavyType ? '取り返しがつかない形' : '軽い形', chipStyle: heavyType ? heavy : light, trigger, caption });
+    const dlgs = [
+      D('Da','a','(a) 開いていないファイル',false,'ツリーで ⌘⌫・右クリック「ゴミ箱に入れる」','「notes.md をゴミ箱に入れますか？」。既定のボタンは「ゴミ箱に入れる」（↩）、下が「キャンセル」（Esc）。'),
+      D('Dd','d','(d) 開いているが保存済み',false,'作ったばかりの notes.md（タブで開いている）で ⌘⌫','「開いているタブを閉じます」を足し、行に「開いているタブ」と付ける。重さは (a) と同じ（FO-8）。'),
+      D('Dc','c','(c) フォルダ',false,'docs の行で ⌘⌫','題に中の件数（12 項目）、本文に内訳。中のファイルをタブで開いていれば一覧に出して「開いているタブ 1 個を閉じます」。'),
+      D('De','e','(e) 中が 1,000 項目を超えるフォルダ',false,'macos の行で ⌘⌫','数えるのは 1,000 項目までで、超えたら「1,000 項目以上」（FO-5）。数えている間は確認を出さない（すぐ終わる上限にした）。'),
+      D('Db','b','(b) 開いていて未保存の変更がある',true,'file-tree.md をタブで開き、保存していない','このときだけ取り返しがつかない形（FO-8）。既定のボタンは「キャンセル」（↩・Esc）。「ゴミ箱に入れる」は削除の色の文字で下。Tab で移って Space で実行。行に「未保存の変更」と文字で付ける。')
+    ];
+    const keys = [
+      { k:'⌥⌘N / ⇧⌥⌘N', v:'選んでいる行の場所に新規ファイル / 新規フォルダ（FO-1）' },
+      { k:'Return', v:'選んでいる行の名前を変更（FO-3。Finder と同じ）' },
+      { k:'⌘↓・クリック', v:'ファイルを開く（ファイルタブ）' },
+      { k:'→ / ←・クリック', v:'フォルダを開く / 閉じる' },
+      { k:'⌘⌫', v:'ゴミ箱に入れる（確認を出す。FO-5）' },
+      { k:'入力欄で Return / Esc', v:'確定 / 取り消し' },
+      { k:'確認で Return / Esc', v:'既定のボタン / 取り消し。⌘⌫ は効かない' },
+      { k:'VO-⇧-M', v:'右クリックメニューを開く。淡色の項目は「名前を変更、淡色表示」、先頭の見出しも読む' },
+      { k:'VoiceOver · 入力欄', v:'「新規ファイルの名前、テキストフィールド、guides の中」。誤りは「使えない名前。同じ名前のファイルがあります」' },
+      { k:'VoiceOver · 帯', v:'出たときに「名前を変更できませんでした: 権限がありません」と知らせる。次は「閉じる、ボタン」' },
+      { k:'VoiceOver · 確認', v:'アラートとして題を読み、一覧は「ゴミ箱に入れるファイル」のリスト。既定のボタンは「既定のボタン」と読む' }
+    ];
+    const rules = [
+      { k:'新規の入力行の位置', v:'対象フォルダを展開し、空の名前の並び位置（ファイルはファイルの先頭、フォルダはフォルダの先頭）に出す。打っている間は動かさず、確定したら名前の並び位置へ移す' },
+      { k:'対象のフォルダ', v:'ファイルの行 → その親。フォルダの行 → そのフォルダ。空白・見出しの「＋」→ ルート直下' },
+      { k:'名前の検査', v:'打つたびに検査し、吹き出しを出し入れする。空の誤りだけは Return を押したときに出す' },
+      { k:'名前の変更の選択', v:'拡張子より前を選ぶ。拡張子が無い・先頭が「.」の名前（.gitignore）は全体を選ぶ' },
+      { k:'確認の重さ', v:'未保存の変更を失うときだけ取り返しがつかない形（Db）。それ以外は軽い形' },
+      { k:'フォルダの件数', v:'1,000 項目まで数え、超えたら「1,000 項目以上」' },
+      { k:'操作の後', v:'フォルダを読み直し、新しい行・名前を変えた行を選んで見える位置へ。ゴミ箱の後は消えた行の次の行を選ぶ' },
+      { k:'操作できない行', v:'ルートそのもの・ルートの外を指す symlink。項目は消さずに淡色にし、メニューの先頭の見出しで対象を示す' }
+    ];
+    const ok = { fontSize:13, color:'#1D1D1F' }, gray = { fontSize:13, color:'#75757B' };
+    const reqs = [
+      { id:'FO-1', t:'右クリックの 4 項目とキー: M1・M2。空白: M3。見出しの「＋」: M5。キーで: M6', ts:ok },
+      { id:'FO-2', t:'展開してその場に入力行: E1・E2。作ったら開く: R1', ts:ok },
+      { id:'FO-3', t:'その場の名前の変更・拡張子より前を選ぶ・Return: E7。開くは ⌘↓・クリック', ts:ok },
+      { id:'FO-4', t:'名前の検査と理由（ファイル / フォルダを言い分ける）: E3〜E6', ts:ok },
+      { id:'FO-5', t:'ゴミ箱・軽い形の確認・件数（1,000 まで）・⌘⌫: Da・Dc・De', ts:ok },
+      { id:'FO-6', t:'複数選択しない: どのモックも 1 行だけ', ts:ok },
+      { id:'FO-7', t:'タブの付け替え: 動きのため画面に出ない（R2 の説明）', ts:gray },
+      { id:'FO-8', t:'開いているタブを閉じる: Dd・Dc。未保存の変更は取り返しがつかない形: Db', ts:ok },
+      { id:'FO-9', t:'ルート・ルート外の symlink: M3・M4（.git と .DS_Store はツリーに出ない）', ts:ok },
+      { id:'FO-10', t:'読み直して選び、見える位置へ: R1・R2', ts:ok },
+      { id:'FO-11', t:'失敗の一時表示と閉じるボタン: R3', ts:ok }
+    ];
+    const asks = [
+      { t:'メニューの ↩（確定）', v:'右クリックメニューには ↩ を出さない。Return は項目のキーとして登録せず、ツリーが受ける（Finder と同じ）。⌥⌘N・⇧⌥⌘N・⌘⌫ は表示する（FO-1）。' },
+      { t:'淡色の理由（確定）', v:'ツールチップは付けない。メニュー先頭の見出しで対象（ルート / ルートの外を指すリンク）を示すだけ（FO-1）。' },
+      { t:'確認の形（確定）', v:'6 と同じ、ウィンドウに付くシートの NSAlert。軽い形は削除の色を使わず、既定のボタンは「ゴミ箱に入れる」。確認の中では ⌘⌫ を効かせない（FO-5）。' }
+    ];
+    return { colors, groups, dlgs, keys, rules, reqs, asks };
+  }
+}
+</script>
+</body>
+</html>

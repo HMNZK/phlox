@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>下部パネル</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<section aria-label="{{ regionLabel }}" style="{{ rootStyle }}">
+  <div aria-hidden="true" style="position:absolute;left:0;right:0;top:0;height:1px;background:var(--sep);z-index:3;"></div>
+  <sc-if value="{{ splitterOn }}" hint-placeholder-val="{{ false }}">
+    <div role="separator" aria-orientation="horizontal" aria-label="{{ t.splitter }}" style="position:absolute;left:0;right:0;top:-1px;height:3px;background:var(--accent);z-index:4;"></div>
+    <svg aria-hidden="true" width="18" height="24" viewBox="0 0 18 24" style="{{ cursorStyle }}"><path d="M9 1 L14.5 7 H11 V17 H14.5 L9 23 L3.5 17 H7 V7 H3.5 Z" fill="#000" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"></path></svg>
+  </sc-if>
+
+  <div style="height:36px;flex:none;display:flex;align-items:center;gap:6px;padding:0 6px 0 12px;box-sizing:border-box;min-width:0;">
+    <span style="{{ titleStyle }}">{{ t.title }}</span>
+    <span aria-hidden="true" style="color:var(--fg2);font-size:11px;">·</span>
+    <span style="font-size:11px;color:var(--fg2);font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ shell }}</span>
+    <sc-if value="{{ exited }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--fg2);flex:none;">{{ t.endedTag }}</span></sc-if>
+    <span aria-hidden="true" style="color:var(--fg2);font-size:11px;">·</span>
+    <span title="{{ path }}" style="flex:1;min-width:24px;font-size:11px;color:var(--fg2);font-family:ui-monospace,'SF Mono',Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left;"><span style="direction:ltr;unicode-bidi:embed;">{{ path }}</span></span>
+    <sc-if value="{{ notice }}" hint-placeholder-val="{{ false }}">
+      <span role="status" title="{{ t.noticeFull }}" style="flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--fg);white-space:nowrap;overflow:hidden;">
+        <span aria-hidden="true" style="width:12px;height:12px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.2px var(--fg2);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;">!</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;">{{ t.notice }}</span>
+      </span>
+    </sc-if>
+    <div style="position:relative;flex:none;">
+      <button type="button" aria-label="{{ t.restart }}" title="{{ t.restart }}" aria-disabled="{{ starting }}" style="{{ restartStyle }}"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M11 4.2 A4.8 4.8 0 1 0 11.4 7.5"></path><polyline points="11.2,1.5 11.2,4.4 8.3,4.4"></polyline></svg></button>
+      <sc-if value="{{ restartTip }}" hint-placeholder-val="{{ false }}"><div role="tooltip" style="position:absolute;top:30px;right:0;z-index:6;padding:4px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;color:var(--fg);white-space:nowrap;">{{ t.restart }}</div></sc-if>
+    </div>
+    <div style="position:relative;flex:none;">
+      <button type="button" aria-label="{{ t.closeName }}" aria-keyshortcuts="Control+`" title="{{ t.close }}" style="{{ closeStyle }}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.75L6 7.75l3-3"></path></svg></button>
+      <sc-if value="{{ closeTip }}" hint-placeholder-val="{{ false }}"><div role="tooltip" style="position:absolute;top:30px;right:0;z-index:6;padding:4px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;color:var(--fg);white-space:nowrap;display:flex;gap:10px;">{{ t.closeName }}<span style="color:var(--fg2);">⌃`</span></div></sc-if>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;padding:0 8px 8px;">
+    <div role="textbox" aria-multiline="true" aria-label="{{ termLabel }}" style="{{ termStyle }}">
+      <sc-if value="{{ starting }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;font-size:12px;color:#ABABB1;" aria-busy="true">
+          <span style="width:10px;height:10px;border-radius:50%;border:1.6px solid #ABABB1;border-right-color:transparent;"></span>{{ t.starting }}
+        </div>
+      </sc-if>
+      <sc-if value="{{ hasLines }}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{ lines }}" as="ln" hint-placeholder-count="8">
+          <div style="{{ ln.s }}">{{ ln.t }}</div>
+        </sc-for>
+        <sc-if value="{{ showPrompt }}" hint-placeholder-val="{{ true }}">
+          <div style="white-space:pre;flex:none;">{{ prompt }}<span aria-hidden="true" style="{{ cursorBox }}"></span></div>
+        </sc-if>
+      </sc-if>
+      <sc-if value="{{ exited }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.10);display:flex;align-items:center;gap:10px;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;">
+          <span style="flex:1;min-width:0;font-size:12px;color:#ABABB1;">{{ t.exited }}</span>
+          <button type="button" style="height:24px;padding:0 10px;border:0;border-radius:6px;background:#3A3A3E;box-shadow:0 0 0 0.5px rgba(255,255,255,0.12);color:#F2F2F4;font:inherit;font-size:12px;display:flex;align-items:center;gap:6px;flex:none;">{{ t.restartBtn }}<span style="font-size:11px;color:#ABABB1;">↩</span></button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":900,"height":300},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"variant":{"editor":"enum","options":["focused","unfocused","exited","starting","shellMissing","hoverRestart","hoverClose","pressedClose","splitterHover","splitterDrag"],"default":"focused"},"project":{"editor":"enum","options":["phlox","ios"],"default":"phlox"},"lang":{"editor":"enum","options":["ja","en"],"default":"ja"},"width":{"editor":"int","default":900},"height":{"editor":"int","default":300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const V = {
+      dark:{'--bg':'#1E1E20','--panel':'#242427','--popover':'#2F2F33','--fg':'#F2F2F4','--fg2':'#ABABB1','--sep':'rgba(242,242,244,0.10)','--hover':'rgba(242,242,244,0.06)','--press':'rgba(242,242,244,0.12)','--accent':'#F2F2F4','--term':'#141416','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)'},
+      light:{'--bg':'#FFFFFF','--panel':'#F8F8F9','--popover':'#FFFFFF','--fg':'#1D1D1F','--fg2':'#5B5B60','--sep':'rgba(29,29,31,0.10)','--hover':'rgba(29,29,31,0.05)','--press':'rgba(29,29,31,0.10)','--accent':'#1D1D1F','--term':'#1B1B1D','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)'}
+    };
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const v = p.variant || 'focused';
+    const proj = p.project === 'ios' ? 'ios' : 'phlox';
+    const W = Number(p.width) || 900, H = Number(p.height) || 300;
+    const en = p.lang === 'en';
+    const t = en ? {
+      title:'Bottom Panel', restart:'Restart Shell', closeName:'Close Panel', close:'Close Panel (⌃`)', exited:'The shell exited (exit code 0)', restartBtn:'Restart', starting:'Starting zsh…', endedTag:'· Exited', splitter:'Bottom panel height', term:'Bottom panel, terminal',
+      notice:'Configured shell not found', noticeFull:'The configured shell (/opt/homebrew/bin/fish) wasn’t found, so the system default was used. Shown until the next restart.'
+    } : {
+      title:'下部パネル', restart:'シェルを再起動', closeName:'パネルを閉じる', close:'パネルを閉じる（⌃`）', exited:'シェルは終了しました（終了コード 0）', restartBtn:'再起動', starting:'zsh を起動しています…', endedTag:'· 終了', splitter:'下部パネルの高さ', term:'下部パネル、ターミナル',
+      notice:'設定のシェルが見つかりません', noticeFull:'設定のシェル（/opt/homebrew/bin/fish）が見つからないため、システムの既定で起動しました。次に再起動するまで出します。'
+    };
+    const name = proj === 'ios' ? 'ios-companion' : 'Phlox-oss';
+    const path = '~/Projects/' + name;
+    const prompt = 'ryosuke@mac ' + name + ' % ';
+    const plain = { whiteSpace:'pre', overflow:'hidden', textOverflow:'ellipsis', flex:'none' };
+    const dim = { ...plain, whiteSpace:'pre-wrap', color:'#ABABB1' };
+    const mk = (arr) => arr.map(x => typeof x === 'string' ? { t:x || ' ', s:plain } : { t:x[0], s:dim });
+    const phlox = [
+      'Last login: Wed Oct 14 09:12:03 on ttys004',
+      prompt + 'git status',
+      'On branch feature/bottom-panel',
+      'Your branch is ahead of \'origin/feature/bottom-panel\' by 2 commits.',
+      '',
+      'Changes not staged for commit:',
+      '        modified:   macos/Packages/DashboardFeature/Sources/BottomPanel/BottomPanelView.swift',
+      '        modified:   macos/Packages/DashboardFeature/Sources/Inspector/InspectorView.swift',
+      '',
+      'Untracked files:',
+      '        docs/notes/bottom-panel.md',
+      '',
+      prompt + 'swift build --package-path macos/Packages/DashboardFeature',
+      'Building for debugging...',
+      '[42/42] Compiling DashboardFeature BottomPanelView.swift',
+      'Build complete! (6.84s)'
+    ];
+    const ios = [
+      'Last login: Wed Oct 14 10:41:27 on ttys007',
+      prompt + 'pwd',
+      '/Users/ryosuke/Projects/ios-companion',
+      prompt + 'git branch --show-current',
+      'main'
+    ];
+    let lines = proj === 'ios' ? ios : phlox;
+    if (v === 'exited') lines = phlox.slice(12).concat([prompt + 'exit', '', 'Saving session...', '...completed.', ['[プロセスが完了しました]']]);
+    if (v === 'shellMissing') lines = [[en ? '[Phlox] The configured shell (/opt/homebrew/bin/fish) wasn’t found, so the system default was used.' : '[Phlox] 設定のシェル（/opt/homebrew/bin/fish）が見つからないため、システムの既定で起動しました'], 'Last login: Wed Oct 14 09:12:03 on ttys004'];
+    const focused = ['focused','exited','shellMissing','hoverRestart','hoverClose','pressedClose'].includes(v);
+    const starting = v === 'starting', exited = v === 'exited';
+    const btn = { width:26, height:24, border:0, padding:0, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', background:'transparent', color:'var(--fg2)', flex:'none', font:'inherit' };
+    const restartStyle = v === 'hoverRestart' ? { ...btn, background:'var(--hover)', color:'var(--fg)' } : starting ? { ...btn, opacity:0.4 } : btn;
+    const closeStyle = v === 'pressedClose' ? { ...btn, background:'var(--press)', color:'var(--fg)' } : v === 'hoverClose' ? { ...btn, background:'var(--hover)', color:'var(--fg)' } : btn;
+    return {
+      t, path, prompt, shell:'zsh',
+      lines: mk(lines), hasLines: !starting, showPrompt: !starting && !exited, starting, exited, notice: v === 'shellMissing',
+      regionLabel: t.title + (en ? ', Terminal, zsh, ' : '、ターミナル、zsh、') + path,
+      termLabel: t.term + (en ? ', zsh, ' : '、zsh、') + path + (focused ? (en ? ', typing' : '、入力中') : ''),
+      rootStyle: { ...V[theme], width:W, height:H, boxSizing:'border-box', position:'relative', display:'flex', flexDirection:'column', background:'var(--panel)', color:'var(--fg)', fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif", WebkitFontSmoothing:'antialiased', flex:'none' },
+      titleStyle: { fontSize:12, fontWeight: focused ? 600 : 500, color: focused ? 'var(--fg)' : 'var(--fg2)', flex:'none', whiteSpace:'nowrap' },
+      restartStyle, closeStyle, restartTip: v === 'hoverRestart', closeTip: v === 'hoverClose',
+      termStyle: { flex:1, minWidth:0, borderRadius:8, background:'var(--term)', padding:'8px 12px', boxSizing:'border-box', overflow:'hidden', display:'flex', flexDirection:'column', justifyContent: starting ? 'center' : 'flex-end', fontFamily:"ui-monospace,'SF Mono',Menlo,monospace", fontSize:13, lineHeight:'20px', color:'#E6E6E8', boxShadow: focused ? '0 0 0 2px var(--panel), 0 0 0 4px var(--accent)' : 'none' },
+      cursorBox: { display:'inline-block', width:8, height:16, verticalAlign:-3, background: focused ? '#E6E6E8' : 'transparent', boxShadow: focused ? 'none' : 'inset 0 0 0 1px #E6E6E8' },
+      splitterOn: v === 'splitterHover' || v === 'splitterDrag', cursorStyle: { position:'absolute', top:-11, left: Math.round(W * 0.46), zIndex:5 }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>W ウィンドウ全体の置き場所</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:3440px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:680px;flex:none;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#5B5B60;">W · BP-1・BP-2・BP-7・BP-12・GT-1 · 2026-10-14 の決定を反映</div>
+      <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">3 つの要素の置き場所（ウィンドウ全体）</div>
+      <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">1600 × 1000pt・ダーク。中央は会話の子タブで、その下に下部パネル（高さ 280pt）。右サイドバーは「ファイル / Git」で Git を選んでいる。開閉ボタンはヘッダーの右端（単体／グリッドとインスペクタの開閉の間）に決まったので、案の比較はやめて 1 つにした。</div>
+    </div>
+    <div style="flex:1;max-width:1500px;background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:18px;font-weight:700;">番号の印（W1 に重ねた注記。アプリの画面には出ない）</div>
+      <div style="display:grid;grid-template-columns:36px 1fr;row-gap:10px;column-gap:12px;font-size:13px;line-height:1.65;align-items:baseline;">
+        <span style="width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px #1D1D1F;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</span><div><b>下部パネル</b>。中央の列（子タブの区画）の下端だけに出る。左右のサイドバーは上から下まで通しの高さのまま（BP-1）。見出し「下部パネル」36pt、キー入力があると本体の外側に枠。</div>
+        <span style="width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px #1D1D1F;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">2</span><div><b>下部パネルの開閉ボタン</b>。ヘッダーの右端で、単体／グリッドとインスペクタの開閉の間（BP-2）。左のサイドバー・下部パネル・インスペクタの開閉がヘッダーにそろう。ほかに ⌃` と「表示」メニュー。</div>
+        <span style="width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px #1D1D1F;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">3</span><div><b>「ファイル / Git」の切り替え</b>。右サイドバーの上端のセグメント（GT-1）。その下は Git の見出し・一覧・差分。</div>
+        <span style="width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px #1D1D1F;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">4</span><div><b>使用量のバー（変更なし）</b>。パネルの下で全幅に残る。押せないまま（ADR 0192）。</div>
+      </div>
+    </div>
+  </div>
+
+  <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="3">
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:26px;font-weight:700;">{{ sec.title }}</div>
+        <div style="font-size:14px;line-height:1.6;color:#3A3A3E;max-width:1600px;text-wrap:pretty;">{{ sec.lead }}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1600px);column-gap:80px;row-gap:64px;align-items:start;">
+        <sc-for list="{{ sec.wins }}" as="w" hint-placeholder-count="2">
+          <div id="{{ w.id }}" style="display:flex;flex-direction:column;gap:12px;width:1600px;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ w.id }}</span><span style="font-size:14px;font-weight:600;">{{ w.title }}</span></div>
+            <div style="{{ w.wrap }}">
+              <dc-import name="PhloxWindow" theme="dark" width="{{ w.W }}" height="1000" view="{{ w.view }}" panel="{{ w.panel }}" panel-height="280" focus="term" panel-variant="focused" project="phlox" inspector="git" split="{{ w.split }}" overlay="{{ w.overlay }}" tile-count="4" no-project="{{ false }}" toggle-state="{{ w.ts }}" hint-size="{{ w.hint }}"></dc-import>
+              <sc-for list="{{ w.marks }}" as="m" hint-placeholder-count="0">
+                <span aria-hidden="true" style="{{ m.line }}"></span>
+                <span aria-hidden="true" style="{{ m.s }}">{{ m.n }}</span>
+              </sc-for>
+              <sc-for list="{{ w.boxes }}" as="b" hint-placeholder-count="0">
+                <div aria-hidden="true" style="{{ b.s }}"></div>
+                <div aria-hidden="true" style="{{ b.ls }}">{{ b.label }}</div>
+              </sc-for>
+            </div>
+            <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;max-width:1600px;">{{ w.caption }}</div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ sec.splitNotes }}">
+          <div style="background:#fff;border-radius:12px;padding:28px 30px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:16px;margin-top:42px;">
+            <div style="font-size:20px;font-weight:700;">子タブを左右に分割しているとき</div>
+            <div style="font-size:15px;line-height:1.7;"><b>パネルは 2 区画の下に通しで出す。</b>パネルはプロジェクトに 1 つ（BP-3）で、どの区画にも属さない。決まりは次の 5 つ。</div>
+            <div style="display:flex;flex-direction:column;gap:14px;font-size:13.5px;line-height:1.7;">
+              <sc-for list="{{ splitRules }}" as="r" hint-placeholder-count="5">
+                <div style="display:grid;grid-template-columns:28px 1fr;gap:8px;"><b>{{ r.n }}</b><div style="display:flex;flex-direction:column;gap:2px;"><b>{{ r.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ r.v }}</span></div></div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:1600px;">
+    <div style="font-size:18px;font-weight:700;">要件対応表</div>
+    <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+      <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="5">
+        <div style="display:grid;grid-template-columns:90px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ q.id }}</span><span>{{ q.t }}</span></div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3440,"height":4800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const mark = (n, cx, cy, ty) => ({ n,
+      s:{ position:'absolute', left:cx - 11, top:cy - 11, width:22, height:22, borderRadius:'50%', background:'#FFFFFF', color:'#1D1D1F', boxShadow:'0 0 0 2px #1D1D1F, 0 2px 6px rgba(0,0,0,0.4)', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', zIndex:20 },
+      line: ty == null ? { display:'none' } : { position:'absolute', left:cx - 1, top:cy + 11, width:2, height:Math.max(0, ty - cy - 11), background:'#1D1D1F', boxShadow:'0 0 0 1px #FFFFFF', zIndex:19 } });
+    const box = (x, y, w, h, label, lx, ly) => ({ label,
+      s:{ position:'absolute', left:x, top:y, width:w, height:h, boxSizing:'border-box', border:'2px dashed #FFFFFF', borderRadius:6, boxShadow:'0 0 0 1px #1D1D1F', zIndex:20 },
+      ls:{ position:'absolute', left:lx, top:ly, zIndex:20, padding:'4px 8px', borderRadius:6, background:'#FFFFFF', color:'#1D1D1F', fontSize:12, fontWeight:600, boxShadow:'0 0 0 1px #1D1D1F, 0 2px 6px rgba(0,0,0,0.4)', whiteSpace:'nowrap' } });
+    const Win = (o) => {
+      const W = o.W || 1600;
+      return { view:'single', panel:true, split:false, overlay:false, ts:'normal', marks:[], boxes:[], ...o, W, hint: W + 'px,1000px', wrap:{ position:'relative', width:W, height:1000 } };
+    };
+    const sections = [
+      { title:'1. 置き場所 · パネルを開いた状態', lead:'パネルにキー入力があり、本体の外側に枠。右サイドバーは Git タブ。ヘッダーには今のアプリと同じく、サイドバーの開閉のすぐ右に選択中のタブの名前が出る（グリッド表示では出さない）。', wins:[
+        Win({ id:'W1', title:'パネルを開き、右サイドバーは Git', marks:[mark(1,246,714), mark(2,1540,-22,5), mark(3,1320,62), mark(4,1578,988)],
+          caption:'1 パネルは中央の列（x 260〜1320）だけ。左（260pt）と右（280pt）のサイドバーは使用量のバーの上まで通し。2 開閉ボタンはヘッダーの右端。3 右サイドバーの上端に「ファイル / Git」。4 使用量のバーは押せないまま、パネルの下で全幅。' }),
+        Win({ id:'W2', title:'パネルを閉じた状態', panel:false, ts:'hover', boxes:[box(1524,4,32,32,'閉じていてもボタンの形は同じ',1280,74)],
+          caption:'会話が使用量のバーの上まで戻る。シェルは動いたまま（BP-5）で、印は足さない。ボタンの形は開閉で変えず（隣のインスペクタの開閉と同じ）、ツールチップが「下部パネルを表示（⌃`）」に替わる。VoiceOver は「下部パネル、切り替えボタン、オフ」。' })
+      ]},
+      { title:'2. 狭い窓（右サイドバーの重ね表示）とグリッド表示', lead:'重ね表示は中央が 480pt を割ったとき（左 260・右 280 なら窓の幅がおよそ 1022pt 未満）。グリッドではパネルは選択中のタイルのプロジェクトのシェル（BP-12）。', wins:[
+        Win({ id:'W3', title:'窓の幅 1000pt · 重ね表示とパネル', W:1000, overlay:true, marks:[mark(2,940,-22,5)],
+          caption:'固定表示なら中央は 460pt で 480pt を割るので、右サイドバーは浮いたカード（幅 280・角丸 10・ポップオーバーの面と影）になる。パネルは中央の列いっぱい（740pt）に出て、右の約 290pt と見出しの右端のボタンはカードの下に入る（それでよい。カードの外をクリックすると閉じる）。開閉ボタンはヘッダーにあるので隠れない。' }),
+        Win({ id:'W4', title:'グリッド表示（タイル 4 枚）· パネルを開いた状態', view:'grid',
+          caption:'子タブ列は無く、ヘッダーにタブの名前も出さない（今のアプリと同じ）。選択中のタイル（左上）は今のまま外側に 2pt のアクセントの輪。キー入力がパネルにあることはパネル側の外側の枠で示す（タイルに新しい印は足さない。BP-12）。タイルは 2 × 2 で、パネルの分だけ低くなる。' })
+      ]},
+      { title:'3. 子タブを左右に分割しているとき', lead:'左に会話、右に子タブの「ターミナル 1」。パネルは 2 区画の下に通しで出る。', splitNotes:true, wins:[
+        Win({ id:'W5', title:'左右の分割＋下部パネル（通し）', split:true,
+          caption:'左右の分割線はパネルの上端で止まり T 字になる。ターミナルが上下に 2 つ並ぶが、子タブは「ターミナル 1」の 28pt の帯と端までの面、パネルは「下部パネル」の 36pt の見出しと内側に置いた面、キー入力があるときは外側の枠で見分けられる。' })
+      ]}
+    ];
+    const splitRules = [
+      { n:'1', t:'高さの上限', v:'「中央の高さの 70%」と「上の区画の中身に 200pt を残す高さ」の小さい方（BP-7。左右分割も同じ）。両区画が同じだけ縮む。' },
+      { n:'2', t:'分割線の交わるところ', v:'縦の分割線はパネルの上端で止める。交点では当たり（8pt）が重なるので、パネルの分割線（横）を優先し、縦の分割線の当たりはパネルの上端の 4pt 手前まで。' },
+      { n:'3', t:'キー入力は 3 か所', v:'左・右・パネル。パネルにキー入力があるときはパネルの外側の枠。⌃` で閉じたら、開く前にいた区画へ戻す（BP-8）。' },
+      { n:'4', t:'ターミナルが 2 つ並ぶときの見分け', v:'名前（「ターミナル 1」/「下部パネル」）と面の形（端まで / 内側の角丸）。VoiceOver は「ターミナル 1、zsh、…」と「下部パネル、ターミナル、zsh、…」。' },
+      { n:'5', t:'worktree のセッションと並ぶとき', v:'会話が worktree で動くセッションでも、パネルはプロジェクトのフォルダのシェル。見出しの作業フォルダで分かる。' }
+    ];
+    const reqs = [
+      { id:'BP-1', t:'中央の列の下端だけ・サイドバーは通し・使用量のバーはパネルの下: W1（印 1・4）・W3・W5' },
+      { id:'BP-2', t:'ヘッダーの右端の開閉ボタン: W1（印 2）・W2・W3。⌃` と「表示」メニューは D のボード' },
+      { id:'BP-7', t:'左右分割のときの高さの上限: 上の決まり 1' },
+      { id:'BP-12', t:'グリッドで開く・選択中のタイルは今の見た目: W4' },
+      { id:'GT-1', t:'右サイドバーの上端の「ファイル / Git」: W1（印 3）。重ね表示のカードでも同じ: W3' }
+    ];
+    return { sections, splitRules, reqs };
+  }
+}
+</script>
+</body>
+</html>

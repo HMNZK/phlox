@@ -1,0 +1,23 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-14T13:05:00+09:00"},
+  "title": "Phlox 下部パネル・ファイル操作・Git タブ",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1760, "h": 1500, "title": "00 概要"},
+    "BottomPanel.dc.html": {"x": 1840, "y": 0, "w": 900, "h": 300, "title": "部品 · 下部パネル"},
+    "FileTreeOps.dc.html": {"x": 2820, "y": 0, "w": 280, "h": 900, "title": "部品 · ファイルツリーの操作"},
+    "GitTab.dc.html": {"x": 3180, "y": 0, "w": 280, "h": 838, "title": "部品 · Git タブ"},
+    "TrashAlert.dc.html": {"x": 3540, "y": 0, "w": 440, "h": 520, "title": "部品 · ゴミ箱に入れる確認"},
+    "PhloxWindow.dc.html": {"x": 4060, "y": 0, "w": 1440, "h": 900, "title": "部品 · メインウィンドウ"},
+    "W_WindowPlacement.dc.html": {"x": 0, "y": 1620, "w": 3440, "h": 4800, "title": "W ウィンドウ全体の置き場所"},
+    "D_PanelDesign.dc.html": {"x": 3520, "y": 1620, "w": 3120, "h": 7800, "title": "D 下部パネルの設計"},
+    "FT_FileTreeOps.dc.html": {"x": 6720, "y": 1620, "w": 2080, "h": 8200, "title": "FT ファイルツリーの操作"},
+    "GT_GitTabDesign.dc.html": {"x": 8880, "y": 1620, "w": 2080, "h": 6200, "title": "GT Git タブの設計"},
+    "QA_CrossCheck.dc.html": {"x": 11040, "y": 1620, "w": 3120, "h": 6400, "title": "QA 横断点検"}
+  },
+  "order": ["Main.dc.html", "BottomPanel.dc.html", "FileTreeOps.dc.html", "GitTab.dc.html", "TrashAlert.dc.html", "PhloxWindow.dc.html", "W_WindowPlacement.dc.html", "D_PanelDesign.dc.html", "FT_FileTreeOps.dc.html", "GT_GitTabDesign.dc.html", "QA_CrossCheck.dc.html"],
+  "notes": {},
+  "designSystems": []
+}

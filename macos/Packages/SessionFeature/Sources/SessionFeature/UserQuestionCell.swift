@@ -49,6 +49,7 @@ struct UserQuestionCell: View {
     @FocusState private var focusedFreeTextQuestion: String?
     @FocusState private var isCardFocused: Bool
     @Environment(\.locale) private var locale
+    @Environment(\.replySubjectMaxHeight) private var subjectMaxHeight
     /// 入力欄の Tab でカードへ移る要求（値の変化だけを見る）。
     var focusRequest = 0
     /// カードの Tab で入力欄へ戻る。
@@ -140,7 +141,9 @@ struct UserQuestionCell: View {
         .focused($isCardFocused)
         // 1〜9 で選ぶ・⌘↩ で送る・Esc で閉じる（カードにフォーカスがあるときだけ。13 Review のキー表）。
         .onKeyPress(characters: .decimalDigits, phases: .down) { press in
-            guard let digit = Int(press.characters), digit >= 1 else { return .ignored }
+            // 自由入力欄に打っている数字は文字として通す（カードの子にフォーカスがあってもここへ届く）。
+            guard focusedFreeTextQuestion == nil,
+                  let digit = Int(press.characters), digit >= 1 else { return .ignored }
             selectOption(number: digit)
             return .handled
         }
@@ -305,9 +308,16 @@ struct UserQuestionCell: View {
                     .foregroundStyle(DSColor.textSecondary)
             }
 
-            Text(question.question)
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundStyle(DSColor.chatTextPrimary)
+            // 会話欄が低いとカードが押し縮められて質問が 1 行に切れる。承認カードの対象と同じく、
+            // 高さに上限を付けて越える分は中でスクロールする（全文を必ず読める）。
+            ScrollView {
+                Text(question.question)
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(DSColor.chatTextPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: subjectMaxHeight)
+            .fixedSize(horizontal: false, vertical: true)
 
             if state == .answered, let selected = answers?[question.answerKey], !selected.isEmpty {
                 answeredLabels(selected, question: question, scale: scale)

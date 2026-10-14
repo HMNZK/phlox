@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>概要</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+a{color:#1D1D1F;text-decoration:underline;}
+a:hover{color:#000;}
+</style>
+</helmet>
+<div style="width:1760px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:56px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;gap:56px;align-items:flex-start;">
+    <div style="width:620px;display:flex;flex-direction:column;gap:14px;flex:none;">
+      <div style="font-size:13px;color:#5B5B60;">Phlox macOS · 確定版 · 参照: bottom-panel-shell-files-git.md（最新版・2026-10-14）</div>
+      <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">下部パネル・ファイル操作・Git タブ</div>
+      <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">今の画面（11 Project Tabs・12 Header and Usage Bar・2 File Tree・6 Unsaved Changes）に 3 つの要素を足した。寸法と形は見本に合わせ、色は ADR 0189 の白黒のアクセント。使用量のバーは押せないまま。macOS 標準のメニューはシステムの見た目で描いた。ハーネスのロゴはこのモックでは名前の文字で仮置き。</div>
+      <div style="font-size:13px;line-height:1.7;color:#5B5B60;text-wrap:pretty;">各ボードの末尾にそのボードの要件対応表がある。全番号の表は QA のボード。</div>
+    </div>
+    <div style="flex:1;background:#fff;border-radius:12px;padding:26px 28px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:14px;">
+      <div style="font-size:18px;font-weight:700;">ボードの一覧</div>
+      <div style="display:grid;grid-template-columns:190px 1fr;row-gap:10px;column-gap:16px;font-size:13px;line-height:1.6;">
+        <a href="W_WindowPlacement.dc.html" style="font-weight:600;">W ウィンドウ全体</a><div>1600 × 1000pt で 3 つの要素の置き場所に番号を付けた全体図。閉じた状態、窓の幅 1000pt の重ね表示、グリッド 4 枚、左右分割と通しのパネル。</div>
+        <a href="D_PanelDesign.dc.html" style="font-weight:600;">D 下部パネル</a><div>見出し「下部パネル」・外側の枠・13pt。状態 9 種、ウィンドウの中で 7 枚（最小・最大・200pt の決まり・切り替え・無効）、「表示」メニュー。</div>
+        <a href="FT_FileTreeOps.dc.html" style="font-weight:600;">FT ファイルツリーの操作</a><div>システムのメニュー 5 種・その場の入力 7 種・操作の後と失敗・ゴミ箱の確認 5 種。</div>
+        <a href="GT_GitTabDesign.dc.html" style="font-weight:600;">GT Git タブ</a><div>状態 15 種、260 / 280 / 340pt と重ね表示。</div>
+        <a href="QA_CrossCheck.dc.html" style="font-weight:600;">QA 横断点検</a><div>要件の全番号の置き場所、キーボードだけの手順、VoiceOver、コントラスト、英語、ライトテーマ、直した点。</div>
+        <div style="font-weight:600;color:#5B5B60;">部品</div><div style="color:#3A3A3E;">PhloxWindow・BottomPanel・FileTreeOps・GitTab・TrashAlert。各ボードはこの 5 つを読み込んで描いている。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start;">
+    <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:18px;font-weight:700;">決まったこと（2026-10-14）</div>
+      <div style="display:grid;grid-template-columns:150px 1fr;row-gap:8px;column-gap:14px;font-size:13px;line-height:1.6;">
+        <b>開閉ボタン</b><div>ヘッダーの右端（単体／グリッドとインスペクタの開閉の間）。P6 の書き換えは要件側で行う。</div>
+        <b>見出し</b><div>「下部パネル」（VoiceOver も同じ）。</div>
+        <b>キー入力の印</b><div>パネルの本体の外側の枠（ライトでも 3:1）。</div>
+        <b>文字</b><div>子タブのターミナルと同じ設定（既定 13pt）。</div>
+        <b>高さ</b><div>最小 120pt。最大は中央の 70% と上の区画に 200pt を残す高さの小さい方（左右分割も同じ）。</div>
+        <b>キー</b><div>⌃`（US 配列）・⌥⌘N・⇧⌥⌘N・⌘↓。ツリーの Return は名前の変更。「表示 › 下部パネルのシェルを再起動」を足す。高さのキーは足さない。</div>
+        <b>メニュー</b><div>右クリックなどの macOS 標準のメニューはシステムの見た目。アプリの中の選択は 24% の塗り。</div>
+        <b>重ね表示</b><div>中央が 480pt を割ったとき（窓の幅およそ 1022pt 未満）。カードがパネルの見出しを隠してよい。</div>
+        <b>グリッド</b><div>選択中のタイルは今の見た目のまま（2pt のアクセントの輪）。</div>
+        <b>ファイル操作</b><div>確認はふだん軽い形、未保存の変更を失うときだけ取り返しがつかない形。件数は 1,000 項目まで。同名はファイル / フォルダを言い分ける。.git と .DS_Store はツリーに出ない。</div>
+        <b>Git タブ</b><div>種類は 1 文字（A・M・D・R・U）。行番号は 300pt 以上。長い差分は 60 行。</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">確定版（残りの確認事項はなし）</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.7;color:#3A3A3E;">
+          <div><b style="color:#1D1D1F;">右クリックのメニュー</b> — ↩ は出さない（Return はツリー・一覧が受ける）。使えない項目は淡色で、先頭の見出しで対象を示すだけ。</div>
+          <div><b style="color:#1D1D1F;">ゴミ箱の確認</b> — 6 と同じシートの NSAlert。軽い形は削除の色を使わず、既定のボタンは「ゴミ箱に入れる」、⌘⌫ は効かせない。</div>
+          <div><b style="color:#1D1D1F;">シェルを再起動のメニュー</b> — 一度でも起動していれば閉じていても使え、押すと開く。一度も起動していなければ無効。</div>
+          <div><b style="color:#1D1D1F;">選択中のタブの名前</b> — サイドバーの開閉のすぐ右。グリッド表示では出さない。</div>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">描いていないもの（§7）</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.6;color:#3A3A3E;">
+          <div>下部パネルにターミナル以外を出すこと・パネルの中の複数ターミナル・子タブのターミナルとの相互移動。共通ターミナル（ADR 0187 で廃止）。</div>
+          <div>ファイルのドラッグ＆ドロップ・複製・複数選択・一括操作・取り消し（⌘Z）。</div>
+          <div>Git タブでのステージ・コミット欄・破棄・ブランチ切り替え・push・PR。</div>
+          <div>設定の「ターミナル › シェル」（§3。依頼不要）。BS-4 はターミナルと見出しの表示だけ描いた。</div>
+          <div>「変更」の子タブそのもの（今の画面のまま。開く入口だけを描いた）。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

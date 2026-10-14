@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>QA 横断点検</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:3120px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:1500px;">
+    <div style="font-size:13px;color:#5B5B60;">QA · 確定版 · 対象: W・D・FT・GT · 要件書の最新版（2026-10-14・FO-1・FO-5・BP-13 の更新まで）と同日の決定で点検した</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">横断点検</div>
+    <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">要件の置き場所・キーボードだけの操作・VoiceOver の文言・コントラスト・英語表記・ライトテーマを、4 つのボードにまたがって確かめた。今回の決定で直した点は右下の「直した点」にまとめた。</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:32px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:24px;font-weight:700;">1. 要件の置き場所（BP・FO・GT・NF の全番号）</div>
+      <div style="font-size:13px;line-height:1.6;color:#3A3A3E;">状態は「描いた」「一部」「画面に出ない」の 3 つ。画面に出ないのは動き・データ・性能の要件で、モックでは置けない。</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:grid;grid-template-columns:72px 1fr 1.3fr 104px;font-size:12.5px;line-height:1.5;">
+        <div style="padding:8px 12px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">番号</div><div style="padding:8px 12px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">要件</div><div style="padding:8px 12px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">置き場所</div><div style="padding:8px 12px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">状態</div>
+        <sc-for list="{{ reqs }}" as="r" hint-placeholder-count="38">
+          <div style="{{ r.c1 }}">{{ r.id }}</div><div style="{{ r.c }}">{{ r.t }}</div><div style="{{ r.c }}">{{ r.where }}</div><div style="{{ r.cs }}">{{ r.st }}</div>
+        </sc-for>
+      </div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:16px 18px;font-size:13px;line-height:1.7;text-wrap:pretty;"><b>置けていない番号</b>: BP-5・FO-7・GT-9・NF-1・NF-2（動き・データ・性能の要件）。<b>一部だけ</b>: GT-7（いつ更新するかは出ない）・NF-3（ルート外のリンクだけ）・NF-5（英語の画面は 5 の表で確かめた）。前回「一部」だった BP-2 は D の X2 に「表示」メニューを描いて埋めた。</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:24px;font-weight:700;">2. キーボードだけで最後までできるか</div>
+      <sc-for list="{{ flows }}" as="f" hint-placeholder-count="3">
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:18px 20px;display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;"><span style="font-size:16px;font-weight:700;">{{ f.title }}</span><span style="font-size:12px;font-weight:700;color:#1D1D1F;background:rgba(0,0,0,0.06);border-radius:5px;padding:2px 8px;">{{ f.verdict }}</span></div>
+          <div style="display:grid;grid-template-columns:28px 150px 1fr;font-size:12.5px;line-height:1.55;">
+            <sc-for list="{{ f.steps }}" as="s" hint-placeholder-count="5">
+              <div style="padding:6px 0;border-top:1px solid rgba(0,0,0,0.06);font-weight:700;">{{ s.n }}</div><div style="padding:6px 8px 6px 0;border-top:1px solid rgba(0,0,0,0.06);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ s.k }}</div><div style="padding:6px 0;border-top:1px solid rgba(0,0,0,0.06);text-wrap:pretty;">{{ s.v }}</div>
+            </sc-for>
+          </div>
+          <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">{{ f.note }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:24px;font-weight:700;">3. VoiceOver で読む文言（役割と状態）</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:grid;grid-template-columns:150px 130px 1fr;font-size:12.5px;line-height:1.55;">
+        <div style="padding:8px 12px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">要素</div><div style="padding:8px 12px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">役割</div><div style="padding:8px 12px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">読む文言（名前・値・状態）</div>
+        <sc-for list="{{ vo }}" as="r" hint-placeholder-count="25">
+          <div style="{{ r.c1 }}">{{ r.e }}</div><div style="{{ r.c }}">{{ r.role }}</div><div style="{{ r.c }}">{{ r.t }}</div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:24px;font-weight:700;">4. コントラスト（WCAG 2.2 AA）</div>
+      <div style="font-size:13px;line-height:1.6;color:#3A3A3E;">文字は 4.5:1、部品と状態の印は 3:1。数値は塗りを地に重ねた色で計算した。システムのメニューは macOS の描画なので参考値。</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:grid;grid-template-columns:1.5fr 92px 92px 60px 1.3fr;font-size:12.5px;line-height:1.5;">
+        <div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">組み合わせ</div><div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">ダーク</div><div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">ライト</div><div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">基準</div><div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">判定</div>
+        <sc-for list="{{ contrast }}" as="r" hint-placeholder-count="21">
+          <div style="{{ r.c }}">{{ r.k }}</div><div style="{{ r.m }}">{{ r.d }}</div><div style="{{ r.m }}">{{ r.l }}</div><div style="{{ r.c }}">{{ r.need }}</div><div style="{{ r.vs }}">{{ r.v }}</div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:24px;font-weight:700;">5. 英語に替えたとき</div>
+      <div style="font-size:13px;line-height:1.6;color:#3A3A3E;">幅は 13pt / 11pt の SF Pro の目安で見積もった。「切れる」は省略記号になる、「折り返す」は行が増えるが読める。</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:grid;grid-template-columns:150px 1fr 100px 1.1fr;font-size:12.5px;line-height:1.5;">
+        <div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">場所</div><div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">英語</div><div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">結果</div><div style="padding:8px 10px;font-weight:600;color:#5B5B60;border-bottom:1px solid rgba(0,0,0,0.12);">手当て</div>
+        <sc-for list="{{ en }}" as="r" hint-placeholder-count="16">
+          <div style="{{ r.c1 }}">{{ r.p }}</div><div style="{{ r.c }}">{{ r.s }}</div><div style="{{ r.rs }}">{{ r.r }}</div><div style="{{ r.c }}">{{ r.f }}</div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:24px;font-weight:700;">直した点（2026-10-14 の決定と要件書の最新版）</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:grid;grid-template-columns:36px 130px 1fr;font-size:12.5px;line-height:1.55;">
+          <sc-for list="{{ fixes }}" as="x" hint-placeholder-count="24">
+            <div style="padding:8px 10px;border-top:1px solid rgba(0,0,0,0.06);font-weight:700;">{{ x.n }}</div><div style="padding:8px 10px;border-top:1px solid rgba(0,0,0,0.06);font-weight:600;">{{ x.w }}</div><div style="padding:8px 10px;border-top:1px solid rgba(0,0,0,0.06);text-wrap:pretty;">{{ x.t }}</div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:24px;font-weight:700;">確定したこと（2026-10-14・残りの確認事項はなし）</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:16px 18px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.7;">
+          <sc-for list="{{ open }}" as="o" hint-placeholder-count="5">
+            <div style="display:flex;flex-direction:column;gap:2px;"><b>{{ o.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ o.v }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-size:24px;font-weight:700;">6. ライトテーマ</div>
+    <div style="display:flex;gap:56px;align-items:flex-start;">
+      <div id="LT1" style="display:flex;flex-direction:column;gap:12px;width:900px;flex:none;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">LT1</span><span style="font-size:14px;font-weight:600;">下部パネル · ライト（キー入力あり）</span></div>
+        <div style="border-radius:10px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.22), 0 10px 30px rgba(0,0,0,0.12);background:#FFFFFF;padding-top:20px;">
+          <dc-import name="BottomPanel" theme="light" variant="focused" width="900" height="280" hint-size="900px,280px"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">本体はライトでも暗い面 #1B1B1D。外側の枠 #1D1D1F は 2pt の隙間をあけてパネルの地 #F8F8F9 の上に出るので 15.9:1（暗い本体とは 1.02:1 なので接しないようにしている。BP-9）。</div>
+        <div style="border-radius:10px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.22), 0 10px 30px rgba(0,0,0,0.12);background:#FFFFFF;padding-top:20px;margin-top:24px;">
+          <dc-import name="BottomPanel" theme="light" variant="splitterHover" width="900" height="280" hint-size="900px,280px"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">境目のホバー。3pt の線 #1D1D1F は会話の白地（16.8:1）と見出しの地（15.9:1）の間。キー入力が無いので枠は出ない。</div>
+      </div>
+      <div id="LT2" style="display:flex;flex-direction:column;gap:12px;width:280px;flex:none;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">LT2</span><span style="font-size:14px;font-weight:600;">Git タブ · ライト</span></div>
+        <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.22), 0 10px 30px rgba(0,0,0,0.12);">
+          <dc-import name="GitTab" theme="light" variant="keyboard" width="280" height="838" hint-size="280px,838px"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">一覧にキー入力。選んだ行は 17% の塗りで文字はすべて主文字色（11.3:1）。差分の追加の行は 4.56:1（差分の色はアプリ全体で共有しているので変えない）。</div>
+      </div>
+      <div id="LT3" style="display:flex;flex-direction:column;gap:12px;width:1440px;flex:none;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">LT3</span><span style="font-size:14px;font-weight:600;">ウィンドウの中で · ライト</span></div>
+        <dc-import name="PhloxWindow" theme="light" view="single" panel="{{ true }}" panel-height="280" focus="term" panel-variant="focused" project="phlox" inspector="git" split="{{ false }}" no-project="{{ false }}" toggle-state="normal" hint-size="1440px,900px"></dc-import>
+        <div style="font-size:12.5px;line-height:1.65;color:#3A3A3E;text-wrap:pretty;">LT1 と LT2 をウィンドウに置いた状態。開閉ボタンはヘッダーの右端。上段のタブ列 #ECECEF、サイドバー #F2F2F4、ウィンドウ #FFFFFF。</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3120,"height":6400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cell = { padding:'7px 12px', borderTop:'1px solid rgba(0,0,0,0.06)', textWrap:'pretty' };
+    const c1 = { ...cell, fontFamily:"ui-monospace,'SF Mono',Menlo,monospace", fontSize:12, fontWeight:600 };
+    const stS = { '描いた':{ ...cell, fontWeight:600, color:'#1D1D1F' }, '一部':{ ...cell, fontWeight:600, color:'#8A5300' }, '画面に出ない':{ ...cell, color:'#5B5B60' } };
+    const R = (id, t, where, st) => ({ id, t, where, st, c:cell, c1, cs: stS[st] });
+    const reqs = [
+      R('BP-1','中央の列だけ・サイドバーは通し・使用量のバーは下','W1（印 1・4）・W3・W5・D N1','描いた'),
+      R('BP-2','⌃`・「表示」メニュー・ヘッダーの右端のボタン','W1（印 2）・W2・W3・D N1・X2','描いた'),
+      R('BP-3','プロジェクトごとのシェル・既定のシェル','D 各部 3・4・N6','描いた'),
+      R('BP-4','初めて開いたときに起動','D S3','描いた'),
+      R('BP-5','閉じてもシェルは残る・scrollback','W2 の説明','画面に出ない'),
+      R('BP-6','プロジェクトを切り替えると中身が替わる','D N6','描いた'),
+      R('BP-7','境目・最小 120・最大は 70% と 200pt の小さい方','D S9・N3・N4・N5、W の分割の決まり 1','描いた'),
+      R('BP-8','開くとターミナルへ・閉じると元へ・Esc で閉じない','D N1・N2、2 の手順 A','描いた'),
+      R('BP-9','「下部パネル」・外側の枠・終了・BS-4 を見出しに','D 各部・S1・S4・S5、LT1','描いた'),
+      R('BP-10','文字は子タブのターミナルと同じ（既定 13pt）・⌘+ ⌘−','D の全モック（13pt）・キーの表','描いた'),
+      R('BP-11','プロジェクトが無いと無効','D X1・X2','描いた'),
+      R('BP-12','グリッドでも開ける・選択中のタイルは今のまま','W4','描いた'),
+      R('BP-13','「表示 › 下部パネルのシェルを再起動」','D X2','描いた'),
+      R('FO-1','右クリック 4 項目・⌥⌘N・⇧⌥⌘N・空白・＋','FT M1〜M3・M5・M6','描いた'),
+      R('FO-2','展開してその場に入力行・作ったら開く','FT E1・E2・R1','描いた'),
+      R('FO-3','その場の名前の変更・Return・開くは ⌘↓','FT E7・キーの表','描いた'),
+      R('FO-4','名前の検査（ファイル / フォルダを言い分け）','FT E3〜E6','描いた'),
+      R('FO-5','軽い形の確認・件数 1,000 まで・⌘⌫・Return / Esc','FT Da・Dc・De','描いた'),
+      R('FO-6','複数選択しない','FT の全モック（1 行だけ選ぶ）','描いた'),
+      R('FO-7','名前の変更でタブを付け替える','R2 の説明','画面に出ない'),
+      R('FO-8','開いているタブを閉じる・未保存は取り返しがつかない形','FT Dd・Dc・Db','描いた'),
+      R('FO-9','ルート・ルート外の symlink は無効','FT M3・M4','描いた'),
+      R('FO-10','読み直して選び、見える位置へ','FT R1・R2','描いた'),
+      R('FO-11','失敗の一時表示（閉じるボタン付き）','FT R3','描いた'),
+      R('GT-1','「ファイル / Git」とキー','GT すべての上端・S5','描いた'),
+      R('GT-2','ブランチ・件数・更新・detached HEAD','GT S1・S11','描いた'),
+      R('GT-3','A・M・D・R・U・名前・フォルダ・行数・パス順','GT S1〜S3','描いた'),
+      R('GT-4','上に一覧・下に差分・折り返し・長い差分・バイナリ・未追跡','GT S1・S6〜S9・W1','描いた'),
+      R('GT-5','ダブルクリック・Return・右クリックで「変更」タブ','GT S3・S4・差分の見出しのボタン','描いた'),
+      R('GT-6','コミット欄を置かない・「コミット…」','GT S1・S5','描いた'),
+      R('GT-7','自動で更新する時機','GT S10（見た目だけ）','一部'),
+      R('GT-8','変更なし・Git 管理外・失敗と再試行','GT S13・S14・S15','描いた'),
+      R('GT-9','「変更」タブと同じデータ','—','画面に出ない'),
+      R('NF-1','開閉・ドラッグで全体を組み直さない','—','画面に出ない'),
+      R('NF-2','git の状態を変えない・全ファイルを読まない','—','画面に出ない'),
+      R('NF-3','ファイル操作はフォルダの外へ出ない','FT M4（ルート外のリンク）','一部'),
+      R('NF-4','キーボードだけ・VoiceOver・色だけに頼らない','このボードの 2・3・4、各ボードのキーの表','描いた'),
+      R('NF-5','日本語・英語で文言が切れない','このボードの 5','一部')
+    ];
+    const S = (n, k, v) => ({ n, k, v });
+    const flows = [
+      { title:'A. 下部パネルを開いて閉じる', verdict:'できる', steps:[
+        S('1','クリック / Tab','会話の入力欄にキー入力（入力欄に枠）'),
+        S('2','⌃`','パネルが開き、本体にキー入力。本体の外側に枠、見出しの「下部パネル」が semibold、カーソルが塗り（D N1）'),
+        S('3','git status ↩','シェルが動く。Esc を押してもパネルは閉じない'),
+        S('4','⌃`','パネルが閉じ、キー入力は入力欄に戻る'),
+        S('5','表示 › 下部パネルのシェルを再起動','キーボードだけで再起動もできる（メニューは ⌃F2 などのメニューバー操作で開く。BP-13）')
+      ], note:'条件: ⌃` はメニューのキーとしてシェルより先に受けること（実装で確かめる）。高さはドラッグと VoiceOver の調整で変える（キーは足さない決定）。' },
+      { title:'B. ツリーで新規ファイル → 名前の変更 → ゴミ箱', verdict:'できる', steps:[
+        S('1','⌃⌘B','ファイルタブを出し、ツリーにキー入力（内側の枠）'),
+        S('2','↓ →','docs › guides の行を選ぶ（→ でフォルダを開く）'),
+        S('3','⌥⌘N','guides の中、ファイルの先頭に空の入力行（FT E1）'),
+        S('4','notes.md ↩','作ってその行を選び、ファイルタブで開く。キー入力はツリーに戻る（R1）'),
+        S('5','↩ → memo ↩','名前の変更（拡張子より前を選ぶ）→ memo.md を選んだ状態'),
+        S('6','⌘⌫ → ↩','開いているが保存済みなので軽い形の確認 (d)。既定のボタン「ゴミ箱に入れる」を Return。タブを閉じ、次の行を選ぶ')
+      ], note:'未保存の変更があるときは (b) の取り返しがつかない形になり、Return はキャンセル。実行は Tab で「ゴミ箱に入れる」に移って Space。ファイルを開くのは ⌘↓。' },
+      { title:'C. Git タブで行を選び「変更」タブで開く', verdict:'できる', steps:[
+        S('1','⇧⌃⌘G','Git タブを出し、一覧にキー入力。選んだ行は 24% の塗り（GT S2）'),
+        S('2','↑ ↓','BottomPanelView.swift へ。下の差分が替わる'),
+        S('3','↩','「変更」の子タブを開いてそのファイルを選ぶ。キー入力は「変更」タブの一覧へ'),
+        S('4','（任意）Tab → Space','「コミット…」で「変更」タブのコミット欄へ')
+      ], note:'↩ の意味がファイルタブ（名前の変更）と違う点は、差分の見出しのボタンの ↩ と行のツールチップの 2 か所で示している。右クリックのメニューには ↩ を出さない（Return は一覧が受ける）。' }
+    ];
+    const V = (e, role, t) => ({ e, role, t, c:cell, c1:{ ...cell, fontWeight:600 } });
+    const vo = [
+      V('パネル全体','グループ','「下部パネル、ターミナル、zsh、~/Projects/Phlox-oss」'),
+      V('見出しの「下部パネル」','静的テキスト','「下部パネル」（キー入力の状態は本体で読む）'),
+      V('シェル名・作業フォルダ','静的テキスト','「zsh」「~/Projects/Phlox-oss」。先頭を省いて見えていても全文を読む'),
+      V('BS-4 の注意（見出し）','状態','「設定のシェルが見つかりません。設定のシェル（/opt/homebrew/bin/fish）が見つからないため、システムの既定で起動しました」'),
+      V('シェルを再起動','ボタン','「シェルを再起動、ボタン」。起動中は「淡色表示」を足す'),
+      V('パネルを閉じる','ボタン','「パネルを閉じる、ボタン、⌃`」'),
+      V('本体','テキストエリア','「下部パネル、ターミナル、zsh、~/Projects/Phlox-oss、入力中」'),
+      V('境目','分割線（調整可能）','「下部パネルの高さ、280 ポイント、調整可能」'),
+      V('起動中・終了','知らせ','「zsh を起動しています、ビジー」/「シェルは終了しました、終了コード 0」→ 次は「再起動、ボタン」'),
+      V('開閉ボタン（ヘッダー）','切り替えボタン','「下部パネル、切り替えボタン、オン」。プロジェクトが無いと「淡色表示」'),
+      V('表示 › 下部パネルのシェルを再起動','メニュー項目','「下部パネルのシェルを再起動」。使えないときは「淡色表示」'),
+      V('新規の入力行','テキストフィールド','「新規ファイルの名前、テキストフィールド、guides の中、編集中」'),
+      V('入力行の誤り','値が無効','「使えない名前」を足し、出たときに「同じ名前のファイルがあります」/「同じ名前のフォルダがあります」と知らせる'),
+      V('名前の変更','テキストフィールド','「名前を変更、テキストフィールド、FileTreeModel.swift、FileTreeModel を選択」'),
+      V('作った行・変えた行','ツリー項目','「notes.md、ファイル、レベル 3、選択、開いています」'),
+      V('右クリックメニュー','メニュー（システム）','先頭の見出し「ルートの外を指すリンク」を読み、淡色の項目は「名前を変更、淡色表示」'),
+      V('失敗の帯','警告','出たときに「名前を変更できませんでした: 権限がありません」。次は「閉じる、ボタン」'),
+      V('確認（軽い形）','アラート','「アラート、notes.md をゴミ箱に入れますか？ ゴミ箱から元に戻せます。」既定のボタンは「ゴミ箱に入れる、既定のボタン」'),
+      V('確認（未保存）','アラート','「…未保存の変更は失われます。」既定のボタンは「キャンセル、既定のボタン」'),
+      V('確認の一覧','リスト','「ゴミ箱に入れるファイル、1 項目」→「file-tree.md、Phlox-oss · docs/guides/、未保存の変更」'),
+      V('Git の行','一覧の選択肢','「変更、BottomPanelView.swift、macos/…/BottomPanel、12 行追加、3 行削除、4 / 7、選択」'),
+      V('Git の行（名前変更・バイナリ）','一覧の選択肢','「名前変更、GitChangesList.swift、…、元の名前 ChangesList.swift」/「追加、panel@2x.png、…、バイナリ」'),
+      V('Git の行（新しく出た）','一覧の選択肢','末尾に「新しく出た」'),
+      V('Git の行の操作','カスタム操作','VO-⌘-スペースで「『変更』タブで開く」「ファイルを開く」「Finder で表示」「パスをコピー」'),
+      V('Git の件数','知らせ','件数が変わったときだけ「7 件の変更、2 件増えました」')
+    ];
+    const pass = { padding:'7px 10px', borderTop:'1px solid rgba(0,0,0,0.06)', fontWeight:600, color:'#1D1D1F', textWrap:'pretty' };
+    const fail = { ...pass, color:'#B4232A' };
+    const na = { ...pass, fontWeight:400, color:'#5B5B60' };
+    const C = (k, d, l, need, v, kind) => ({ k, d, l, need, v, c:{ padding:'7px 10px', borderTop:'1px solid rgba(0,0,0,0.06)', textWrap:'pretty' }, m:{ padding:'7px 10px', borderTop:'1px solid rgba(0,0,0,0.06)', fontFamily:"ui-monospace,'SF Mono',Menlo,monospace", fontSize:12 }, vs: kind === 'fail' ? fail : kind === 'na' ? na : pass });
+    const contrast = [
+      C('パネルの外側の枠 / パネルの地','13.84','15.86','3','合格（前回 1.30 だった印を置き換えた）'),
+      C('同じ枠 / 本体（接しない理由）','16.46','1.02','—','隙間 2pt で離している','na'),
+      C('境目のホバー 3pt / 会話の地','14.89','16.83','3','合格'),
+      C('グリッドの選択中のタイルの輪','14.89','16.83','3','合格（今のまま）'),
+      C('差分 · 追加の文字 / 追加の行の地','6.67','4.56','4.5','合格（ライトは余裕が少ないが変えない）'),
+      C('差分 · 削除の文字 / 削除の行の地','5.74','5.50','4.5','合格'),
+      C('差分 · 重ね表示のカードの上で 追加 / 削除','5.75 / 4.94','4.81 / 5.84','4.5','合格'),
+      C('差分 · 行番号 / 追加の行の地','5.53','5.73','4.5','合格'),
+      C('ラベル A / D / M・R・U（パネルの地）','8.16 / 6.83 / 6.78','5.07 / 6.16 / 6.36','4.5','合格'),
+      C('ラベル・行数 / 選択の塗り','主文字色 6.65〜10.6','主文字色 11.25〜13.7','4.5','合格（選んだ行は主文字色にしてある）'),
+      C('ラベルの枠（飾り）','1.52','—','—','対象外（文字で区別している）','na'),
+      C('システムのメニュー · 文字','10.61','13.30','4.5','合格（参考値）'),
+      C('システムのメニュー · キーの表示','4.72','3.84','4.5','ライトは届かない。macOS の描画で変えられない','na'),
+      C('システムのメニュー · 強調（白 / 既定の青）','5.49','5.49','4.5','合格（参考値。色は利用者の設定）'),
+      C('システムのメニュー · 淡色の項目','2.25','1.82','—','対象外（操作できない部品）','na'),
+      C('入力欄のプレースホルダ','5.33','—','4.5','合格'),
+      C('誤りの印の輪 / ポップオーバー','3.98','5.29','3','合格'),
+      C('フォーカスの枠（ツリー・一覧・入力欄）','13.84','15.86','3','合格'),
+      C('BS-4 の注意（本体の行）','8.05','7.53','4.5','合格'),
+      C('BS-4 の注意（見出し · 主文字色）','13.84','15.86','4.5','合格'),
+      C('使用量のバーの文字','6.26','6.25','4.5','合格（変更なし）')
+    ];
+    const ok = { padding:'7px 10px', borderTop:'1px solid rgba(0,0,0,0.06)', fontWeight:600, color:'#1D1D1F' };
+    const bad = { ...ok, color:'#B4232A' };
+    const mid = { ...ok, color:'#8A5300' };
+    const E = (p, s, r, f) => ({ p, s, r, f, c:{ padding:'7px 10px', borderTop:'1px solid rgba(0,0,0,0.06)', textWrap:'pretty' }, c1:{ padding:'7px 10px', borderTop:'1px solid rgba(0,0,0,0.06)', fontWeight:600 }, rs: r === '切れる' ? bad : r === '折り返す' ? mid : ok });
+    const en = [
+      E('D · 見出し','“Bottom Panel · zsh · ~/Projects/Phlox-oss”','収まる','狭い中央ではフォルダを先頭から省く'),
+      E('D · BS-4 の見出しの注意','“Configured shell not found”','収まる','中央 740pt（W3）でも 1 行。それより狭いとフォルダを先に省き、それでも足りなければ注意の文を省く（全文はツールチップ）'),
+      E('D · BS-4 の本体の行','“[Phlox] The configured shell (/opt/homebrew/bin/fish) wasn’t found, so the system default was used.”','折り返す','折り返すようにしてある'),
+      E('D · 終了','“The shell exited (exit code 0)” / “Restart ↩”','収まる','—'),
+      E('D · 「表示」メニュー','“Hide Bottom Panel ⌃`” / “Restart Bottom Panel Shell”','収まる','システムのメニューは幅に合わせて広がる'),
+      E('W · 開閉ボタンのツールチップ','“Hide Bottom Panel (⌃`)”','収まる','—'),
+      E('FT · 右クリック','“New File ⌥⌘N” / “New Folder ⇧⌥⌘N” / “Move to Trash ⌘⌫” / “Open in Split Right”','収まる','システムのメニューは幅に合わせて広がる'),
+      E('FT · メニューの見出し','“Link outside the root” / “Create at the top of Phlox-oss”','収まる','—'),
+      E('FT · 誤りの吹き出し','“A folder with this name already exists.”','折り返す','2 行。行は押し下げない'),
+      E('FT · 確認ダイアログ','“Move “macos” and more than 1,000 items inside it to the Trash?”','折り返す','題は 2〜3 行。ボタンは 1 行'),
+      E('FT · 失敗の帯','“Couldn’t rename: Permission denied”','収まる','—'),
+      E('GT · 差分の見出し','“Modified · +12 −3 · 2 hunks” / “Open in Changes ↩”','収まる','ファイル名は外してある'),
+      E('GT · 行のツールチップ','“Double-click or press ↩ to open in Changes”','折り返す','2 行'),
+      E('GT · 長い差分のリンク','“See the rest in Changes”','折り返す','「26 more lines」と 2 行に分かれる'),
+      E('GT · 見出し・切り替え','“7 changes · 2 new” / “Commit…” / “Files / Git”','収まる','260pt でも 1 行'),
+      E('GT · 空の状態','“No changes” / “This folder isn’t a Git repository”','収まる','後者は 260pt で 2 行')
+    ];
+    const F = (n, w, t) => ({ n, w, t });
+    const fixes = [
+      F('1','W · 開閉ボタン','ヘッダーの右端（単体／グリッドとインスペクタの開閉の間）だけにし、子タブ列の右端の案と比較表を消した。'),
+      F('2','W · ヘッダー','今のヘッダーに合わせ、サイドバーの開閉（常に出す）と選択中のタブの名前を足した。'),
+      F('3','W · 重ね表示','窓の幅を 1200pt → 1000pt に直した（中央 460pt で 480pt を割る）。'),
+      F('4','W · グリッド','選択中のタイルを今の 2pt のアクセントの輪に戻し、1pt の枠をやめた。'),
+      F('5','W · 左右分割','見分けの説明を「ターミナル 1」/「下部パネル」と面の形・枠に直し、高さの決まりを BP-7 の文に合わせた。'),
+      F('6','D · 見出し','「ターミナル」を「下部パネル」に戻した（VoiceOver も同じ）。'),
+      F('7','D · キー入力の印','見出しの面をやめ、本体を 8pt 内側に置いて外側に 2pt の枠（隙間 2pt）にした。子タブの選択を薄くする決まりもやめた。'),
+      F('8','D · 文字','本体を 11pt → 13pt（行の高さ 20pt）にした。'),
+      F('9','D · 高さ','最大を「70% と上に 200pt を残す高さの小さい方」にし、高さ 700pt の窓で 200pt が効く N5 を足した。'),
+      F('10','D · BS-4','見出しに「設定のシェルが見つかりません」を次の再起動まで残すようにした（S5）。'),
+      F('11','D · メニュー','「表示 › 下部パネルを表示 / 隠す」と「下部パネルのシェルを再起動」を 3 つの状態で描いた（X2。BP-2・BP-13）。'),
+      F('12','D · 無効','開閉ボタンの無効をヘッダーの右端だけにした（X1・X2）。'),
+      F('13','FT · メニュー','右クリックと「＋」をシステムのメニューの見た目に直した。理由の文はやめ、先頭のセクション見出しで対象を示す。'),
+      F('14','FT · キー','⌥⌘N・⇧⌥⌘N・⌘↓ を「案」から確定に。開くは ⌘↓ とクリック、フォルダの開閉は → / ← とクリック。'),
+      F('15','FT · .git','.git の中のメニュー（前の M5）を消した（.git と .DS_Store はツリーに出ない）。'),
+      F('16','FT · 名前の誤り','「同じ名前のフォルダがあります」を足した（E4）。'),
+      F('17','FT · 件数','1,000 項目を超えるフォルダの確認 (e) を足した（De）。'),
+      F('18','FT · 確認の重さ','未保存の変更があるときだけ取り返しがつかない形、ほかは軽い形と書き直し、見出しの印の名前も揃えた。'),
+      F('19','GT · メニュー','右クリックのメニューをシステムの見た目に直した。'),
+      F('20','GT · 説明','重ね表示の条件（中央 480pt 未満・窓およそ 1022pt 未満）と、決まったことを書き直した。'),
+      F('21','QA','要件書の最新版（BP-13 まで）と今回の決定で表を作り直した。'),
+      F('22','ボードの整理','前の案の P・B・F・G・L と、それだけが使っていた部品（RightSidebar・TrashDialog）を消した。'),
+      F('23','概要','ボードの一覧と決まったことを、今の状態に書き直した。'),
+      F('24','確定版 · メニューの ↩','FT と GT の右クリックのメニューから ↩ を消した（FO-1）。⌥⌘N・⇧⌥⌘N・⌘⌫ はそのまま。'),
+      F('25','確定版 · タブの名前','グリッド表示のときはヘッダーにタブの名前を出さないようにした（W4）。'),
+      F('26','確定版 · 再起動のメニュー','一度も起動していないときは「再起動」だけ淡色、と D の X2 の説明に書いた（BP-13）。'),
+      F('27','確定版 · 確認事項','D・FT・GT・QA・概要の「確認したいこと」を「確定したこと」に置き換えた。')
+    ];
+    const open = [
+      { t:'右クリックのメニューの ↩', v:'出さない。Return は項目のキーにせず、ツリー・一覧が受ける（Finder と同じ。FO-1）。' },
+      { t:'操作できない理由', v:'ツールチップは付けず、メニュー先頭の見出しで対象を示すだけ（FO-1）。' },
+      { t:'確認の形', v:'6 と同じシートの NSAlert。軽い形は削除の色を使わず、既定のボタンは「ゴミ箱に入れる」、⌘⌫ は効かせない（FO-5）。' },
+      { t:'シェルを再起動のメニュー', v:'一度でも起動していれば閉じていても使え、押すと開く。一度も起動していなければ無効（BP-13）。' },
+      { t:'選択中のタブの名前', v:'サイドバーの開閉のすぐ右（今のアプリと同じ）。グリッド表示では出さない。' }
+    ];
+    return { reqs, flows, vo, contrast, en, fixes, open };
+  }
+}
+</script>
+</body>
+</html>

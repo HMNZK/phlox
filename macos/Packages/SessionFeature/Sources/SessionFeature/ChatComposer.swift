@@ -16,7 +16,6 @@ struct ChatComposer: View {
     let controlsLayout: ComposerFooterLayout
     @State private var editorHeight: CGFloat = ComposerHeightBounds.single.min
     @State private var isComposing = false
-    @State private var isEditorFocused = false
     @State private var suggestionController: ComposerSuggestionController
     @Environment(\.locale) private var locale
 
@@ -101,8 +100,7 @@ struct ChatComposer: View {
                     onTab: { viewModel.moveFocusToReplyCard() },
                     onRecallHistory: { viewModel.recallInputHistory($0) },
                     onCycleEffort: { ComposerEffortCycle.perform(viewModel, locale: locale) },
-                    isEditable: viewModel.inFlightText == nil,
-                    onFocusChange: { isEditorFocused = $0 }
+                    isEditable: viewModel.inFlightText == nil
                 )
                 .frame(
                     minHeight: ComposerHeightBounds.single.min,
@@ -138,19 +136,13 @@ struct ChatComposer: View {
         .padding(.horizontal, 12)
         .padding(.top, 10 - ComposerPlaceholderMetrics.textInsets.height)
         .padding(.bottom, 8)
-        // 面は `--field`（ダークでは背景より暗い #1A1A1C）、縁は `--fieldBorder` 1pt、書いている間は `--selText` の 3pt の輪。
+        // 面は `--field`（ダークでは背景より暗い #1A1A1C）、縁は `--fieldBorder` 1pt。フォーカス中も枠は変えない
+        // （新規チャットの入力欄と同じ。2026-10-14 ユーザー指示）。
         // 縁も背面に描く（前面だと、チップから上に開く箱の上に縁が引かれる）。
         .background {
             let shape = RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
             shape.fill(DSColor.fieldBackground)
                 .overlay(shape.strokeBorder(DSColor.fieldBorder, lineWidth: 1))
-        }
-        .background {
-            if isEditorFocused {
-                RoundedRectangle(cornerRadius: DSRadius.l + 3, style: .continuous)
-                    .fill(DSColor.focusRing)
-                    .padding(-3)
-            }
         }
         // 上のカード・候補との間は 8（PhloxReply.dc.html の rootStyle gap）。
         .overlay(alignment: .topLeading) {

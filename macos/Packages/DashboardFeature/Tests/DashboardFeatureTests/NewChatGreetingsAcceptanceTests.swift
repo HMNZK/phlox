@@ -14,7 +14,7 @@ struct NewChatGreetingsAcceptanceTests {
     @Test("見出しの同梱ドット書体が登録され、全候補の文字を持つ")
     func headingFontIsRegisteredAndCoversGreetings() throws {
         _ = NewChatHeadingFont.font
-        let font = try #require(NSFont(name: NewChatHeadingFont.postScriptName, size: 30))
+        let font = try #require(NSFont(name: NewChatHeadingFont.postScriptName, size: 32))
         let text = NewChatGreetings.all.joined() + "ABCabc?'"
         let utf16 = Array(text.utf16)
         var glyphs = [CGGlyph](repeating: 0, count: utf16.count)

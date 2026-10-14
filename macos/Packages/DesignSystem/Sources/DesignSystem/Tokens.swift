@@ -31,9 +31,9 @@ public enum DSFont {
     public static let sectionHeader = Font.subheadline.weight(.semibold)
     public static let title = Font.title3.weight(.semibold)
     public static let heroTitle = Font.title2.weight(.semibold)
-    /// ドット書体 ベストテンDOT の 30 — 新規チャットの見出し（ADR 0191）。10 ドットの格子の 3 倍で描く。
+    /// ドット書体 DotGothic16 の 32 — 新規チャットの見出し（ADR 0191）。16px の格子の倍で描く。
     /// 書体は DashboardFeature が同梱し、`NewChatHeadingFont` が初回の参照で登録する。
-    public static let newChatHeading = Font.custom("BestTenDOT", fixedSize: 30)
+    public static let newChatHeading = Font.custom("DotGothic16-Regular", fixedSize: 32)
     public static let mono = Font.system(.body, design: .monospaced)
     public static let monoCaption = Font.system(size: 11, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。

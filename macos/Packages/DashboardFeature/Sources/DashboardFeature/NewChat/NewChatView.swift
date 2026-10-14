@@ -959,9 +959,9 @@ enum NewChatLaunchAnnouncement {
 
 /// 見出しのドット書体（ADR 0191）。初回の参照で同梱の書体をプロセスに登録してから返す。
 enum NewChatHeadingFont {
-    static let postScriptName = "BestTenDOT"
+    static let postScriptName = "DotGothic16-Regular"
     static let font: Font = {
-        if let url = Bundle.module.url(forResource: "BestTen-DOT", withExtension: "otf") {
+        if let url = Bundle.module.url(forResource: postScriptName, withExtension: "ttf") {
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
         return DSFont.newChatHeading

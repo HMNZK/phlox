@@ -50,6 +50,7 @@ public enum WorkspaceCleanupWarning: Equatable, Sendable {
 @MainActor
 @Observable
 public final class DashboardViewModel {
+    public var claudeUsageDidChange: ((AgentRateLimitsSnapshot, UUID) -> Void)?
     private enum APISpawnLimitSource {
         case parent(SessionID?)
         case controlRequester(SessionID?)
@@ -258,6 +259,7 @@ public final class DashboardViewModel {
                 }
             }
         )
+        spawnService?.onClaudeUsage = { [weak self] snapshot, id in self?.claudeUsageDidChange?(snapshot, id) }
         spawnService?.onWorktreeCreation = { [weak self] path, isStarting in
             guard let self, Self.reportsWorktreeCreation else { return }
             if isStarting {

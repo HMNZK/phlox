@@ -2,6 +2,7 @@ import AgentDomain
 import Foundation
 import Observation
 import StructuredChatKit
+import ClaudeAgentKit
 
 @MainActor
 @Observable
@@ -24,16 +25,33 @@ public final class UsageMonitor {
     @ObservationIgnored private let now: () -> Date
     private var refreshTask: Task<Void, Never>?
     private var lastSuccessfulUsages: [AgentKind: CLIUsage]
+    public let claudeProcess: ClaudeUsageProcess?
+    @ObservationIgnored private var claudeRefresh: ClaudeUsageRefresh?
+    @ObservationIgnored private var settingsObserver: (any NSObjectProtocol)?
 
     public init(
         environment: AppEnvironment,
-        sessions: @escaping @Sendable () async -> [any UsageQuerying] = { [] }
+        connections: @escaping @MainActor () -> [ClaudeUsageConnection] = { [] }
     ) {
-        self.providers = Self.makeProviders(environment: environment, sessions: sessions)
+        self.providers = Self.makeProviders(environment: environment)
         self.stalenessInterval = Self.defaultStalenessInterval
         self.now = Date.init
         self.usages = [:]
         self.lastSuccessfulUsages = [:]
+        let process = ClaudeUsageProcess(command: environment.claudeBinaryPath, environment: [
+            "PATH": environment.pathEnvironment,
+            "HOME": FileManager.default.homeDirectoryForCurrentUser.path,
+            "USER": NSUserName(),
+            "LANG": ProcessInfo.processInfo.environment["LANG"] ?? "en_US.UTF-8",
+        ])
+        self.claudeProcess = process
+        self.claudeRefresh = ClaudeUsageRefresh(
+            connections: connections, dedicated: process, closeDedicated: { await process.close() },
+            cache: ClaudeUsageProvider(rateLimitsURL: environment.claudeUsageRateLimitsURL)
+        ) { [weak self] usage, failure in
+            self?.usages[.claudeCode] = usage
+            self?.failures[.claudeCode] = failure.map { UsageFailure(reason: $0, at: Date()) }
+        }
     }
 
     init(
@@ -48,22 +66,31 @@ public final class UsageMonitor {
         self.now = now
         self.usages = [:]
         self.lastSuccessfulUsages = [:]
+        self.claudeProcess = nil
     }
 
     public func start() {
         guard refreshTask == nil else { return }
+        claudeRefresh?.start(enabled: Self.claudeEnabled, automatic: Self.autoRefreshEnabled)
+        settingsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.usageSettingsChanged() }
+        }
         refreshTask = Task { [weak self] in
             await self?.runRefreshLoop()
         }
     }
 
     public func stop() {
+        claudeRefresh?.stop()
+        if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
+        settingsObserver = nil
         refreshTask?.cancel()
         refreshTask = nil
     }
 
     public func refresh(kinds: [AgentKind] = AgentKind.allCases) async {
-        let selectedProviders = kinds.compactMap { providers[$0] }
+        if kinds.contains(.claudeCode), let claudeRefresh { await claudeRefresh.refreshIfDue() }
+        let selectedProviders = kinds.filter { $0 != .claudeCode || claudeRefresh == nil }.compactMap { providers[$0] }
         guard !selectedProviders.isEmpty else { return }
 
         let results = await withTaskGroup(of: CLIUsage.self, returning: [CLIUsage].self) { group in
@@ -84,6 +111,18 @@ public final class UsageMonitor {
             apply(usage)
         }
     }
+
+    public func receiveClaudeUsage(_ snapshot: AgentRateLimitsSnapshot, from connectionID: UUID) {
+        claudeRefresh?.receive(snapshot, from: connectionID)
+    }
+
+    public func claudeConnectionsChanged() { claudeRefresh?.connectionsChanged() }
+
+    public func usageSettingsChanged() {
+        claudeRefresh?.updateSettings(enabled: Self.claudeEnabled, automatic: Self.autoRefreshEnabled)
+    }
+
+    var currentDate: Date { now() }
 
     /// スマホへ送る値。前回の値を出し続けている CLI は、古さを伝えられないので取得できない扱いにする。
     public var syncedUsages: [AgentKind: CLIUsage] {
@@ -113,10 +152,14 @@ public final class UsageMonitor {
         }
     }
 
-    /// リセット時刻を過ぎたバケットは旧ウィンドウの値なので、使用 0%(残り100%)に正規化する。
-    /// 新ウィンドウのリセット時刻は次の取得まで不明なため nil にする。
+    /// Claudeの旧枠は不明にする。他エージェントの従来の扱いは維持する。
     nonisolated static func expiringPassedResets(in usage: CLIUsage, now: Date) -> CLIUsage {
         guard case let .ok(buckets) = usage.state else { return usage }
+        if usage.kind == .claudeCode {
+            let valid = buckets.filter { ClaudeUsageRefresh.isValid($0, now: now) }
+            return CLIUsage(kind: usage.kind, state: valid.isEmpty ? .unavailable(reason: "Claude使用量は未取得です") : .ok(valid),
+                            updatedAt: usage.updatedAt, dataAsOf: usage.dataAsOf)
+        }
         let normalized = buckets.map { bucket in
             guard let resetsAt = bucket.resetsAt, resetsAt <= now else { return bucket }
             return UsageBucket(id: bucket.id, label: bucket.label, usedPercent: 0, resetsAt: nil)
@@ -153,7 +196,6 @@ public final class UsageMonitor {
 
     private func runRefreshLoop() async {
         var codexCursorTick = 0
-        var claudeTick = 0
         // 自動更新がオフでも起動時に 1 回は取る（手動の更新はインスペクタごと廃止した。ADR 0192）。
         var isFirstPass = true
 
@@ -164,9 +206,7 @@ public final class UsageMonitor {
                 if codexCursorTick == 0 {
                     kinds.append(contentsOf: Self.fastRefreshKinds)
                 }
-                if claudeTick == 0 {
-                    kinds.append(contentsOf: Self.slowRefreshKinds)
-                }
+                if claudeRefresh == nil { kinds.append(contentsOf: Self.slowRefreshKinds) }
                 if !kinds.isEmpty {
                     await refresh(kinds: kinds)
                 }
@@ -179,7 +219,6 @@ public final class UsageMonitor {
             }
 
             codexCursorTick = (codexCursorTick + 60) % 300
-            claudeTick = (claudeTick + 60) % 300
         }
     }
 
@@ -191,26 +230,23 @@ public final class UsageMonitor {
         return defaults.bool(forKey: "phlox.usage.autoRefresh")
     }
 
-    private static func makeProviders(
-        environment: AppEnvironment,
-        sessions: @escaping @Sendable () async -> [any UsageQuerying]
-    ) -> [AgentKind: any UsageProvider] {
+    private static var claudeEnabled: Bool {
+        UserDefaults.phloxDefaults().object(forKey: "phlox.usage.claudeScrape") as? Bool != false
+    }
+
+    private static func makeProviders(environment: AppEnvironment) -> [AgentKind: any UsageProvider] {
         Dictionary(uniqueKeysWithValues: AgentRegistry.allDescriptors.map { descriptor in
-            (descriptor.kind, provider(for: descriptor, environment: environment, sessions: sessions))
+            (descriptor.kind, provider(for: descriptor, environment: environment))
         })
     }
 
     private static func provider(
         for descriptor: AgentDescriptor,
-        environment: AppEnvironment,
-        sessions: @escaping @Sendable () async -> [any UsageQuerying]
+        environment: AppEnvironment
     ) -> any UsageProvider {
         switch descriptor.usageProviderKind {
         case .claudeRateLimits:
-            return ClaudeChatUsageSource(
-                sessions: sessions,
-                fallback: ClaudeUsageProvider(rateLimitsURL: environment.claudeUsageRateLimitsURL)
-            )
+            return ClaudeUsageProvider(rateLimitsURL: environment.claudeUsageRateLimitsURL)
         case .codex:
             return CodexUsageProvider()
         case .cursor:

@@ -37,7 +37,12 @@ extension ClaudeChatClient {
             if !(await handleControlRequest(event, generation: generation)) {
                 eventContinuation.yield(.warning(message: "Unknown Claude event type: \(type)"))
             }
-        case "rate_limit_event", "tool_progress":
+        case "rate_limit_event":
+            guard generation == spawnGeneration else { return }
+            if let snapshot = Self.rateLimitsNotification(event) {
+                eventContinuation.yield(.rateLimitsUpdated(snapshot))
+            }
+        case "tool_progress":
             // 無害な情報イベント（利用量ステータス・ツール進捗）。ターン処理に影響しないため黙って無視する。
             break
         default:

@@ -43,12 +43,17 @@ extension ClaudeChatClient: UsageQuerying {
         else { return }
 
         guard envelope["subtype"] as? String == "success" else {
+            if let seconds = envelope["retry_after"] as? Double, seconds.isFinite, seconds > 0 {
+                resumeUsageRequest(id: requestID, result: .failure(ClaudeChatClientError.usageRequestThrottled(retryAfter: seconds)))
+                return
+            }
             let message = envelope["error"] as? String ?? "Claude get_usage request failed"
             resumeUsageRequest(id: requestID, result: .failure(ClaudeChatClientError.usageRequestFailed(message)))
             return
         }
 
         guard let response = envelope["response"] as? [String: Any],
+              response["rate_limits_available"] as? Bool != false,
               let rateLimits = response["rate_limits"] as? [String: Any]
         else {
             resumeUsageRequest(id: requestID, result: .failure(ClaudeChatClientError.malformedUsageResponse))
@@ -106,7 +111,8 @@ extension ClaudeChatClient: UsageQuerying {
 
     private static func usageBucket(from value: Any?) -> AgentRateLimitsSnapshot.Bucket? {
         guard let object = value as? [String: Any],
-              let utilization = object["utilization"] as? Double
+              let utilization = object["utilization"] as? Double,
+              utilization.isFinite, utilization >= 0
         else { return nil }
 
         return AgentRateLimitsSnapshot.Bucket(
@@ -124,5 +130,22 @@ extension ClaudeChatClient: UsageQuerying {
         }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: text)
+    }
+
+    static func rateLimitsNotification(_ event: [String: Any], now: Date = Date()) -> AgentRateLimitsSnapshot? {
+        guard let info = event["rate_limit_info"] as? [String: Any],
+              let windows = info["unifiedWindows"] as? [String: Any] else { return nil }
+        func bucket(_ key: String) -> AgentRateLimitsSnapshot.Bucket? {
+            guard let value = windows[key] as? [String: Any],
+                  let fraction = value["utilization"] as? Double,
+                  fraction.isFinite, fraction >= 0, (fraction * 100).isFinite,
+                  let seconds = value["resetsAt"] as? Double, seconds.isFinite,
+                  seconds > now.timeIntervalSince1970 else { return nil }
+            return .init(usedPercentage: fraction * 100, resetsAt: Date(timeIntervalSince1970: seconds))
+        }
+        let fiveHour = bucket("five_hour")
+        let sevenDay = bucket("seven_day")
+        guard fiveHour != nil || sevenDay != nil else { return nil }
+        return .init(fiveHour: fiveHour, sevenDay: sevenDay, asOf: now)
     }
 }

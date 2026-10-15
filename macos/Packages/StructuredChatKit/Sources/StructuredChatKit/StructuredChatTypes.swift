@@ -163,6 +163,8 @@ public enum ChatUserQuestionOutcome: Equatable, Sendable {
 }
 
 public enum NormalizedChatEvent: Equatable, Sendable {
+    /// 会話の状態・費用とは独立した、アカウントの使用量通知。
+    case rateLimitsUpdated(AgentRateLimitsSnapshot)
     case agentMessageDelta(itemId: String, String)
     case reasoningDelta(itemId: String, String)
     case commandExecution(itemId: String, command: String?, outputDelta: String)

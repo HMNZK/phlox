@@ -9,6 +9,8 @@ import PTYKit
 import DashboardFeature
 import SessionFeature
 import StructuredChatKit
+import ClaudeAgentKit
+import Observation
 import os
 
 @MainActor
@@ -38,7 +40,7 @@ public final class CompositionRoot {
     private let actionHandler: ControlActionHandler
 
     public init(
-        onDashboardReady: (@MainActor (DashboardViewModel, PTYManager) -> Void)? = nil
+        onDashboardReady: (@MainActor (DashboardViewModel, PTYManager, ClaudeUsageProcess?) -> Void)? = nil
     ) async throws {
         let appSupportMigrationOutcome = Self.migrateAndCleanupAppSupport()
         if let reason = appSupportMigrationOutcome.startupFailureReason {
@@ -416,7 +418,7 @@ public final class CompositionRoot {
         tokenStore: SessionTokenStore,
         mobilePrivilegedRequesterSessionIDs: Set<SessionID>,
         remoteSessionNotifier: any RemoteSessionNotifier,
-        onDashboardReady: (@MainActor (DashboardViewModel, PTYManager) -> Void)?
+        onDashboardReady: (@MainActor (DashboardViewModel, PTYManager, ClaudeUsageProcess?) -> Void)?
     ) async throws -> (
         environment: AppEnvironment,
         dashboard: DashboardViewModel,
@@ -449,13 +451,18 @@ public final class CompositionRoot {
         )
         let usage = UsageMonitor(
             environment: env,
-            sessions: Self.claudeUsageQueryingSessions(dashboard: dashboard)
+            connections: { [weak dashboard] in
+                guard let dashboard else { return [] }
+                return Self.liveClaudeUsageConnections(in: dashboard)
+            }
         )
+        dashboard.claudeUsageDidChange = { [weak usage] snapshot, id in usage?.receiveClaudeUsage(snapshot, from: id) }
+        Self.observeClaudeUsageConnections(dashboard: dashboard, usage: usage)
         ControlDashboardSupport.usageMonitor = usage
         // spawn 済みセッションの live pid を PTYManager（actor）から読み出して descriptor へ
         // 永続化する seam を配線する。これがないと sessions.json の pid が常に nil になり、
         // 起動時 reconcile の生存孤児 reap が production で発火しない。pid 未取得時は nil。
-        onDashboardReady?(dashboard, pty)
+        onDashboardReady?(dashboard, pty, usage.claudeProcess)
         installRemoteSessionNotifier(remoteSessionNotifier, on: dashboard)
         // MC-2b: ペアリング済み・発行済みの各モバイル端末の安定 requester を「特権 requester」
         // として認可へ配線する。この requester は cascade delete を含む全 remove を無条件で
@@ -697,26 +704,30 @@ public final class CompositionRoot {
 
     static let cliPath = scriptPath("phlox")
 
-    private static func claudeUsageQueryingSessions(
-        dashboard: DashboardViewModel
-    ) -> @Sendable () async -> [any UsageQuerying] {
-        { @Sendable in
-            await MainActor.run {
-                Self.liveClaudeAppServerUsageClients(in: dashboard)
-            }
+    @MainActor
+    private static func liveClaudeUsageConnections(
+        in dashboard: DashboardViewModel
+    ) -> [ClaudeUsageConnection] {
+        dashboard.sessionNodes.compactMap { node -> ClaudeUsageConnection? in
+            guard let chat = node.appServer,
+                  chat.agentRef.builtinKind == .claudeCode,
+                  chat.usesStandardClaudeAuthentication,
+                  !chat.isTerminating, chat.processExit == nil, chat.launchFailure == nil,
+                  Self.isLiveChatSession(chat.status), let query = chat.usageQuerying
+            else { return nil }
+            return ClaudeUsageConnection(id: chat.usageConnectionID, query: query)
         }
     }
 
-    @MainActor
-    private static func liveClaudeAppServerUsageClients(
-        in dashboard: DashboardViewModel
-    ) -> [any UsageQuerying] {
-        dashboard.sessionNodes.compactMap { node -> (any UsageQuerying)? in
-            guard let chat = node.appServer,
-                  chat.agentRef.builtinKind == .claudeCode,
-                  Self.isLiveChatSession(chat.status)
-            else { return nil }
-            return chat.usageQuerying
+    private static func observeClaudeUsageConnections(dashboard: DashboardViewModel, usage: UsageMonitor) {
+        withObservationTracking {
+            _ = liveClaudeUsageConnections(in: dashboard)
+        } onChange: { [weak dashboard, weak usage] in
+            Task { @MainActor in
+                guard let dashboard, let usage else { return }
+                usage.claudeConnectionsChanged()
+                observeClaudeUsageConnections(dashboard: dashboard, usage: usage)
+            }
         }
     }
 

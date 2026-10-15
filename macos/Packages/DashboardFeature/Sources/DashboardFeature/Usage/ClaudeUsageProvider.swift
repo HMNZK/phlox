@@ -5,12 +5,13 @@ public final class ClaudeUsageProvider: UsageProvider {
     public let kind: AgentKind = .claudeCode
 
     private static let unavailableReason =
-        "Claude使用量は未取得です（ターミナルの Claude セッション実行時に更新されます）"
+        "Claude使用量は未取得です"
 
     private let rateLimitsURL: URL
     // UserDefaults は非 Sendable のため suite 名で保持し fetch 時に解決する
     // （nil = 共有 phloxDefaults。テストが固有 suite を注入して並列汚染を防ぐ）。
     private let defaultsSuiteName: String?
+    private let currentDate: @Sendable () -> Date
 
     public init(
         rateLimitsURL: URL = AppSupportLocator.appSupportDirectoryURL(
@@ -19,15 +20,17 @@ public final class ClaudeUsageProvider: UsageProvider {
     ) {
         self.rateLimitsURL = rateLimitsURL
         self.defaultsSuiteName = nil
+        self.currentDate = Date.init
     }
 
-    init(rateLimitsURL: URL, defaultsSuiteName: String? = nil) {
+    init(rateLimitsURL: URL, defaultsSuiteName: String? = nil, now: @escaping @Sendable () -> Date = Date.init) {
         self.rateLimitsURL = rateLimitsURL
         self.defaultsSuiteName = defaultsSuiteName
+        self.currentDate = now
     }
 
     public func fetch() async -> CLIUsage {
-        let now = Date()
+        let now = currentDate()
         let defaults = defaultsSuiteName.flatMap { UserDefaults(suiteName: $0) } ?? UserDefaults.phloxDefaults()
         if defaults.object(forKey: "phlox.usage.claudeScrape") as? Bool == false {
             return CLIUsage(kind: kind, state: .unavailable(reason: String(localized: "取得無効")), updatedAt: now)
@@ -37,18 +40,22 @@ public final class ClaudeUsageProvider: UsageProvider {
             return CLIUsage(kind: kind, state: .unavailable(reason: Self.unavailableReason), updatedAt: now)
         }
 
-        let dataAsOf = Self.dataAsOf(fromCacheData: data)
+        guard let dataAsOf = Self.dataAsOf(fromCacheData: data), dataAsOf <= now else {
+            return CLIUsage(kind: kind, state: .unavailable(reason: Self.unavailableReason), updatedAt: now)
+        }
 
         guard let buckets = Self.buckets(fromCacheData: data), !buckets.isEmpty else {
             return CLIUsage(kind: kind, state: .unavailable(reason: Self.unavailableReason), updatedAt: now)
         }
 
-        return CLIUsage(kind: kind, state: .ok(buckets), updatedAt: now, dataAsOf: dataAsOf)
+        let valid = buckets.filter { ClaudeUsageRefresh.isValid($0, now: now) }
+        return CLIUsage(kind: kind, state: valid.isEmpty ? .unavailable(reason: Self.unavailableReason) : .ok(valid),
+                        updatedAt: dataAsOf, dataAsOf: dataAsOf)
     }
 
     static func dataAsOf(fromCacheData data: Data) -> Date? {
         guard let cache = try? JSONDecoder().decode(ClaudeRateLimitsCache.self, from: data),
-              let ts = cache.ts else {
+              let ts = cache.ts, ts.isFinite, ts > 0 else {
             return nil
         }
         return Date(timeIntervalSince1970: ts)

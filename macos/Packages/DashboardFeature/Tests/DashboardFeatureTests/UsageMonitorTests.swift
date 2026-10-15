@@ -84,7 +84,7 @@ import Testing
     #expect(resolved.updatedAt == incoming.updatedAt)
 }
 
-@Test func usageMonitor_resetsBucketWhoseResetTimeHasPassed() throws {
+@Test func usageMonitor_omitsClaudeBucketWhoseResetTimeHasPassed() throws {
     let usage = CLIUsage(
         kind: .claudeCode,
         state: .ok([
@@ -100,9 +100,7 @@ import Testing
         Issue.record("Expected ok usage")
         return
     }
-    let fiveHour = try #require(buckets.first { $0.id == "5h" })
-    #expect(fiveHour.usedPercent == 0)
-    #expect(fiveHour.resetsAt == nil)
+    #expect(!buckets.contains { $0.id == "5h" })
     let weekly = try #require(buckets.first { $0.id == "weekly" })
     #expect(weekly.usedPercent == 66)
     #expect(weekly.resetsAt == Date(timeIntervalSince1970: 9_000))
@@ -127,7 +125,7 @@ import Testing
 }
 
 @MainActor
-@Test func usageMonitor_refreshNormalizesPassedResetFromProvider() async throws {
+@Test func usageMonitor_refreshRejectsPassedClaudeResetFromProvider() async throws {
     let stale = CLIUsage(
         kind: .claudeCode,
         state: .ok([UsageBucket(id: "5h", label: "5時間", usedPercent: 99, resetsAt: Date(timeIntervalSince1970: 1_000))]),
@@ -141,13 +139,10 @@ import Testing
     await monitor.refresh(kinds: [.claudeCode])
 
     let resolved = try #require(monitor.usages[.claudeCode])
-    guard case let .ok(buckets) = resolved.state else {
-        Issue.record("Expected ok usage")
+    guard case .unavailable = resolved.state else {
+        Issue.record("Expired Claude usage must be unknown, never 100% remaining")
         return
     }
-    let fiveHour = try #require(buckets.first { $0.id == "5h" })
-    #expect(fiveHour.usedPercent == 0)
-    #expect(fiveHour.resetsAt == nil)
 }
 
 // 手動の更新はインスペクタごと廃止したので、自動更新がオフでも起動時の 1 回は取る（ADR 0192）。

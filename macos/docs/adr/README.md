@@ -12,6 +12,7 @@ last-verified: 2026-10-15
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0214 | [Claude使用量を通知優先・1分補完・専用プロセスで取得する](0214-claude-usage-notifications-and-refresh.md) | accepted |
 | 0210 | [Git の区画間で行を区別し、変更タブの名前を固定する](0210-git-section-row-identity-and-stable-changes-title.md) | accepted |
 | 0209 | [Git の一括処理順と履歴の連続性を保つ](0209-git-batch-order-and-history-continuity.md) | accepted |
 | 0208 | [Git 履歴の利用順と追加取得を要件へ合わせる](0208-git-history-review-corrections.md) | accepted（改名と追加取得は0209で補完） |
@@ -147,7 +148,7 @@ last-verified: 2026-10-15
 | 0064 | [処理中インジケータは status を変えず表示専用述語で拡張する](0064-chat-processing-indicator-semantics.md) | active |
 | 0063 | [@ファイル補完は TCC 保護フォルダを「実パス一致」で除外する](0063-composer-suggestion-tcc-protected-folders.md) | active |
 | 0062 | [チャットのコンテキスト使用率は result/modelUsage と tokenUsageUpdated から実値供給する](0062-chat-context-usage-source.md) | active |
-| 0061 | [チャットモードの Claude Usage は常駐プロセスへの `get_usage` 相乗りで供給し、`/usage` プローブを廃止する](0061-claude-usage-get-usage-piggyback.md) | active |
+| 0061 | [チャットモードの Claude Usage は常駐プロセスへの `get_usage` 相乗りで供給し、`/usage` プローブを廃止する](0061-claude-usage-get-usage-piggyback.md) | superseded（0214） |
 | 0060 | [送信済みチャットメッセージの画像添付は「メタのみ永続・バッジ表示」とする](0060-chat-user-attachment-metadata.md) | active |
 | 0059 | [チャットモードの Claude Usage は `/usage` ヘッドレスプローブで供給する](0059-claude-usage-headless-probe.md) | superseded (0061) |
 | 0058 | [API spawn の総セッション数上限（16）を撤廃する](0058-remove-api-spawn-total-session-cap.md) | active |

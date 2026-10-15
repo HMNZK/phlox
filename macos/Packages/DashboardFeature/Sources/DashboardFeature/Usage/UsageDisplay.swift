@@ -70,6 +70,10 @@ enum UsageDisplay {
         AppLocalizedString.string("取得できません", locale: locale, bundle: bundle)
     }
 
+    static func previousValueText(locale: Locale, bundle: Bundle = .main) -> String {
+        AppLocalizedString.string("前回値", locale: locale, bundle: bundle)
+    }
+
     static func bottomBarBucketText(
         _ bucket: UsageBucket,
         showsLabel: Bool,
@@ -111,7 +115,8 @@ enum UsageDisplay {
         return isEnglish ? "in \(minutes)m" : "\(minutes)分後"
     }
 
-    static func bottomBarAccessibilityLabel(groups: [BottomBarGroup], now: Date, locale: Locale, bundle: Bundle = .main) -> String {
+    static func bottomBarAccessibilityLabel(groups: [BottomBarGroup], now: Date, locale: Locale, bundle: Bundle = .main,
+                                            staleKinds: Set<AgentKind> = []) -> String {
         let details = groups.map { group -> String in
             guard let buckets = group.buckets else {
                 return "\(group.kind.displayName)、\(bottomBarUnavailableText(locale: locale, bundle: bundle))"
@@ -127,7 +132,8 @@ enum UsageDisplay {
                 }
                 return value
             }
-            return "\(group.kind.displayName)、\(values.joined(separator: AppLocalizedString.string("、", locale: locale, bundle: bundle)))"
+            let previous = staleKinds.contains(group.kind) ? "\(previousValueText(locale: locale, bundle: bundle))、" : ""
+            return "\(group.kind.displayName)、\(previous)\(values.joined(separator: AppLocalizedString.string("、", locale: locale, bundle: bundle)))"
         }
         let joined = details.joined(separator: AppLocalizedString.string("、", locale: locale, bundle: bundle))
         return String(format: AppLocalizedString.string("使用量: %@", locale: locale, bundle: bundle), joined)

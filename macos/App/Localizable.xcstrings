@@ -7210,6 +7210,13 @@
         }
       }
     },
+    "前回値": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Previous value" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "前回値" } }
+      }
+    },
     "取得できません": {
       "extractionState": "manual",
       "localizations": {

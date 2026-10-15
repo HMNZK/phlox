@@ -466,7 +466,7 @@ Swift Testingの既存スキップは性能測定のフラグ・試料ファイ�
 ## 出力経路の取り消し（2026-10-15）
 
 上限・直接配送・配送ゲートは、停止や再起動競合を招いたため取り消した（試作時の ADR 0216（dev には無い））。
-実コードを確認すると、SwiftTerm と `.raw` の経路も PTYManager と controller の `.bufferingNewest(2048)` を経由し、超過時は古い要素を破棄する。Ghostty も同じ経路を使い、PTYKit は変更しない。
+実コードを確認すると、SwiftTerm と `.raw` の経路も PTYManager と controller の `.bufferingNewest(2048)` を経由し、超過時は古い要素を破棄する。Ghostty も同じ経路を使い、PTYKit は変更しない（この破棄は後に ADR 0212 で、表示が追いつくまで読み取りを止める方式に改めた）。
 Ghostty の表示前 Data・処理キューには上限を設けない。30万行で181→最大245MB、応答ありというユーザー提示の過去の実測を受け入れる。今回の再計測ではない。通知駆動 tick・左右修飾キー・全選択・VoiceOver の制限表示・実シェル入力試験は維持する。
 
 取り消し後の検証結果と画像保存の準備漏れによる失敗・再実行は 試作時の ADR 0216（dev には無い: `0216-ghostty-output-backpressure-and-event-driven-tick.md#今回の検証出力経路の取り消し後`） に記録した。実アプリの起動はしていない。

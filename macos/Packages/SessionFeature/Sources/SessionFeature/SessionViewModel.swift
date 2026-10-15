@@ -397,6 +397,9 @@ public final class SessionViewModel: Identifiable {
     ) {
         let coordinator = terminalCoordinator
 
+        let manager = ptyManager
+        let sessionID = id
+
         outputTask = Task { @MainActor [weak self] in
             defer { rawCapture?.close() }
 
@@ -407,6 +410,8 @@ public final class SessionViewModel: Identifiable {
                 let outputAt = Date()
                 self?.lastOutputAt = outputAt
                 coordinator.feed(data)
+                // ponytail: 同じIDのrespawnでは旧世代の遅い通知が新ゲートに届き、背圧が少し弱まる。
+                manager.acknowledgeOutput(data.count, for: sessionID)
                 self?.scheduleCodexOutputEvaluation()
                 self?.observeNonHookOutputIfNeeded(at: outputAt)
                 rawCapture?.write(data)

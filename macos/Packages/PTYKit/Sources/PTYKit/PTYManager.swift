@@ -10,6 +10,7 @@ public actor PTYManager: PTYManagerProtocol {
     /// 起動直後の実行ファイル。`exec` で置き換わったら「コマンドが動いている」とみなす。
     private var spawnedImages: [SessionID: String] = [:]
     private let streamCache = StreamCache()
+    private let outputGates = OSAllocatedUnfairLock(initialState: [SessionID: OutputGate]())
     // セッションごとの stdin 書き込み用シリアルキュー。ブロッキング write(2) を actor 外へ
     // オフロードしつつ、同一セッションへの書き込み順序（バイト順）を直列に保証する。
     // read/exit ハンドラ用の queue とは別にすることで、詰まった write が出力の drain や
@@ -18,13 +19,6 @@ public actor PTYManager: PTYManagerProtocol {
 
     // read ハンドラ 1 回あたりの最大読み取りバイト（= 出力 AsyncStream の 1 要素の最大バイト）。
     static let readBufferSize = 4096
-
-    // 出力 AsyncStream のバッファ上限（要素数）。消費側未接続でも無制限に溜め込まないための
-    // 頭打ち。1 要素は最大 readBufferSize バイトなので、最悪でも
-    // outputBufferLimit * readBufferSize（約 8MB）でメモリが頭打ちになる。
-    // 端末レンダラは出力を継続的に消費するため通常はほぼ空で、この上限は「消費側が
-    // 停止/未接続のときの天井」としてのみ効く（超過時は最古の要素から破棄する）。
-    static let outputBufferLimit = 2048
 
     public init(terminalMode: PTYTerminalMode = .raw) { self.terminalMode = terminalMode }
 
@@ -58,11 +52,9 @@ public actor PTYManager: PTYManagerProtocol {
             workingDirectory: workingDirectory
         )
 
-        // 出力ストリームは上限付き（最新 outputBufferLimit 要素）。消費側が未接続/停止でも
-        // 無制限に蓄積せず、最悪でも outputBufferLimit * readBufferSize でメモリが頭打ちになる。
-        let (outputStream, outputContinuation) = AsyncStream<Data>.makeStream(
-            bufferingPolicy: .bufferingNewest(Self.outputBufferLimit)
-        )
+        // 出力は捨てない（ADR 0212）。途中が欠けると無関係な制御列ができ、端末が誤応答する。
+        // 表示の消費が追いつくまで出力ゲートが read source を停止する。
+        let (outputStream, outputContinuation) = AsyncStream<Data>.makeStream(bufferingPolicy: .unbounded)
         // 終了コードは 1 要素のみ発行されるため上限不要（unbounded のまま）。
         let (exitStream, exitContinuation) = AsyncStream<Int32>.makeStream()
 
@@ -77,9 +69,13 @@ public actor PTYManager: PTYManagerProtocol {
         // 可能性のある fd 番号) に触れないようにするためのガード。
         let masterFDClosed = OSAllocatedUnfairLock(initialState: false)
 
-        let readSource = Self.makeReadSource(
+        let readSource = DispatchSource.makeReadSource(fileDescriptor: masterFD, queue: queue)
+        let gate = OutputGate(readSource: readSource)
+        outputContinuation.onTermination = { _ in gate.abandon() }
+        Self.configureReadSource(
+            readSource: readSource,
+            gate: gate,
             masterFD: masterFD,
-            queue: queue,
             masterFDClosed: masterFDClosed,
             outputContinuation: outputContinuation
         )
@@ -91,13 +87,13 @@ public actor PTYManager: PTYManagerProtocol {
             masterFD: masterFD,
             queue: queue,
             masterFDClosed: masterFDClosed,
-            readSource: readSource,
+            gate: gate,
             outputContinuation: outputContinuation,
             exitContinuation: exitContinuation
         )
         exitSource.resume()
 
-        let child = ChildProcess(
+        var child = ChildProcess(
             id: sessionID,
             pid: pid,
             masterFD: masterFD,
@@ -108,10 +104,15 @@ public actor PTYManager: PTYManagerProtocol {
             readSource: readSource,
             exitSource: exitSource
         )
+        child.outputGate = gate
         // このセッション専用の write キューを（respawn 時は last-wins で）差し替える。
         // 旧セッションで詰まっている write が新セッションの write を巻き込まないよう、
         // 新セッションには必ず新しいキューを割り当てる。
         writeQueues[sessionID] = DispatchQueue(label: "PTYKit.write.\(sessionID.rawValue.uuidString)")
+        let oldGate = outputGates.withLock { $0.updateValue(gate, forKey: sessionID) }
+        // 旧ストリームの既存バッファは残し、以後の配送を止めてから読取制限を解除する。
+        sessions[sessionID]?.outputContinuation.finish()
+        oldGate?.abandon()
         sessions[sessionID] = child
         spawnedImages[sessionID] = Posix.executablePath(pid: child.pid)
         return sessionID
@@ -122,6 +123,7 @@ public actor PTYManager: PTYManagerProtocol {
     private func finishSession(id: SessionID, pid: pid_t) {
         guard let child = sessions[id], child.pid == pid else { return }
         sessions.removeValue(forKey: id)
+        outputGates.withLock { $0[id] = nil }
         spawnedImages.removeValue(forKey: id)
         streamCache.remove(id: id)
         writeQueues.removeValue(forKey: id)
@@ -168,25 +170,26 @@ public actor PTYManager: PTYManagerProtocol {
 
     /// マスター fd の出力を AsyncStream へ中継する readSource を構築する (resume は呼び出し側)。
     /// masterFD の close は cancel ハンドラに一元化されている。
-    private static func makeReadSource(
+    private static func configureReadSource(
+        readSource: DispatchSourceRead,
+        gate: OutputGate,
         masterFD: Int32,
-        queue: DispatchQueue,
         masterFDClosed: OSAllocatedUnfairLock<Bool>,
         outputContinuation: AsyncStream<Data>.Continuation
-    ) -> DispatchSourceRead {
-        let readSource = DispatchSource.makeReadSource(fileDescriptor: masterFD, queue: queue)
+    ) {
         readSource.setEventHandler {
             var buffer = [UInt8](repeating: 0, count: Self.readBufferSize)
             while true {
                 let count = read(masterFD, &buffer, Self.readBufferSize)
                 if count > 0 {
+                    gate.record(count)
                     outputContinuation.yield(Data(buffer[0..<count]))
                     return
                 }
                 if count < 0 && errno == EINTR {
                     continue
                 }
-                readSource.cancel()
+                gate.cancel()
                 return
             }
         }
@@ -198,7 +201,6 @@ public actor PTYManager: PTYManagerProtocol {
                 }
             }
         }
-        return readSource
     }
 
     /// 子プロセスの終了を検知して残出力の drain・ストリームの finish・レジストリ掃除を
@@ -209,7 +211,7 @@ public actor PTYManager: PTYManagerProtocol {
         masterFD: Int32,
         queue: DispatchQueue,
         masterFDClosed: OSAllocatedUnfairLock<Bool>,
-        readSource: DispatchSourceRead,
+        gate: OutputGate,
         outputContinuation: AsyncStream<Data>.Continuation,
         exitContinuation: AsyncStream<Int32>.Continuation
     ) -> DispatchSourceProcess {
@@ -234,9 +236,9 @@ public actor PTYManager: PTYManagerProtocol {
             // PTY カーネルバッファに残った終了直前の出力を読み切ってから read 側を止める
             // (readSource と同一シリアルキュー上なので read ハンドラとは競合しない)。
             if masterFDClosed.withLock({ !$0 }) {
-                Self.drainRemainingOutput(masterFD: masterFD, into: outputContinuation)
+                Self.drainRemainingOutput(masterFD: masterFD, gate: gate, into: outputContinuation)
             }
-            readSource.cancel() // EOF 経路で cancel 済みでも冪等。close は cancel ハンドラのみが行う
+            gate.cancel() // close は cancel ハンドラのみが行う
             exitSource.cancel() // handler が exitSource 自身を捕捉する自己 retain をここで解放する
             outputContinuation.finish()
             // レジストリ掃除を完了させてから exit code を流す。これにより消費側が
@@ -252,9 +254,11 @@ public actor PTYManager: PTYManagerProtocol {
     }
 
     /// exit 検知時点で PTY カーネルバッファに残っている未配送出力を非ブロッキングで
-    /// 読み切る。子は終了済みのため EAGAIN / EOF / EIO のいずれかで必ず停止する。
-    private static func drainRemainingOutput(
+    /// 読み取る。親の終了後も子孫が書き続け、表示が遅れている場合は上限で打ち切り、
+    /// 残りを捨てる。消費が追いついている間は従来どおり読む（ADR 0212）。
+    static func drainRemainingOutput(
         masterFD: Int32,
+        gate: OutputGate,
         into continuation: AsyncStream<Data>.Continuation
     ) {
         let flags = fcntl(masterFD, F_GETFL)
@@ -263,7 +267,9 @@ public actor PTYManager: PTYManagerProtocol {
         while true {
             let count = read(masterFD, &buffer, readBufferSize)
             if count > 0 {
+                gate.record(count)
                 continuation.yield(Data(buffer[0..<count]))
+                if gate.snapshot.pendingBytes >= OutputGate.highWater { return }
                 continue
             }
             if count < 0 && errno == EINTR {
@@ -358,6 +364,14 @@ public actor PTYManager: PTYManagerProtocol {
         streamCache.outputStream(for: id) ?? AsyncStream { $0.finish() }
     }
 
+    public nonisolated func acknowledgeOutput(_ count: Int, for id: SessionID) {
+        outputGates.withLock { $0[id] }?.acknowledge(count)
+    }
+
+    internal nonisolated func outputGate(for id: SessionID) -> OutputGate? {
+        outputGates.withLock { $0[id] }
+    }
+
     public nonisolated func exitStream(for id: SessionID) -> AsyncStream<Int32> {
         streamCache.exitStream(for: id) ?? AsyncStream { $0.finish() }
     }
@@ -409,11 +423,12 @@ public actor PTYManager: PTYManagerProtocol {
             // 同一 ID で respawn された新セッションを誤って消さない。
             if sessions[child.id]?.pid == child.pid {
                 sessions.removeValue(forKey: child.id)
+                outputGates.withLock { [id = child.id] in $0[id] = nil }
                 streamCache.remove(id: child.id)
                 writeQueues.removeValue(forKey: child.id)
             }
             if !Posix.isAlive(pid: child.pid) {
-                child.readSource.cancel()
+                child.outputGate?.cancel()
                 child.exitSource.cancel()
             }
         }

@@ -37,6 +37,9 @@ public protocol PTYManagerProtocol: Sendable {
     /// セッションの stdout/stderr 出力ストリーム。
     func outputStream(for id: SessionID) -> AsyncStream<Data>
 
+    /// 同期 feed が戻った後に消費したバイト数を返す。
+    nonisolated func acknowledgeOutput(_ count: Int, for id: SessionID)
+
     /// セッションの終了コードストリーム（プロセス終了時に 1 要素のみ発行）。
     func exitStream(for id: SessionID) -> AsyncStream<Int32>
 
@@ -53,6 +56,8 @@ public protocol PTYManagerProtocol: Sendable {
 }
 
 public extension PTYManagerProtocol {
+    nonisolated func acknowledgeOutput(_ count: Int, for id: SessionID) {}
+
     func spawn(command: String, args: [String], env: [String: String]) async throws -> SessionID {
         try await spawn(command: command, args: args, env: env, id: nil, initialSize: nil, workingDirectory: nil)
     }

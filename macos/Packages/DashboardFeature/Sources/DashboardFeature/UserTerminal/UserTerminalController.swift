@@ -14,10 +14,6 @@ public final class UserTerminalController {
     public private(set) var isRunning = false
     public private(set) var sessionID: SessionID?
 
-    // PTYKit の出力ストリームと同じ上限を relay 側にも設け、購読者が停止しても
-    // コントローラ内のストリームが無制限に蓄積しないようにする。
-    private static let outputBufferLimit = 2048
-
     private let pty: any PTYManagerProtocol
     var shellPath: String
     public private(set) var shellResolution: UserShellResolution?
@@ -28,7 +24,8 @@ public final class UserTerminalController {
 
     private var outputTasks: [UInt64: Task<Void, Never>] = [:]
     // 購読者はセッション再起動をまたいで保持し、明示的な shutdown でのみ finish する。
-    private var outputSubscribers: [UUID: AsyncStream<Data>.Continuation] = [:]
+    private var outputSubscribers: [UUID: @MainActor (Data) -> Void] = [:]
+    private var outputSubscriberFinishes: [UUID: @MainActor () -> Void] = [:]
     private var exitTask: Task<Void, Never>?
     public private(set) var startInProgress = false
     private var startWaiters: [CheckedContinuation<StartOutcome, Error>] = []
@@ -134,19 +131,30 @@ public final class UserTerminalController {
         try await pty.resize(sessionID, cols: cols, rows: rows)
     }
 
-    /// 購読者ごとにストリームを作り、PTY 出力を各購読者へ複製して届ける。
-    /// 再購読時は過去の出力を再送せず、購読開始後の出力だけを受け取る。
+    /// 全コールバックの同期処理後に消費を通知する。内部で非同期配送してはいけない。
+    /// 購読者ゼロなら出力は捨て、同じく通知する。再登録時に過去の出力は再送しない。
+    @discardableResult
+    public func observeOutput(_ receive: @escaping @MainActor (Data) -> Void) -> UUID {
+        let token = UUID()
+        outputSubscribers[token] = receive
+        return token
+    }
+
+    public func removeOutputObserver(_ token: UUID) {
+        outputSubscribers.removeValue(forKey: token)
+        outputSubscriberFinishes.removeValue(forKey: token)?()
+    }
+
+    /// 互換用の薄いアダプタ。内部で蓄積するため、このストリームは背圧の対象外。
     public func makeOutputStream() -> AsyncStream<Data> {
-        let subscriberID = UUID()
-        let (stream, continuation) = AsyncStream<Data>.makeStream(
-            bufferingPolicy: .bufferingNewest(Self.outputBufferLimit)
-        )
+        let (stream, continuation) = AsyncStream<Data>.makeStream(bufferingPolicy: .unbounded)
+        let subscriberID = observeOutput { continuation.yield($0) }
+        outputSubscriberFinishes[subscriberID] = { continuation.finish() }
         continuation.onTermination = { @Sendable [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.removeOutputSubscriber(subscriberID)
+                self?.removeOutputObserver(subscriberID)
             }
         }
-        outputSubscribers[subscriberID] = continuation
         return stream
     }
 
@@ -255,6 +263,7 @@ public final class UserTerminalController {
         }
         startOutputObservation(
             stream: outputStream,
+            sessionID: id,
             generation: generation
         )
         startExitObservation(
@@ -272,6 +281,7 @@ public final class UserTerminalController {
 
     private func startOutputObservation(
         stream: AsyncStream<Data>,
+        sessionID: SessionID,
         generation: UInt64
     ) {
         let task = Task { @MainActor [weak self] in
@@ -285,6 +295,7 @@ public final class UserTerminalController {
                     return
                 }
                 self.broadcastOutput(data)
+                self.pty.acknowledgeOutput(data.count, for: sessionID)
             }
         }
         outputTasks[generation] = task
@@ -376,20 +387,15 @@ public final class UserTerminalController {
     }
 
     private func broadcastOutput(_ data: Data) {
-        for continuation in outputSubscribers.values {
-            continuation.yield(data)
+        for receive in Array(outputSubscribers.values) {
+            receive(data)
         }
-    }
-
-    private func removeOutputSubscriber(_ subscriberID: UUID) {
-        outputSubscribers.removeValue(forKey: subscriberID)
     }
 
     private func finishOutputSubscribers() {
-        let subscribers = outputSubscribers.values
+        let finishes = Array(outputSubscriberFinishes.values)
         outputSubscribers.removeAll()
-        for continuation in subscribers {
-            continuation.finish()
-        }
+        outputSubscriberFinishes.removeAll()
+        for finish in finishes { finish() }
     }
 }

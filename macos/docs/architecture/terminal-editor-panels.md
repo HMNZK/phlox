@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-15
+last-verified: 2026-10-16
 ---
 
 # ターミナル／エディタパネルの現行構成
@@ -25,11 +25,24 @@ DashboardFeature の `TerminalFontAccessTests` は、パッケージ境界を越
 
 ### 共通端末のキー入力と応答（ADR 0212）
 
+#### 出力の配送と流量制御（ADR 0212）
+
+大量出力の後に `65;4;1;2;6;21;22;17;28c` が入力行に残る不具合は、配送の欠落が原因だった。修正前の `PTYManager` と `UserTerminalController.makeOutputStream()` は `.bufferingNewest(2048)` で、表示が追いつかないと古いチャンクを捨てていた。SGR の途中（`ESC [ 0`）と後続の通常文字（`c`）がつながって正当な DA1 問い合わせ `CSI 0 c` になり、SwiftTerm が正しく応答していた。SwiftTerm 側で応答を抑えると正当な DA1 も壊れるため、配送側で直す。`TerminalDA1RegressionTests` が、元の生成スクリプトと同じ入力の無欠落 feed（応答ゼロ）、旧方針の破棄による DA1 の発生、実測した欠落境界を固定する。
+
+表示が追いつくまで PTY の読み取りを止める。
+
+- `OutputGate`（PTYKit、spawn ごと）: 未消費バイトが 1MiB に達したら read source を停止し、消費通知で 256KiB 以下になったら再開する。停止中も 100ms ごとに 1 回（最大 4KB）だけ読む。macOS の PTY は slave の最後の close で未読出力を約 0.6 秒待って捨てるため、終了直前の出力を失わないためである。停止のたびに世代を進め、古い予約は無視する。取り消しは停止を解除してから行う。読み手のタスクが取り消されたら停止をやめる（以後は捨てる）。同じ ID で置き換えるときは旧ストリームを終えてから旧ゲートを放棄する。終了時の読み切りもゲートに計上し、未消費量が上限を超えたら打ち切る。
+- 消費通知（`PTYManagerProtocol.acknowledgeOutput`）は feed が戻った後に送る。`SessionViewModel` は feed 後。同じ ID で起動し直すため、旧世代の遅い通知が新ゲートの背圧を少し弱めることがある（固まりはしない）。
+- `UserTerminalController.observeOutput` は MainActor の同期コールバックを登録し、全コールバックを呼び終えてから、その世代の SessionID へ通知する。コールバック内で非同期に配送してはいけない。購読者ゼロでも通知する（出力は捨てる）。`TerminalPanelSession` はこの経路で feed する。`makeOutputStream()` はテスト用の互換アダプタで、背圧の対象外。
+- テスト: `OutputBackpressureTests`（停止中の kill・hangUp・全終了・自然終了で終了し fd が閉じ、自然終了は末尾まで一致／読み手の取り消し／同じ ID の置き換え／通知なし 1 秒の受信上限／古い世代の予約の無視／読み切りの打ち切り／競合の反復）、`PTYManagerIntegrationTests.outputStreamDeliversEveryByteWhenConsumerFallsBehind`（連番入り 9MB が上限で止まり、通知しながら読むと全量一致）、`UserTerminalBackpressureTests`（同期コールバック経路の全量・順序・通知順、購読者ゼロ、restart）。
+- 実アプリ（Debug）で確認した値（2026-10-16）: 色付き 52MB の cat の後に残り文字なし（cat の終了から表示の終了まで約 0.45 秒、cat 自体は約 14 秒）。`yes` を 30 秒流しても RSS は 162〜180MB で横ばい、Ctrl-C から約 1 秒で画面が止まる。大量出力の直後に最後の行を出して終了するエージェントのスタブで、最後の行は 3 回とも表示された。
+- 後続課題は ADR 0212 に記載（子孫が書き続ける場合の終了時の読み切り、write 側の fd の世代管理、旧世代の後始末、世代の境目の制御列リセット、feed のまとめ処理）。
+
 キーの割り当ては `IMETerminalView` が継承する SwiftTerm の `TerminalView.keyDown` に置く。同メソッドは外部モジュールからオーバーライドできないため、既存のローカル fork に局所修正する。変換は現在のイベントとプロトコルの状態だけで判断し、押下記録は持たず、解放も消費しない。従来モードはキー解放を送信しない。Kitty の解放は既存処理へ渡す。
 
 ユーザー用とエージェント用の共通 `IMETerminalView` で、Option 単独＋左右矢印を `ESC b`／`ESC f` に割り当てる。`optionAsMetaKey` は false のまま、日本語配列の Option＋¥ などの文字入力は AppKit に渡す。Command・Control・Shift を伴う矢印と IME 未確定中の入力は既存処理へ渡す。この割り当ては `keyboardEnhancementFlags.isEmpty` のときだけ有効で、通常／アプリケーションカーソルモードの両方に適用する。Kitty が有効なときは左右矢印の Option 修飾を保持して既存の Kitty 符号化へ渡す。vim での編集動作はアプリ側の ESC b／f の解釈に従う。
 
-SwiftTerm の問い合わせ応答は PTY へ返す必要があるため、一律に抑制しない。`DCS 1!~0000 ST` は矩形チェックサム、`CSI ?65;…c` は DA1 の応答であり、元の大量出力が残っていない今回の観測だけでは問い合わせの有無を確定できない。チェックサム要求は中間文字 `*` がある場合だけ受け付ける（ローカル修正）。問い合わせではない `CSI 1y`・`CSI …$y`・`CSI … y` への誤応答は修正前に再現し、修正後に消えることを確認した。問い合わせなしの40万行（太字、通常／高輝度16色、256色、セミコロン／コロン形式の24bit前景・背景、4093バイトごとの分割）では応答ゼロだった。元の事故の根本原因は未確定で、SGR解析は変更していない。
+SwiftTerm の問い合わせ応答は PTY へ返す必要があるため、一律に抑制しない。`DCS 1!~0000 ST` は矩形チェックサム、`CSI ?65;…c` は DA1 の応答。チェックサム要求は中間文字 `*` がある場合だけ受け付ける（ローカル修正）。問い合わせではない `CSI 1y`・`CSI …$y`・`CSI … y` への誤応答は修正前に再現し、修正後に消えることを確認した。問い合わせなしの合成40万行（太字、通常／高輝度16色、256色、セミコロン／コロン形式の24bit前景・背景、4093バイトごとの分割）では応答ゼロだった。今回提供された元ファイル相当の試験と、配送時の欠落に関する確認範囲は上記の追加調査を参照する。SGR解析は変更していない。
 
 `TerminalOptionArrowTests` は NSEvent から共通ビュー・Coordinator の `onInput` を経由して実 PTY の slave に届くバイト、カーソル／Kittyモード、Option文字入力、追加修飾キー、未確定文字を検査する。通常の矢印のモード別バイトも維持する。`TerminalWordMovementTests`（DashboardFeature）は実zshのemacs編集モードで、`echo one two three` → Option左2回 → X → Return の出力が `one Xtwo three` となることを確認する。`TerminalResponseTests` はSGRの全バイト分割位置・RGB属性と後続SGR・明示問い合わせの応答も検査する。`PHLOX_TERMINAL_SNAPSHOT=1` で共通ビューを画面外に描画し、TerminalUI/.build/terminal-validation.png へ保存する。実アプリの起動、物理キーによる日本語変換、vim実プロセスの操作はこの検証に含めない。
 

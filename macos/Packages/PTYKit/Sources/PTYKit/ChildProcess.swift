@@ -3,6 +3,7 @@ import Dispatch
 import Foundation
 
 public struct ChildProcess {
+    internal var outputGate: OutputGate?
     public let id: SessionID
     public let pid: pid_t
     public let masterFD: Int32

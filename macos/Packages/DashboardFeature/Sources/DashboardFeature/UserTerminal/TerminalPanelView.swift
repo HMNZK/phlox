@@ -11,7 +11,7 @@ public final class TerminalPanelSession {
     public let controller: UserTerminalController
     public let terminalCoordinator: TerminalCoordinator
 
-    private var outputTask: Task<Void, Never>?
+    private var outputToken: UUID?
     private let localizationBundle: Bundle
 
     public init(controller: UserTerminalController, localizationBundle: Bundle = .main) {
@@ -49,13 +49,8 @@ public final class TerminalPanelSession {
         // 表示容器が閉じていても購読を続ける。Coordinator が SwiftTerm のバッファを
         // 保持するため、再アタッチ時に過去の画面が空白にならない。シェルの起動は
         // 初めて表示器が現れたときまで遅延し、使われない常駐シェルを作らない。
-        let output = controller.makeOutputStream()
-        outputTask = Task { [weak coordinator] in
-            guard let coordinator else { return }
-            for await data in output {
-                guard !Task.isCancelled else { return }
-                coordinator.feed(data)
-            }
+        outputToken = controller.observeOutput { [weak coordinator] data in
+            coordinator?.feed(data)
         }
     }
 
@@ -90,8 +85,8 @@ public final class TerminalPanelSession {
         }
     }
 
-    deinit {
-        outputTask?.cancel()
+    isolated deinit {
+        if let token = outputToken { controller.removeOutputObserver(token) }
     }
 }
 

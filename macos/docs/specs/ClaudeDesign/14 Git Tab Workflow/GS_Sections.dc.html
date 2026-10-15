@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GS 区画（コミット・ブランチ・リモート・スタッシュ）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:5600px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div style="width:560px;flex:none;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#5B5B60;">GS · 要件書 §3（GW-7〜GW-14）· 幅 280pt · 2026-10-15</div>
+      <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">「変更」以外の区画</div>
+      <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">見出し・行の高さ・字下げ・選択の塗りは「変更」区画と同じ。開ける行（コミット・スタッシュ・リモート）は左に小さな矢印、中のファイルは 38pt 字下げで「変更」の行と同じ形（＋／− は出さない）。作成・名前の変更はその場の入力欄で、確認が要る操作だけダイアログを出す。</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:18px 20px;display:grid;grid-template-columns:120px 1fr;row-gap:8px;column-gap:14px;font-size:13px;line-height:1.65;">
+        <b>コミット</b><div>2 行 40pt：要約 13pt（プッシュしていない行は右に ↑ の印。ツールチップと VoiceOver で「未プッシュ」）／ 短縮 ID（SF Mono）· 相対時刻 · 作者（狭いときは作者から省く）。最初は 50 件、末尾に近づくと自動で次の 50 件を読み、読めないときだけ「さらに 50 件を読み込む」。</div>
+        <b>ブランチ</b><div>28pt。今のブランチはチェックの記号と太字（塗りではない）、右に「↑2」。ほかは右に最後に使った時刻。最近使った順。ダブルクリック・↩ で切り替え。</div>
+        <b>リモート</b><div>リモートごとに開閉できるまとまり（origin は開く、upstream は閉じる）。まとまりの右に件数と「12 分前に取得」。追跡中の行は鎖の印（ツールチップと VoiceOver で「追跡中」）。</div>
+        <b>スタッシュ</b><div>2 行 40pt：メッセージ ／ 相対時刻 · stash@{n}。開くとファイル。</div>
+        <b>その場の入力</b><div>行と同じ字下げに 24pt の入力欄（入力中の枠を残す: FX-3）。上に起点、下にキー（↩ 作成して切り替え · ⌥↩ 作成だけ · esc 取り消し）。名前が重なると枠と文字がエラーの色になり、理由を 1 行。</div>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:18px;font-weight:700;">要件対応表（GW-7〜GW-14）</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+        <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="10">
+          <div style="display:grid;grid-template-columns:70px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ q.id }}</span><span style="{{ q.ts }}">{{ q.t }}</span></div>
+        </sc-for>
+      </div>
+      <div style="font-size:18px;font-weight:700;margin-top:12px;">この回の提案</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:16px 18px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.7;">
+        <sc-for list="{{ asks }}" as="a" hint-placeholder-count="5">
+          <div style="display:flex;flex-direction:column;gap:2px;"><b>{{ a.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ a.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(6,280px);column-gap:48px;row-gap:56px;">
+    <sc-for list="{{ cells }}" as="c" hint-placeholder-count="21">
+      <div id="{{ c.id }}" style="display:flex;flex-direction:column;gap:12px;width:280px;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+        <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+          <dc-import name="GitPanel" variant="{{ c.v }}" width="280" height="838" hint-size="280px,838px"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;min-height:100px;">{{ c.caption }}</div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":5600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const C = (id, title, v, caption) => ({ id, title, v, caption });
+    const cells = [
+      C('X1','コミット · 開いた行','secCommits','b7d03f5 を開き、変わった 3 ファイルが字下げで並ぶ。GitWorkflowService.swift を押した状態で、中央の「変更」タブは札「コミット b7d03f5」でその差分（GW_Changes の C2）。上 2 件は「未プッシュ」。'),
+      C('X2','コミットの右クリック','commitCtx','「ID をコピー」「ここからブランチを作成…」。右クリックした行に輪、選択は動かさない。'),
+      C('X3','コミットからブランチを作成','branchFromCommit','その行のすぐ下に入力欄。上に起点（短縮 ID と要約）。↩ で作成して切り替え（GW-13 の確認が要るときは出す）、⌥↩ で作るだけ。'),
+      C('X4','末尾 · さらに読み込む','commitsTail','50 件目までスクロール。見出し「コミット 128」が上に貼り付き、末尾に「さらに 50 件を読み込む」と「50 / 128」。ここまで来ると自動で読むので、ボタンは読めなかったときの手段。'),
+      C('X5','続きを読み込み中','commitsLoadingMore','ボタンの位置に回る印と「読み込んでいます…」。VoiceOver は読み終えたときに「50 件を読み込みました」。'),
+      C('X6','ブランチ · ホバー','branches','今のブランチは「✓」と太字（色や塗りに頼らない）、右に「↑2」。main にホバーで「ダブルクリック・↩ で切り替え」。'),
+      C('X7','「＋」で新しいブランチ','branchNew','一覧の先頭に入力欄が出て、そのままキー入力できる。起点は今の位置。名前は等幅で打つ。'),
+      C('X8','名前が重なる','branchNewError','「main は既にあります。別の名前にしてください」。使えない文字（空白・~ ^ : など）も同じ場所に理由を出す。↩ は効かない。'),
+      C('X9','ブランチの右クリック','branchCtx','「切り替え」「ここからブランチを作成…」「名前の変更…」「削除…」。削除は確認を出す（GW_Dialogs の D1・D2）。'),
+      C('X10','今のブランチの右クリック','branchCurrentCtx','今のブランチでは「切り替え」「削除…」を淡色にする（押せない）。名前の変更はできる。'),
+      C('X11','名前の変更','branchRename','行がその場で入力欄に替わる（文字は全選択から）。↩ で変える、esc で戻す。リモートの追跡先の名前は変えない。'),
+      C('X12','切り替え中','switching','main の行に回る印と「切り替えています…」。上部の理由の行も「ブランチを切り替えています」になり、ほかの書き込みは押せない。終わると上のブランチ名が変わる。'),
+      C('X13','切り替えの失敗','switchError','git の理由をそのまま上部に（GW-14）。勝手にスタッシュ・強制しない。今のブランチは feature/git-tab-workflow のまま。'),
+      C('X14','リモートブランチ','remotes','origin ごとにまとめ、まとまりの右に「5 · 12 分前に取得」。upstream は閉じている。見出しの右に「取得」。'),
+      C('X15','リモートの右クリック','remoteCtx','「チェックアウト」「ここからブランチを作成…」。同名のローカルがあれば「チェックアウト」はそれに切り替えるだけ。'),
+      C('X16','取得中','fetching','見出しの「取得」が回る印に替わり、まとまりの右に「取得しています…」。一覧は前の内容のまま触れる。終わると全区画を読み直す（GW-15）。'),
+      C('X17','スタッシュ · 開いた行','stash','stash@{0} を開き、2 ファイル。押すと「変更」タブに札「stash@{0}」で差分。'),
+      C('X18','「＋」でスタッシュ','stashNew','先頭にメッセージの入力欄（任意・空でもよい）。上に「今の変更 9 件をしまいます（未追跡 2 件を含む）」。↩ でスタッシュ。'),
+      C('X19','スタッシュの右クリック','stashCtx','「適用」「取り出す（適用して削除）」「削除…」。削除は確認（D3）。'),
+      C('X20','スタッシュの適用の失敗','stashConflict','衝突したので git の理由を上部に。最後の行「The stash entry is kept…」のとおり、スタッシュは残る。'),
+      C('X21','空の状態','empties','コミットのない新しいリポジトリ。コミット「コミットはまだありません」、リモート「リモートはありません」、スタッシュ「スタッシュはありません」、グラフ「最初のコミットの後に線が出ます」。ブランチは main（コミットなし）だけ。')
+    ];
+    const ok = { fontSize:13, color:'#1D1D1F' }, gray = { fontSize:13, color:'#75757B' };
+    const reqs = [
+      { id:'GW-7', t:'行（要約・作者・相対時刻・短縮 ID）と開いた行: X1。右クリック: X2。ここからブランチ: X3。50 件と続き: X4・X5', ts:ok },
+      { id:'GW-8', t:'今のブランチの印・最近使った順・ダブルクリック: X6。「＋」: X7・X8。右クリック: X9・X10。名前の変更: X11。切り替え: X12。削除: D1・D2', ts:ok },
+      { id:'GW-9', t:'リモートごと・取得: X14・X16。チェックアウト・ここからブランチ: X15。実行中の確認: D7', ts:ok },
+      { id:'GW-10', t:'一覧と開いた行: X17。「＋」とメッセージ: X18。適用・取り出す・削除: X19。削除の確認: D3', ts:ok },
+      { id:'GW-11', t:'グラフ: GW_Graph の G1〜G4（線・札・省略）', ts:ok },
+      { id:'GW-12', t:'マージ済みの削除: D1。マージされていない削除と強制削除: D2。スタッシュの削除: D3', ts:ok },
+      { id:'GW-13', t:'実行中のセッションがあるときの切り替え: D4、スタッシュ: D5、取り出し（削除の確認と 1 枚に）: D6、チェックアウト: D7', ts:ok },
+      { id:'GW-14', t:'切り替えの失敗: X13。スタッシュの適用の失敗: X20', ts:ok },
+      { id:'GW-15', t:'取得の後に読み直す: X16（画面には取得中だけ出る）', ts:gray },
+      { id:'空の状態', t:'コミットなし・リモートなし・スタッシュなし: X21', ts:ok }
+    ];
+    const asks = [
+      { t:'作成は「作って切り替え」が既定', v:'「＋」もコミット・リモートからの「ここからブランチを作成」も、↩ で作成して切り替え、⌥↩ で作るだけ。入力欄の下にキーを書く。切り替えが GW-13 に当たるときは確認を挟む。' },
+      { t:'その場の入力欄は 1 つの形', v:'新しいブランチ・名前の変更・スタッシュのメッセージを同じ部品にする。入力中だけ枠を描く（FX-3）。外をクリックすると取り消し。' },
+      { t:'危ない操作の既定ボタン', v:'戻せる操作（マージ済みのブランチの削除）は操作が既定（↩）。戻せない・エージェントの作業に触れる操作（強制削除・スタッシュの削除・実行中の切り替え）はキャンセルが既定で、操作のボタンを 2 番目に置く。今の「ゴミ箱に入れる」の確認と同じ分け方。' },
+      { t:'今のブランチの右クリック', v:'項目を消さずに淡色で押せなくする（メニューの位置を覚えられるように）。' },
+      { t:'取得の時刻', v:'リモートのまとまりに「12 分前に取得」を出す。取得は自動ではしないので、古さが分かるようにする。' }
+    ];
+    return { cells, reqs, asks };
+  }
+}
+</script>
+</body>
+</html>

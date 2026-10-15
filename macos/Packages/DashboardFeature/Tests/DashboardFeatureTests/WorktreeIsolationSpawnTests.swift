@@ -1,10 +1,12 @@
+import AppKit
 import Foundation
 import Testing
 import AgentDomain
 import HookServer
 import MessageStore
 import PTYKit
-import SessionFeature
+@testable import SessionFeature
+import SwiftUI
 import StructuredChatKit
 @testable import DashboardFeature
 
@@ -65,7 +67,7 @@ private actor WorktreeLaunchTestClient: StructuredAgentClient, SpawnAgentSetting
     }
 }
 
-private func runWorktreeIsolationGit(_ arguments: [String], in directory: URL) throws -> String {
+private func runWorktreeIsolationGit(_ arguments: [String], in directory: URL, environment overrides: [String: String] = [:]) throws -> String {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
     process.arguments = arguments
@@ -73,6 +75,7 @@ private func runWorktreeIsolationGit(_ arguments: [String], in directory: URL) t
 
     var environment = ProcessInfo.processInfo.environment
     environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment.merge(overrides) { _, new in new }
     process.environment = environment
 
     let output = Pipe()
@@ -87,8 +90,8 @@ private func runWorktreeIsolationGit(_ arguments: [String], in directory: URL) t
     return String(decoding: data, as: UTF8.self)
 }
 
-private func makeWorktreeIsolationRepository() throws -> URL {
-    let root = FileManager.default.temporaryDirectory
+private func makeWorktreeIsolationRepository(in parent: URL = FileManager.default.temporaryDirectory) throws -> URL {
+    let root = parent
         .appendingPathComponent("phlox-worktree-repository-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     _ = try runWorktreeIsolationGit(["init", "--initial-branch=main"], in: root)
@@ -101,6 +104,216 @@ private func makeWorktreeIsolationRepository() throws -> URL {
         "commit", "--allow-empty", "-m", "initial",
     ], in: root)
     return root
+}
+
+@Suite(.serialized) @MainActor
+struct WorktreeStartPointTests {
+    @Test("起点を閉じてブランチを追加し、開き直すと新しい候補を選べる")
+    func reopeningPopoverRefreshesCandidates() async throws {
+        _ = NSApplication.shared
+        let getter = NSSelectorFromString("accessibilityAttributeValue:")
+        let setter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
+
+        var workspace = URL(fileURLWithPath: #filePath)
+        for _ in 0..<6 { workspace.deleteLastPathComponent() }
+        let repository = try makeWorktreeIsolationRepository(in: workspace.appendingPathComponent(".build"))
+        defer { try? FileManager.default.removeItem(at: repository) }
+        let draft = NewChatDraft(lastUsedChatSettingsStore: LastUsedChatSettingsStore())
+        let host = NSHostingView(rootView: WorktreeStartPointPicker(draft: draft, projectID: nil, directory: repository.path)
+            .frame(width: 400, height: 100))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 400, height: 100),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderBack(nil)
+        defer { window.contentView = nil; window.close() }
+
+        let menuID = "newChat.worktreeStartPointPicker.menu"
+        func rowButton(in element: NSObject) -> NSObject? {
+            if (element as AnyObject).accessibilityRole() == NSAccessibility.Role.button { return element }
+            let children = (element as AnyObject).accessibilityChildren() as? [NSObject] ?? []
+            return children.lazy.compactMap { rowButton(in: $0) }.first
+        }
+        func option(_ name: String) -> NSObject? {
+            for candidate in NSApp.windows where candidate !== window {
+                if let row = IntegrationFixAccessibility.find(menuID + ".option.refs/heads/" + name, in: candidate) {
+                    return rowButton(in: row)
+                }
+            }
+            return nil
+        }
+        func settle(until condition: () -> Bool) async throws {
+            let deadline = ContinuousClock.now + .seconds(3)
+            repeat {
+                try await Task.sleep(for: .milliseconds(20))
+                host.layoutSubtreeIfNeeded()
+                if condition() { return }
+            } while ContinuousClock.now < deadline
+            try #require(condition(), "ポップオーバーの更新を確認できませんでした")
+        }
+        func open() async throws {
+            let button = try #require(IntegrationFixAccessibility.find("newChat.worktreeStartPointPicker", in: host))
+            try #require((button as AnyObject).accessibilityPerformPress())
+            try await settle { option("main") != nil }
+        }
+        try await open()
+        #expect(option("new-topic") == nil)
+        let main = try #require(option("main"))
+        try #require((main as AnyObject).accessibilityPerformPress())
+        try await settle { option("main") == nil }
+        #expect(draft.worktreeStartPoint(projectID: nil, directory: repository.path) == .localBranch("main"))
+
+        _ = try runWorktreeIsolationGit(["branch", "new-topic"], in: repository)
+        try await open()
+        try await settle { option("new-topic") != nil }
+        let topic = try #require(option("new-topic"))
+        #expect((topic as AnyObject).accessibilityLabel() == "new-topic")
+        try #require((topic as AnyObject).accessibilityPerformPress())
+        try await settle { option("main") == nil }
+        #expect(draft.worktreeStartPoint(projectID: nil, directory: repository.path) == .localBranch("new-topic"))
+    }
+
+    private func fixture() throws -> (URL, String, String) {
+        let root = try makeWorktreeIsolationRepository()
+        let base = try runWorktreeIsolationGit(["rev-parse", "HEAD"], in: root).trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = try runWorktreeIsolationGit(["branch", "topic", base], in: root)
+        _ = try runWorktreeIsolationGit(["update-ref", "refs/remotes/origin/topic", base], in: root)
+        _ = try runWorktreeIsolationGit(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/topic"], in: root)
+        _ = try runWorktreeIsolationGit(["-c", "user.name=test", "-c", "user.email=test@phlox.local",
+            "-c", "tag.gpgsign=false", "tag", "-a", "topic", "-m", "annotated tag", base], in: root)
+        _ = try runWorktreeIsolationGit(["-c", "user.name=test", "-c", "user.email=test@phlox.local",
+            "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", "latest summary"],
+            in: root, environment: ["GIT_COMMITTER_DATE": "2099-01-01T00:00:00+0000"])
+        let head = try runWorktreeIsolationGit(["rev-parse", "HEAD"], in: root).trimmingCharacters(in: .whitespacesAndNewlines)
+        return (root, base, head)
+    }
+
+    @Test(arguments: ["head", "local", "remote", "tag", "commit"])
+    func launchesAtSelectedCommit(kind: String) async throws {
+        let (repository, base, head) = try fixture()
+        defer { try? FileManager.default.removeItem(at: repository) }
+        let point: WorktreeStartPoint = switch kind {
+        case "local": .localBranch("topic")
+        case "remote": .remoteBranch("origin/topic")
+        case "tag": .tag("topic")
+        case "commit": .commit(base)
+        default: .head
+        }
+        let workspace = repository.appendingPathComponent("workspaces")
+        let project = Project(name: "start-point", directoryPath: repository.path, createdAt: Date(), isManagedDirectory: false)
+        let store = WorktreeIsolationProjectStore()
+        try await store.save([project])
+        let client = WorktreeLaunchTestClient()
+        let environment = makeWorktreeIsolationEnvironment(pty: MockPTYManager(), workspaceDirectory: workspace, projectStore: store,
+            appServerClientFactory: { _, _, _, _, _ in client })
+        let dashboard = DashboardViewModel(environment: environment)
+        await dashboard.start()
+        let request = NewChatLaunchRequest(projectID: project.id, agentRef: .builtin(.codex), settings: .init(),
+            usesWorktree: true, text: "hello", attachments: [], worktreeStartPoint: point)
+        let id = try await dashboard.launchNewChat(request)
+        let path = environment.sessionWorkspaceDirectory(for: id)
+        #expect(try runWorktreeIsolationGit(["rev-parse", "HEAD"], in: path).trimmingCharacters(in: .whitespacesAndNewlines) == (kind == "head" ? head : base))
+        #expect(try runWorktreeIsolationGit(["branch", "--show-current"], in: path).trimmingCharacters(in: .whitespacesAndNewlines) == WorktreeIsolationPlanner.branchName(for: id))
+        #expect(await client.starts == 1)
+        await dashboard.removeSession(id)
+    }
+
+    @Test func deletedStartPointDoesNotLaunchOrCreateWorktree() async throws {
+        let (repository, _, _) = try fixture()
+        defer { try? FileManager.default.removeItem(at: repository) }
+        let service = WorkingTreeService(repositoryRoot: repository)
+        #expect(await service.worktreeStartPoints().contains { $0.point == .localBranch("topic") })
+        _ = try runWorktreeIsolationGit(["update-ref", "-d", "refs/heads/topic"], in: repository)
+        let project = Project(name: "deleted-start", directoryPath: repository.path, createdAt: Date(), isManagedDirectory: false)
+        let store = WorktreeIsolationProjectStore()
+        try await store.save([project])
+        let pty = MockPTYManager()
+        let client = WorktreeLaunchTestClient()
+        let environment = makeWorktreeIsolationEnvironment(pty: pty, workspaceDirectory: repository.appendingPathComponent("workspaces"), projectStore: store,
+            appServerClientFactory: { _, _, _, _, _ in client })
+        let dashboard = DashboardViewModel(environment: environment)
+        await dashboard.start()
+        do {
+            _ = try await dashboard.launchNewChat(.init(projectID: project.id, agentRef: .builtin(.codex), settings: .init(),
+                usesWorktree: true, text: "hello", attachments: [], worktreeStartPoint: .localBranch("topic")))
+            Issue.record("消えた起点で起動しました")
+        } catch {
+            #expect(error.localizedDescription.contains("topic"))
+        }
+        #expect(dashboard.sessions.isEmpty)
+        #expect(pty.spawnCalls.isEmpty)
+        #expect(await client.starts == 0)
+        #expect(!FileManager.default.fileExists(atPath: environment.workspaceDirectory.path))
+        #expect(try runWorktreeIsolationGit(["for-each-ref", "--format=%(refname)", "refs/heads/phlox/"], in: repository).isEmpty)
+    }
+
+    @Test func listsFiltersAndVerifiesCommitIDsWithoutChangingGit() async throws {
+        let (repository, base, head) = try fixture()
+        defer { try? FileManager.default.removeItem(at: repository) }
+        let service = WorkingTreeService(repositoryRoot: repository)
+        let before = try runWorktreeIsolationGit(["--no-optional-locks", "status", "--porcelain=v1"], in: repository)
+        let index = repository.appendingPathComponent(".git/index")
+        let beforeIndex = FileManager.default.contents(atPath: index.path)
+        let items = await service.worktreeStartPoints()
+        #expect(items.map(\.point) == [.head, .localBranch("main"), .localBranch("topic"), .remoteBranch("origin/topic"), .tag("topic"), .commit(head), .commit(base)])
+        func filtered(_ query: String) -> [String] {
+            SelectablePopover(options: items.map { .init(id: $0.point.revision, title: $0.point.title(), detail: $0.summary) },
+                selectedID: nil, searchText: .constant(query), onSelect: { _ in }).visibleOptions.map(\.id)
+        }
+        #expect(filtered("TOPIC").count == 3)
+        #expect(filtered("latest summary") == [head])
+        #expect(filtered("does-not-exist").isEmpty)
+        #expect(try await service.worktreeCommit(matching: String(base.prefix(4))) == .commit(base))
+        #expect(try await service.worktreeCommit(matching: base.uppercased()) == .commit(base))
+        for query in ["abc", "HEAD", "--help", "abcd-no", String(repeating: "f", count: 40)] {
+            #expect(try await service.worktreeCommit(matching: query) == nil)
+        }
+        #expect(try await service.resolveWorktreeStartPoint(.tag("topic")) == base)
+        #expect(try runWorktreeIsolationGit(["--no-optional-locks", "status", "--porcelain=v1"], in: repository) == before)
+        #expect(FileManager.default.contents(atPath: index.path) == beforeIndex)
+        let notRepository = repository.appendingPathComponent("absent")
+        #expect(await WorkingTreeService(repositoryRoot: notRepository).worktreeStartPoints() == [.init(point: .head)])
+    }
+
+    @Test func historyIsLimitedToThirtyAndNonCommitIDsAreRejected() async throws {
+        let (repository, base, head) = try fixture()
+        defer { try? FileManager.default.removeItem(at: repository) }
+        let tree = try runWorktreeIsolationGit(["rev-parse", "HEAD^{tree}"], in: repository).trimmingCharacters(in: .whitespacesAndNewlines)
+        var tip = head
+        for index in 0..<31 {
+            tip = try runWorktreeIsolationGit(["-c", "user.name=test", "-c", "user.email=test@phlox.local",
+                "-c", "commit.gpgsign=false", "commit-tree", tree, "-p", tip, "-m", "history \(index)"], in: repository)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        _ = try runWorktreeIsolationGit(["update-ref", "refs/heads/main", tip], in: repository)
+        _ = try runWorktreeIsolationGit(["tag", "main", base], in: repository)
+        let service = WorkingTreeService(repositoryRoot: repository)
+        let items = await service.worktreeStartPoints()
+        let commits = items.filter { if case .commit = $0.point { true } else { false } }
+        #expect(commits.count == 30)
+        #expect(commits.first?.point == .commit(tip))
+        #expect(commits.first?.summary == "history 30")
+        #expect(!commits.contains { $0.point == .commit(base) })
+        #expect(try await service.resolveWorktreeStartPoint(.tag("main")) == base)
+        #expect(try await service.resolveWorktreeStartPoint(.localBranch("main")) == tip)
+        #expect(try await service.worktreeCommit(matching: tree) == nil)
+    }
+
+    @Test func branchIsResolvedAgainImmediatelyBeforeCreation() async throws {
+        let (repository, base, head) = try fixture()
+        defer { try? FileManager.default.removeItem(at: repository) }
+        let service = WorkingTreeService(repositoryRoot: repository)
+        let point = WorktreeStartPoint.localBranch("topic")
+        #expect(try await service.resolveWorktreeStartPoint(point) == base)
+        _ = try runWorktreeIsolationGit(["update-ref", "refs/heads/topic", head], in: repository)
+        let path = repository.appendingPathComponent("workspaces/moved")
+        try await WorktreeIsolationGit.addWorktree(at: path, branchName: "phlox/session/moved", in: repository,
+            createsBranch: true, pruneStaleWorktrees: false, startPoint: point)
+        #expect(try runWorktreeIsolationGit(["rev-parse", "HEAD"], in: path).trimmingCharacters(in: .whitespacesAndNewlines) == head)
+    }
 }
 
 private enum WorktreeIsolationRepositoryFixture {

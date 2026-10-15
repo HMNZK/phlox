@@ -91,6 +91,8 @@ public struct SelectablePopover: View {
     public let maxHeight: CGFloat
     public let footer: String?
     public let searchText: Binding<String>?
+    public let searchPrompt: String
+    public let searchAccessibilityIdentifier: String
     public let accessibilityIdentifier: String?
     public let onSelect: (SelectablePopoverOption) -> Void
     public let onClose: ((SelectablePopoverOption) -> Void)?
@@ -108,6 +110,8 @@ public struct SelectablePopover: View {
         maxHeight: CGFloat = DSLayout.menuDefaultMaxHeight,
         footer: String? = nil,
         searchText: Binding<String>? = nil,
+        searchPrompt: String = "モデルを絞り込む",
+        searchAccessibilityIdentifier: String = "newChat.modelSearch",
         accessibilityIdentifier: String? = nil,
         onSelect: @escaping (SelectablePopoverOption) -> Void,
         onClose: ((SelectablePopoverOption) -> Void)? = nil,
@@ -119,6 +123,8 @@ public struct SelectablePopover: View {
         self.maxHeight = maxHeight
         self.footer = footer
         self.searchText = searchText
+        self.searchPrompt = searchPrompt
+        self.searchAccessibilityIdentifier = searchAccessibilityIdentifier
         self.accessibilityIdentifier = accessibilityIdentifier
         self.onSelect = onSelect
         self.onClose = onClose
@@ -126,7 +132,7 @@ public struct SelectablePopover: View {
     }
 
     private var query: String { searchText?.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" }
-    private var visibleOptions: [SelectablePopoverOption] {
+    var visibleOptions: [SelectablePopoverOption] {
         guard !query.isEmpty else { return options }
         let matchingSections = Set(options.compactMap { option in
             option.sectionTitle?.localizedLowercase.contains(query) == true ? option.sectionTitle : nil
@@ -183,6 +189,7 @@ public struct SelectablePopover: View {
                                 onClose: { onClose?(option) }
                             )
                             .id(option.id)
+                            .accessibilityIdentifier((accessibilityIdentifier ?? "selectablePopover") + ".option." + option.id)
                         }
                     }
                 }
@@ -235,7 +242,7 @@ public struct SelectablePopover: View {
                 .font(DSFont.meta)
                 .foregroundStyle(DSColor.textTertiary)
                 .accessibilityHidden(true)
-            TextField(localized("モデルを絞り込む"), text: text)
+            TextField(localized(searchPrompt), text: text)
                 .font(DSFont.auxiliary)
                 .textFieldStyle(.plain)
                 .focused($searchFocused)
@@ -243,7 +250,8 @@ public struct SelectablePopover: View {
                 .onKeyPress(.upArrow) { move(by: -1) }
                 .onKeyPress(.return) { chooseHighlighted() }
                 .onKeyPress(.escape) { onDismiss(); return .handled }
-                .accessibilityIdentifier("newChat.modelSearch")
+                .accessibilityLabel(Text(verbatim: localized(searchPrompt)))
+                .accessibilityIdentifier(searchAccessibilityIdentifier)
         }
         .padding(.horizontal, 8)
         .frame(height: 28)
@@ -300,8 +308,11 @@ public struct SelectablePopoverButton<Label: View>: View {
     public let maxHeight: CGFloat
     public let footer: String?
     public let searchText: Binding<String>?
+    public let searchPrompt: String
+    public let searchAccessibilityIdentifier: String
     public let isEnabled: Bool
     public let showsFocusRing: Bool
+    public let onOpen: () async -> Void
     public let onSelect: (SelectablePopoverOption) -> Void
     public let onClose: ((SelectablePopoverOption) -> Void)?
     @ViewBuilder public let label: (Bool) -> Label
@@ -320,8 +331,11 @@ public struct SelectablePopoverButton<Label: View>: View {
         maxHeight: CGFloat = DSLayout.menuDefaultMaxHeight,
         footer: String? = nil,
         searchText: Binding<String>? = nil,
+        searchPrompt: String = "モデルを絞り込む",
+        searchAccessibilityIdentifier: String = "newChat.modelSearch",
         isEnabled: Bool = true,
         showsFocusRing: Bool = false,
+        onOpen: @escaping () async -> Void = {},
         onSelect: @escaping (SelectablePopoverOption) -> Void,
         onClose: ((SelectablePopoverOption) -> Void)? = nil,
         @ViewBuilder label: @escaping (Bool) -> Label
@@ -336,8 +350,11 @@ public struct SelectablePopoverButton<Label: View>: View {
         self.maxHeight = maxHeight
         self.footer = footer
         self.searchText = searchText
+        self.searchPrompt = searchPrompt
+        self.searchAccessibilityIdentifier = searchAccessibilityIdentifier
         self.isEnabled = isEnabled
         self.showsFocusRing = showsFocusRing
+        self.onOpen = onOpen
         self.onSelect = onSelect
         self.onClose = onClose
         self.label = label
@@ -358,11 +375,14 @@ public struct SelectablePopoverButton<Label: View>: View {
                     maxHeight: maxHeight,
                     footer: footer,
                     searchText: searchText,
+                    searchPrompt: searchPrompt,
+                    searchAccessibilityIdentifier: searchAccessibilityIdentifier,
                     accessibilityIdentifier: "\(accessibilityIdentifier).menu",
                     onSelect: { option in onSelect(option); isPresented = false },
                     onClose: onClose,
                     onDismiss: { isPresented = false }
                 )
+                .task { await onOpen() }
             }
             .onChange(of: isPresented) { _, presented in if !presented { triggerFocused = true } }
             .overlay {

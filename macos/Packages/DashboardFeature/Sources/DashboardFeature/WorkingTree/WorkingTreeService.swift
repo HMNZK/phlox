@@ -90,6 +90,53 @@ public actor WorkingTreeService {
                 .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
     }
 
+    /// 取得に失敗した一覧は混在させず、既定の HEAD だけに戻す（WS-2）。
+    func worktreeStartPoints() -> [WorktreeStartPointItem] {
+        do {
+            var items = [WorktreeStartPointItem(point: .head)]
+            for (prefix, makePoint) in [
+                ("refs/heads/", WorktreeStartPoint.localBranch),
+                ("refs/remotes/", WorktreeStartPoint.remoteBranch),
+                ("refs/tags/", WorktreeStartPoint.tag),
+            ] {
+                let arguments = ["for-each-ref", "--sort=-committerdate", "--format=%(refname)%09%(symref)", prefix]
+                let result = try runGit(arguments)
+                try requireSuccessful(result, arguments: arguments)
+                for line in String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline) {
+                    let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+                    guard fields.count == 2, fields[1].isEmpty, fields[0].hasPrefix(prefix) else { continue }
+                    items.append(.init(point: makePoint(String(fields[0].dropFirst(prefix.count)))))
+                }
+            }
+            let arguments = ["log", "-30", "--format=%H%x09%s", "HEAD", "--"]
+            let result = try runGit(arguments)
+            try requireSuccessful(result, arguments: arguments)
+            items += String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline).compactMap { line in
+                let fields = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+                guard fields.count == 2 else { return nil }
+                return .init(point: .commit(String(fields[0])), summary: String(fields[1]))
+            }
+            return items
+        } catch {
+            return [.init(point: .head)]
+        }
+    }
+
+    func worktreeCommit(matching query: String) throws -> WorktreeStartPoint? {
+        guard WorktreeStartPoint.isCommitID(query) else { return nil }
+        let arguments = ["rev-parse", "--verify", "--quiet", query + "^{commit}"]
+        let result = try runGit(arguments)
+        guard result.terminationStatus == 0 else { return nil }
+        return .commit(String(decoding: result.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    func resolveWorktreeStartPoint(_ point: WorktreeStartPoint) throws -> String {
+        let arguments = ["rev-parse", "--verify", "--quiet", "--end-of-options", point.revision + "^{commit}"]
+        let result = try runGit(arguments)
+        guard result.terminationStatus == 0 else { throw WorktreeStartPointError(point: point) }
+        return String(decoding: result.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// このサービスの作業ディレクトリから解決した Git リポジトリのルート。
     /// `requireRepository()` を通すことで、他の Git 読み取りと同じ実行規則を使う。
     public func resolvedRepositoryRootPath() -> String? {

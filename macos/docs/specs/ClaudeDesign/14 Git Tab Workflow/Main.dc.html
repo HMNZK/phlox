@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GW Git タブの設計</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:3000px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div style="width:600px;flex:none;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;color:#5B5B60;">GW · 要件書 §3（GW-1〜GW-6・GW-14）· 幅 280pt（260〜340）· 2026-10-15</div>
+      <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">Git タブ — 作業をここに集める</div>
+      <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">上から、切り替え（44pt）・上部の固定欄（ブランチ・メッセージ・コミット・理由の 1 行・プッシュ／PR・失敗の表示）・その下を 1 本でスクロールする区画（変更 → コミット → ブランチ → リモートブランチ → スタッシュ → グラフ）。差分はここに出さず、行を押すと中央の「変更」の子タブに 1 ファイルだけ出す。チェックボックスは無く、ステージしたものだけをコミットする。</div>
+    </div>
+    <div style="flex:1;background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:grid;grid-template-columns:150px 1fr;row-gap:8px;column-gap:16px;font-size:13px;line-height:1.65;">
+      <b>上部（固定）</b><div>ブランチの行 28pt（ブランチ名は SF Mono 12pt、右に更新）· メッセージ欄（1 行 28pt から伸び、5 行 100pt で止めて中をスクロール）· 「コミット」28pt 横いっぱい · 理由の 1 行 16pt · 「プッシュ ↑2」「PR を作成」24pt を半分ずつ。合わせて 148pt（メッセージ 1 行のとき）。</div>
+      <b>主ボタン</b><div>「コミット」だけが主ボタン（面 #F2F2F4・文字 #1E1E20）で、状態で入れ替えない。右に ⌘↩ を細く添える（確認ダイアログの「↩」と同じ添え方）。「プッシュ」「PR を作成」は今の「コミット…」と同じ二次ボタン。英語（Commit / Push ↑2 / Create PR）は 260pt で 114pt ずつに収まる。</div>
+      <b>理由の 1 行</b><div>「コミット」についてだけ書く。高さは常に確保し、押せるときは「ステージ済み 3 件をコミットします」と対象を書く（入力中に下が上下しない。コミットするのはステージ済みだけだと毎回分かる）。押せないときは「ステージされた変更がありません」「メッセージを入力してください」。プッシュ・PR の理由はツールチップ。</div>
+      <b>実行中</b><div>押したボタンの中に回る印と「コミットしています…」「プッシュ中…」「作成中…」。その間、ほかの書き込み（コミット・プッシュ・PR・＋／−）は押せない（1 つずつ）。終わると VoiceOver に「プッシュしました」。PR を作った後は「PR を作成」の位置が「PR #482 ↗」のリンクに替わる。</div>
+      <b>git の失敗</b><div>ボタンの下、区切り線の上に出す（メッセージ欄を押し下げない）。「!」と題（エラーの文字色）、git の出力をそのまま等幅 11pt で最初の 3 行、「詳細」で全文（8 行で止めて中をスクロール、「コピー」付き）、× で閉じる。読み込みの失敗には「再試行」。次の操作を始めたら消す。</div>
+      <b>区画の見出し 28pt</b><div>開閉の矢印・名前（12pt semibold）・件数（11pt 副文字色）・右にその区画の操作（ブランチ「＋」、リモートブランチ「取得」、スタッシュ「＋」）。スクロール中は上に貼り付き、下に区切り線。既定は「変更」だけ開く。</div>
+      <b>変更の行 28pt</b><div>小見出し「ステージ済み 3」「変更 6」（右に「すべて外す」「すべてステージ」）。行は GT-3 のまま（種類の 1 文字・名前・フォルダ・+12 −3）。ホバー中と選択中は行数を隠し、同じ右端に面の付いた「＋」「−」（22×20pt）。押した行は選択の塗り（入力先があれば 24%、無ければ 9%）。一覧の外側に枠は描かない（FX-1）。</div>
+      <b>「変更」の子タブ</b><div>左の一覧とコミット欄を無くし、1 ファイルの差分／内容だけ。ツールバーに「差分｜内容」・ファイル名・フォルダ・出どころの札（作業ツリー／ステージ済み／コミット 4e1a9c2／stash@{0}）・行数・「ファイルタブで編集」。</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-size:26px;font-weight:700;">A. ウィンドウの中で（ダーク・1440 × 900）</div>
+    <div style="display:flex;gap:48px;align-items:flex-start;">
+      <div id="A1" style="display:flex;flex-direction:column;gap:12px;width:1440px;flex:none;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">A1</span><span style="font-size:14px;font-weight:600;">変更の行を押した · 中央に 1 ファイルの差分</span></div>
+        <div style="border-radius:10px;overflow:hidden;">
+          <dc-import name="GitWindow" theme="dark" variant="selected" width="1440" height="900" hint-size="1440px,900px"></dc-import>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:14px;font-size:13px;line-height:1.7;color:#3A3A3E;padding-top:34px;">
+        <div style="font-size:15px;font-weight:700;color:#1D1D1F;">見どころ</div>
+        <div style="text-wrap:pretty;"><b style="color:#1D1D1F;">右上</b>：ブランチ・メッセージ・「コミット」が最上部。理由の行が「ステージ済み 3 件をコミットします」と対象を言う。</div>
+        <div style="text-wrap:pretty;"><b style="color:#1D1D1F;">右の一覧</b>：「変更」の GitTabView.swift（一部ステージ済みなので上の「ステージ済み」にも同じ名前がある）を押した状態。行数の代わりに「＋」。キー入力は中央に移っていないので塗りは 9%。</div>
+        <div style="text-wrap:pretty;"><b style="color:#1D1D1F;">中央</b>：「変更」の子タブ。一覧は無く、札「作業ツリー」でこの差分がステージしていない側だと分かる。上の「ステージ済み」の行を押すと札が「ステージ済み」に替わる（GW_Changes の B2）。</div>
+        <div style="text-wrap:pretty;"><b style="color:#1D1D1F;">押したとき</b>：「変更」の子タブが無ければ作り、あれば前に出して中身を替える。↑↓ で選択が移ると、「変更」の子タブが開いていればその差分に替わる（タブを新しく作るのは押したとき・Return のとき）。</div>
+        <div style="text-wrap:pretty;"><b style="color:#1D1D1F;">重ね表示</b>（中央が 480pt 未満で Git タブが浮いたカードのとき）：行を押すとカードを閉じ、「変更」の子タブを前に出す（今のファイルツリーと同じ）。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">キーボードと VoiceOver</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+          <sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+            <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-weight:600;">{{ k.k }}</span><span style="text-wrap:pretty;">{{ k.v }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">要件対応表（GW-1〜GW-6・GW-14 と関連）</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+          <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="14">
+            <div style="display:grid;grid-template-columns:70px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ q.id }}</span><span style="{{ q.ts }}">{{ q.t }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:18px;font-weight:700;">この回で決めたこと・提案</div>
+        <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:16px 18px;display:flex;flex-direction:column;gap:12px;font-size:13px;line-height:1.7;">
+          <sc-for list="{{ asks }}" as="a" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;gap:2px;"><b>{{ a.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ a.v }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":3000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const keys = [
+      { k:'⇧⌃⌘G', v:'Git タブを表示し（右サイドバーが閉じていれば開く）、区画の一覧にキー入力を移す' },
+      { k:'Tab の順', v:'切り替え → 更新 → メッセージ欄 →「コミット」→「プッシュ」→「PR を作成」→（失敗の表示があれば「詳細」「再試行」「閉じる」）→ 区画の一覧（全区画で 1 つの入力先）。見出しの操作ボタンと「＋／−」は Tab で止めない（詳しくは GK）' },
+      { k:'⌘↩（メッセージ欄で）', v:'コミット。押せないときは何もせず、理由の行を VoiceOver で読む' },
+      { k:'↑ ↓', v:'全区画の見出しと行を上から順に移る（閉じた区画の中は飛ばす）。選択は全体で 1 つ' },
+      { k:'← →', v:'見出しで閉じる／開く。行で ← は見出しへ戻る' },
+      { k:'Space', v:'変更の行で ステージ／ステージを外す。入力先は同じグループの次の行へ進むので、続けて押すと順にステージできる' },
+      { k:'Return・押す', v:'「変更」の子タブを開き（無ければ作り）そのファイルの差分を出す。入力先は Git タブに残る' },
+      { k:'⌃↩・VO-⇧-M・右クリック', v:'行のメニュー（『変更』タブで開く・ステージ／ステージを外す・ファイルを開く・Finder で表示・パスをコピー）' },
+      { k:'VoiceOver · 行', v:'「GitTabView.swift、変更、ステージされていません、一部ステージ済み、追加 6 行、削除 2 行、macos/…/Sources/Git」。カスタムアクション「ステージ」「ステージを外す」「『変更』タブで開く」。「＋」「−」のボタンは Tab で止まらない（Space とアクションで代わる）' },
+      { k:'VoiceOver · ステージ後', v:'「ChangesTabView.swift をステージしました。ステージ済み 4 件」' },
+      { k:'VoiceOver · ボタン', v:'「コミット、ボタン、使用不可、ステージされた変更がありません」。実行中は「プッシュしています」、終わると「プッシュしました」' },
+      { k:'VoiceOver · 失敗', v:'失敗の表示は alert。題と git の出力の 1 行目を読む' },
+      { k:'VoiceOver · 見出し', v:'「ブランチ、6 件、折りたたみ、閉じています」。操作は「新しいブランチ」などのカスタムアクションにもある' }
+    ];
+    const ok = { fontSize:13, color:'#1D1D1F' }, gray = { fontSize:13, color:'#75757B' };
+    const reqs = [
+      { id:'GW-1', t:'上部の固定欄: A1・S1。理由の 1 行: S8・S9。実行中: S11・S12・S14。PR の後: S15。更新ボタン: ブランチの行の右。detached HEAD: S22', ts:ok },
+      { id:'GW-2', t:'区画の見出し（矢印・名前・件数・操作）: S1。既定は「変更」だけ: S1。全区画を開いた: S23・S24・R1。開閉をアプリの終了後も保つ: 画面に出ない', ts:ok },
+      { id:'GW-3', t:'ステージ済み／変更・すべてステージ／すべて外す: S1。「＋」: S2〜S6。「−」: S7・GW_Changes の B2。キーボード: S5・S6', ts:ok },
+      { id:'GW-4', t:'ステージ済みだけをコミット・無いときの理由: S8（ステージ済み 0）・理由の行の文言', ts:ok },
+      { id:'GW-5', t:'行を押すと「変更」の子タブ: A1。重ね表示でカードを閉じる: A1 の注記。Git タブ内の差分と境目は無い: 全図', ts:ok },
+      { id:'GW-6', t:'「変更」の子タブ（一覧なし・差分／内容・ファイルタブで編集・未選択の表示）: GW_Changes の B1（未選択）・B2（ステージ済み）・C1（内容）・C2（コミットのファイル）', ts:ok },
+      { id:'GW-14', t:'操作の失敗: S16・S17（詳細）。読み込みの失敗と再試行: S18。勝手に退避・強制しない: 失敗の表示に操作ボタンを置かない', ts:ok },
+      { id:'GT-8', t:'変更なし: S20。Git 管理外: S21。読み込み中: S19', ts:ok },
+      { id:'FX-1〜3', t:'一覧の外側に枠なし（S5 でも枠なし・塗り 24%）。メッセージ欄の入力中の枠は残す: S10', ts:ok },
+      { id:'GW-7〜11', t:'2 回目に描いた: GS 区画（X1〜X21）・GS グラフ（G1〜G4）', ts:gray },
+      { id:'GW-12・13', t:'2 回目に描いた: GS 確認（D1〜D7）。キーで操作する D8 は GA', ts:gray },
+      { id:'GW-15', t:'操作の後と GT-7 の時機に読み直す: 画面に出ない（読み込み中の表示は S19）', ts:gray }
+    ];
+    const asks = [
+      { t:'上部は固定（推奨）', v:'理由: ① 主な作業は「＋ → 書く → コミット」の往復で、下の一覧をスクロールしても主ボタンが見えていてほしい。② エージェントの書き換えで一覧が伸び縮みしても、入力中のメッセージ欄が動かない。③ 失敗の表示を見落とさない。代わりに一覧の高さが 148pt 減るので、メッセージ欄は 5 行で止め、区画の見出しを貼り付けて位置を見失わないようにする。比較は GW_Widths の R1（固定）と R2（流す）。' },
+      { t:'理由の 1 行を常に置く', v:'依頼どおり「コミット」の理由だけを書くが、押せるときも空にせず「ステージ済み 3 件をコミットします」と対象を書く。高さが変わらないので、メッセージを打ち始めた瞬間に下のボタンが上下しない。' },
+      { t:'2 段の並べ方', v:'1 段目「コミット ⌘↩」を横いっぱい（256pt）、2 段目「プッシュ ↑2」「PR を作成」を 124pt ずつ。260pt では 114pt ずつで、英語「Push ↑2」「Create PR」も切れない。高さは 28pt と 24pt で主従を付ける。' },
+      { t:'＋／− の置き方', v:'行数と同じ右端に、ホバー中と選択中だけ面の付いたボタン（22×20pt・角丸 5・今の二次ボタンの面）。行数は隠すので重ならない。「−」は面があるので削除行数「−3」と見分けられる。ホバーは今の「コミット…」のホバーの面、押下中は一段明るい面。' },
+      { t:'部分的にステージしたファイル', v:'両方のグループに出す。行には印を足さず、VoiceOver とツールチップで「一部ステージ済み」と言う。どちらを押したかは「変更」の子タブの札で分かる。' },
+      { t:'置けなかったもの', v:'開閉の保存（画面に出ない）。GW-7〜13 は 2 回目（GS）で描いた。全番号の置き場所は GA の表 1。' }
+    ];
+    return { keys, reqs, asks };
+  }
+}
+</script>
+</body>
+</html>

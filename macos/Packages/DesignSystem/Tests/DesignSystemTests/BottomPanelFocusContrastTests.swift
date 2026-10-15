@@ -3,15 +3,8 @@ import AppKit
 import SwiftUI
 @testable import DesignSystem
 
-@Suite("下部パネルの入力枠")
+@Suite("下部パネルの終了案内のコントラスト")
 struct BottomPanelFocusContrastTests {
-    @Test("ライトとダークで枠とパネル面が3:1以上", arguments: [AppTheme.phloxLight, AppTheme.phlox])
-    func focusRingContrast(theme: AppTheme) {
-        #expect(DesignPalette.contrast(theme.palette.accent, theme.palette.panel) >= 3)
-        #expect(DSLayout.focusRingGap == 2)
-        #expect(DSLayout.focusRingWidth == 2)
-    }
-
     @Test("暗い端末面の終了案内と再起動ボタンの文字は4.5:1以上", arguments: [AppTheme.phloxLight, AppTheme.phlox])
     @MainActor func exitedTextContrast(theme: AppTheme) throws {
         #expect(DesignPalette.contrast(try rgb(DSColor.terminalStatusText), theme.palette.terminal) >= 4.5)

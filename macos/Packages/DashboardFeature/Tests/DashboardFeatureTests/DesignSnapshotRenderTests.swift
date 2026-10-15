@@ -35,9 +35,15 @@ private final class Stage8SnapshotClients: @unchecked Sendable {
 struct DesignSnapshotRenderTests {
     @Test func bottomPanelSnapshots() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1",
-              ["all", "bottom-panel"].contains(ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all") else { return }
+              ["all", "bottom-panel", "focus-borders"].contains(ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all") else { return }
+        let focusOnly = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] == "focus-borders"
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
+        let axGetter = NSSelectorFromString("accessibilityAttributeValue:")
+        let axSetter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previousAX = NSApp.perform(axGetter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(axSetter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(axSetter, with: previousAX, with: "AXEnhancedUserInterface") }
         var worktree = URL(fileURLWithPath: #filePath)
         for _ in 0..<6 { worktree.deleteLastPathComponent() }
         let output = worktree.appendingPathComponent(".build/design-snapshots")
@@ -61,7 +67,7 @@ struct DesignSnapshotRenderTests {
                 preferences.setVolatileDomain(themeArguments, forName: UserDefaults.argumentDomain)
                 NSApp.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
                 TerminalCoordinator.activePalette = DashboardViewModel.makeTerminalPalette(from: light ? .phloxLight : .phlox)
-                for variant in ["open", "focused", "exited", "shell-warning"] {
+                for variant in focusOnly ? [] : ["open", "focused", "exited", "shell-warning"] {
                     let strings = try localizationBundle(fixtures: output)
                     let locale = Locale(identifier: english ? "en" : "ja")
                     let pty = MockPTYManager()
@@ -95,7 +101,7 @@ struct DesignSnapshotRenderTests {
                     await panel.controller.shutdown()
                     #expect(FileManager.default.fileExists(atPath: destination(frame, output).path))
                 }
-                for variant in ["open", "closed", "grid", "split", "overlay", "no-project"] {
+                for variant in focusOnly ? ["terminal-focused", "files-focused"] : ["open", "closed", "grid", "split", "overlay", "no-project", "terminal-focused", "files-focused"] {
                     let id = "13-bp-window-\(variant)-\(light ? "light" : "dark")-\(english ? "en" : "ja")"
                     let frame = Frame(id: id, name: "下部パネルの配置", width: variant == "overlay" ? 1000 : 1600, height: 1000, light: light, language: english ? "en" : "ja")
                     let scene = try await makeStage8Scene(frame, fixtures: output.appendingPathComponent("bottom-panel-fixtures"), sessionCount: 4)
@@ -122,7 +128,30 @@ struct DesignSnapshotRenderTests {
                     }
                     do {
                         try await capture(DashboardView(viewModel: scene.dashboard, router: scene.router, usageMonitor: scene.usageMonitor,
-                            newChatDraftStore: scene.draftStore, sessionTerminals: store, initiallyExpandedProjectIDs: [scene.project.id], bottomPanel: bottomPanel), frame: frame, output: output)
+                            newChatDraftStore: scene.draftStore, sessionTerminals: store, initiallyExpandedProjectIDs: [scene.project.id], bottomPanel: bottomPanel), frame: frame, output: output,
+                            prepare: { host, window in
+                                guard variant == "terminal-focused" || variant == "files-focused" else { return }
+                                let terminal = store.bottomTerminal(for: scene.project.id, workingDirectory: scene.project.directoryPath)
+                                try await waitUntil { terminal.terminalCoordinator.terminalView.window === window }
+                                #expect(window.makeFirstResponder(terminal.terminalCoordinator.terminalView))
+                                try await waitUntil { bottomPanel.isTerminalFocused }
+                                if variant == "files-focused" {
+                                    scene.router.showFilesInInspector()
+                                    try await waitUntil {
+                                        guard !bottomPanel.isTerminalFocused, let responder = window.firstResponder as? NSView else { return false }
+                                        // SwiftUI の入力先は右ペイン専用の NSView ではなく、画面全体のホスト。
+                                        return responder !== terminal.terminalCoordinator.terminalView && responder.isDescendant(of: host)
+                                    }
+                                    let down = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                        timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                                        characters: "\u{F701}", charactersIgnoringModifiers: "\u{F701}", isARepeat: false, keyCode: 125))
+                                    window.sendEvent(down)
+                                    try await waitUntil {
+                                        guard let row = snapshotAccessibilityElement("file-tree-row-README.md", in: host) else { return false }
+                                        return (row as AnyObject).isAccessibilitySelected()
+                                    }
+                                }
+                            })
                     } catch {
                         await store.shutdownAll()
                         for session in scene.dashboard.sessions { await session.kill() }
@@ -257,7 +286,7 @@ struct DesignSnapshotRenderTests {
                     let frame = Frame(id: "13-ft-" + state + suffix + (width == 260 ? "-260" : ""), name: "ファイル操作", width: CGFloat(width), height: 440,
                         light: light, language: english ? "en" : "ja")
                     try await capture(FileTreeView(model: model, openPath: "docs/guides/file-tree.md", open: { _, _ in },
-                                                  showsFocus: state == "rename", inputRequestsFocus: false), frame: frame, output: output,
+                                                  inputRequestsFocus: false), frame: frame, output: output,
                         prepare: { host, window in
                             if state == "new-file" || state == "new-folder" {
                                 let field = try #require(descendants(host).compactMap { $0 as? NSTextField }
@@ -532,6 +561,10 @@ struct DesignSnapshotRenderTests {
 
     private var stage8Frames: [Frame] {
         [
+            .init(id: "10-WS1-dark-ja", name: "worktree 起点メニュー", width: 1440, height: 1000, language: "ja"),
+            .init(id: "10-WS2-light-en", name: "worktree 起点メニュー", width: 1440, height: 1000, light: true, language: "en"),
+            .init(id: "10-WS3-dark-ja", name: "worktree 起点メニュー狭幅", width: 720, height: 1000, language: "ja"),
+            .init(id: "10-WS4-light-en", name: "worktree 起点メニュー狭幅", width: 720, height: 1000, light: true, language: "en"),
             .init(id: "10-A1-dark-ja", name: "新規チャット A1", width: 1440, height: 900, language: "ja"),
             .init(id: "10-A2-light-ja", name: "新規チャット A2", width: 1440, height: 900, light: true, language: "ja"),
             .init(id: "10-C1-dark-ja", name: "新規チャット C1", width: 720, height: 900, language: "ja"),
@@ -685,8 +718,9 @@ struct DesignSnapshotRenderTests {
         var written = 0
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
-        try #require(["all", "files", "simulator", "syntax", "large-files", "browser"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser のいずれか")
+        try #require(["all", "files", "simulator", "syntax", "large-files", "browser", "worktree-start"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser・worktree-start のいずれか")
         let selectedFrames = (frames + syntaxFrames + browserFrames + stage8Frames).filter { frame in
+            if scope == "worktree-start" { return frame.id.hasPrefix("10-WS") }
             if scope == "browser" { return frame.id.hasPrefix("9-") }
             if scope == "large-files" { return ["3l", "3large", "changes-deleted", "changes-readonly", "changes-oversized"].contains(frame.stateID) || frame.stateID.hasPrefix("3readonly") }
             if scope == "syntax" { return frame.id.hasPrefix("syntax-") }
@@ -1175,6 +1209,11 @@ struct DesignSnapshotRenderTests {
         let isUnavailable = frame.id.contains("-R")
         let isFocusedSend = frame.id.contains("-F")
         let hasOpenMenu = frame.id.contains("-M")
+        let hasStartPointMenu = frame.id.contains("-WS")
+        if hasStartPointMenu {
+            scene.draft.usesWorktree = true
+            scene.draft.selectWorktreeStartPoint(.localBranch("feature/chat"), projectID: scene.project.id, directory: nil)
+        }
         if frame.id == "10-C2-dark-en" {
             scene.draft.selectHarness(.builtin(.claudeCode))
             scene.draft.settings = CodexAppServerSessionSettings(
@@ -1195,6 +1234,14 @@ struct DesignSnapshotRenderTests {
             .environment(\.newChatSendButtonInitiallyFocused, isFocusedSend)
             .environment(\.newChatSendValidationInitiallyShown, isUnavailable)
             .environment(\.newChatModelMenuInitiallyOpen, hasOpenMenu)
+            .environment(\.worktreeStartPointSnapshotItems, hasStartPointMenu ? [
+                .init(point: .head),
+                .init(point: .localBranch("main")),
+                .init(point: .localBranch("feature/chat")),
+                .init(point: .remoteBranch("origin/main")),
+                .init(point: .tag("v1.10.0")),
+                .init(point: .commit("9f3c2e1234567890"), summary: "Improve new chat workflow"),
+            ] : nil)
         do {
             try await capture(content, frame: frame, output: output)
         } catch {
@@ -1203,6 +1250,7 @@ struct DesignSnapshotRenderTests {
         }
         for session in scene.dashboard.sessions { await session.kill() }
         return isUnavailable ? "実際の新規チャット。Codex 未検出の送信不可理由を表示"
+            : hasStartPointMenu ? "新規チャットの起点ポップオーバー。区分と選択状態を画面外で描画"
             : hasOpenMenu ? "実際のモデル選択メニューをボタン位置に重ねて描画"
             : isFocusedSend ? "実際の新規チャットで送信ボタンへキーボードフォーカスを設定"
             : "実際のダッシュボードで下段の新規チャットタブを選択"
@@ -1537,7 +1585,7 @@ struct DesignSnapshotRenderTests {
                                     keyboardPath: id == "2b" || id == "8L1" ? "docs/step-2.md" : nil,
                                     hoverPath: id == "2a" ? "README.md" : id == "2d" ? "shared-assets" : nil,
                                     contextPath: id == "2c" ? "docs/file-tree.md" : nil,
-                                    showsFocus: id == "2b" || id == "8L1", isOverlay: id == "2k",
+                                    isOverlay: id == "2k",
                                     blockedPath: frame.id == "2d-click" ? "shared-assets" : nil)
             try await capture(tree, frame: frame, output: output)
         }
@@ -1679,6 +1727,24 @@ struct DesignSnapshotRenderTests {
         #expect(fake.inputs == 0)
         #expect(await fixture.mutations().isEmpty)
         return "偽の接続・単色 IOSurface と実物の表示部品。実端末操作なし"
+    }
+
+    private func snapshotAccessibilityElement(_ identifier: String, in root: NSObject) -> NSObject? {
+        var visited = Set<ObjectIdentifier>()
+        func visit(_ object: NSObject) -> NSObject? {
+            guard visited.insert(ObjectIdentifier(object)).inserted else { return nil }
+            let id = NSSelectorFromString("accessibilityIdentifier")
+            if object.responds(to: id), object.perform(id)?.takeUnretainedValue() as? String == identifier { return object }
+            let children = NSSelectorFromString("accessibilityChildren")
+            if object.responds(to: children), let values = object.perform(children)?.takeUnretainedValue() as? [NSObject] {
+                for child in values { if let found = visit(child) { return found } }
+            }
+            if let view = object as? NSView {
+                for child in view.subviews { if let found = visit(child) { return found } }
+            }
+            return nil
+        }
+        return visit(root)
     }
 
     private func destination(_ frame: Frame, _ output: URL) -> URL {

@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-13
+last-verified: 2026-10-15
 ---
 
 # 共通の新規チャット開始画面（設計書）
@@ -44,7 +44,7 @@ DashboardViewModel.launchNewChat(request, onRowAppended:)
 
 ```swift
 @MainActor @Observable public final class NewChatDraftStore {
-    public let draft: NewChatDraft   // アプリに 1 つ（ADR 0188）。プロジェクトごとの辞書・破棄・「下書きあり」の印は無い
+    public let draft: NewChatDraft   // 本文はアプリに 1 つ（ADR 0188）。起点だけはプロジェクトごとに保持（ADR 0203）
 }
 
 @MainActor @Observable public final class NewChatDraft {
@@ -72,6 +72,7 @@ struct NewChatLaunchRequest {
     let agentRef: AgentRef
     let settings: CodexAppServerSessionSettings
     let usesWorktree: Bool
+    let worktreeStartPoint: WorktreeStartPoint // 送信時点の起点。既定 HEAD
     let text: String
     let attachments: [ComposerAttachment]     // 送信時点の複製
     let workingDirectoryOverride: String?     // worktree 作成失敗の「既存の worktree を使う」で渡す作業フォルダ（通常は nil）
@@ -82,6 +83,10 @@ struct NewChatLaunchRequest {
 送信時点の入力一式をこの値に固定してから下書きを空にする（FR-7 の 1）。以後の編集は下書き側にしか効かない。
 
 ### 2.3 保存するもの
+
+worktree の起点は `NewChatDraft` がプロジェクト ID ごとの辞書でメモリに保持する。本文の下書きは ADR 0188 の共有を維持する。フォルダを選んで未登録の間は正規化したパスで覚え、送信時に登録されたプロジェクトへ引き継ぐ。
+
+「新しい worktree」のときだけ `workspacePicker` の行の直下に右寄せした起点欄を出す。既存の操作列の幅を圧迫せず、長い名前は途中を省略する。既存の検索付き `SelectablePopoverButton` を再利用し、ローカル・リモート・タグ・最近のコミットを区分する。一覧取得失敗時は HEAD だけ。読み取りは `WorkingTreeService`、作成と再解決は `WorktreeIsolationGit` の既存経路を拡張する（ADR 0203）。
 
 | 保存先 | 変更 |
 |---|---|

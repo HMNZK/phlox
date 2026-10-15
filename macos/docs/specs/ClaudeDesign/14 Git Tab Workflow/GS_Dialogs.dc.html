@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GS 確認ダイアログとキー操作</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:2700px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:56px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:1300px;">
+    <div style="font-size:26px;font-weight:700;">D. 確認ダイアログ（GW-12・GW-13）</div>
+    <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">今の「ゴミ箱に入れる」の確認と同じ形（アプリのアイコン・題・本文・対象の一覧・ボタン 2 段）。戻せる操作は操作が既定（↩）、戻せない操作とエージェントの作業に触れる操作はキャンセルが既定で、操作は 2 番目のボタン（戻せない操作はエラーの文字色で太字）。実行中のセッションの注意は、主の確認に 1 枠添えて 1 枚にまとめる（D6）。</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,440px);column-gap:48px;row-gap:56px;">
+    <sc-for list="{{ cells }}" as="c" hint-placeholder-count="7">
+      <div id="{{ c.id }}" style="display:flex;flex-direction:column;gap:12px;width:440px;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+        <dc-import name="GitConfirm" variant="{{ c.v }}" hint-size="440px,600px"></dc-import>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ c.caption }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:18px;font-weight:700;">キーボードと VoiceOver（区画）</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+        <sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+          <div style="display:grid;grid-template-columns:180px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-weight:600;">{{ k.k }}</span><span style="text-wrap:pretty;">{{ k.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:18px;font-weight:700;">置けなかったこと・次に決めること</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:16px 18px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.7;">
+        <sc-for list="{{ asks }}" as="a" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:2px;"><b>{{ a.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ a.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":2700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const C = (id, title, v, caption) => ({ id, title, v, caption });
+    const cells = [
+      C('D1','ブランチの削除（マージ済み）','deleteMerged','どこにマージ済みかを本文と一覧の 2 行目に。コミットは残るので「削除」が既定。'),
+      C('D2','マージされていないブランチの削除','deleteUnmerged','題で「マージされていません」と先に言う。未マージのコミット数を札に。キャンセルが既定、「強制削除」はエラーの文字色。承認で git branch -D。'),
+      C('D3','スタッシュの削除','deleteStash','戻せないのでキャンセルが既定、「削除」はエラーの文字色。'),
+      C('D4','実行中のセッションがあるときの切り替え','switchRunning','「このフォルダで動いているセッションがあります。ファイルが書き換わります。」を注意の枠で。一覧にそのセッション（実行中の札）。ワークツリーのセッションは対象外と添える。'),
+      C('D5','実行中のときのスタッシュ','stashRunning','しまう変更の件数と、動いているセッションを並べる。キャンセルが既定。'),
+      C('D6','重なり: 実行中の取り出し','popRunning','取り出しは「適用して削除」なので確認が要り、さらに実行中の注意が要る。主の確認文に注意の枠を 1 つ添えて 1 枚で済ませる。'),
+      C('D7','実行中のときのチェックアウト','checkoutRunning','リモートブランチのチェックアウト。作るローカルブランチ（新規の札）と、動いているセッション。')
+    ];
+    const keys = [
+      { k:'↑ ↓ ← →', v:'全区画をまたいで移る。→ でコミット・スタッシュ・リモートのまとまりを開き、← で閉じる・親へ戻る' },
+      { k:'↩', v:'ブランチ: 切り替え（ダブルクリックと同じ）。コミット・スタッシュの中のファイル: 「変更」タブで開く。コミット・スタッシュの行: 開く／閉じる' },
+      { k:'⌘C', v:'コミットの行で短縮でない ID をコピー' },
+      { k:'⌘⌫', v:'ブランチ・スタッシュの行で 削除…（確認を出す）' },
+      { k:'⌥⌘N ／ ⌥⌘S', v:'ブランチ区画・スタッシュ区画の「＋」と同じ。入力欄にキー入力が移る（⌘N は新規チャットなので使わない）' },
+      { k:'入力欄', v:'↩ 作成して切り替え · ⌥↩ 作成だけ · esc 取り消し（入力先は元の行へ戻る）' },
+      { k:'VO-⇧-M・右クリック', v:'行のメニュー。見出しでは見出しの操作（新しいブランチ・取得・スタッシュ）' },
+      { k:'VoiceOver · ブランチ', v:'「feature/git-tab-workflow、今のブランチ、2 件先行」。カスタムアクション「切り替え」「ここからブランチを作成」「名前の変更」「削除」' },
+      { k:'VoiceOver · コミット', v:'「GitWorkflowService に stage と unstage を追加、Claude Code、5 時間前、b7d03f5、未プッシュ、閉じています」' },
+      { k:'VoiceOver · 取得', v:'始めに「取得しています」、終わりに「origin を取得しました。新しいブランチ 1 件」' },
+      { k:'VoiceOver · 確認', v:'題・本文・注意の順に読む。既定のボタンを「既定」と読む' },
+      { k:'VoiceOver · 失敗', v:'上部の失敗の表示は alert で、題と git の出力の 1 行目を読む' }
+    ];
+    const asks = [
+      { t:'グラフの行を開いたとき', v:'コミット区画と同じ形（GW-11）なので描き分けていない。グラフの中で開いたファイルの行は線の右から始める案。' },
+      { t:'リモートの「取得」の範囲', v:'見出しの「取得」は全リモート、まとまりの右クリックに「origin だけ取得」を足すかは未決。' },
+      { t:'切り替えの確認の既定ボタン', v:'実行中のときの切り替えはキャンセルを既定にした。頻繁に切り替える人には重いので、「このプロジェクトでは聞かない」を付けるかは相談したい。' },
+      { t:'ライトテーマ', v:'この回はダークだけ。区画の行は「変更」区画と同じ値を使うので、前回の GW_Light と同じ見え方になる。' }
+    ];
+    return { cells, keys, asks };
+  }
+}
+</script>
+</body>
+</html>

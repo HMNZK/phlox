@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GA 横断点検</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:8200px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:1240px;">
+    <div style="font-size:13px;color:#5B5B60;">GA · GW（1 回目）· GS（2 回目）· GK（3 回目）の横断点検 · 2026-10-15</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">横断点検と直したこと</div>
+    <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">1 要件の置き場所 · 2 キーボードだけの手順 · 3 コントラスト · 4 英語の幅 · 5 ライトの Git タブ · 6 直した点。○ = 図にある、△ = 一部・文だけ、× = 置けていない。</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:26px;font-weight:700;">1. GW-1〜15 の置き場所</div>
+    <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:70px 36px 1fr 420px;gap:14px;padding:10px 16px;font-weight:700;font-size:12px;color:#5B5B60;"><span>番号</span><span>判定</span><span>モック上の置き場所</span><span>足りないもの</span></div>
+      <sc-for list="{{ reqs }}" as="q" hint-placeholder-count="15">
+        <div style="display:grid;grid-template-columns:70px 36px 1fr 420px;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);">
+          <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ q.id }}</span>
+          <span style="font-weight:700;">{{ q.ok }}</span>
+          <span style="text-wrap:pretty;">{{ q.where }}</span>
+          <span style="color:#5B5B60;text-wrap:pretty;">{{ q.gap }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size:13px;line-height:1.7;color:#3A3A3E;max-width:1240px;text-wrap:pretty;"><b style="color:#1D1D1F;">置けていない番号：</b>× は無し。△ は GW-2（開閉を保つ）・GW-5（重ね表示でカードを閉じる）・GW-11（グラフの行を開いた形）・GW-15（読み直しの時機）の 4 つ。GW-2 と GW-15 は画面に出ない振る舞いなので図にしない。GW-5 の重ね表示と GW-11 の開いた行は、描くなら次の回に。受け入れ基準の「コミット区画の先頭に出る」は、今回 Z1 として描き足した。</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:26px;font-weight:700;">2. キーボードだけの手順</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;align-items:start;">
+      <sc-for list="{{ flows }}" as="f" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="font-size:16px;font-weight:700;">{{ f.t }}</div>
+          <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+            <sc-for list="{{ f.steps }}" as="s" hint-placeholder-count="8">
+              <div style="display:grid;grid-template-columns:22px 104px 1fr;gap:10px;padding:8px 14px;border-top:1px solid rgba(0,0,0,0.06);"><span style="color:#5B5B60;">{{ s.n }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ s.k }}</span><span style="text-wrap:pretty;">{{ s.v }}</span></div>
+            </sc-for>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">結果：</b>{{ f.r }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:48px;align-items:flex-start;margin-top:12px;">
+      <div style="display:flex;flex-direction:column;gap:12px;width:440px;flex:none;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">D8</span><span style="font-size:14px;font-weight:600;">確認で 2 番目のボタンへ Tab</span></div>
+        <dc-import name="GitConfirm" variant="switchRunningKb" hint-size="440px,600px"></dc-import>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">既定がキャンセルの確認では、↩ で操作できない。Phlox の確認は「キーボードで操作」の設定に関わらず Tab でボタンに届くようにし、入力先のボタンに主文字色の輪を出す。</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;width:280px;flex:none;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;">Z1</span><span style="font-size:14px;font-weight:600;">コミットした直後</span></div>
+        <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);"><dc-import name="GitPanel" variant="afterCommit" width="280" height="838" hint-size="280px,838px"></dc-import></div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">受け入れ基準の図。ステージ済みは 0、メッセージ欄は空、「プッシュ ↑3」。コミット区画の先頭に新しいコミットが semibold で出る（GT-7 の「新しく出た行」と同じ表し方）。</div>
+      </div>
+      <div style="flex:1;font-size:13px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;display:flex;flex-direction:column;gap:10px;padding-top:34px;">
+        <div><b style="color:#1D1D1F;">見つかった穴 1：</b>「プッシュ」にキーが無かった。macOS の「キーボードで操作」が切り（初期設定）だと Tab はボタンに届かないので、マウスなしではプッシュできなかった。→ ⌥⌘P と Git メニューの「プッシュ」「PR を作成」を足した。</div>
+        <div><b style="color:#1D1D1F;">見つかった穴 2：</b>GK の手順 7「Tab Tab でプッシュへ」は誤り。コミットした後の「コミット」は押せないので Tab で飛ばされ、1 回で届く。→ 手順を ⌥⌘P に直した。</div>
+        <div><b style="color:#1D1D1F;">見つかった穴 3：</b>既定がキャンセルの確認（D4〜D7）で、操作のボタンにキーで届く道が書いてなかった。→ D8 を足した。</div>
+        <div><b style="color:#1D1D1F;">決めたこと：</b>作成・スタッシュ・切り替えの後は、入力先をできた行（新しいブランチ・stash@{0}）に置く。取り出しの後は、スタッシュ区画の見出しに戻す。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:26px;font-weight:700;">3. コントラスト（WCAG 2.2 AA）</div>
+    <div style="font-size:13px;line-height:1.7;color:#3A3A3E;max-width:1240px;text-wrap:pretty;">文字は 4.5:1（AA）、部品と図の形は 3:1（1.4.11）。透明度のある色は下地と重ねた色で計算した。ダーク：パネル #242427、ホバー #303033（6%）、選択 #373739（9%）、入力先 #555558（24%）。ライト：パネル #F8F8F9、ホバー #EDEDEE、選択 #E8E8E9、入力先 #D3D3D4。</div>
+    <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:260px 200px 90px 90px 70px 1fr;gap:14px;padding:10px 16px;font-weight:700;font-size:12px;color:#5B5B60;"><span>対象</span><span>前景 / 下地</span><span>ダーク</span><span>ライト</span><span>基準</span><span>判定</span></div>
+      <sc-for list="{{ cons }}" as="c" hint-placeholder-count="20">
+        <div style="display:grid;grid-template-columns:260px 200px 90px 90px 70px 1fr;gap:14px;padding:7px 16px;border-top:1px solid rgba(0,0,0,0.06);">
+          <span style="font-weight:600;">{{ c.t }}</span>
+          <span style="color:#5B5B60;font-size:12px;">{{ c.p }}</span>
+          <span style="font-variant-numeric:tabular-nums;">{{ c.d }}</span>
+          <span style="font-variant-numeric:tabular-nums;">{{ c.l }}</span>
+          <span style="color:#5B5B60;">{{ c.n }}</span>
+          <span style="text-wrap:pretty;">{{ c.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:26px;font-weight:700;">4. 英語にしたときの幅（280pt / 260pt）</div>
+    <div style="font-size:13px;line-height:1.7;color:#3A3A3E;max-width:1240px;text-wrap:pretty;">SF Pro の字幅から見積もった値（実装で ±10% はずれる）。使える幅は余白と記号を引いた後の値。</div>
+    <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:200px 1fr 90px 110px 1fr;gap:14px;padding:10px 16px;font-weight:700;font-size:12px;color:#5B5B60;"><span>箇所</span><span>英語（日本語）</span><span>幅</span><span>使える幅 280 / 260</span><span>結果と直し</span></div>
+      <sc-for list="{{ en }}" as="e" hint-placeholder-count="14">
+        <div style="display:grid;grid-template-columns:200px 1fr 90px 110px 1fr;gap:14px;padding:7px 16px;border-top:1px solid rgba(0,0,0,0.06);">
+          <span style="font-weight:600;">{{ e.t }}</span>
+          <span style="text-wrap:pretty;">{{ e.s }}</span>
+          <span style="font-variant-numeric:tabular-nums;">{{ e.w }}</span>
+          <span style="font-variant-numeric:tabular-nums;">{{ e.a }}</span>
+          <span style="text-wrap:pretty;">{{ e.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-size:26px;font-weight:700;">5. ライトテーマの Git タブ</div>
+    <div style="display:flex;gap:48px;align-items:flex-start;">
+      <sc-for list="{{ light }}" as="c" hint-placeholder-count="4">
+        <div id="{{ c.id }}" style="display:flex;flex-direction:column;gap:12px;width:280px;flex:none;">
+          <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+          <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+            <dc-import name="GitPanel" theme="light" variant="{{ c.v }}" width="280" height="838" hint-size="280px,838px"></dc-import>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ c.caption }}</div>
+        </div>
+      </sc-for>
+      <div style="flex:1;font-size:13px;line-height:1.7;color:#3A3A3E;text-wrap:pretty;display:flex;flex-direction:column;gap:10px;padding-top:34px;">
+        <div><b style="color:#1D1D1F;">ライトで気をつけたこと：</b>追加の色 #1F7A3A は選択の塗り（7.5%）の上で 4.39:1 になるので、選んだ行では種類の文字と行数を主文字色にする（ダークと同じ規則）。</div>
+        <div>入力先の塗り 17% の上の副文字色は 4.51:1 でぎりぎり。見出し・小見出し・行のメタは入力先のとき主文字色にする。</div>
+        <div>「＋」の面は白で、ホバーの行（#EDEDEE）とは 1.17:1 しか差がないので、縁 50% を付けて 3.15:1 にした（L3）。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:26px;font-weight:700;">6. 直した点</div>
+    <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:40px 200px 1fr 260px;gap:14px;padding:10px 16px;font-weight:700;font-size:12px;color:#5B5B60;"><span>#</span><span>箇所</span><span>直したこと</span><span>理由（点検の番号）</span></div>
+      <sc-for list="{{ fixes }}" as="x" hint-placeholder-count="14">
+        <div style="display:grid;grid-template-columns:40px 200px 1fr 260px;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);">
+          <span style="color:#5B5B60;font-variant-numeric:tabular-nums;">{{ x.n }}</span>
+          <span style="font-weight:600;">{{ x.t }}</span>
+          <span style="text-wrap:pretty;">{{ x.v }}</span>
+          <span style="color:#5B5B60;text-wrap:pretty;">{{ x.r }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":8200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const R = (id, ok, where, gap) => ({ id, ok, where, gap });
+    const reqs = [
+      R('GW-1','○','上部の固定欄: Main A1・S1。理由の 1 行: S8・S9。実行中: S11・S12・S14。PR の後: S15。更新: ブランチの行の右。detached: S22','—'),
+      R('GW-2','△','区画の順と見出し（矢印・名前・件数・操作）: S1・S23・S24。既定は「変更」だけ開く: S1','開閉をアプリの終了後も保つ（画面に出ない）'),
+      R('GW-3','○','ステージ済み／変更・すべてステージ／外す: S1。「＋」: S2〜S6。「−」: S7・B2。キーボード: S5・S6・K7','—'),
+      R('GW-4','○','ステージ済みだけ: 理由の行「ステージ済み 3 件をコミットします」。押せない理由: S8','—'),
+      R('GW-5','△','行を押すと「変更」タブ: A1・B2。Git タブ内に差分なし: 全図','重ね表示でカードを閉じる動きは文だけ（Main A1 の注記）'),
+      R('GW-6','○','一覧なし・差分／内容・ファイルタブで編集・未選択: B1・B2・C1・C2','—'),
+      R('GW-7','○','行・開いた行: X1。右クリック: X2。ここからブランチ: X3。50 件と続き: X4・X5。差分を「変更」タブへ: C2','—'),
+      R('GW-8','○','印・最近使った順: X6。「＋」: X7・X8。右クリック: X9・X10。名前の変更: X11。切り替え: X12','—'),
+      R('GW-9','○','リモートごと・取得: X14・X16。チェックアウト・ここからブランチ: X15・D7','—'),
+      R('GW-10','○','一覧・開いた行: X17。「＋」と任意のメッセージ: X18。適用・取り出す・削除: X19','—'),
+      R('GW-11','△','線・札・200 件: G1〜G4','グラフの行を開いた形（GW-7 と同じと文で書いただけ）'),
+      R('GW-12','○','D1（マージ済み）・D2（未マージ・強制削除）・D3（スタッシュ）','—'),
+      R('GW-13','○','D4〜D7、重なり D6、キーで操作する D8','—'),
+      R('GW-14','○','S16・S17（プッシュ）・S18（読み込み）・X13（切り替え）・X20（スタッシュ）','—'),
+      R('GW-15','△','読み込み中 S19・取得中 X16','読み直す時機（操作の後・GT-7）は画面に出ない')
+    ];
+    const F = (t, steps, r) => ({ t, steps: steps.map((s, i) => ({ n: String(i + 1), k: s[0], v: s[1] })), r });
+    const flows = [
+      F('A. 2 ファイルをステージ → コミット → プッシュ', [
+        ['⇧⌃⌘G','Git タブの一覧へ。「変更、9 件、開いています」'],
+        ['↓ × 6','「変更」の小見出しの下、ChangesTabView.swift へ（行の数だけ）'],
+        ['Space','ステージ。入力先は次の行 GitSectionHeader.swift へ（S6）'],
+        ['Space','もう 1 つステージ。「ステージ済み 5 件」'],
+        ['⇧⌘C','メッセージ欄へ（K4）。書く'],
+        ['⌘↩','コミット。「コミットしました、8b2e4d1」（Z1）'],
+        ['⌥⌘P','プッシュ。「プッシュしています … プッシュしました」'],
+        ['esc','一覧へ戻る']
+      ], 'できる。ただし直す前は 7 のキーが無く、「キーボードで操作」が切りの Mac ではプッシュに届かなかった（修正 1）。'),
+      F('B. ブランチを作って切り替え', [
+        ['⇧⌃⌘G','Git タブの一覧へ'],
+        ['⌥⌘N','ブランチ区画が開き、先頭の入力欄へ（X7）'],
+        ['名前を打つ','重なると欄の下に理由（X8）。↩ は効かない'],
+        ['↩','作成して切り替え'],
+        ['（実行中なら）','D4 が出る。既定はキャンセル'],
+        ['Tab → Space','「切り替える」へ移って押す（D8）'],
+        ['—','「feature/graph-lanes に切り替えました」。入力先は新しいブランチの行']
+      ], 'できる。実行中の確認で操作のボタンへ届く道が書いていなかったので D8 を足した（修正 2）。'),
+      F('C. 変更をスタッシュして取り出す', [
+        ['⌥⌘S','スタッシュ区画が開き、メッセージの入力欄へ（X18）'],
+        ['（任意）打つ → ↩','スタッシュ。実行中なら D5 → Tab → Space'],
+        ['—','「stash@{0} にしまいました」。入力先は stash@{0} の行'],
+        ['⌃↩','行のメニュー（X19）'],
+        ['↓ → ↩','「取り出す（適用して削除）」'],
+        ['（実行中なら）','D6 → Tab → Space'],
+        ['—','「stash@{0} を取り出しました」。衝突したら上部に理由（X20）、スタッシュは残る']
+      ], 'できる。メニューの中は macOS 標準の矢印と ↩ で動く。')
+    ];
+    const C = (t, p, d, l, n, v) => ({ t, p, d, l, n, v });
+    const cons = [
+      C('種類の文字 A・行数 +','追加の色 / パネル','8.16','5.07','4.5','○'),
+      C('種類の文字 A（ホバー）','追加の色 / ホバー','6.94','4.60','4.5','○（ライトは余裕が少ない）'),
+      C('種類の文字 A（選択 9%）','追加の色 / 選択','6.27','4.39','4.5','ライト × → 選んだ行は主文字色にする（実装済みの規則。今回すべての行で確認）'),
+      C('種類の文字 D・行数 −','削除の色 / パネル・ホバー','6.83 / 5.81','6.16 / 5.58','4.5','○'),
+      C('種類の文字 M・R・U','副文字色 / パネル・ホバー','6.78 / 5.76','6.36 / 5.77','4.5','○'),
+      C('副文字色（入力先 24%／17%）','副文字色 / 入力先','3.25','4.51','4.5','ダーク × → 入力先の行・見出し・小見出しは主文字色（6.65 / 11.25）'),
+      C('種類のタグの枠','枠 14% / パネル','1.52','1.33','—','飾り。種類は文字で分かるので 1.4.11 の対象外'),
+      C('「＋」「−」の記号','主文字色 / ボタンの面（通常・ホバー・押下）','10.13 / 8.39 / 7.17','16.83 / 15.05 / 13.26','4.5','○'),
+      C('「＋」の面の縁（直す前）','面 / ホバーの行','1.16','1.17','3','× → 縁を付けた（ダーク 38%・ライト 50%）'),
+      C('「＋」の縁（直した後）','縁 / ホバーの行','3.07','3.15','3','○（入力先 24% の行では 2.36。記号が 10:1 なので識別はできる）'),
+      C('グラフの線（ほかのブランチ）','副文字色 / パネル','6.78','6.36','3','○'),
+      C('グラフの線（今のブランチ）・HEAD','主文字色 / パネル','13.84','15.86','3','○'),
+      C('札の文字','主文字色 / パネル','13.84','15.86','4.5','○'),
+      C('札の枠（ローカル）','枠 14% / パネル','1.52','1.33','—','飾り（札は文字で分かる）'),
+      C('札の破線（リモートだけ）','副文字色 / パネル','6.78','6.36','3','○'),
+      C('メッセージ欄の縁（直す前）','枠 14% / パネル','1.32','1.25','3','× → 入力欄の縁を 40%（ライト 55%）に'),
+      C('メッセージ欄の縁（直した後）','縁 / パネル','3.13','3.57','3','○'),
+      C('プレースホルダ','補助文字色 / 入力欄','5.33','4.58','4.5','○（直す前はブラウザの色で未指定だった）'),
+      C('「変更」タブのコメント（追加行）','#7F8C98 / 追加の下地','3.97','4.83','4.5','ダーク × → #8D99A5（4.70・地の上 5.73）'),
+      C('「変更」タブの行番号','補助文字色 / 背景','5.11','4.58','4.5','○'),
+      C('エラーの文字・印','エラー色 / カード','6.58 / 4.44','6.53 / 5.29','4.5 / 3','○'),
+      C('入力先の輪（ボタン）','主文字色 / パネル','13.84','15.86','3','○'),
+      C('メニューのキー表示','白 50% / メニュー','4.72','—','4.5','○（システムのメニュー）')
+    ];
+    const E = (t, s, w, a, v) => ({ t, s, w, a, v });
+    const en = [
+      E('コミットの行の 2 行目','Claude Code · 5 hours ago · b7d03f5 · not pushed（Claude Code · 5 時間前 · b7d03f5 · 未プッシュ）','253（236）','234 / 214','× 両方で末尾の「未プッシュ」が切れる → 並びを「ID · 時刻 · 作者」にし、未プッシュは 1 行目の右の印に。新しい英語は 185'),
+      E('リモートの追跡中の行','feature/git-tab-workflow ＋ Tracking · 5 hours ago','162 ＋ 116','210 / 190','× 名前が 88pt まで縮む → 「追跡中」を鎖の印（ツールチップと VoiceOver で言葉）にし、時刻だけに'),
+      E('入力欄の下のキー','↩ Create and switch · ⌥↩ Create only · esc Cancel（↩ 作成して切り替え …）','256（244）','238 / 218','× 日本語でも切れていた → 2 行まで折り返す'),
+      E('入力欄の上の起点','From current position (feature/git-tab-workflow · 4e1a9c2)','323（284）','238 / 218','× → 折り返す'),
+      E('区画の空の 2 行目','Add one with git remote add to list it here（git remote add で追加すると…）','217（232）','234 / 214','260 で × → 折り返す'),
+      E('「ステージ済み 0」の案内','Files you stage with + appear here（＋ でステージしたファイルが…）','176（223）','234 / 214','日本語が 260 で × → 折り返す'),
+      E('行のツールチップのキー説明','Open and move to the Changes tab','175','166 / 146','× はみ出す → 説明を折り返す'),
+      E('「プッシュ」「PR を作成」','Push ↑2 · Pushing… · Create PR · Creating…','43〜60','107 / 97','○'),
+      E('理由の 1 行','Committing 3 staged changes…','154','254 / 234','○'),
+      E('小見出し','Staged Changes 3 ＋ Unstage All','82 ＋ 59','240 / 220','○'),
+      E('区画の見出し','Remote Branches 14 ＋ 取得','98','230 / 210','○'),
+      E('右クリックのメニュー','Create Branch from Here… / Pop (Apply and Delete)','163 / 141','216（固定）','○。実装ではシステムが幅を決める'),
+      E('リモートのまとまり','origin ＋ 5 · fetched 12 min ago','113','160 / 140','○'),
+      E('「変更」タブのツールバー','ファイル名 ＋ Commit b7d03f5 ＋ Edit in File Tab','—','中央 480pt のとき','× ファイル名が縮まずはみ出し得た → ファイル名も末尾を省くように')
+    ];
+    const light = [
+      { id:'L1', title:'通常', v:'normal', caption:'S1 と同じ状態。主ボタンは面 #1D1D1F・文字 #FFFFFF。メッセージ欄の縁は 55%。' },
+      { id:'L2', title:'全区画を開いた', v:'allOpen', caption:'コミット・ブランチ（✓ と太字）・リモート・スタッシュ・グラフ。' },
+      { id:'L3', title:'「＋」にホバー', v:'hoverBtn', caption:'白い面に縁 50%、ホバーで #F2F2F4。' },
+      { id:'L4', title:'グラフ', v:'graph', caption:'線は主文字色 #1D1D1F（今のブランチ）と副文字色 #5B5B60。' }
+    ];
+    const X = (n, t, v, r) => ({ n, t, v, r });
+    const fixes = [
+      X('1','プッシュのキー','⌥⌘P を足し、「プッシュ」のツールチップ・Git メニュー・GK のキー表に書いた。Git メニューに「PR を作成」も足した','2-A'),
+      X('2','GK の手順','「Tab Tab でプッシュへ」を ⌥⌘P に直した','2-A'),
+      X('3','確認ダイアログ','2 番目のボタンに入力先の輪を出す図 D8 を足した','2-B・2-C'),
+      X('4','コミット後の図','受け入れ基準の「コミット区画の先頭に出る」を Z1 として足した','1'),
+      X('5','「＋」「−」の縁','ボタンの面に 1pt の縁（ダーク 38%・ライト 50%）を付け、ホバーの行で 3:1','3'),
+      X('6','入力欄の縁','メッセージ欄の縁を 14% から 40%（ライト 55%）へ。デザインの値に「入力欄の縁」を足すことを提案','3'),
+      X('7','プレースホルダの色','補助文字色（#8E8E94 / #75757B）を明示。メッセージ欄・その場の入力欄の両方','3'),
+      X('8','コメントの色（ダーク）','「変更」タブのコメントを #7F8C98 → #8D99A5','3'),
+      X('9','コミットの行の 2 行目','「ID · 時刻 · 作者」の順にし、未プッシュは 1 行目の右の印（ツールチップと VoiceOver で言葉）','4'),
+      X('10','リモートの追跡中','文字「追跡中」を鎖の印に替え、時刻だけを残した','4'),
+      X('11','入力欄の上下の文','起点とキーの説明を折り返すようにした','4'),
+      X('12','空の状態・案内の行','1 行で切っていたのを折り返すようにした','4'),
+      X('13','行のツールチップ','キーの説明を折り返すようにした','4'),
+      X('14','「変更」タブのファイル名','狭いときは末尾を省く（ツールチップで全文）','4')
+    ];
+    return { reqs, flows, cons, en, light, fixes };
+  }
+}
+</script>
+</body>
+</html>

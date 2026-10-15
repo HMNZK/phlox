@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-04
+last-verified: 2026-10-15
 ---
 
 # チャットモードのオーケストレーション（現状仕様）
@@ -37,6 +37,16 @@ workingDirectory 指定あり → その値を verbatim に使用（worktree 等
 - 検証は `ControlActionHandler.handleSpawn` の**1箇所のみ**: 絶対パス・存在・ディレクトリ（symlink-to-dir 許容）。不正・空文字は 400 で spawn 不発火（黙示フォールバックしない）。パース層（ControlServer）と VM 層は検証しない——VM 層に置くと、保存済みディレクトリが消えた場合にセッション復元（`SessionRestoreCoordinator` が同じ `workingDirectoryOverride` を使う）が壊れるため。
 - 解決された作業ディレクトリは `PersistedSessionDescriptor.workingDirectory` に永続化され、再起動時の復元でそのまま再利用される。
 - 契約の凍結テスト: `SpawnWorkingDirectoryAcceptanceTests`（ControlServer）/ `SpawnWorkingDirectoryHandlerAcceptanceTests`（AppBootstrap）。
+
+## 2c. 新規チャットの worktree の起点
+
+新規チャットの送信は `NewChatLaunchRequest.worktreeStartPoint` を `spawnNewSession` → `SessionSpawnService.prepareSessionLaunchAsync` → `WorktreeIsolationGit.addWorktree` に渡す。既定は HEAD。作成直前に `WorkingTreeService` の `--no-optional-locks` 付き読み取りで commit ID に解決し、新規ブランチの起点にする。起点の削除・解決失敗では起動せず、既存の巻き戻しと失敗理由の表示へ戻す。復元・Control API・子セッションの既定の扱いは維持する。
+
+一覧も `WorkingTreeService` が取得し、画面は `SelectablePopoverButton` で検索・選択する。本文は共有下書き、起点はプロジェクト別にメモリで保持する。詳細は [ADR 0203](../adr/0203-new-chat-worktree-start-point.md)。
+
+起点候補はフォルダの変更時と、ポップオーバーを開くたびに読み直す。`SelectablePopoverButton` の提示内容の `.task` から取得し、閉じると未完了の取得はキャンセルする。同じフォルダの再取得中は前の候補を保持し、結果を取得してから置き換える。フォルダを変えたときだけ HEAD・空の検索へ戻す。
+
+表示は作業場所の選択行の直下に右寄せする。元の操作列の幅を圧迫せず、長い起点名は途中を省略し、VoiceOver では全文を読む。
 
 ## 3. wait の完了検知（send↔wait 相関）
 

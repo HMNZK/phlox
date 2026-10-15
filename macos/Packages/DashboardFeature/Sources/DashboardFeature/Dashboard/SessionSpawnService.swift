@@ -76,8 +76,12 @@ enum WorktreeIsolationGit {
         branchName: String,
         in repository: URL,
         createsBranch: Bool,
-        pruneStaleWorktrees: Bool
+        pruneStaleWorktrees: Bool,
+        startPoint: WorktreeStartPoint = .head
     ) async throws {
+        let commit = createsBranch
+            ? try await WorkingTreeService(repositoryRoot: repository).resolveWorktreeStartPoint(startPoint)
+            : nil
         try await runOffMainActor {
             if pruneStaleWorktrees {
                 let arguments = ["worktree", "prune"]
@@ -90,7 +94,8 @@ enum WorktreeIsolationGit {
                 at: path,
                 branchName: branchName,
                 in: repository,
-                createsBranch: createsBranch
+                createsBranch: createsBranch,
+                startCommit: commit
             )
         }
     }
@@ -219,14 +224,15 @@ enum WorktreeIsolationGit {
         at path: URL,
         branchName: String,
         in repository: URL,
-        createsBranch: Bool
+        createsBranch: Bool,
+        startCommit: String?
     ) throws {
         try FileManager.default.createDirectory(
             at: path.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
         let arguments = createsBranch
-            ? ["worktree", "add", "-b", branchName, path.path]
+            ? ["worktree", "add", "-b", branchName, path.path] + (startCommit.map { [$0] } ?? [])
             : ["worktree", "add", path.path, branchName]
         _ = try requireSuccess(
             run(arguments: arguments, in: repository),
@@ -523,7 +529,8 @@ final class SessionSpawnService {
         backend: SessionBackend = .pty,
         extraEnv: [String: String] = [:],
         isolationIntent: WorktreeIsolationIntent = .newSession,
-        isolationOverride: Bool? = nil
+        isolationOverride: Bool? = nil,
+        worktreeStartPoint: WorktreeStartPoint = .head
     ) async throws -> AgentLaunchPlan {
         let codexUserHooksEnabled = codexUserHooksEnabledProvider()
         let sanitizedPlan = try makeSanitizedLaunchPlan(
@@ -544,7 +551,8 @@ final class SessionSpawnService {
             sessionID: sessionID,
             intent: isolationIntent,
             workingDirectoryOverride: workingDirectoryOverride,
-            isolatesNewSession: isolationOverride == true
+            isolatesNewSession: isolationOverride == true,
+            startPoint: worktreeStartPoint
         )
         return try finishSessionLaunch(
             sanitizedPlan,
@@ -988,7 +996,8 @@ final class SessionSpawnService {
         sessionID: SessionID,
         intent: WorktreeIsolationIntent,
         workingDirectoryOverride: String?,
-        isolatesNewSession: Bool
+        isolatesNewSession: Bool,
+        startPoint: WorktreeStartPoint
     ) async throws -> (repository: URL, path: URL)? {
         guard let project else { return nil }
 
@@ -1018,7 +1027,8 @@ final class SessionSpawnService {
             outcome,
             project: project,
             asksBeforeRecreating: intent == .restore,
-            existingBranchNames: state.localBranchNames
+            existingBranchNames: state.localBranchNames,
+            startPoint: startPoint
         )
     }
 
@@ -1045,7 +1055,8 @@ final class SessionSpawnService {
         _ outcome: WorktreeIsolationOutcome,
         project: Project,
         asksBeforeRecreating: Bool,
-        existingBranchNames: Set<String>
+        existingBranchNames: Set<String>,
+        startPoint: WorktreeStartPoint
     ) async throws -> (repository: URL, path: URL)? {
         switch outcome {
         case .disabled:
@@ -1085,7 +1096,8 @@ final class SessionSpawnService {
                     branchName: branchName,
                     in: project.directoryURL,
                     createsBranch: createsBranch,
-                    pruneStaleWorktrees: isRecreation
+                    pruneStaleWorktrees: isRecreation,
+                    startPoint: startPoint
                 )
             } catch {
                 let rollbackDetail: String?

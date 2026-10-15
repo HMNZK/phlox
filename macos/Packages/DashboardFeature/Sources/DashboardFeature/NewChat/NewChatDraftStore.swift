@@ -19,6 +19,19 @@ public final class NewChatDraft {
     public var text = ""
     public let attachments = ComposerAttachmentStore()
     public var usesWorktree = false
+    private var worktreeStartPoints: [ProjectID: WorktreeStartPoint] = [:]
+    private var folderStartPoints: [String: WorktreeStartPoint] = [:]
+
+    func worktreeStartPoint(projectID: ProjectID?, directory: String?) -> WorktreeStartPoint {
+        if let projectID { return worktreeStartPoints[projectID] ?? .head }
+        guard let directory else { return .head }
+        return folderStartPoints[URL(fileURLWithPath: directory).standardizedFileURL.path] ?? .head
+    }
+
+    func selectWorktreeStartPoint(_ point: WorktreeStartPoint, projectID: ProjectID?, directory: String?) {
+        if let projectID { worktreeStartPoints[projectID] = point }
+        else if let directory { folderStartPoints[URL(fileURLWithPath: directory).standardizedFileURL.path] = point }
+    }
     /// プロジェクトにまだしていない送信先のフォルダ。送信したときにプロジェクトを作る（要件 FR-3）。
     public var pendingFolderPath: String?
     public var agentRef: AgentRef
@@ -94,6 +107,7 @@ public final class NewChatDraft {
         if let selected, dashboard.projects.contains(where: { $0.id == selected }) { return selected }
         guard let path = pendingFolderPath,
               let id = dashboard.addProject(name: URL(fileURLWithPath: path).lastPathComponent, directoryPath: path) else { return nil }
+        worktreeStartPoints[id] = worktreeStartPoint(projectID: nil, directory: path)
         pendingFolderPath = nil
         return id
     }
@@ -107,7 +121,8 @@ public final class NewChatDraft {
             usesWorktree: usesWorktree,
             text: text,
             attachments: attachments.attachments,
-            workingDirectoryOverride: workingDirectoryOverride
+            workingDirectoryOverride: workingDirectoryOverride,
+            worktreeStartPoint: worktreeStartPoint(projectID: projectID, directory: nil)
         )
         text = ""
         attachments.clear()
@@ -121,6 +136,7 @@ public final class NewChatDraft {
         text = merged.text
         attachments.restore(merged.attachments)
         usesWorktree = request.usesWorktree
+        worktreeStartPoints[request.projectID] = request.worktreeStartPoint
     }
 
     private static func initialKind(lastHarness: String?) -> AgentKind {

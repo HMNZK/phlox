@@ -6,6 +6,45 @@ import AgentDomain
 
 @Suite("ファイルツリーの実操作経路") @MainActor
 struct FileTreeInteractionTests {
+    @Test("ネイティブの入力先からツリーへ移り、上下キーと Return で名前を変更できる")
+    func focusTransfer() async throws {
+        _ = NSApplication.shared
+        let getter = NSSelectorFromString("accessibilityAttributeValue:")
+        let setter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0..<6 { root.deleteLastPathComponent() }
+        root.appendPathComponent(".build/tree-focus-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for name in ["first.txt", "second.txt"] { try Data("本文".utf8).write(to: root.appendingPathComponent(name)) }
+        let model = FileTreeModel(root: root.path, readBranch: { "feature/files" })
+        await model.refresh()
+        var opened: String?
+        let host = NSHostingView(rootView: FileTreeView(model: model, openPath: "first.txt", open: { path, _ in opened = path }))
+        host.frame = NSRect(x: 0, y: 0, width: 280, height: 440)
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 280, height: 440), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.contentView = nil; window.close() }
+        try await settle(host)
+        let native = NSTextView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        host.addSubview(native)
+        #expect(window.makeFirstResponder(native))
+        host.rootView = FileTreeView(model: model, openPath: "first.txt", open: { path, _ in opened = path }, focusRequest: 1)
+        try await settle(host)
+        #expect(window.firstResponder !== native)
+        _ = try #require(window.firstResponder)
+        try sendKey("\u{F701}", code: 125, window: window)
+        try await settle(host)
+        try sendKey("\r", code: 36, window: window)
+        try await settle(host)
+        #expect(model.edit?.originalPath == "second.txt")
+        #expect(opened == nil)
+    }
+
     @Test("右クリックと Return で名前入力を表示し、確定後に未保存のタブを付け替える",
           arguments: [false, true], [false, true])
     func renameAfterMount(fromMenu: Bool, folder: Bool) async throws {

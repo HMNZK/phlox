@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GW ライトテーマ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:1300px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+  <div style="font-size:26px;font-weight:700;">L. ライトテーマでの確認</div>
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div id="L1" style="display:flex;flex-direction:column;gap:12px;width:1440px;flex:none;">
+      <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">L1</span><span style="font-size:14px;font-weight:600;">A1 と同じ状態</span></div>
+      <div style="border-radius:10px;overflow:hidden;"><dc-import name="GitWindow" theme="light" variant="selected" width="1440" height="900" hint-size="1440px,900px"></dc-import></div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">主ボタンは面 #1D1D1F・文字 #FFFFFF。差分は追加 #1F7A3A・削除 #B4232A。選択の塗りは 7.5%（入力先があれば 17%）。メッセージ欄は白に枠 55%（横断点検で 14% から上げた。GA を参照）。</div>
+    </div>
+    <div id="L2" style="display:flex;flex-direction:column;gap:12px;width:280px;flex:none;">
+      <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">L2</span><span style="font-size:14px;font-weight:600;">「＋」にホバー</span></div>
+      <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);"><dc-import name="GitPanel" theme="light" variant="hoverBtn" width="280" height="838" hint-size="280px,838px"></dc-import></div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">ライトでは「＋」の面が白（今の二次ボタンと同じ）、ホバーで #F2F2F4、押下中は #E4E4E7 と一段暗くなる。</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

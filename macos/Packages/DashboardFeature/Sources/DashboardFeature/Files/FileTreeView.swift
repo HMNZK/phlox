@@ -172,7 +172,6 @@ struct FileTreeView: View {
     var keyboardPath: String? = nil
     var hoverPath: String? = nil
     var contextPath: String? = nil
-    var showsFocus = false
     var isOverlay = false
     var focusRequest = 0
     var blockedPath: String? = nil
@@ -285,12 +284,6 @@ struct FileTreeView: View {
                 .focusEffectDisabled()
                 .focused($focused)
                 .onChange(of: focusRequest, initial: true) { _, request in if request > 0 { focused = true } }
-                .overlay {
-                    RoundedRectangle(cornerRadius: DSRadius.row)
-                        .strokeBorder(model.edit == nil && (focused || showsFocus) ? DSColor.focusRing : Color.clear, lineWidth: DSSpacing.xxs)
-                        .padding(DSSpacing.xs)
-                        .allowsHitTesting(false)
-                }
                 .onKeyPress(.rightArrow) { key(.right) }
                 .onKeyPress(.leftArrow) { key(.left) }
                 .onKeyPress(.upArrow) { key(.up) }
@@ -392,24 +385,17 @@ struct FileTreeView: View {
                                      hoverFill: DSColor.fillSubtle,
                                      borderColor: .clear, hoverBorderColor: .clear)
             .contentShape(Rectangle())
-            .onTapGesture {
-                model.edit = nil
-                model.operationFailure = nil
-                focused = true
-                keyboardMoving = false
-                selectedPath = row.id
-                perform(FileTreeRows.action(for: row.id, key: .activate, rows: model.rows, expanded: model.expanded))
-            }
+            .onTapGesture { activate(row) }
             .help(row.entry.help)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("\(row.entry.name)、\(row.entry.kindLabel)"))
             .accessibilityValue(Text("レベル \(row.depth + 1)" + (row.entry.canExpand ? "、" + (model.expanded.contains(row.id) ? "展開" : "折りたたみ") : "") + (row.isOpen(openPath) ? "、開いています" : "")))
-            .accessibilityAddTraits(isKeyboardRow(row) ? .isSelected : [])
-            .accessibilityAction { perform(FileTreeRows.action(for: row.id, key: .activate, rows: model.rows, expanded: model.expanded)) }
+            .accessibilityAddTraits(isSelectedRow(row) ? .isSelected : [])
+            .accessibilityAction { activate(row) }
             .accessibilityActions {
                 if row.entry.canExpand {
                     Button(model.expanded.contains(row.id) ? "折りたたみ" : "展開") {
-                        perform(FileTreeRows.action(for: row.id, key: .activate, rows: model.rows, expanded: model.expanded))
+                        activate(row)
                     }
                 }
             }
@@ -553,12 +539,21 @@ struct FileTreeView: View {
         }
     }
 
-    private func isKeyboardRow(_ row: FileTreeRows.Row) -> Bool {
-        row.id == keyboardPath || (keyboardMoving && row.id == selectedPath)
+    private func activate(_ row: FileTreeRows.Row) {
+        model.edit = nil
+        model.operationFailure = nil
+        focused = true
+        keyboardMoving = false
+        selectedPath = row.id
+        perform(FileTreeRows.action(for: row.id, key: .activate, rows: model.rows, expanded: model.expanded))
+    }
+
+    private func isSelectedRow(_ row: FileTreeRows.Row) -> Bool {
+        row.id == keyboardPath || ((focused || keyboardMoving) && row.id == selectedPath)
     }
 
     private func rowFill(_ row: FileTreeRows.Row) -> Color {
-        if isKeyboardRow(row) { return DSColor.textPrimary.opacity(0.24) }
+        if isSelectedRow(row) { return DSColor.selectionFill }
         return row.isOpen(openPath) || row.id == hoverPath ? DSColor.fillSubtle : .clear
     }
 

@@ -30,7 +30,7 @@ extension EnvironmentValues {
     }
 }
 
-private struct NewChatChipLabel: View {
+struct NewChatChipLabel: View {
     let title: String?
     let systemImage: String?
     let harnessKind: AgentKind?
@@ -286,6 +286,7 @@ struct NewChatView: View {
                 .padding(.bottom, 20)
                 composer(width: composerWidth, compactSettings: compactSettings, compactLabels: compactLabels)
                     .padding(.bottom, validationMessage == nil ? 16 : 8)
+                    .zIndex(1)
                 if let validationMessage {
                     Label { Text(verbatim: validationMessage) } icon: { Image(systemName: "exclamationmark.circle") }
                         .font(DSFont.auxiliary)
@@ -400,6 +401,17 @@ struct NewChatView: View {
             .padding(.top, DSLayout.newChatComposerToolbarTopInset)
             .padding(.bottom, DSLayout.newChatComposerToolbarBottomInset)
             .focusSection()
+            if draft.usesWorktree {
+                HStack(spacing: DSSpacing.xxs) {
+                    Spacer(minLength: DSSpacing.s)
+                    Text(verbatim: localized("起点"))
+                        .font(DSFont.auxiliary)
+                        .foregroundStyle(DSColor.textSecondary)
+                    WorktreeStartPointPicker(draft: draft, projectID: project?.id, directory: destinationDirectory)
+                }
+                .padding(.horizontal, DSLayout.newChatComposerTrailingInset)
+                .padding(.bottom, DSLayout.newChatComposerToolbarBottomInset)
+            }
         }
         .frame(width: width, alignment: .leading)
         .background {
@@ -873,7 +885,8 @@ struct NewChatView: View {
             text: "",
             attachments: [],
             workingDirectoryOverride: workingDirectoryOverride,
-            resumeHistoryID: historyID
+            resumeHistoryID: historyID,
+            worktreeStartPoint: draft.worktreeStartPoint(projectID: project.id, directory: destinationDirectory)
         ), isHistoryResume: true)
     }
 

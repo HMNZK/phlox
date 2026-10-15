@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GW 幅と縦に長いとき</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:1640px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+  <div style="font-size:26px;font-weight:700;">W. 幅 と R. 縦に長くなったとき</div>
+  <div style="display:flex;flex-wrap:wrap;gap:48px;align-items:flex-start;">
+    <sc-for list="{{ cells }}" as="c" hint-placeholder-count="5">
+      <div id="{{ c.id }}" style="{{ c.box }}">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+        <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+          <dc-import name="GitPanel" variant="{{ c.v }}" width="{{ c.W }}" height="838" hint-size="{{ c.hint }}"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ c.caption }}</div>
+      </div>
+    </sc-for>
+    <div style="flex:1 1 100%;max-width:1200px;background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:20px 22px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.7;">
+      <div style="font-size:16px;font-weight:700;">推奨: 上部は固定（R1）</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">1. 主な往復が上と下をまたぐ。</b>「＋」で選び、メッセージを書き、「コミット」。一覧を下へ送っても「コミット」と理由の行が見えている。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">2. エージェントの書き換えで一覧が伸び縮みする。</b>流す形だと、書いている途中のメッセージ欄が一覧の増減で上下に動く。固定なら動かない。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">3. 失敗の表示を見落とさない。</b>流す形では、下を見ている間にプッシュの失敗が画面の外に出る。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">代わりに払うもの。</b>一覧の高さが 148pt（メッセージ 1 行のとき）減る。838pt なら区画に 600pt 余り残る。メッセージ欄は 5 行で止め、区画の見出しを貼り付けて位置を見失わないようにする。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">窓が低いとき（案）。</b>Git タブの高さが 520pt を割ったら、メッセージ欄の上限を 3 行に下げる。それでも固定欄は流さない。</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":1640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cells = [
+      { id:'W1', title:'最小幅 260pt', W:260, v:'normal', caption:'ボタンは「コミット」236pt、「プッシュ ↑2」「PR を作成」114pt ずつ。英語でも切れない。行はフォルダの欄から先に縮み、名前・種類・行数は省かない。' },
+      { id:'W2', title:'既定 280pt', W:280, v:'normal', caption:'S1 と同じ。' },
+      { id:'W3', title:'最大幅 340pt', W:340, v:'normal', caption:'フォルダの欄とブランチ名が広がるだけで、並びは同じ。ボタンも横に伸びる。' },
+      { id:'R1', title:'固定（推奨）', W:280, v:'allOpenScrolled', caption:'全区画を開き、ブランチまでスクロール。上部はそのまま、区画の見出しが固定欄のすぐ下に貼り付く。' },
+      { id:'R2', title:'流す（比較）', W:280, v:'flow', caption:'同じ位置まで送ると、メッセージ欄と「コミット」が画面の外へ出る。戻るには上までスクロールする。' }
+    ].map(c => ({ ...c, hint: c.W + 'px,838px', box:{ display:'flex', flexDirection:'column', gap:12, width:c.W, flex:'none' } }));
+    return { cells };
+  }
+}
+</script>
+</body>
+</html>

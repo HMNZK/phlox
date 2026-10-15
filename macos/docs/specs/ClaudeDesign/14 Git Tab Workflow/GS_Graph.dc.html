@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GS グラフ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:1400px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+  <div style="font-size:26px;font-weight:700;">G. グラフ（GW-11）</div>
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <sc-for list="{{ cells }}" as="c" hint-placeholder-count="4">
+      <div id="{{ c.id }}" style="{{ c.box }}">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+        <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+          <dc-import name="GitPanel" variant="{{ c.v }}" width="{{ c.W }}" height="838" hint-size="{{ c.hint }}"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ c.caption }}</div>
+      </div>
+    </sc-for>
+    <div style="flex:1;min-width:0;background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:20px 22px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.7;margin-top:34px;">
+      <div style="font-size:16px;font-weight:700;">提案: 線の幅</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;">線の間隔 10pt・線の太さ 1.5pt・点の直径 7pt（マージの点は 8pt で輪を太く）。4 本で 46pt。5 本目からは間隔を 8pt に詰め、7 本を超える線は右端の 1 本にまとめて点線にする（どの線かはツールチップ）。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;">色は使わず濃さで分ける：今のブランチの線と点は主文字色、ほかの線は副文字色。HEAD の点だけ塗りつぶす。区別の決め手は線の位置と札で、色ではない。</div>
+      <div style="font-size:16px;font-weight:700;margin-top:6px;">提案: 札の省略</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">1. ローカルとリモートが同じコミットなら 1 枚に。</b>main と origin/main は「main」＋雲の印。ツールチップ「main · origin/main」。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">2. リモートだけの札</b>は破線の枠＋雲の印で、名前から origin/ を外す。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">3. 長い名前は最後の段だけ残す。</b>feature/git-tab-workflow →「…/git-tab-workflow」。札の幅は最大 112pt、それでも長ければ末尾を省く。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">4. 札は 2 枚まで。</b>3 枚目からは「+2」にまとめ、ツールチップに全部。タグはタグの印を付けて省略しない（v1.10.0）。</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;"><b style="color:#1D1D1F;">5. 今のブランチの札</b>は太字と主文字色の枠。要約は最低 24pt を残し、残りは札より先に省く。</div>
+      <div style="font-size:16px;font-weight:700;margin-top:6px;">操作</div>
+      <div style="color:#3A3A3E;text-wrap:pretty;">行を開く・押す・右クリック（ID をコピー・ここからブランチを作成）はコミット区画と同じ（GW-7）。最初は 200 件、末尾で続きを読む。VoiceOver は線を読まず、「要約、ブランチ main、origin/main、HEAD、短縮 ID」の順に読む。</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":1400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cells = [
+      { id:'G1', title:'280pt', W:280, v:'graph', caption:'4 本の線（今のブランチ・main・fix/file-tree-focus-ring・feature/bottom-panel）。#479 で fix が main に合流、feature と fix は v1.10.0 から分かれ、bottom-panel はその 1 つ前から。' },
+      { id:'G2', title:'札にホバー','W':280, v:'graphTip', caption:'リモートだけの札（破線）にホバーで正式な名前。' },
+      { id:'G3', title:'最小 260pt', W:260, v:'graph', caption:'札は省いた形のまま、要約が先に縮む。' },
+      { id:'G4', title:'最大 340pt', W:340, v:'graph', caption:'要約が長く読めるだけで、線と札は同じ。' }
+    ].map(c => ({ ...c, hint: c.W + 'px,838px', box:{ display:'flex', flexDirection:'column', gap:12, width:c.W, flex:'none' } }));
+    return { cells };
+  }
+}
+</script>
+</body>
+</html>

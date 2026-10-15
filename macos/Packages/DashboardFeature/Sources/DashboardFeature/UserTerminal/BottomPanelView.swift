@@ -116,12 +116,6 @@ struct BottomPanelView: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: DSRadius.m))
-            .overlay {
-                RoundedRectangle(cornerRadius: DSRadius.m)
-                    .inset(by: -(DSLayout.focusRingGap + DSLayout.focusRingWidth))
-                    .strokeBorder(state.isTerminalFocused ? DSColor.focusRing : .clear, lineWidth: DSLayout.focusRingWidth)
-                    .allowsHitTesting(false)
-            }
             .padding(.horizontal, DSSpacing.s)
             .padding(.bottom, DSSpacing.s)
         }
@@ -228,42 +222,29 @@ struct BottomPanelView: View {
 }
 
 /// ドラッグ中はこの小さなビューの予告線だけが変わり、会話・グリッドの高さは確定まで固定。
-private struct BottomPanelHeightGrip: View {
+struct BottomPanelHeightGrip: View {
     let state: BottomPanelState
     let availableHeight: CGFloat
     let height: CGFloat
     @State private var translation: CGFloat = 0
-    @State private var hovering = false
-    @FocusState private var focused: Bool
+    @State private var dragTranslation: CGFloat = 0
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var localizationBundle
 
     var body: some View {
-        Rectangle().fill(DSColor.separator)
-            .frame(height: DSLayout.paneSeparatorWidth)
-            .frame(height: DSLayout.dividerHitWidth)
-            .contentShape(Rectangle())
-            .overlay {
-                if hovering || focused || translation != 0 {
-                    Rectangle().fill(DSColor.focusRing).frame(height: DSLayout.focusRingWidth + DSLayout.paneSeparatorWidth)
-                        .offset(y: translation).allowsHitTesting(false)
-                }
-            }
-            .onHover { inside in
-                if inside && !hovering { NSCursor.resizeUpDown.push() }
-                if !inside && hovering { NSCursor.pop() }
-                hovering = inside
-            }
-            .onDisappear { if hovering { NSCursor.pop() } }
-            .gesture(DragGesture().onChanged { value in
-                translation = height - BottomPanelLayout.clamped(height - value.translation.height, availableHeight: availableHeight)
-            }.onEnded { value in
-                state.saveHeight(height - value.translation.height, availableHeight: availableHeight)
-                translation = 0
-            })
-            .focusable().focused($focused)
-            .onKeyPress(.upArrow) { adjust(by: DSSpacing.l); return .handled }
-            .onKeyPress(.downArrow) { adjust(by: -DSSpacing.l); return .handled }
+        ResizeGripView(axis: .vertical, onChanged: { value in
+            dragTranslation = value
+            translation = height - BottomPanelLayout.clamped(height - value, availableHeight: availableHeight)
+        }, onEnded: {
+            state.saveHeight(height - dragTranslation, availableHeight: availableHeight)
+            dragTranslation = 0
+            translation = 0
+        }, onDoubleClick: {
+            state.saveHeight(DSLayout.bottomPanelDefaultHeight, availableHeight: availableHeight)
+        }, onKeyboardAdjust: { direction in
+            adjust(by: -direction * DSSpacing.l)
+        })
+            .offset(y: translation - ResizeGripView.gripWidth / 2)
             .accessibilityElement()
             .accessibilityLabel(Text("下部パネルの高さ"))
             .accessibilityValue(Text(verbatim: String(format: AppLocalizedString.string("%lldポイント", locale: locale, bundle: localizationBundle), Int(height))))

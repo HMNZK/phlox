@@ -6,6 +6,29 @@ import SessionFeature
 
 @Suite("New chat drafts", .serialized) @MainActor
 struct NewChatDraftStoreTests {
+    @Test func worktreeStartPointsBelongToProjectsAndSurviveSendAndRestore() throws {
+        let (store, _, suite) = try makeStore()
+        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let a = ProjectID(), b = ProjectID()
+        let draft = store.draft
+        #expect(draft.worktreeStartPoint(projectID: a, directory: nil) == .head)
+        draft.selectWorktreeStartPoint(.localBranch("topic"), projectID: a, directory: nil)
+        draft.selectWorktreeStartPoint(.tag("v1"), projectID: b, directory: nil)
+        #expect(draft.worktreeStartPoint(projectID: a, directory: nil) == .localBranch("topic"))
+        #expect(draft.worktreeStartPoint(projectID: b, directory: nil) == .tag("v1"))
+        draft.text = "hello"
+        draft.usesWorktree = true
+        let request = try #require(draft.makeLaunchRequest(projectID: a))
+        #expect(request.worktreeStartPoint == .localBranch("topic"))
+        #expect(draft.worktreeStartPoint(projectID: a, directory: nil) == .localBranch("topic"))
+        draft.restoreLaunchDraft(from: request)
+        #expect(draft.usesWorktree)
+        #expect(draft.text == "hello")
+        #expect(draft.worktreeStartPoint(projectID: b, directory: nil) == .tag("v1"))
+        draft.selectWorktreeStartPoint(.commit("abcdef"), projectID: nil, directory: "/tmp/project/./")
+        #expect(draft.worktreeStartPoint(projectID: nil, directory: "/tmp/project") == .commit("abcdef"))
+        #expect(draft.worktreeStartPoint(projectID: nil, directory: nil) == .head)
+    }
     @Test func failedLaunchRenumbersCollidingImagesAndRemovingChipKeepsOtherReference() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>メインウィンドウ（Git タブと「変更」タブ）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="{{ rootStyle }}">
+  <div style="height:38px;flex:none;display:flex;align-items:center;background:var(--bar);border-bottom:1px solid var(--sep);">
+    <div style="width:260px;flex:none;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;">
+      <span style="width:12px;height:12px;border-radius:6px;background:#FF5F57;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#FEBC2E;"></span>
+      <span style="width:12px;height:12px;border-radius:6px;background:#28C840;"></span>
+      <div style="flex:1;"></div>
+      <button type="button" aria-label="サイドバー" title="サイドバーを隠す" style="width:28px;height:28px;border:0;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);background:transparent;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM6.5 3.5v9"></path></svg></button>
+    </div>
+    <div style="flex:1;min-width:0;padding:0 12px;font-size:13px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">変更</div>
+    <div style="display:flex;align-items:center;gap:8px;padding:0 10px;">
+      <div style="height:24px;padding:2px;box-sizing:border-box;border-radius:6px;background:var(--segBg);display:flex;gap:2px;">
+        <button type="button" aria-label="単体" title="単体" style="width:30px;border:0;padding:0;border-radius:4px;background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);display:flex;align-items:center;justify-content:center;color:var(--fg);"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h10v9H3z"></path></svg></button>
+        <button type="button" aria-label="グリッド" title="グリッド" style="width:30px;border:0;padding:0;border-radius:4px;background:transparent;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3.5h4v4H3zM9 3.5h4v4H9zM3 9.5h4v3H3zM9 9.5h4v3H9z"></path></svg></button>
+      </div>
+      <button type="button" aria-label="下部パネル" aria-pressed="false" title="下部パネルを表示（⌃`）" style="width:28px;height:28px;border:0;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);background:transparent;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM2.5 9.5h11"></path></svg></button>
+      <button type="button" aria-label="インスペクタ" aria-pressed="true" title="インスペクタ" style="width:28px;height:28px;border:0;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg);background:transparent;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h11v9h-11zM9.5 3.5v9"></path></svg></button>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;display:flex;position:relative;">
+    <div style="width:260px;flex:none;box-sizing:border-box;background:var(--side);border-right:1px solid var(--sep);display:flex;flex-direction:column;">
+      <div style="flex:1;min-height:0;padding:10px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden;">
+        <div style="height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:11px;font-weight:600;color:var(--fg2);">プロジェクト<span title="プロジェクトを追加 ⌘O" style="display:flex;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"></path></svg></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--fg2);transform:rotate(90deg);"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke-width="1.3" stroke-linejoin="round" style="stroke:var(--fg2);"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+          <span style="flex:1;font-size:13px;font-weight:500;color:var(--fg);">Phlox-oss</span>
+        </div>
+        <sc-for list="{{ sessions }}" as="ss" hint-placeholder-count="3">
+          <div style="height:28px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 32px;">
+            <span style="{{ ss.ts }}">{{ ss.t }}</span>
+            <span style="{{ ss.rs }}">{{ ss.r }}</span>
+          </div>
+        </sc-for>
+        <div style="height:28px;display:flex;align-items:center;gap:6px;padding:0 8px;">
+          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--fg2);"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke-width="1.3" stroke-linejoin="round" style="stroke:var(--fg2);"><path d="M2 4.5A1 1 0 013 3.5h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1z"></path></svg>
+          <span style="flex:1;font-size:13px;font-weight:500;color:var(--fg);">ios-companion</span>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--sep);padding:8px;">
+        <div style="height:28px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:13px;color:var(--fg2);"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg><span style="flex:1;">新規チャット</span><span style="font-size:11px;">⌘N</span></div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);">
+      <div style="height:34px;flex:none;display:flex;align-items:flex-end;background:var(--tabbar);border-bottom:1px solid var(--sep);padding:0 6px;">
+        <div title="Phlox-oss" style="height:30px;box-sizing:border-box;padding:0 8px 0 12px;display:flex;align-items:center;gap:6px;font-size:12px;border-radius:7px 7px 0 0;flex:0 1 180px;margin-bottom:-1px;min-width:0;background:var(--bg);color:var(--fg);font-weight:600;box-shadow:inset 1px 0 0 var(--sep), inset -1px 0 0 var(--sep), inset 0 1px 0 var(--sep);"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Phlox-oss</span><span title="プロジェクトを削除…" style="width:16px;height:16px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></div>
+        <div title="ios-companion" style="height:30px;box-sizing:border-box;padding:0 8px 0 12px;display:flex;align-items:center;font-size:12px;flex:0 1 180px;margin-bottom:-1px;min-width:0;color:var(--fg2);">ios-companion</div>
+        <div title="プロジェクトを追加" style="width:26px;height:26px;margin:0 0 4px 4px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+      </div>
+      <div style="height:36px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--sep);">
+        <sc-for list="{{ subTabs }}" as="st" hint-placeholder-count="5">
+          <div title="{{ st.t }}" style="{{ st.s }}">
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ st.t }}</span>
+            <sc-if value="{{ st.close }}"><span title="閉じる" style="width:16px;height:16px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></span></sc-if>
+          </div>
+        </sc-for>
+        <div title="タブを追加" style="width:26px;height:26px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg2);"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></div>
+      </div>
+      <dc-import name="ChangesTab" theme="{{ theme }}" variant="{{ centerVar }}" width="{{ centerW }}" height="{{ centerH }}" hint-size="{{ centerHint }}"></dc-import>
+    </div>
+
+    <dc-import name="GitPanel" theme="{{ theme }}" variant="{{ panelVar }}" width="280" height="{{ bodyH }}" hint-size="{{ panelHint }}"></dc-import>
+  </div>
+
+  <div role="group" aria-label="使用量" style="height:24px;flex:none;box-sizing:border-box;display:flex;align-items:center;gap:18px;padding:0 14px;background:var(--bar);border-top:1px solid var(--sep);font-size:11px;color:var(--fg2);white-space:nowrap;overflow:hidden;">
+    <span style="display:flex;align-items:center;gap:6px;"><span style="font-weight:600;">Claude Code</span><span>5時間 残り 64%（2時間14分後）· 週次 残り 41%（3日後）</span></span>
+    <span style="display:flex;align-items:center;gap:6px;"><span style="font-weight:600;">Codex</span><span>5時間 残り 92%（4時間後）· 週次 残り 85%（5日後）</span></span>
+    <span style="display:flex;align-items:center;gap:6px;"><span style="font-weight:600;">Cursor</span><span>月次 残り 70%（18日後）</span></span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"variant":{"editor":"enum","options":["selected","staged","empty"],"default":"selected"},"width":{"editor":"int","default":1440},"height":{"editor":"int","default":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const v = p.variant || 'selected';
+    const W = Number(p.width) || 1440, H = Number(p.height) || 900;
+    const V = {
+      dark:{'--bg':'#1E1E20','--side':'#262629','--bar':'#2A2A2D','--tabbar':'#232326','--sep':'rgba(242,242,244,0.10)','--fg':'#F2F2F4','--fg2':'#ABABB1','--sel':'rgba(242,242,244,0.09)','--selStrong':'rgba(242,242,244,0.24)','--ctl':'#3A3A3E','--ctlBorder':'rgba(242,242,244,0.12)','--segBg':'rgba(242,242,244,0.08)','--apvInk':'#F4BD68'},
+      light:{'--bg':'#FFFFFF','--side':'#F2F2F4','--bar':'#F6F6F7','--tabbar':'#ECECEF','--sep':'rgba(29,29,31,0.10)','--fg':'#1D1D1F','--fg2':'#5B5B60','--sel':'rgba(29,29,31,0.075)','--selStrong':'rgba(29,29,31,0.17)','--ctl':'#FFFFFF','--ctlBorder':'rgba(29,29,31,0.16)','--segBg':'rgba(29,29,31,0.065)','--apvInk':'#8A5300'}
+    };
+    const bodyH = H - 38 - 24;
+    const centerW = W - 260 - 280, centerH = bodyH - 34 - 36;
+    const sessions = [
+      { t:'Git タブを作業の集約に作り直す', r:'実行中' },
+      { t:'ワークツリーの起点を選べるように', r:'12分' },
+      { t:'下部パネルの境界を統一', r:'承認待ち', attn:true }
+    ].map(x => ({ ...x,
+      ts:{ flex:1, minWidth:0, fontSize:13, fontWeight: x.attn ? 600 : 400, color: x.attn ? 'var(--fg)' : 'var(--fg2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' },
+      rs:{ fontSize:11, flex:'none', color: x.attn ? 'var(--apvInk)' : 'var(--fg2)', fontWeight: x.attn ? 600 : 400 } }));
+    const stBase = { height:26, boxSizing:'border-box', padding:'0 6px 0 10px', borderRadius:6, display:'flex', alignItems:'center', gap:4, fontSize:12, minWidth:0, flex:'0 1 auto', maxWidth:200 };
+    const subTabs = ['Git タブを作業の集約に作り直す','ワークツリーの起点を選べるように','下部パネルの境界を統一','ターミナル 1','変更'].map((t, i) => {
+      const sel = i === 4;
+      return { t, close: sel, s:{ ...stBase, background: sel ? 'var(--sel)' : 'transparent', color: sel ? 'var(--fg)' : 'var(--fg2)', fontWeight: sel ? 500 : 400 } };
+    });
+    const map = { selected:['normal','worktree'], staged:['stagedSel','staged'], empty:['nosel','empty'] };
+    const [panelVar, centerVar] = map[v] || map.selected;
+    return {
+      theme, sessions, subTabs, panelVar, centerVar, centerW, centerH, bodyH,
+      centerHint: centerW + 'px,' + centerH + 'px', panelHint: '280px,' + bodyH + 'px',
+      rootStyle:{ ...V[theme], width:W, height:H, flex:'none', position:'relative', background:'var(--bg)', color:'var(--fg)', borderRadius:10, overflow:'hidden', display:'flex', flexDirection:'column', fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif", fontSize:13, WebkitFontSmoothing:'antialiased', boxShadow: theme === 'dark' ? '0 0 0 0.5px rgba(0,0,0,0.7), 0 24px 60px rgba(0,0,0,0.35)' : '0 0 0 0.5px rgba(0,0,0,0.22), 0 24px 60px rgba(0,0,0,0.16)' }
+    };
+  }
+}
+</script>
+</body>
+</html>

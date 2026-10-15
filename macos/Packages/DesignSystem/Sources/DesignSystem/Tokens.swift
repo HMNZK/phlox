@@ -164,8 +164,10 @@ public enum DSLayout {
     public static let childTabBarHeight: CGFloat = 36
     public static let listRowHeight: CGFloat = 28
     public static let cardHeaderHeight: CGFloat = 32
-    /// 分割線の当たり（見た目は 1pt、ホバーで accent 3pt）。
+    /// 分割線の当たり（見た目は 1pt、ホバーで区切り線色の3pt）。
     public static let dividerHitWidth: CGFloat = 8
+    public static let resizeGripHighlightWidth: CGFloat = 3
+    public static let resizeGripRadius: CGFloat = 2
     public static let sidebarWidth = WidthRange(ideal: 260, min: 220, max: 360)
     public static let inspectorWidth = WidthRange(ideal: 280, min: 260, max: 340)
 
@@ -180,6 +182,7 @@ public enum DSLayout {
 
 public enum DSAnimation {
     public static let pane = Animation.easeInOut(duration: 0.18)
+    public static let resizeGrip = Animation.easeInOut(duration: 0.12)
 }
 
 /// SF Symbol などアイコングリフの固有サイズ。本文フォント(DSFont)とは別系統で、

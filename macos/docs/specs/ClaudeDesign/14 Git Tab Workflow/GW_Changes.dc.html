@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GW 「変更」の子タブ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:3100px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:1200px;">
+    <div style="font-size:26px;font-weight:700;">C. 「変更」の子タブ（GW-5・GW-6）</div>
+    <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">左の一覧とコミット欄を無くし、Git タブで押した 1 ファイルだけを出す。ツールバーは 40pt に 1 行：「差分｜内容」・ファイル名（SF Mono 12pt）・フォルダ（11pt 副文字色、先頭を省く）・出どころの札（角丸 4・枠 14%）・行数・右端に「ファイルタブで編集」。本体は SF Mono 12pt / 20pt、行番号 1 列（追加は新しい番号、削除は元の番号）と記号の列、追加・削除は色と「+」「−」の両方で分かる。今の画面の「エディタ」の行は、Git タブの更新と重なるので無くした。</div>
+  </div>
+
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div id="B1" style="display:flex;flex-direction:column;gap:12px;width:1440px;flex:none;">
+      <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">B1</span><span style="font-size:14px;font-weight:600;">何も選ばれていない</span></div>
+      <div style="border-radius:10px;overflow:hidden;"><dc-import name="GitWindow" theme="dark" variant="empty" width="1440" height="900" hint-size="1440px,900px"></dc-import></div>
+    </div>
+    <div style="flex:1;font-size:13px;line-height:1.7;color:#3A3A3E;padding-top:34px;text-wrap:pretty;display:flex;flex-direction:column;gap:12px;">
+      <div>「変更」の子タブを手で開いたとき、選んでいたファイルが消えたとき（コミットした・破棄された）、アプリを開き直したとき。</div>
+      <div>中央に「Git タブで変更を選んでください」と、Git タブを出すキー（⇧⌃⌘G）。「差分｜内容」と「ファイルタブで編集」は淡色で押せない。</div>
+      <div>Git タブの一覧は選択なし。行数がそのまま見える。</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div id="B2" style="display:flex;flex-direction:column;gap:12px;width:1440px;flex:none;">
+      <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">B2</span><span style="font-size:14px;font-weight:600;">ステージ済みの行を押した</span></div>
+      <div style="border-radius:10px;overflow:hidden;"><dc-import name="GitWindow" theme="dark" variant="staged" width="1440" height="900" hint-size="1440px,900px"></dc-import></div>
+    </div>
+    <div style="flex:1;font-size:13px;line-height:1.7;color:#3A3A3E;padding-top:34px;text-wrap:pretty;display:flex;flex-direction:column;gap:12px;">
+      <div>「ステージ済み」の GitCommitBar.swift を押した。行の右は「−」（ステージを外す）。</div>
+      <div>中央の札は「ステージ済み」（git diff --cached）。同じファイルが両方のグループにあるとき（GitTabView.swift）は、押した側の差分を出し、札で見分ける。札にホバーで「ステージ済みの変更（git diff --cached）」。</div>
+      <div>新しいファイルは 1 行目から全部が追加の行。</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,900px);column-gap:48px;row-gap:56px;">
+    <sc-for list="{{ cells }}" as="c" hint-placeholder-count="2">
+      <div id="{{ c.id }}" style="display:flex;flex-direction:column;gap:12px;width:900px;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+        <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+          <dc-import name="ChangesTab" variant="{{ c.v }}" width="900" height="600" hint-size="900px,600px"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">{{ c.caption }}</div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":3100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cells = [
+      { id:'C1', title:'内容', v:'content', caption:'「内容」に切り替えた。今のファイルの全文を行番号付きで出し、差分の色は付けない。行数は出さない。札は「作業ツリー」のまま。' },
+      { id:'C2', title:'コミットのファイル', v:'commit', caption:'コミット区画で b7d03f5 を開き、GitWorkflowService.swift を押した（GW-7）。札は「コミット b7d03f5」、ホバーで要約。スタッシュのファイルなら札は「stash@{0}」。' }
+    ];
+    return { cells };
+  }
+}
+</script>
+</body>
+</html>

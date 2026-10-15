@@ -173,7 +173,6 @@ struct GitInspectorView: View {
             .onKeyPress(.downArrow) { move(1); return .handled }
             .onKeyPress(.return) { if let selected { openChanges(selected, false) }; return .handled }
             .onChange(of: selected) { _, path in if let path { proxy.scrollTo(path) } }
-            .overlay(RoundedRectangle(cornerRadius: DSRadius.m).strokeBorder(listFocused ? DSColor.focusRing : DSColor.clear, lineWidth: DSLayout.focusRingWidth))
             .accessibilityIdentifier("git-inspector-list")
             .accessibilityLabel(Text("変更ファイル", bundle: bundle))
         }
@@ -278,6 +277,7 @@ struct GitInspectorView: View {
                         }.padding(.vertical, DSSpacing.xs)
                     }
                     .focusable()
+                    .focusEffectDisabled()
                     if preview.remaining > 0 {
                         HStack(spacing: DSSpacing.s) {
                             Text(verbatim: String(format: localized("ほか %lld 行"), preview.remaining)).foregroundStyle(DSColor.textSecondary)

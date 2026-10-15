@@ -1,6 +1,166 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "起点": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Start point" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "起点" } }
+      }
+    },
+    "今の位置（HEAD）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current position (HEAD)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今の位置（HEAD）"
+          }
+        }
+      }
+    },
+    "ワークツリーの起点": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worktree start point"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ワークツリーの起点"
+          }
+        }
+      }
+    },
+    "起点を絞り込む、またはコミット ID を入力": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter start points or enter a commit ID"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "起点を絞り込む、またはコミット ID を入力"
+          }
+        }
+      }
+    },
+    "ローカルのブランチ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local branches"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカルのブランチ"
+          }
+        }
+      }
+    },
+    "リモートのブランチ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote branches"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リモートのブランチ"
+          }
+        }
+      }
+    },
+    "タグ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タグ"
+          }
+        }
+      }
+    },
+    "最近のコミット": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent commits"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近のコミット"
+          }
+        }
+      }
+    },
+    "コミット %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コミット %@"
+          }
+        }
+      }
+    },
+    "起点「%@」をコミットとして解決できないため、開始しませんでした。起点を選び直してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not resolve start point “%@” to a commit. The session was not started. Choose another start point."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "起点「%@」をコミットとして解決できないため、開始しませんでした。起点を選び直してください。"
+          }
+        }
+      }
+    },
     "シェルは終了しました": {
       "extractionState": "manual",
       "localizations": {

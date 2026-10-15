@@ -4,35 +4,43 @@
 import AppKit
 import SwiftUI
 
-/// 縦の境界リサイズ用の掴みしろ。区切り線を中心に `gripWidth` の透明な当たり判定を持ち、
+/// 左右・上下の境界リサイズ用の掴みしろ。区切り線を中心に `gripWidth` の透明な当たり判定を持ち、
 /// ホバー/ドラッグ中は中立色のバーを出して掴みしろを視認しやすくする。
 /// 各インスタンスが自分の hover/drag state を持つため、複数を並べても相互に干渉しない
 /// (view 単位の state を共有すると「片方をホバーすると両方光る」問題が起きるため切り出した)。
 /// navigationShell 等の最前面オーバーレイとして区切り線の真上に重ねる前提。
 public struct ResizeGripView: View {
     /// 掴みしろの幅(区切り線を中心に左右へ張り出す)。配置側の offset 計算と揃える。01 E6: 見た目 1pt・当たり 8pt。
-    public static let gripWidth: CGFloat = 8
+    public static let gripWidth: CGFloat = DSLayout.dividerHitWidth
 
+    let axis: Axis
     let hitWidth: CGFloat
     let onChanged: (_ translation: CGFloat) -> Void
     let onEnded: () -> Void
     let onDoubleClick: (() -> Void)?
+    let onKeyboardAdjust: ((CGFloat) -> Void)?
 
     @State private var isHovered = false
     @State private var isResizing = false
 
-    /// - Parameter hitWidth: 当たり判定の幅。分割表示の区切りは `DSLayout.dividerHitWidth`（8pt）。
-    /// - Parameter onChanged: ドラッグ開始点からの横の移動量（右が正）。
+    /// - Parameter axis: 移動方向。上下の境界は `.vertical`。
+    /// - Parameter hitWidth: 移動方向の当たり判定の厚さ。分割表示の区切りは `DSLayout.dividerHitWidth`（8pt）。
+    /// - Parameter onChanged: ドラッグ開始点からの移動量（右・下が正）。
+    /// - Parameter onKeyboardAdjust: 矢印キーによる1段階の移動（右・下が正）。指定時だけキー入力を受け取る。
     public init(
+        axis: Axis = .horizontal,
         hitWidth: CGFloat = gripWidth,
         onChanged: @escaping (_ translation: CGFloat) -> Void,
         onEnded: @escaping () -> Void,
-        onDoubleClick: (() -> Void)? = nil
+        onDoubleClick: (() -> Void)? = nil,
+        onKeyboardAdjust: ((CGFloat) -> Void)? = nil
     ) {
+        self.axis = axis
         self.hitWidth = hitWidth
         self.onChanged = onChanged
         self.onEnded = onEnded
         self.onDoubleClick = onDoubleClick
+        self.onKeyboardAdjust = onKeyboardAdjust
     }
 
     public var body: some View {
@@ -40,6 +48,7 @@ public struct ResizeGripView: View {
         // 当たり判定は AppKit の view が持つ。SwiftUI の DragGesture だと、窓の上端（タイトルバーの帯）では
         // macOS が先に「窓を動かす操作」として受け取り、境界ではなく窓全体が動いた。
         ResizeGripHitArea(
+            axis: axis,
             onHover: { isHovered = $0 },
             onDrag: { translation in
                 isResizing = true
@@ -49,47 +58,58 @@ public struct ResizeGripView: View {
                 isResizing = false
                 onEnded()
             },
-            onDoubleClick: onDoubleClick
+            onDoubleClick: onDoubleClick,
+            onKeyboardAdjust: onKeyboardAdjust
         )
-        .frame(width: hitWidth)
-        .frame(maxHeight: .infinity)
+        .frame(width: axis == .horizontal ? hitWidth : nil, height: axis == .vertical ? hitWidth : nil)
+        .frame(maxWidth: axis == .vertical ? .infinity : nil, maxHeight: axis == .horizontal ? .infinity : nil)
         .overlay {
             // 区切り線位置の 3pt バー（角丸 2）。ホバー/ドラッグ中のみ表示する。
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
+            RoundedRectangle(cornerRadius: DSLayout.resizeGripRadius, style: .continuous)
                 .fill(DSColor.separator)
-                .frame(width: 3)
-                .frame(maxHeight: .infinity)
+                .frame(width: axis == .horizontal ? DSLayout.resizeGripHighlightWidth : nil,
+                       height: axis == .vertical ? DSLayout.resizeGripHighlightWidth : nil)
+                .frame(maxWidth: axis == .vertical ? .infinity : nil, maxHeight: axis == .horizontal ? .infinity : nil)
                 .opacity(highlighted ? 1 : 0)
-                .animation(.easeInOut(duration: 0.12), value: highlighted)
+                .animation(DSAnimation.resizeGrip, value: highlighted)
                 .allowsHitTesting(false)
         }
     }
 }
 
 private struct ResizeGripHitArea: NSViewRepresentable {
+    let axis: Axis
     let onHover: (Bool) -> Void
     let onDrag: (CGFloat) -> Void
     let onDragEnded: () -> Void
     let onDoubleClick: (() -> Void)?
+    let onKeyboardAdjust: ((CGFloat) -> Void)?
 
     func makeNSView(context: Context) -> ResizeGripNSView { ResizeGripNSView() }
 
     func updateNSView(_ view: ResizeGripNSView, context: Context) {
+        view.axis = axis
         view.onHover = onHover
         view.onDrag = onDrag
         view.onDragEnded = onDragEnded
         view.onDoubleClick = onDoubleClick
+        view.onKeyboardAdjust = onKeyboardAdjust
     }
 }
 
 final class ResizeGripNSView: NSView {
+    var axis: Axis = .horizontal {
+        didSet { if axis != oldValue { window?.invalidateCursorRects(for: self) } }
+    }
+    var resizeCursor: NSCursor { axis == .horizontal ? .resizeLeftRight : .resizeUpDown }
     var onHover: (Bool) -> Void = { _ in }
     var onDrag: (CGFloat) -> Void = { _ in }
     var onDragEnded: () -> Void = {}
     var onDoubleClick: (() -> Void)?
+    var onKeyboardAdjust: ((CGFloat) -> Void)?
 
     /// 押した位置（窓の座標）。区切り線自身が動いても基準がずれないよう、窓の座標で測る。
-    private var dragStartX: CGFloat?
+    private var dragStart: NSPoint?
     private var isDragging = false
 
     /// この掴みしろが窓を動かせなくしている間だけ true。
@@ -102,7 +122,20 @@ final class ResizeGripNSView: NSView {
     private var isPointerInside = false
 
     override var mouseDownCanMoveWindow: Bool { false }
+    override var acceptsFirstResponder: Bool { onKeyboardAdjust != nil }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        guard let onKeyboardAdjust, event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function]).isEmpty else {
+            super.keyDown(with: event)
+            return
+        }
+        switch (axis, event.keyCode) {
+        case (.horizontal, 123), (.vertical, 126): onKeyboardAdjust(-1)
+        case (.horizontal, 124), (.vertical, 125): onKeyboardAdjust(1)
+        default: super.keyDown(with: event)
+        }
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -117,7 +150,7 @@ final class ResizeGripNSView: NSView {
     }
 
     // .activeAlways の追跡範囲では cursorUpdate が来ないので、カーソルは cursor rect で出す。
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeLeftRight) }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: resizeCursor) }
     override func mouseEntered(with event: NSEvent) {
         isPointerInside = true
         onHover(true)
@@ -186,7 +219,7 @@ final class ResizeGripNSView: NSView {
     }
 
     private func endDragIfNeeded() {
-        dragStartX = nil
+        dragStart = nil
         guard isDragging else { return }
         isDragging = false
         NSCursor.pop()
@@ -207,30 +240,28 @@ final class ResizeGripNSView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        // 01 E6: ダブルクリックで既定の幅に戻す。
+        if acceptsFirstResponder { window?.makeFirstResponder(self) }
+        // ダブルクリックで既定の幅・高さに戻す。
         if event.clickCount == 2 {
             onDoubleClick?()
             return
         }
-        dragStartX = event.locationInWindow.x
+        holdWindowMovable()
+        dragStart = event.locationInWindow
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let dragStartX else { return }
+        guard let dragStart else { return }
         if !isDragging {
             isDragging = true
-            // 区切り線より速く動かして掴みしろから外れても、ドラッグ中は左右矢印のままにする。
-            NSCursor.resizeLeftRight.push()
+            // 掴みしろから外れても、ドラッグ中は方向に合う矢印のままにする。
+            resizeCursor.push()
         }
-        onDrag(event.locationInWindow.x - dragStartX)
+        onDrag(axis == .horizontal ? event.locationInWindow.x - dragStart.x : dragStart.y - event.locationInWindow.y)
     }
 
     override func mouseUp(with event: NSEvent) {
-        dragStartX = nil
-        guard isDragging else { return }
-        isDragging = false
-        NSCursor.pop()
-        onDragEnded()
+        endDragIfNeeded()
         // 掴みしろの外で離したときは、ここで窓を動かせる状態に戻す。ドラッグ中は掴みしろが指より遅れて動くので、
         // 「出た」の通知がドラッグ中に届いて離したあとには来ないことがある（実機で窓が動かせないまま残った）。
         let isOverGrip = window.map { bounds.contains(convert($0.mouseLocationOutsideOfEventStream, from: nil)) } ?? false

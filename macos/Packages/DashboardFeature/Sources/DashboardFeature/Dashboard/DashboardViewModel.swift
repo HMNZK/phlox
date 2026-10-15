@@ -1128,6 +1128,7 @@ public final class DashboardViewModel {
         extraEnv: [String: String] = [:],
         workingDirectoryOverride: String? = nil,
         isolationOverride: Bool? = nil,
+        worktreeStartPoint: WorktreeStartPoint = .head,
         initialSettings: CodexAppServerSessionSettings? = nil,
         resumeHistoryEntry: ClaudeSessionHistoryEntry? = nil,
         keepsRowOnLaunchFailure: Bool = false,
@@ -1142,6 +1143,7 @@ public final class DashboardViewModel {
             extraEnv: extraEnv,
             workingDirectoryOverride: workingDirectoryOverride,
             isolationOverride: isolationOverride,
+            worktreeStartPoint: worktreeStartPoint,
             initialSettings: initialSettings,
             resumeHistoryEntry: resumeHistoryEntry,
             keepsRowOnLaunchFailure: keepsRowOnLaunchFailure,
@@ -1167,7 +1169,7 @@ public final class DashboardViewModel {
         guard projects.contains(where: { $0.id == request.projectID }) else { throw AgentSpawnError.unknownProject }
         let id = try await spawnNewSession(ref: request.agentRef, projectID: request.projectID, backend: .appServer,
             workingDirectoryOverride: request.workingDirectoryOverride,
-            isolationOverride: request.usesWorktree, initialSettings: request.settings,
+            isolationOverride: request.usesWorktree, worktreeStartPoint: request.worktreeStartPoint, initialSettings: request.settings,
             resumeHistoryEntry: historyEntry, keepsRowOnLaunchFailure: true,
             onRowAppended: { id in
                 self.failedNewChatRequests[id] = request
@@ -1207,7 +1209,7 @@ public final class DashboardViewModel {
             usesWorktree: request.usesWorktree,
             text: "", attachments: [],
             workingDirectoryOverride: request.workingDirectoryOverride,
-            resumeHistoryID: request.resumeHistoryID)
+            resumeHistoryID: request.resumeHistoryID, worktreeStartPoint: request.worktreeStartPoint)
         let newID = try await launchNewChat(restart, onRowAppended: { newID in
             if request.resumeHistoryID == nil, let target = self.sessionNode(id: newID)?.appServer {
                 let merged = ComposerAttachmentStore.mergingDrafts(text: vm.draft, attachments: vm.composerAttachments,
@@ -1229,6 +1231,7 @@ public final class DashboardViewModel {
         extraEnv: [String: String] = [:],
         workingDirectoryOverride: String? = nil,
         isolationOverride: Bool? = nil,
+        worktreeStartPoint: WorktreeStartPoint = .head,
         initialSettings: CodexAppServerSessionSettings? = nil,
         resumeHistoryEntry: ClaudeSessionHistoryEntry? = nil,
         keepsRowOnLaunchFailure: Bool = false,
@@ -1288,7 +1291,8 @@ public final class DashboardViewModel {
                 launchMode: .newSession(resumeID: resumeID),
                 backend: resolvedBackend,
                 extraEnv: extraEnv,
-                isolationOverride: isolationOverride
+                isolationOverride: isolationOverride,
+                worktreeStartPoint: worktreeStartPoint
             )
         } catch AgentLaunchPlannerError.binaryNotFound(let k) {
             await environment.tokenStore.remove(session: sessionID)

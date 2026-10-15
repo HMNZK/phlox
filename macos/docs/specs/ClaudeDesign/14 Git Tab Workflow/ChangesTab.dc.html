@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>「変更」の子タブ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<section aria-label="{{ regionAria }}" style="{{ rootStyle }}">
+  <div style="height:40px;flex:none;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--sep);min-width:0;">
+    <div role="tablist" aria-label="表示" style="{{ segWrap }}">
+      <button type="button" role="tab" aria-selected="{{ isDiffMode }}" style="{{ segDiff }}">差分</button>
+      <button type="button" role="tab" aria-selected="{{ isContentMode }}" style="{{ segContent }}">内容</button>
+    </div>
+    <sc-if value="{{ hasFile }}" hint-placeholder-val="{{ true }}">
+      <span title="{{ fname }}" style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:var(--fg);white-space:nowrap;flex:0 1 auto;min-width:48px;overflow:hidden;text-overflow:ellipsis;">{{ fname }}</span>
+      <span style="flex:0 1 auto;min-width:0;font-size:11px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left;"><span style="direction:ltr;unicode-bidi:embed;">{{ fdir }}</span></span>
+      <span title="{{ srcTip }}" style="height:18px;padding:0 6px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--border);font-size:11px;color:var(--fg);display:flex;align-items:center;gap:4px;white-space:nowrap;flex:none;">{{ src }}</span>
+      <span style="display:flex;gap:4px;font-size:11px;font-variant-numeric:tabular-nums;flex:none;">
+        <sc-if value="{{ addT }}"><span style="color:var(--add);">{{ addT }}</span></sc-if>
+        <sc-if value="{{ delT }}"><span style="color:var(--del);">{{ delT }}</span></sc-if>
+      </span>
+    </sc-if>
+    <span style="flex:1;min-width:8px;"></span>
+    <button type="button" aria-disabled="{{ editDis }}" style="{{ editStyle }}">ファイルタブで編集</button>
+  </div>
+
+  <sc-if value="{{ hasBody }}" hint-placeholder-val="{{ true }}">
+    <div role="region" aria-label="{{ bodyAria }}" style="flex:1;min-height:0;overflow:hidden;padding:8px 0;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;line-height:20px;">
+      <sc-for list="{{ lines }}" as="l" hint-placeholder-count="20">
+        <div style="{{ l.s }}">
+          <span aria-hidden="true" style="width:48px;flex:none;text-align:right;padding-right:10px;box-sizing:border-box;color:var(--fg3);">{{ l.n }}</span>
+          <span aria-hidden="true" style="{{ l.signS }}">{{ l.sign }}</span>
+          <span style="flex:1;min-width:0;white-space:pre-wrap;word-break:break-all;"><sc-for list="{{ l.segs }}" as="g" hint-placeholder-count="2"><span style="{{ g.s }}">{{ g.t }}</span></sc-for></span>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 40px 80px;text-align:center;">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 16 16" fill="none" stroke-width="1.1" stroke-linejoin="round" style="stroke:var(--fg2);"><path d="M2.5 3.5h11v9h-11zM9.5 3.5v9"></path><path d="M11 6h1M11 8h1M11 10h1"></path></svg>
+      <div style="font-size:13px;font-weight:600;">Git タブで変更を選んでください</div>
+      <div style="font-size:12px;line-height:1.6;color:var(--fg2);max-width:340px;text-wrap:pretty;">右の Git タブで変更・コミット・スタッシュのファイルを押すと、ここにその差分を出します。</div>
+      <div style="font-size:11px;color:var(--fg2);display:flex;gap:6px;align-items:center;margin-top:2px;">Git タブを表示<span style="height:18px;padding:0 5px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--border);display:flex;align-items:center;color:var(--fg);">⇧⌃⌘G</span></div>
+    </div>
+  </sc-if>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":900,"height":768},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"variant":{"editor":"enum","options":["worktree","staged","content","commit","empty"],"default":"worktree"},"width":{"editor":"int","default":900},"height":{"editor":"int","default":768}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const v = p.variant || 'worktree';
+    const W = Number(p.width) || 900, H = Number(p.height) || 768;
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const T = {
+      dark:{'--bg':'#1E1E20','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--sep':'rgba(242,242,244,0.10)','--border':'rgba(242,242,244,0.14)','--ctl':'#3A3A3E','--ctlBorder':'rgba(242,242,244,0.12)','--segBg':'rgba(242,242,244,0.08)','--add':'#6FD08C','--del':'#FF8A8D','--addTint':'rgba(111,208,140,0.10)','--delTint':'rgba(255,138,141,0.10)','--kw':'#FC5FA3','--cm':'#8D99A5','--str':'#FC6A5D'},
+      light:{'--bg':'#FFFFFF','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--sep':'rgba(29,29,31,0.10)','--border':'rgba(29,29,31,0.14)','--ctl':'#FFFFFF','--ctlBorder':'rgba(29,29,31,0.16)','--segBg':'rgba(29,29,31,0.065)','--add':'#1F7A3A','--del':'#B4232A','--addTint':'rgba(31,122,58,0.08)','--delTint':'rgba(180,35,42,0.07)','--kw':'#AD3DA4','--cm':'#5D6C79','--str':'#C41A16'}
+    };
+    const DG = 'macos/Packages/DashboardFeature/Sources/Git', DK = 'macos/Packages/GitKit/Sources/GitKit';
+    const S = {
+      worktree:{ name:'GitTabView.swift', dir:DG, src:'作業ツリー', tip:'ステージしていない変更（git diff）', add:6, del:2, mode:'diff', start:[18,18], L:[
+        ['h','@@ -18,11 +18,15 @@ struct GitTabView: View {'],[' ','    @Bindable var model: GitTabModel'],[' ','    @Environment(\\.openChangesTab) private var openChangesTab'],[' ',''],[' ','    var body: some View {'],[' ','        VStack(spacing: 0) {'],
+        ['-','            GitTabHeader(model: model)'],['-','            GitChangesList(model: model.changes)'],
+        ['+','            GitCommitBar(model: model.commitBar)'],['+','            Divider()'],['+','            ScrollView {'],['+','                GitSections(model: model, onOpen: openChangesTab)'],['+','            }'],
+        [' ','        }'],['+','        .focusEffectDisabled() // FX-2: 一覧の外側に枠を描かない'],[' ','        .task { await model.reload() }'],[' ','    }'],[' ','}'] ] },
+      staged:{ name:'GitCommitBar.swift', dir:DG, src:'ステージ済み', tip:'ステージ済みの変更（git diff --cached）', add:112, del:0, mode:'diff', start:[0,1], L:[
+        ['h','@@ -0,0 +1,112 @@'],['+','import SwiftUI'],['+','import DesignSystem'],['+',''],['+','/// Git タブの最上部。メッセージ・コミット・プッシュ・PR を作成。'],['+','struct GitCommitBar: View {'],['+','    @Bindable var model: GitCommitBarModel'],['+','    @FocusState private var isMessageFocused: Bool'],['+',''],
+        ['+','    var body: some View {'],['+','        VStack(alignment: .leading, spacing: 8) {'],['+','            GitBranchRow(branch: model.branch, onRefresh: model.reload)'],['+','            CommitMessageField(text: $model.message, maxLines: 5)'],['+','                .focused($isMessageFocused)'],['+','            Button(action: model.commit) {'],['+','                Text("コミット")'],['+','            }'],['+','            .buttonStyle(.phloxPrimary)'],['+','            .keyboardShortcut(.return, modifiers: .command)'],['+','            .disabled(!model.canCommit)'],['+','            Text(model.commitStatusLine)'],['+','                .font(.phloxMeta)'],['+','                .foregroundStyle(.secondary)'],['+','            HStack(spacing: 8) {'],['+','                PushButton(ahead: model.ahead, action: model.push)'],['+','                CreatePRButton(state: model.prState, action: model.createPR)'],['+','            }'],['+','        }'],['+','        .padding(.horizontal, 12)'],['+','    }'],['+','}'] ] },
+      content:{ name:'GitTabView.swift', dir:DG, src:'作業ツリー', tip:'今のファイルの内容', add:6, del:2, mode:'content', start:[1,1], L:[
+        [' ','import SwiftUI'],[' ','import DesignSystem'],[' ',''],[' ','/// 右サイドバーの Git タブ。上部のコミット欄と、折りたためる区画。'],[' ','struct GitTabView: View {'],[' ','    @Bindable var model: GitTabModel'],[' ','    @Environment(\\.openChangesTab) private var openChangesTab'],[' ',''],[' ','    var body: some View {'],[' ','        VStack(spacing: 0) {'],[' ','            GitCommitBar(model: model.commitBar)'],[' ','            Divider()'],[' ','            ScrollView {'],[' ','                GitSections(model: model, onOpen: openChangesTab)'],[' ','            }'],[' ','        }'],[' ','        .focusEffectDisabled() // FX-2: 一覧の外側に枠を描かない'],[' ','        .task { await model.reload() }'],[' ','    }'],[' ','}'] ] },
+      commit:{ name:'GitWorkflowService.swift', dir:DK, src:'コミット b7d03f5', tip:'コミット b7d03f5「GitWorkflowService に stage と unstage を追加」での差分', add:9, del:0, mode:'diff', start:[88,88], L:[
+        ['h','@@ -88,6 +88,15 @@ actor GitWorkflowService {'],[' ','        return try parseStatus(output)'],[' ','    }'],[' ',''],
+        ['+','    /// パスは :(literal) で渡す（NF-6）'],['+','    func stage(_ paths: [String]) async throws {'],['+','        try await run(["add", "--"] + paths.map(Self.literal))'],['+','    }'],['+',''],['+','    func unstage(_ paths: [String]) async throws {'],['+','        try await run(["restore", "--staged", "--"] + paths.map(Self.literal))'],['+','    }'],['+',''],
+        [' ','    func commit(message: String) async throws -> CommitID {'],[' ','        try await run(["commit", "-m", message])'],[' ','        return try await headID()'] ] }
+    };
+    const isEmpty = v === 'empty';
+    const d = S[v] || S.worktree;
+    const KWS = /(\/\/.*$|\/\/\/.*$|"[^"]*"|\b(?:import|struct|var|let|func|some|private|return|try|await|async|throws|actor|self|Self)\b|@\w+)/;
+    const tok = (code) => code.split(KWS).filter(x => x !== '' && x !== undefined).map(t => {
+      let c = 'inherit';
+      if (/^\/\//.test(t)) c = 'var(--cm)';
+      else if (/^"/.test(t)) c = 'var(--str)';
+      else if (/^(import|struct|var|let|func|some|private|return|try|await|async|throws|actor|self|Self)$/.test(t) || /^@\w+/.test(t)) c = 'var(--kw)';
+      return { t, s:{ color:c } };
+    });
+    let o = d.start[0], n = d.start[1];
+    const content = d.mode === 'content';
+    const lines = isEmpty ? [] : d.L.map(([k, code]) => {
+      const base = { display:'flex', padding:'0 16px 0 0', color:'var(--fg)' };
+      const signS = { width:16, flex:'none', textAlign:'center' };
+      if (k === 'h') return { n:'', sign:'', signS, segs:[{ t:code, s:{ color:'var(--fg2)' } }], s:{ ...base, paddingTop:4, paddingBottom:4 } };
+      if (content) { const r = { n:String(n), sign:'', signS, segs: tok(code), s: base }; n++; return r; }
+      if (k === '+') { const r = { n:String(n), sign:'+', signS:{ ...signS, color:'var(--add)' }, segs: tok(code), s:{ ...base, background:'var(--addTint)' } }; n++; return r; }
+      if (k === '-') { const r = { n:String(o), sign:'−', signS:{ ...signS, color:'var(--del)' }, segs: tok(code), s:{ ...base, background:'var(--delTint)' } }; o++; return r; }
+      const r = { n:String(n), sign:'', signS, segs: tok(code), s: base }; o++; n++; return r;
+    });
+    const segOn = { font:'inherit', height:20, padding:'0 10px', border:0, borderRadius:5, fontSize:12, fontWeight:500, color:'var(--fg)', background:'var(--ctl)', boxShadow:'0 0.5px 1.5px rgba(0,0,0,0.2), 0 0 0 0.5px var(--ctlBorder)' };
+    const segOff = { font:'inherit', height:20, padding:'0 10px', border:0, borderRadius:5, fontSize:12, fontWeight:500, color:'var(--fg2)', background:'transparent' };
+    return {
+      hasFile: !isEmpty, hasBody: !isEmpty, isEmpty,
+      fname: d.name, fdir: d.dir, src: d.src, srcTip: d.tip,
+      addT: content || isEmpty ? '' : (d.add ? '+' + d.add : ''), delT: content || isEmpty ? '' : (d.del ? '−' + d.del : ''),
+      isDiffMode: !content, isContentMode: content,
+      segWrap:{ display:'flex', padding:2, gap:2, borderRadius:7, background:'var(--segBg)', flex:'none', opacity: isEmpty ? 0.4 : 1 },
+      segDiff: content ? segOff : segOn, segContent: content ? segOn : segOff,
+      lines, editDis: isEmpty,
+      editStyle:{ font:'inherit', height:24, padding:'0 10px', border:0, borderRadius:6, fontSize:12, color:'var(--fg)', background:'var(--ctl)', boxShadow:'0 0 0 0.5px var(--ctlBorder), 0 0.5px 1px rgba(0,0,0,0.1)', whiteSpace:'nowrap', flex:'none', opacity: isEmpty ? 0.4 : 1 },
+      regionAria: isEmpty ? '変更、未選択' : `変更、${d.name}、${d.src}`,
+      bodyAria: `${content ? '内容' : '差分'}、${d.name}、${d.src}`,
+      rootStyle:{ ...T[theme], width:W, height:H, boxSizing:'border-box', background:'var(--bg)', display:'flex', flexDirection:'column', overflow:'hidden', color:'var(--fg)', fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif", fontSize:13, WebkitFontSmoothing:'antialiased', flex:'none' }
+    };
+  }
+}
+</script>
+</body>
+</html>

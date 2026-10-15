@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GK キーボードと VoiceOver</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:7200px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:72px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:1240px;">
+    <div style="font-size:13px;color:#5B5B60;">GK · NF-4（キーボードだけで全操作・VoiceOver で役割と状態）· 2026-10-15</div>
+    <div style="font-size:40px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;">Git タブのキーボード操作と VoiceOver</div>
+    <div style="font-size:15px;line-height:1.75;color:#3A3A3E;text-wrap:pretty;">入力先は 7 か所だけ（下の図の 1〜7）。区画の一覧は全区画で 1 つの入力先で、中は矢印で動く。行の操作は 1 文字のキー（Space・↩）、区画の操作は ⌘ 付きのキーで、どの行にいても効く。キーはツールチップ・メニューの右端・メニューバーの「Git」メニューの 3 か所に書き、VoiceOver はカスタムアクションと help で同じ操作を読む。</div>
+  </div>
+
+  <div style="display:flex;gap:48px;align-items:flex-start;">
+    <div style="display:flex;flex-direction:column;gap:12px;width:280px;flex:none;">
+      <div style="font-size:14px;font-weight:600;">Tab の順（1〜7）</div>
+      <div style="position:relative;border-radius:8px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+        <div style="border-radius:8px;overflow:hidden;"><dc-import name="GitPanel" variant="normal" width="280" height="838" hint-size="280px,838px"></dc-import></div>
+        <sc-for list="{{ badges }}" as="g" hint-placeholder-count="7">
+          <span aria-hidden="true" style="{{ g.s }}">{{ g.n }}</span>
+        </sc-for>
+      </div>
+    </div>
+    <div style="width:520px;flex:none;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:14px;font-weight:600;">入力先と、そこで効くキー</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+        <sc-for list="{{ stops }}" as="s" hint-placeholder-count="7">
+          <div style="display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 16px;border-top:1px solid rgba(0,0,0,0.06);">
+            <span style="width:20px;height:20px;border-radius:50%;background:#1D1D1F;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">{{ s.n }}</span>
+            <span style="display:flex;flex-direction:column;gap:2px;"><b>{{ s.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ s.v }}</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">見出しの操作ボタン（＋・取得）と行の「＋／−」は Tab で止めない。⌘ 付きのキー・Space・メニューで同じことができ、Tab の回数を 7 回に保つため。</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:14px;font-weight:600;">メニューバーの「Git」メニュー（キーを覚える場所）</div>
+      <div style="width:300px;box-sizing:border-box;background:rgba(43,43,45,0.96);border-radius:8px;box-shadow:0 0 0 0.5px rgba(255,255,255,0.18), 0 10px 30px rgba(0,0,0,0.3);padding:5px;display:flex;flex-direction:column;font-size:13px;">
+        <sc-for list="{{ menu }}" as="m" hint-placeholder-count="12">
+          <sc-if value="{{ m.isItem }}"><div style="display:flex;align-items:center;height:22px;padding:0 10px;border-radius:4px;white-space:nowrap;color:rgba(255,255,255,0.85);"><span style="flex:1;">{{ m.t }}</span><span style="color:rgba(255,255,255,0.5);margin-left:16px;">{{ m.k }}</span></div></sc-if>
+          <sc-if value="{{ m.isSep }}"><div style="height:1px;background:rgba(255,255,255,0.12);margin:4px 6px;"></div></sc-if>
+        </sc-for>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;max-width:520px;">macOS ではキーはメニューに書くのが基本。行の 1 文字のキー（Space・↩）はメニューの項目にできないので、行のツールチップ（K1）に書く。⌘N は「新規チャット」が使っているので避けた。⌃Space は入力ソースの切り替えと重なるので使わない。</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:26px;font-weight:700;">キーの一覧</div>
+    <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:200px 150px 1fr 220px;gap:14px;padding:10px 16px;font-weight:700;font-size:12px;color:#5B5B60;"><span>操作</span><span>キー</span><span>動き</span><span>どこに書くか</span></div>
+      <sc-for list="{{ keys }}" as="k" hint-placeholder-count="24">
+        <div style="display:grid;grid-template-columns:200px 150px 1fr 220px;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);">
+          <span style="font-weight:600;">{{ k.a }}</span>
+          <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;">{{ k.k }}</span>
+          <span style="text-wrap:pretty;color:#3A3A3E;">{{ k.v }}</span>
+          <span style="color:#5B5B60;text-wrap:pretty;">{{ k.w }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-size:26px;font-weight:700;">K. キーの手がかりと入力先の見え方（ダーク・280pt）</div>
+    <div style="display:grid;grid-template-columns:repeat(6,280px);column-gap:48px;row-gap:56px;">
+      <sc-for list="{{ cells }}" as="c" hint-placeholder-count="10">
+        <div id="{{ c.id }}" style="display:flex;flex-direction:column;gap:12px;width:280px;">
+          <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+          <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+            <dc-import name="GitPanel" variant="{{ c.v }}" width="280" height="838" hint-size="280px,838px"></dc-import>
+          </div>
+          <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;min-height:100px;">{{ c.caption }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:26px;font-weight:700;">VoiceOver の文言</div>
+    <div style="font-size:13px;line-height:1.7;color:#3A3A3E;max-width:1240px;text-wrap:pretty;">読む順は「名前 → 種類 → 状態 → 数 → 場所」。役割（行・ボタンなど）と位置（5/9）、選択・開閉の状態は macOS が自動で足すので、ラベルに重ねて書かない。色・線・記号だけで出している情報（追加／削除の色、今のブランチのチェック、グラフの線）は必ず言葉にする。長いフォルダ名は最後に置き、途中で聞き流せるようにする。</div>
+    <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:170px 150px 1fr 260px;gap:14px;padding:10px 16px;font-weight:700;font-size:12px;color:#5B5B60;"><span>要素</span><span>役割 · 状態</span><span>読み上げ（例）</span><span>カスタムアクション · help</span></div>
+      <sc-for list="{{ vo }}" as="r" hint-placeholder-count="20">
+        <div style="display:grid;grid-template-columns:170px 150px 1fr 260px;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);">
+          <span style="font-weight:600;">{{ r.e }}</span>
+          <span style="color:#5B5B60;text-wrap:pretty;">{{ r.r }}</span>
+          <span style="text-wrap:pretty;">「{{ r.s }}」</span>
+          <span style="color:#3A3A3E;text-wrap:pretty;">{{ r.a }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:18px;font-weight:700;">知らせ（操作の結果を読む）</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+        <sc-for list="{{ ann }}" as="a" hint-placeholder-count="10">
+          <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="font-weight:600;">{{ a.k }}</span><span style="text-wrap:pretty;">「{{ a.v }}」</span></div>
+        </sc-for>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;">知らせは「丁寧」（読んでいる途中を遮らない）。失敗だけは「割り込み」。メッセージを打っている間は、理由の行が変わっても読まない（コミットを押したときに読む）。</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:18px;font-weight:700;">キーボードだけで: ステージ → コミット → プッシュ</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;font-size:13px;line-height:1.6;">
+        <sc-for list="{{ walk }}" as="w" hint-placeholder-count="9">
+          <div style="display:grid;grid-template-columns:28px 140px 1fr;gap:12px;padding:8px 16px;border-top:1px solid rgba(0,0,0,0.06);"><span style="color:#5B5B60;font-variant-numeric:tabular-nums;">{{ w.n }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;font-weight:600;">{{ w.k }}</span><span style="text-wrap:pretty;">{{ w.v }}</span></div>
+        </sc-for>
+      </div>
+      <div style="font-size:18px;font-weight:700;margin-top:12px;">決めてほしいこと</div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);padding:16px 18px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.7;">
+        <sc-for list="{{ asks }}" as="a" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:2px;"><b>{{ a.t }}</b><span style="color:#3A3A3E;text-wrap:pretty;">{{ a.v }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":7200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const badge = (n, left, top) => ({ n, s:{ position:'absolute', left, top, width:20, height:20, borderRadius:10, background:'#1D1D1F', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 0 2px #E6E6E9', zIndex:3 } });
+    const badges = [badge('1',-10,13), badge('2',258,48), badge('3',-10,80), badge('4',-10,116), badge('5',-10,172), badge('6',136,172), badge('7',-10,214)];
+    const stops = [
+      { n:'1', t:'ファイル / Git の切り替え', v:'← → で切り替え。⇧⌃⌘G はどこからでもここ（7 の一覧）へ来る。' },
+      { n:'2', t:'更新', v:'Space で読み直し。どこからでも ⌘R。' },
+      { n:'3', t:'メッセージ欄', v:'どこからでも ⇧⌘C でここへ。⌘↩ でコミット、esc で一覧（7）へ戻る。↩ は改行。' },
+      { n:'4', t:'「コミット」', v:'Space で押す。押せないときは help に理由。' },
+      { n:'5', t:'「プッシュ」', v:'Space で押す。' },
+      { n:'6', t:'「PR を作成」／「PR #482」', v:'Space で押す（リンクのときはブラウザで開く）。失敗の表示があれば、この後に「詳細」「再試行」「閉じる」が入る。' },
+      { n:'7', t:'区画の一覧', v:'全区画で 1 つ。↑↓ で行、⌥↑↓ で区画、→← で開閉。Space・↩・⌃↩ と ⌘ 付きのキーで操作。入力先は選択行の塗り（24%）だけで示し、外側に枠は描かない（FX-1）。' }
+    ];
+    const S = (t, k) => ({ isItem:true, t, k: k || '' });
+    const SEP = { isSep:true };
+    const menu = [S('Git タブを表示','⇧⌃⌘G'), S('コミット欄へ移る','⇧⌘C'), S('コミット','⌘↩'), S('プッシュ','⌥⌘P'), S('PR を作成',''), SEP, S('更新','⌘R'), S('取得（fetch）','⇧⌘R'), SEP, S('新しいブランチ…','⌥⌘N'), S('スタッシュ…','⌥⌘S'), SEP, S('すべてステージ',''), S('すべてのステージを外す',''), SEP, S('次の区画へ','⌥↓'), S('前の区画へ','⌥↑')];
+    const K = (a, k, v, w) => ({ a, k, v, w });
+    const keys = [
+      K('Git タブへ','⇧⌃⌘G','右サイドバーを開いて Git タブを出し、区画の一覧に入力先を移す','切り替えのツールチップ · Git メニュー'),
+      K('入力先の間','Tab ／ ⇧Tab','1〜7 を順に。一覧の中では止まらない','—'),
+      K('行の間','↑ ↓','全区画をまたいで見出し・小見出し・行を 1 つずつ。閉じた区画の中は飛ばす','—'),
+      K('先頭・末尾','⌘↑ ／ ⌘↓','一覧の先頭の見出し・最後の行へ','—'),
+      K('区画の間','⌥↓ ／ ⌥↑','次・前の区画の見出しへ','見出しのツールチップ（K2）· Git メニュー'),
+      K('区画を開く・閉じる','→ ／ ←','見出しで開閉。行で ← は見出しへ戻る。コミット・スタッシュ・リモートのまとまりの行も同じ','見出しのツールチップ（K2）'),
+      K('すべて開く・閉じる','⌥→ ／ ⌥←','見出しで押すと、全区画を開く・閉じる（Finder の一覧と同じ）','—'),
+      K('名前で飛ぶ','文字を打つ','打った文字で始まる行へ（macOS の一覧と同じ）','—'),
+      K('ステージ・外す','Space','変更の行で ステージ ↔ 外す。入力先は同じグループの次の行へ','「＋／−」のツールチップ（S3）· 行のツールチップ（K1）'),
+      K('すべてステージ・外す','Space（小見出しで）','「ステージ済み」「変更」の小見出しの上で押すと、そのグループ全部','小見出しのボタンのツールチップ（K7）'),
+      K('「変更」タブで開く','↩','変更・コミットの中・スタッシュの中のファイル行で。入力先は Git タブに残る','行のツールチップ（K1）'),
+      K('開いて「変更」タブへ','⌥↩','開いたうえで入力先を「変更」タブの差分へ移す。戻るのは ⇧⌃⌘G','行のツールチップ（K1）'),
+      K('切り替え','↩','ブランチの行で（ダブルクリックと同じ）','ブランチのツールチップ（X6）'),
+      K('メニューを開く','⌃↩','右クリックと同じメニュー。見出しでは見出しの操作（新しいブランチ・取得・スタッシュ）','行のツールチップ（K1）'),
+      K('コミット欄へ','⇧⌘C','メッセージ欄に入力先を移す（Git タブが隠れていれば出す）','メッセージ欄のツールチップ（K4）· Git メニュー'),
+      K('コミット','⌘↩','メッセージ欄で、またはどこからでも','「コミット」の中とツールチップ（K5）'),
+      K('プッシュ','⌥⌘P','どこからでもプッシュ（「システム設定 › キーボードで操作」が切りのときは Tab がボタンに届かないので、このキーと Git メニューで代える）','「プッシュ」のツールチップ · Git メニュー'),
+      K('PR を作成','Git メニュー','キーは割り当てない。メニューバー（⌃F2）の Git メニューから','Git メニュー'),
+      K('更新','⌘R','全区画を読み直す','更新ボタンのツールチップ'),
+      K('取得','⇧⌘R','全リモートを取得','見出しの「取得」のツールチップ（K3）'),
+      K('新しいブランチ','⌥⌘N','ブランチ区画を開き、先頭の入力欄へ','見出しの「＋」のツールチップ · Git メニュー'),
+      K('スタッシュ','⌥⌘S','スタッシュ区画を開き、メッセージの入力欄へ','見出しの「＋」のツールチップ · Git メニュー'),
+      K('ID・パスをコピー','⌘C ／ ⌥⌘C','コミットの行で ID、ファイルの行でパス','右クリックのメニューの右端（S7・X2）'),
+      K('削除','⌘⌫','ブランチ・スタッシュの行で 削除…（確認を出す）','右クリックのメニューの右端（X9）'),
+      K('入力欄で','↩ ／ ⌥↩ ／ esc','作成して切り替え ／ 作成だけ ／ 取り消し（入力先は元の行へ）','入力欄の下の 1 行（X7）'),
+      K('確認ダイアログで','↩ ／ esc ／ Tab','既定のボタン ／ キャンセル ／ ボタンの間','既定のボタンの「↩」')
+    ];
+    const C = (id, title, v, caption) => ({ id, title, v, caption });
+    const cells = [
+      C('K1','行のツールチップ','rowTip','行にしばらくホバーすると、1 行目に種類と状態を言葉で、下にその行で効くキー。「＋」の上ではボタンのツールチップ（ステージ  Space）に替わる。'),
+      C('K2','見出しのツールチップ','headerTip','区画の見出しにホバーすると、件数・開閉の状態と、開閉・区画の移動・その区画の「＋」のキー。'),
+      C('K3','見出しの操作のツールチップ','actTip','「取得（fetch）  ⇧⌘R」。ボタンはホバーで面が出る（今のアイコンボタンと同じ）。'),
+      C('K4','メッセージ欄のツールチップ','fieldTip','「コミット欄へ移る  ⇧⌘C」。どこからでもここへ来られることを書く。'),
+      C('K5','「コミット」のツールチップ','commitTip','「ステージ済み 3 件をコミット  ⌘↩」。ボタンの中にも ⌘↩ を細く添えている。'),
+      C('K6','見出しに入力先','kbHeader','見出しも行と同じく 24% の塗り。矢印・件数も主文字色にする（塗りの上で 4.5:1 を保つ）。→ で開く。'),
+      C('K7','小見出しに入力先','kbSub','「変更 6」の小見出しの上。Space で「すべてステージ」。ボタンのツールチップ「すべてステージ（小見出しで Space）」。'),
+      C('K8','ボタンに入力先','kbButton','Tab で「コミット」へ来たとき。OS 標準の青い輪ではなく、アクセント（主文字色）の 2pt の輪を 2pt 外に。一覧には輪を描かない（FX-1・FX-2）。'),
+      C('K9','行に入力先','keyboard','一覧の行は塗りだけ（24%）。「＋」が出るので、Space で何が起きるか見える。'),
+      C('K10','メニューの右端のキー','ctx','右クリックのメニューの「パスをコピー  ⌥⌘C」。↩・Space は一覧が受けるのでメニューには書かない（前回の決定どおり）。')
+    ];
+    const V = (e, r, s, a) => ({ e, r, s, a });
+    const vo = [
+      V('切り替え','タブ · 選択中','Git、タブ、2/2、選択中','help: ⇧⌃⌘G'),
+      V('メッセージ欄','テキストフィールド（複数行）','コミットメッセージ、テキストフィールド','help: ⌘↩ でコミット。esc で一覧へ'),
+      V('「コミット」','ボタン · 使用不可','コミット、使用不可、ボタン、ステージされた変更がありません','押せるとき: 「コミット、ボタン、ステージ済み 3 件をコミットします」'),
+      V('「プッシュ」','ボタン','プッシュ、2 件先行、ボタン','実行中: 「プッシュしています、使用不可、ボタン」'),
+      V('「PR #482」','リンク','PR #482、リンク','help: ブラウザで開きます'),
+      V('区画の見出し','行 · 開閉','ブランチ、6 件、閉じています','アクション: 新しいブランチ（⌥⌘N）'),
+      V('小見出し','行（グループ）','変更、6 件、グループ','アクション: すべてステージ。help: Space ですべてステージ'),
+      V('変更の行（未ステージ）','行 · 選択','AppSettings.swift、変更、ステージされていません、追加 18 行、macos/Packages/…/Sources/CapWeavePoC','アクション: ステージ ·『変更』タブで開く · ファイルを開く · Finder で表示 · パスをコピー'),
+      V('変更の行（一部ステージ）','行','GitTabView.swift、変更、ステージされていません、一部ステージ済み、追加 6 行、削除 2 行、macos/…/Sources/Git','同上'),
+      V('変更の行（ステージ済み）','行','GitChangeRow.swift、名前変更（元は GitChangesList.swift）、ステージ済み、追加 14 行、削除 6 行、macos/…/Sources/Git','アクション: ステージを外す · ほかは同上'),
+      V('変更の行（削除・未追跡）','行','ChangesFileList.swift、削除、ステージされていません、削除 96 行 ／ git-tab-workflow.md、未追跡、ステージされていません、追加 78 行','—'),
+      V('「＋」「−」ボタン','ボタン（Tab では止まらない）','ステージ、ボタン ／ ステージを外す、ボタン','help: 「GitTabView.swift をステージします。Space でも同じ」。行の中に入ったときだけ読む'),
+      V('コミットの行','行 · 開閉','Git タブの上部にコミット欄を置く、ryosuke、3 時間前、4e1a9c2、未プッシュ、閉じています','アクション: 開く · ID をコピー · ここからブランチを作成'),
+      V('コミットの中のファイル','行','GitWorkflowService.swift、変更、コミット b7d03f5、追加 9 行、macos/…/GitKit','アクション:『変更』タブで開く'),
+      V('ブランチの行','行','feature/git-tab-workflow、今のブランチ、2 件プッシュしていません ／ main、昨日に使用、Return で切り替え','アクション: 切り替え · ここからブランチを作成 · 名前の変更 · 削除'),
+      V('リモートのまとまり','行 · 開閉','origin、リモート、5 件、12 分前に取得、開いています','アクション: 取得'),
+      V('リモートブランチ','行','origin/feature/git-tab-workflow、追跡中、5 時間前','アクション: チェックアウト · ここからブランチを作成'),
+      V('スタッシュの行','行 · 開閉','stash@{0}、WIP: 差分の行番号を 300pt 以上で出す、昨日、2 ファイル、閉じています','アクション: 適用 · 取り出す · 削除'),
+      V('グラフの行','行','Git タブの上部にコミット欄を置く、HEAD、ブランチ feature/git-tab-workflow、線 今のブランチ ／ Merge pull request #479…、マージ、ブランチ main、origin/main、線 main ／ 1.10.0 のリリースノート、タグ v1.10.0、ほか 2 件、線 main','線の形は読まない。どの線の上か（線 main など）だけ言葉で。アクション: コミットと同じ'),
+      V('その場の入力欄','テキストフィールド','新しいブランチの名前、テキストフィールド、起点 feature/git-tab-workflow 4e1a9c2','help: Return で作成して切り替え、Option-Return で作成だけ、Escape で取り消し。エラーは「main は既にあります…」と割り込みで'),
+      V('失敗の表示','警告','プッシュできませんでした。error: failed to push some refs to …','git の出力の最初の error: か fatal: の行を読む。無ければ 1 行目')
+    ];
+    const ann = [
+      { k:'ステージした', v:'ChangesTabView.swift をステージしました。ステージ済み 4 件' },
+      { k:'すべてステージ', v:'6 件をステージしました。ステージ済み 9 件' },
+      { k:'コミットした', v:'コミットしました、4e1a9c2。ステージ済み 0 件' },
+      { k:'プッシュ', v:'プッシュしています … プッシュしました' },
+      { k:'PR', v:'PR #482 を作成しました' },
+      { k:'切り替え', v:'main に切り替えました' },
+      { k:'取得', v:'origin を取得しました。新しいブランチ 1 件' },
+      { k:'続きを読んだ', v:'コミットを 50 件読み込みました。100 / 128' },
+      { k:'自動の更新（GT-7）', v:'変更が 2 件増えました。9 件の変更' },
+      { k:'失敗（割り込み）', v:'main に切り替えられませんでした。error: Your local changes to the following files would be overwritten by checkout' }
+    ];
+    const walk = [
+      { n:'1', k:'⇧⌃⌘G', v:'Git タブの一覧へ。「変更、9 件、開いています」' },
+      { n:'2', k:'↓ ↓ ↓', v:'「変更」の小見出しの下の行へ' },
+      { n:'3', k:'Space Space', v:'2 ファイルを順にステージ（入力先は次の行へ進む）' },
+      { n:'4', k:'↩', v:'今の行の差分を「変更」タブで確かめる（入力先は残る）' },
+      { n:'5', k:'⇧⌘C', v:'メッセージ欄へ。書く' },
+      { n:'6', k:'⌘↩', v:'コミット。「コミットしました、4e1a9c2」' },
+      { n:'7', k:'⌥⌘P', v:'プッシュ。「プッシュしています … プッシュしました」（Tab でも届くが、コミット後の「コミット」は押せないので飛ばされる。キーボードで操作が切りだと Tab はボタンに届かない）' },
+      { n:'8', k:'esc', v:'メッセージ欄から一覧へ戻る' }
+    ];
+    const asks = [
+      { t:'NF-4 の原文', v:'NF-4 は bottom-panel-shell-files-git.md の §6 にあり、手元に無い。「キーボードだけで全操作できる・VoiceOver で役割と状態が読める」と読んで作った。違いがあれば教えてほしい。' },
+      { t:'ボタンの入力先の輪と FX-2', v:'FX-2 は「Git タブの中で入力先になれる部分に OS 標準のフォーカスリングを出さない」。一覧は塗りで足りるが、ボタンは何か描かないと WCAG 2.4.7 を満たせない。OS 標準の青い輪の代わりに、主文字色の輪を出す案（K8）でよいか。' },
+      { t:'キーの重なり', v:'⇧⌘C・⇧⌘R・⌥⌘N・⌥⌘S が Phlox のほかの画面で使われていないか、実装で確かめる。⌃↩（メニュー）も、システムの「キーボードで操作」の設定と重ならないか確かめる。' },
+      { t:'「＋」「−」を Tab で止めない', v:'Tab の回数を減らすため。Space・アクション・メニューで同じことができるので、WCAG 2.1.1 は満たす。' }
+    ];
+    return { badges, stops, menu, keys, cells, vo, ann, walk, asks };
+  }
+}
+</script>
+</body>
+</html>

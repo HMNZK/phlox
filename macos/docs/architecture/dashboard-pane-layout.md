@@ -18,6 +18,8 @@ last-verified: 2026-10-15
 
 ## 中央の下部パネル（ADR 0196・0197）
 
+境界は上下向きの `ResizeGripView`（ADR 0202）。左右境界と同じ区切り線色の3ptの帯がホバー・ドラッグ中に0.12秒で現れ、上下カーソルをドラッグ中も維持する。マウス操作中はウィンドウ移動を抑止し、終了・取り外し・アプリ非アクティブ化で復元する。ダブルクリックで既定高に戻す。端末のフォーカス外枠は描かず、見出しの文字の強調で入力先を示す。
+
 `SessionTabsContainer` がタブ列より下の中央本文を `BottomPanelContainer` で包み、その下だけに `BottomPanelView` を配置する。左右のペインと `.safeAreaInset` の使用量バーはこの容器の外側。開閉・フォーカスは ウィンドウごとの `DashboardView` の `BottomPanelState` に分離し、親の `DashboardView` は開閉・ドラッグの値を読まない。ドラッグ中は境界の予告線だけを更新して内容の高さを固定し、終了時だけ保存・レイアウト更新する。
 
 `BottomPanelLayout` はタブ列より下の本文高（使用量バーは親の safeAreaInset）から最大 `min(本文高×0.7, 本文高−200)` を計算する。通常は120pt以上、320pt未満の中央では上の内容の確保を優先する。保存した希望高はウィンドウを縮めても書き換えず、広げると復元する。高さ変更は VoiceOver の増減操作と、境界へのフォーカス中の上下キーでも行える。
@@ -28,7 +30,9 @@ last-verified: 2026-10-15
 
 `ToolbarInteractionTests` は標準タイトルバーの AX 操作要素を日英・明暗で検査する。下部パネル、インスペクタの順で開閉し、各押下後に両者の状態と AXCheckBox の AXValue を確認する。VoiceOver の音声出力は未検証。
 
-下部パネルのテストは `BottomPanelTests` と `DesignSnapshotRenderTests.bottomPanelSnapshots` に置く。
+下部パネルのテストは `BottomPanelTests` と `BottomPanelResizeTests` に置く。`ResizeGripTests` は上下・左右の移動量、カーソル、ダブルクリック、窓の固定・復元と矢印キーを検査する。下部の上下キーは共通部品の AppKit レスポンダで受け取り、VoiceOver の増減は下部境界のアクセシビリティ操作に残す。
+
+`DesignSnapshotRenderTests.bottomPanelSnapshots` は `PHLOX_DESIGN_SNAPSHOTS=1` で画面外描画する。`PHLOX_DESIGN_SNAPSHOT_SCOPE=focus-borders` は下部パネルを開き、端末／ファイルツリーに実際の入力先を移した状態だけを日英・明暗で出力する。
 
 ## テスト
 

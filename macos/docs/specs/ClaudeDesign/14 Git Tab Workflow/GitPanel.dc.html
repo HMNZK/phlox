@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Git タブ（作業の集約）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<aside aria-label="インスペクタ: Git" style="{{ rootStyle }}">
+  <div style="padding:10px 12px 8px;flex:none;">
+    <div role="tablist" aria-label="右サイドバーの表示" style="display:flex;padding:2px;border-radius:7px;background:var(--segBg);gap:2px;">
+      <button type="button" role="tab" aria-selected="false" aria-keyshortcuts="Control+Meta+B" title="ファイル ⌃⌘B" style="font:inherit;flex:1;height:22px;border:0;padding:0;border-radius:5px;font-size:12px;font-weight:500;color:var(--fg2);background:transparent;">ファイル</button>
+      <button type="button" role="tab" aria-selected="true" aria-keyshortcuts="Shift+Control+Meta+G" title="Git ⇧⌃⌘G" style="font:inherit;flex:1;height:22px;border:0;padding:0;border-radius:5px;font-size:12px;font-weight:500;color:var(--fg);background:var(--ctl);box-shadow:0 0.5px 1.5px rgba(0,0,0,0.2), 0 0 0 0.5px var(--ctlBorder);">Git</button>
+    </div>
+  </div>
+
+  <sc-if value="{{ showTop }}" hint-placeholder-val="{{ true }}">
+    <div role="group" aria-label="コミット" style="{{ topStyle }}">
+      <div style="height:28px;display:flex;align-items:center;gap:6px;margin-right:-4px;min-width:0;">
+        <sc-if value="{{ isBranch }}" hint-placeholder-val="{{ true }}">
+          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 14 14" fill="none" style="flex:none;stroke:var(--fg2);stroke-width:1.4;"><circle cx="4" cy="3" r="1.6"></circle><circle cx="4" cy="11" r="1.6"></circle><circle cx="10.5" cy="4.5" r="1.6"></circle><line x1="4" y1="4.6" x2="4" y2="9.4"></line><path d="M10.5 6.1 C10.5 8.5 4 7.5 4 9.4"></path></svg>
+          <span aria-label="{{ branchAria }}" title="{{ branchName }}" style="flex:1;min-width:0;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ branchName }}</span>
+        </sc-if>
+        <sc-if value="{{ isDetached }}" hint-placeholder-val="{{ false }}">
+          <span aria-hidden="true" style="width:12px;display:flex;align-items:center;flex:none;"><span style="width:12px;height:1.4px;background:var(--fg2);display:flex;align-items:center;justify-content:center;"><span style="width:6px;height:6px;border-radius:50%;background:var(--panel);box-shadow:inset 0 0 0 1.4px var(--fg2);"></span></span></span>
+          <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:var(--fg);flex:none;">9f3c2e1</span>
+          <span style="flex:1;min-width:0;font-size:11px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">detached HEAD</span>
+        </sc-if>
+        <sc-if value="{{ isNoGit }}" hint-placeholder-val="{{ false }}">
+          <span style="flex:1;font-size:12px;color:var(--fg2);">Git 管理外</span>
+        </sc-if>
+        <button type="button" aria-label="更新" title="更新 ⌘R" aria-busy="{{ refreshBusy }}" style="width:24px;height:22px;border:0;padding:0;border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--fg2);background:transparent;flex:none;">
+          <sc-if value="{{ refreshBusy }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid var(--fg2);border-right-color:transparent;"></span></sc-if>
+          <sc-if value="{{ refreshIdle }}" hint-placeholder-val="{{ true }}"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M11 4.2 A4.8 4.8 0 1 0 11.4 7.5"></path><polyline points="11.2,1.5 11.2,4.4 8.3,4.4"></polyline></svg></sc-if>
+        </button>
+      </div>
+
+      <sc-if value="{{ hasCommitUI }}" hint-placeholder-val="{{ true }}">
+        <div style="position:relative;margin-top:4px;">
+          <textarea aria-label="コミットメッセージ" aria-keyshortcuts="Shift+Meta+C" spellcheck="false" value="{{ msg }}" onChange="{{ onMsg }}" style="{{ fieldStyle }}"></textarea>
+          <sc-if value="{{ msgEmpty }}"><span aria-hidden="true" style="position:absolute;left:9px;top:5px;font-size:13px;line-height:18px;color:var(--fg3);pointer-events:none;">コミットメッセージ</span></sc-if>
+          <sc-if value="{{ fieldScroll }}"><span aria-hidden="true" style="position:absolute;right:3px;top:4px;width:5px;height:58px;border-radius:3px;background:var(--fg2);opacity:0.45;"></span></sc-if>
+          <sc-if value="{{ fieldTip }}"><div role="tooltip" style="position:absolute;top:32px;left:8px;z-index:12;padding:4px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;color:var(--fg);white-space:nowrap;display:flex;gap:10px;">コミット欄へ移る<span style="color:var(--fg2);">⇧⌘C</span></div></sc-if>
+        </div>
+        <div style="position:relative;margin-top:8px;display:flex;">
+          <button type="button" aria-disabled="{{ commitDis }}" aria-keyshortcuts="Meta+Enter" aria-description="{{ statusText }}" style="{{ commitStyle }}">
+            <sc-if value="{{ commitBusy }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid currentColor;border-right-color:transparent;flex:none;"></span></sc-if>
+            <span>{{ commitLabel }}</span>
+            <sc-if value="{{ commitKey }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px;font-weight:400;opacity:0.7;">⌘↩</span></sc-if>
+          </button>
+          <sc-if value="{{ commitTipT }}"><div role="tooltip" style="position:absolute;top:32px;left:40px;z-index:12;padding:4px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;color:var(--fg);white-space:nowrap;display:flex;gap:10px;">{{ commitTipT }}<span style="color:var(--fg2);">⌘↩</span></div></sc-if>
+        </div>
+        <div aria-live="polite" style="height:16px;margin-top:6px;font-size:11px;line-height:16px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ statusText }}</div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <div style="position:relative;flex:1;min-width:0;display:flex;">
+            <button type="button" aria-disabled="{{ pushDis }}" aria-label="{{ pushAria }}" aria-keyshortcuts="Alt+Meta+P" title="プッシュ ⌥⌘P" style="{{ pushStyle }}">
+              <sc-if value="{{ pushBusy }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid currentColor;border-right-color:transparent;flex:none;"></span></sc-if>
+              <span>{{ pushLabel }}</span>
+              <sc-if value="{{ aheadT }}"><span style="font-variant-numeric:tabular-nums;color:var(--fg2);">{{ aheadT }}</span></sc-if>
+            </button>
+            <sc-if value="{{ pushTip }}"><div role="tooltip" style="position:absolute;top:30px;left:0;width:220px;z-index:12;padding:5px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;line-height:1.5;color:var(--fg);white-space:pre-line;">{{ pushTip }}</div></sc-if>
+          </div>
+          <div style="position:relative;flex:1;min-width:0;display:flex;">
+            <sc-if value="{{ prIsLink }}" hint-placeholder-val="{{ false }}">
+              <a href="https://github.com/csone/Phlox-oss/pull/482" title="ブラウザで PR #482 を開く" style="{{ prStyle }}">PR #482<svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 2h5v5M8 2L2.5 7.5"></path></svg></a>
+            </sc-if>
+            <sc-if value="{{ prIsButton }}" hint-placeholder-val="{{ true }}">
+              <button type="button" aria-disabled="{{ prDis }}" style="{{ prStyle }}">
+                <sc-if value="{{ prBusy }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid currentColor;border-right-color:transparent;flex:none;"></span></sc-if>
+                <span>{{ prLabel }}</span>
+              </button>
+            </sc-if>
+            <sc-if value="{{ prTip }}"><div role="tooltip" style="position:absolute;top:30px;right:0;width:224px;z-index:12;padding:5px 8px;border-radius:6px;background:var(--popover);box-shadow:var(--shadow);font-size:11px;line-height:1.5;color:var(--fg);white-space:pre-line;">{{ prTip }}</div></sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ err }}" hint-placeholder-val="{{ false }}">
+        <div role="alert" style="margin-top:12px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--border);background:var(--card);padding:8px 8px 8px 10px;display:flex;flex-direction:column;gap:6px;position:relative;">
+          <div style="display:flex;align-items:center;gap:6px;padding-right:22px;min-height:16px;">
+            <span aria-hidden="true" style="width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 1.3px var(--errMark);font-size:9px;font-weight:800;color:var(--errInk);display:flex;align-items:center;justify-content:center;flex:none;">!</span>
+            <span style="font-size:12px;font-weight:600;color:var(--errInk);">{{ err.title }}</span>
+          </div>
+          <div style="{{ errBodyStyle }}">{{ err.body }}</div>
+          <div style="display:flex;align-items:center;gap:4px;margin-left:-6px;">
+            <button type="button" aria-expanded="{{ errOpen }}" style="height:20px;padding:0 6px;border:0;border-radius:5px;background:transparent;font:inherit;font-size:11px;color:var(--fg);text-decoration:underline;">{{ errMore }}</button>
+            <sc-if value="{{ errOpen }}"><button type="button" style="height:20px;padding:0 6px;border:0;border-radius:5px;background:transparent;font:inherit;font-size:11px;color:var(--fg);text-decoration:underline;">コピー</button></sc-if>
+            <span style="flex:1;"></span>
+            <sc-if value="{{ err.retry }}"><button type="button" style="height:22px;padding:0 10px;border:0;border-radius:6px;font:inherit;font-size:12px;color:var(--fg);background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder);">再試行</button></sc-if>
+          </div>
+          <button type="button" aria-label="閉じる" title="閉じる" style="position:absolute;top:6px;right:6px;width:20px;height:20px;border:0;padding:0;border-radius:5px;background:transparent;color:var(--fg2);display:flex;align-items:center;justify-content:center;"><svg aria-hidden="true" width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"></path></svg></button>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasSections }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;min-height:0;position:relative;overflow:hidden;">
+      <div role="tree" aria-label="Git の区画" style="{{ scrollStyle }}">
+        <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="14">
+          <sc-if value="{{ b.isSec }}">
+            <div style="{{ b.s }}">
+              <button type="button" aria-expanded="{{ b.open }}" style="flex:1;min-width:0;height:27px;display:flex;align-items:center;gap:6px;border:0;background:transparent;padding:0;font:inherit;color:var(--fg);text-align:left;">
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="{{ b.chev }}"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+                <span style="font-size:12px;font-weight:600;white-space:nowrap;">{{ b.name }}</span>
+                <span style="{{ b.cs }}">{{ b.count }}</span>
+              </button>
+              <sc-for list="{{ b.acts }}" as="a" hint-placeholder-count="1">
+                <button type="button" aria-label="{{ a.t }}" aria-keyshortcuts="{{ a.ak }}" title="{{ a.title }}" aria-busy="{{ a.spin }}" style="{{ a.s }}">
+                  <sc-if value="{{ a.plus }}"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></sc-if>
+                  <sc-if value="{{ a.fetch }}"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7l3.5 3.5L11.5 7M3 13.5h10"></path></svg></sc-if>
+                  <sc-if value="{{ a.spin }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid var(--fg2);border-right-color:transparent;"></span></sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isSub }}">
+            <div role="treeitem" aria-label="{{ b.aria }}" aria-selected="{{ b.focused }}" style="{{ b.s }}">
+              <span style="{{ b.ts }}">{{ b.name }}</span>
+              <span style="{{ b.cs }}">{{ b.count }}</span>
+              <span style="flex:1;"></span>
+              <sc-if value="{{ b.act }}"><button type="button" tabindex="-1" title="{{ b.actTitle }}" style="{{ b.as }}">{{ b.act }}</button></sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isRow }}">
+            <div role="treeitem" aria-selected="{{ b.selected }}" aria-label="{{ b.aria }}" style="{{ b.s }}">
+              <span aria-hidden="true" style="{{ b.tagStyle }}">{{ b.k }}</span>
+              <span style="{{ b.nameStyle }}">{{ b.name }}</span>
+              <span style="{{ b.dirStyle }}"><span style="direction:ltr;unicode-bidi:embed;">{{ b.dir }}</span></span>
+              <span style="min-width:22px;display:flex;justify-content:flex-end;flex:none;">
+                <sc-if value="{{ b.showCounts }}">
+                  <span style="display:flex;gap:4px;font-size:11px;font-variant-numeric:tabular-nums;">
+                    <sc-if value="{{ b.addT }}"><span style="{{ b.addStyle }}">{{ b.addT }}</span></sc-if>
+                    <sc-if value="{{ b.delT }}"><span style="{{ b.delStyle }}">{{ b.delT }}</span></sc-if>
+                  </span>
+                </sc-if>
+                <sc-if value="{{ b.showBtn }}">
+                  <button type="button" tabindex="-1" aria-label="{{ b.btnLabel }}" title="{{ b.btnLabel }}" style="{{ b.btnStyle }}">
+                    <sc-if value="{{ b.plus }}"><svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 1.5v7M1.5 5h7"></path></svg></sc-if>
+                    <sc-if value="{{ b.minus }}"><svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1.5 5h7"></path></svg></sc-if>
+                  </button>
+                </sc-if>
+              </span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isHint }}">
+            <div style="min-height:28px;box-sizing:border-box;display:flex;align-items:center;padding:6px 8px 6px 22px;font-size:11px;line-height:16px;color:var(--fg2);">{{ b.t }}</div>
+          </sc-if>
+          <sc-if value="{{ b.isLoad }}">
+            <div aria-busy="true" style="height:48px;display:flex;align-items:center;gap:8px;padding:0 8px 0 22px;font-size:12px;color:var(--fg2);"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid var(--fg2);border-right-color:transparent;flex:none;"></span>{{ b.t }}</div>
+          </sc-if>
+          <sc-if value="{{ b.isEmpty }}">
+            <div style="height:72px;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 8px 0 22px;">
+              <span style="font-size:13px;font-weight:600;">{{ b.t }}</span>
+              <span style="font-size:12px;color:var(--fg2);">{{ b.b }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isEmptyS }}">
+            <div style="min-height:52px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 8px 6px 22px;box-sizing:border-box;">
+              <span style="font-size:12px;color:var(--fg);">{{ b.t }}</span>
+              <span style="font-size:11px;line-height:16px;color:var(--fg2);overflow-wrap:anywhere;">{{ b.b }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isCommit }}">
+            <div role="treeitem" aria-expanded="{{ b.open }}" aria-selected="{{ b.selected }}" aria-label="{{ b.aria }}" style="{{ b.s }}">
+              <svg aria-hidden="true" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="{{ b.chev }}"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;">
+                <span style="display:flex;align-items:center;gap:4px;min-width:0;"><span style="{{ b.ts }}">{{ b.t }}</span><sc-if value="{{ b.up }}"><span title="{{ b.up }}" style="flex:none;display:flex;"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--fg2);"><circle cx="8" cy="8" r="6"></circle><path d="M8 11V5M5.5 7.5L8 5l2.5 2.5"></path></svg></span></sc-if></span>
+                <span style="{{ b.metaS }}"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;">{{ b.hash }}</span> · {{ b.m }}</span>
+              </span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isBranch }}">
+            <div role="treeitem" aria-selected="{{ b.selected }}" aria-label="{{ b.aria }}" style="{{ b.s }}">
+              <span aria-hidden="true" style="width:12px;flex:none;display:flex;"><sc-if value="{{ b.cur }}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--fg);"><path d="M3.5 8.5l3 3 6-7"></path></svg></sc-if></span>
+              <span style="{{ b.nameStyle }}">{{ b.t }}</span>
+              <sc-if value="{{ b.busy }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid var(--fg2);border-right-color:transparent;flex:none;"></span></sc-if>
+              <sc-if value="{{ b.track }}"><span title="追跡中（ローカルの feature/git-tab-workflow）" style="flex:none;display:flex;"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke-width="1.4" stroke-linecap="round" style="stroke:var(--fg2);"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1"></path></svg></span></sc-if>
+              <span style="{{ b.metaS }}">{{ b.m }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isGroup }}">
+            <div role="treeitem" aria-expanded="{{ b.open }}" aria-label="{{ b.aria }}" style="height:28px;display:flex;align-items:center;gap:6px;padding:0 8px 0 6px;box-sizing:border-box;">
+              <svg aria-hidden="true" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="{{ b.chev }}"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+              <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke-width="1.3" stroke-linejoin="round" style="flex:none;stroke:var(--fg2);"><path d="M4.5 12.5h7.5a3 3 0 0 0 .4-6A4.2 4.2 0 0 0 4.3 6.3 3.1 3.1 0 0 0 4.5 12.5z"></path></svg>
+              <span style="font-size:12px;font-weight:600;flex:none;">{{ b.t }}</span>
+              <span style="flex:1;"></span>
+              <sc-if value="{{ b.busy }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid var(--fg2);border-right-color:transparent;flex:none;"></span></sc-if>
+              <span style="font-size:11px;color:var(--fg2);white-space:nowrap;">{{ b.m }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isField }}">
+            <div style="{{ b.s }}">
+              <sc-if value="{{ b.meta }}"><div style="font-size:11px;line-height:16px;color:var(--fg2);margin-bottom:4px;overflow-wrap:anywhere;">{{ b.meta }}</div></sc-if>
+              <div style="position:relative;">
+                <input type="text" aria-label="{{ b.label }}" aria-invalid="{{ b.invalid }}" spellcheck="false" value="{{ b.value }}" onChange="{{ b.onChange }}" style="{{ b.inputStyle }}">
+                <sc-if value="{{ b.showPh }}"><span aria-hidden="true" style="position:absolute;left:9px;top:0;height:24px;display:flex;align-items:center;font-size:13px;color:var(--fg3);pointer-events:none;">{{ b.ph }}</span></sc-if>
+              </div>
+              <sc-if value="{{ b.error }}"><div role="alert" style="font-size:11px;line-height:16px;color:var(--errInk);margin-top:4px;">{{ b.error }}</div></sc-if>
+              <div style="font-size:11px;line-height:16px;color:var(--fg2);margin-top:4px;">{{ b.hint }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isMore }}">
+            <div style="height:36px;display:flex;align-items:center;gap:8px;padding:0 8px 0 22px;box-sizing:border-box;">
+              <sc-if value="{{ b.loading }}"><span aria-hidden="true" style="width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:1.6px solid var(--fg2);border-right-color:transparent;flex:none;"></span><span aria-live="polite" style="font-size:12px;color:var(--fg2);">読み込んでいます…</span></sc-if>
+              <sc-if value="{{ b.idle }}"><button type="button" style="height:22px;padding:0 10px;border:0;border-radius:6px;font:inherit;font-size:12px;color:var(--fg);background:var(--ctl);box-shadow:0 0 0 0.5px var(--ctlBorder), 0 0.5px 1px rgba(0,0,0,0.1);white-space:nowrap;">{{ b.t }}</button></sc-if>
+              <span style="flex:1;"></span>
+              <span style="font-size:11px;color:var(--fg2);font-variant-numeric:tabular-nums;white-space:nowrap;">{{ b.m }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isGraph }}">
+            <div role="treeitem" aria-selected="{{ b.selected }}" aria-label="{{ b.aria }}" style="{{ b.s }}">
+              <svg aria-hidden="true" width="46" height="28" viewBox="0 0 46 28" fill="none" style="flex:none;overflow:visible;">
+                <path d="{{ b.p0.d }}" style="{{ b.p0.s }}"></path>
+                <path d="{{ b.p1.d }}" style="{{ b.p1.s }}"></path>
+                <path d="{{ b.p2.d }}" style="{{ b.p2.s }}"></path>
+                <path d="{{ b.p3.d }}" style="{{ b.p3.s }}"></path>
+                <path d="{{ b.p4.d }}" style="{{ b.p4.s }}"></path>
+                <circle cx="{{ b.dot }}" cy="14" r="{{ b.r }}" style="{{ b.dotS }}"></circle>
+              </svg>
+              <sc-for list="{{ b.refs }}" as="r" hint-placeholder-count="1">
+                <span title="{{ r.full }}" style="{{ r.s }}"><sc-if value="{{ r.tag }}"><svg aria-hidden="true" width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" style="flex:none;"><path d="M2 2.5h6l6 6-5.5 5.5-6.5-6z"></path></svg></sc-if><span style="overflow:hidden;text-overflow:ellipsis;">{{ r.t }}</span><sc-if value="{{ r.cloud }}"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" style="flex:none;"><path d="M4.5 12.5h7.5a3 3 0 0 0 .4-6A4.2 4.2 0 0 0 4.3 6.3 3.1 3.1 0 0 0 4.5 12.5z"></path></svg></sc-if></span>
+              </sc-for>
+              <span style="flex:1;min-width:24px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ b.t }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isMenu }}">
+            <div style="position:relative;height:0;z-index:12;">
+              <div role="menu" aria-label="{{ b.label }}" style="{{ b.s }}">
+                <sc-for list="{{ b.items }}" as="m" hint-placeholder-count="4">
+                  <sc-if value="{{ m.isItem }}"><div role="menuitem" aria-disabled="{{ m.dis }}" aria-keyshortcuts="{{ m.ak }}" style="{{ m.s }}"><span style="flex:1;">{{ m.t }}</span><span style="{{ m.ks }}">{{ m.k }}</span></div></sc-if>
+                  <sc-if value="{{ m.isSep }}"><div style="{{ m.s }}"></div></sc-if>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isTip }}">
+            <div style="position:relative;height:0;z-index:12;">
+              <div role="tooltip" style="{{ b.s }}">{{ b.t }}<sc-if value="{{ b.k }}"><span style="color:var(--fg2);">{{ b.k }}</span></sc-if></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.isKeyTip }}">
+            <div style="position:relative;height:0;z-index:12;">
+              <div role="tooltip" style="{{ b.s }}">
+                <div style="font-size:11px;line-height:16px;color:var(--fg);">{{ b.t }}</div>
+                <sc-for list="{{ b.keys }}" as="k" hint-placeholder-count="3">
+                  <div style="display:flex;gap:8px;font-size:11px;line-height:16px;"><span style="min-width:48px;flex:none;color:var(--fg);white-space:nowrap;">{{ k.k }}</span><span style="color:var(--fg2);">{{ k.v }}</span></div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+      <sc-if value="{{ stuck }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;top:0;left:0;right:0;padding:0 8px;background:var(--panelBg);box-shadow:0 1px 0 var(--sep);z-index:4;">
+          <div style="height:28px;display:flex;align-items:center;gap:6px;padding:0 0 0 2px;">
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none;stroke:var(--fg2);transform:rotate(90deg);"><path d="M4.75 3.5L7.25 6l-2.5 2.5"></path></svg>
+            <span style="font-size:12px;font-weight:600;">{{ stuckHdr.name }}</span>
+            <span style="font-size:11px;color:var(--fg2);">{{ stuckHdr.count }}</span>
+            <span style="flex:1;"></span>
+            <sc-for list="{{ stuckHdr.acts }}" as="a" hint-placeholder-count="1">
+              <button type="button" aria-label="{{ a.t }}" aria-keyshortcuts="{{ a.ak }}" title="{{ a.title }}" style="{{ a.s }}">
+                <sc-if value="{{ a.plus }}"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"></path></svg></sc-if>
+                <sc-if value="{{ a.fetch }}"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7l3.5 3.5L11.5 7M3 13.5h10"></path></svg></sc-if>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        <span aria-hidden="true" style="{{ thumbStyle }}"></span>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isNoGit }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 24px 80px;text-align:center;">
+      <div style="font-size:13px;font-weight:600;">Git 管理外のフォルダです</div>
+      <div style="font-size:11px;line-height:1.6;color:var(--fg2);font-family:ui-monospace,'SF Mono',Menlo,monospace;">~/Projects/design-notes</div>
+    </div>
+  </sc-if>
+</aside>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":280,"height":838},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"variant":{"editor":"enum","options":["normal","nosel","stagedSel","hoverRow","hoverBtn","pressBtn","keyboard","afterSpace","ctx","noStaged","noMessage","msgLong","committing","pushing","prTip","prCreating","prDone","opError","opErrorDetail","loadError","loading","clean","nogit","detached","allOpen","allOpenScrolled","flow","secCommits","commitCtx","branchFromCommit","commitsTail","commitsLoadingMore","branches","branchNew","branchNewError","branchCtx","branchCurrentCtx","branchRename","switching","switchError","remotes","remoteCtx","fetching","stash","stashNew","stashCtx","stashConflict","empties","graph","graphTip","rowTip","headerTip","actTip","fieldTip","commitTip","kbHeader","kbSub","kbButton","afterCommit"],"default":"normal"},"width":{"editor":"int","default":280},"height":{"editor":"int","default":838}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const v = p.variant || 'normal';
+    const W = Number(p.width) || 280, H = Number(p.height) || 838;
+    const theme = p.theme === 'light' ? 'light' : 'dark';
+    const T = {
+      dark:{'--panel':'#242427','--panelBg':'#242427','--popover':'#2F2F33','--card':'#27272A','--field':'#1A1A1C','--fieldBorder':'rgba(242,242,244,0.40)','--btnEdge':'rgba(242,242,244,0.38)','--fg':'#F2F2F4','--fg2':'#ABABB1','--fg3':'#8E8E94','--sep':'rgba(242,242,244,0.10)','--border':'rgba(242,242,244,0.14)','--hover':'rgba(242,242,244,0.06)','--sel':'rgba(242,242,244,0.09)','--selStrong':'rgba(242,242,244,0.24)','--accent':'#F2F2F4','--accentFill':'#F2F2F4','--onAccent':'#1E1E20','--ctl':'#3A3A3E','--ctlHover':'#46464B','--ctlPress':'#505055','--ctlBorder':'rgba(242,242,244,0.12)','--segBg':'rgba(242,242,244,0.08)','--shadow':'0 12px 34px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.16)','--add':'#6FD08C','--del':'#FF8A8D','--errMark':'#EE5A5F','--errInk':'#FF8A8D'},
+      light:{'--panel':'#F8F8F9','--panelBg':'#F8F8F9','--popover':'#FFFFFF','--card':'#FFFFFF','--field':'#FFFFFF','--fieldBorder':'rgba(29,29,31,0.55)','--btnEdge':'rgba(29,29,31,0.5)','--fg':'#1D1D1F','--fg2':'#5B5B60','--fg3':'#75757B','--sep':'rgba(29,29,31,0.10)','--border':'rgba(29,29,31,0.14)','--hover':'rgba(29,29,31,0.05)','--sel':'rgba(29,29,31,0.075)','--selStrong':'rgba(29,29,31,0.17)','--accent':'#1D1D1F','--accentFill':'#1D1D1F','--onAccent':'#FFFFFF','--ctl':'#FFFFFF','--ctlHover':'#F2F2F4','--ctlPress':'#E4E4E7','--ctlBorder':'rgba(29,29,31,0.16)','--segBg':'rgba(29,29,31,0.065)','--shadow':'0 10px 30px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.2)','--add':'#1F7A3A','--del':'#B4232A','--errMark':'#C8323A','--errInk':'#B4232A'}
+    };
+    const KW = { A:'追加', M:'変更', D:'削除', R:'名前変更', U:'未追跡' };
+    const DG = 'macos/Packages/DashboardFeature/Sources/Git', DC = 'macos/Packages/DashboardFeature/Sources/Changes', DK = 'macos/Packages/GitKit/Sources/GitKit', DR = 'docs/requirements', DD = 'macos/Packages/DashboardFeature/Sources/Diff';
+    const F = (id, k, name, dir, add, del, x) => Object.assign({ id, k, name, dir, add, del }, x || {});
+    const s1 = F('s1','R','GitChangeRow.swift',DG,14,6,{ from:'GitChangesList.swift' });
+    const s2 = F('s2','A','GitCommitBar.swift',DG,112,0);
+    const s3 = F('s3','M','GitTabView.swift',DG,48,12,{ partial:true });
+    const u1 = F('u1','U','git-tab-workflow.md',DR,78,0);
+    const u2 = F('u2','D','ChangesFileList.swift',DC,0,96);
+    const u3 = F('u3','M','ChangesTabView.swift',DC,9,141);
+    const u4 = F('u4','U','GitSectionHeader.swift',DG,64,0);
+    const u5 = F('u5','M','GitTabView.swift',DG,6,2,{ partial:true });
+    const u6 = F('u6','M','GitWorkflowService.swift',DK,37,4);
+    const C = { staged:[s1,s2,s3], unstaged:[u1,u2,u3,u4,u5,u6], sel:'u5', focus:false, hover:null, hoverBtn:false, press:false, ctx:null, tip:null,
+      msg:'Git タブにコミット欄と区画を追加', msgFocus:false, busy:null, busyText:'', busyRow:null, ahead:2, upstream:true, pr:null, prTip:'', pushTip:'', err:null, errOpen:false,
+      open:['changes'], stick:null, stickExtra:2, flow:false, head:'branch', branch:'feature/git-tab-workflow', state:'list',
+      expanded:[], field:null, tail:false, moreLoading:false, fetching:false, noCommits:false, remoteOpenUpstream:false,
+      focusHdr:null, focusSub:null, focusBtn:null, keyTip:null, fieldTip:false, commitTip:false, actTip:null };
+    const ALL = ['changes','commits','branches','remotes','stash','graph'];
+    const ERR_PUSH = { title:'プッシュできませんでした', retry:false, body:"To github.com:csone/Phlox-oss.git\n ! [rejected]        feature/git-tab-workflow -> feature/git-tab-workflow (fetch first)\nerror: failed to push some refs to 'github.com:csone/Phlox-oss.git'\nhint: Updates were rejected because the remote contains work that you do not\nhint: have locally. This is usually caused by another repository pushing to\nhint: the same ref. If you want to integrate the remote changes, use\nhint: 'git pull' before pushing again.\nhint: See the 'Note about fast-forwards' in 'git push --help' for details." };
+    const ERR_LOAD = { title:'変更を取得できませんでした', retry:true, body:"fatal: detected dubious ownership in repository at '/Users/ryosuke/Projects/Phlox-oss'\nTo add an exception for this directory, call:\n\n\tgit config --global --add safe.directory /Users/ryosuke/Projects/Phlox-oss" };
+    const ERR_SWITCH = { title:'main に切り替えられませんでした', retry:false, body:"error: Your local changes to the following files would be overwritten by checkout:\n\tmacos/Packages/DashboardFeature/Sources/Git/GitTabView.swift\n\tmacos/Packages/GitKit/Sources/GitKit/GitWorkflowService.swift\nPlease commit your changes or stash them before you switch branches.\nAborting" };
+    const ERR_STASH = { title:'stash@{0} を適用できませんでした', retry:false, body:"error: Your local changes to the following files would be overwritten by merge:\n\tmacos/Packages/DashboardFeature/Sources/Diff/GitDiffView.swift\nPlease commit your changes or stash them before you merge.\nAborting\nThe stash entry is kept in case you need it again." };
+    const HINT_NEW = '↩ 作成して切り替え · ⌥↩ 作成だけ · esc 取り消し';
+    switch (v) {
+      case 'nosel': C.sel = null; break;
+      case 'stagedSel': C.sel = 's2'; break;
+      case 'hoverRow': C.hover = 'u3'; break;
+      case 'hoverBtn': C.hover = 'u3'; C.hoverBtn = true; break;
+      case 'pressBtn': C.hover = 'u3'; C.press = true; break;
+      case 'keyboard': C.sel = 'u3'; C.focus = true; break;
+      case 'afterSpace': C.staged = [F('s0','M','ChangesTabView.swift',DC,9,141), s1, s2, s3]; C.unstaged = [u1,u2,u4,u5,u6]; C.sel = 'u4'; C.focus = true; break;
+      case 'ctx': C.ctx = 's2'; break;
+      case 'noStaged': C.staged = []; C.unstaged = [u1,u2,u3,F('n1','U','GitChangeRow.swift',DG,62,0),F('n2','D','GitChangesList.swift',DG,0,54),F('n3','U','GitCommitBar.swift',DG,112,0),u4,F('n4','M','GitTabView.swift',DG,54,14),u6]; C.sel = null; break;
+      case 'noMessage': C.msg = ''; C.sel = null; break;
+      case 'msgLong': C.msg = 'Git タブにコミット欄と区画を追加\n\n- コミット欄を「変更」タブから Git タブの上部へ移す\n- 変更をステージ済みと変更に分け、＋／− でステージ\n- 「変更」タブは 1 ファイルの差分だけにする\n- 区画の開閉をアプリの終了後も保つ\n\nRefs: GW-1〜GW-6'; C.msgFocus = true; C.sel = null; break;
+      case 'committing': C.busy = 'commit'; C.sel = null; break;
+      case 'pushing': C.staged = []; C.msg = ''; C.busy = 'push'; C.ahead = 3; C.sel = null; break;
+      case 'prTip': C.staged = []; C.msg = ''; C.upstream = false; C.ahead = 3; C.sel = null; C.prTip = '先にプッシュしてください。\norigin に feature/git-tab-workflow がありません'; break;
+      case 'prCreating': C.staged = []; C.msg = ''; C.ahead = 0; C.busy = 'pr'; C.sel = null; break;
+      case 'prDone': C.staged = []; C.msg = ''; C.ahead = 0; C.pr = 482; C.sel = null; break;
+      case 'opError': C.staged = []; C.msg = ''; C.ahead = 3; C.err = ERR_PUSH; C.sel = null; break;
+      case 'opErrorDetail': C.staged = []; C.msg = ''; C.ahead = 3; C.err = ERR_PUSH; C.errOpen = true; C.sel = null; break;
+      case 'loadError': C.state = 'loadError'; C.err = ERR_LOAD; C.sel = null; C.ahead = 0; break;
+      case 'loading': C.state = 'loading'; C.sel = null; C.ahead = 0; break;
+      case 'clean': C.state = 'clean'; C.staged = []; C.unstaged = []; C.msg = ''; C.sel = null; break;
+      case 'nogit': C.state = 'nogit'; break;
+      case 'detached': C.head = 'detached'; C.sel = null; C.pushTip = 'detached HEAD ではプッシュできません。\nブランチを作成してください'; break;
+      case 'allOpen': C.open = ALL; C.sel = null; break;
+      case 'allOpenScrolled': C.open = ALL; C.stick = 'branches'; C.sel = null; break;
+      case 'flow': C.open = ALL; C.stick = 'branches'; C.flow = true; C.sel = null; break;
+      case 'secCommits': C.open = ['commits']; C.expanded = ['c2']; C.sel = 'c2f1'; break;
+      case 'commitCtx': C.open = ['commits']; C.sel = null; C.ctx = 'c3'; break;
+      case 'branchFromCommit': C.open = ['commits']; C.sel = null; C.field = { at:'after:c3', kind:'branch', label:'新しいブランチの名前', ph:'新しいブランチの名前', value:'fix/changes-tab-split', meta:'起点  19c6e88「変更」タブの一覧を共有部品から外す', hint:HINT_NEW }; break;
+      case 'commitsTail': C.open = ['commits']; C.sel = null; C.tail = true; C.stick = 'commits'; C.stickExtra = 0; break;
+      case 'commitsLoadingMore': C.open = ['commits']; C.sel = null; C.tail = true; C.moreLoading = true; C.stick = 'commits'; C.stickExtra = 0; break;
+      case 'branches': C.open = ['branches']; C.sel = null; C.hover = 'b2'; C.tip = { id:'b2', t:'ダブルクリック・↩ で切り替え' }; break;
+      case 'branchNew': C.open = ['branches']; C.sel = null; C.field = { at:'branchesTop', kind:'branch', label:'新しいブランチの名前', ph:'新しいブランチの名前', value:'feature/graph-lanes', meta:'起点  今の位置（feature/git-tab-workflow · 4e1a9c2）', hint:HINT_NEW }; break;
+      case 'branchNewError': C.open = ['branches']; C.sel = null; C.field = { at:'branchesTop', kind:'branch', label:'新しいブランチの名前', ph:'新しいブランチの名前', value:'main', meta:'起点  今の位置（feature/git-tab-workflow · 4e1a9c2）', hint:HINT_NEW, error:'main は既にあります。別の名前にしてください' }; break;
+      case 'branchCtx': C.open = ['branches']; C.sel = null; C.ctx = 'b3'; break;
+      case 'branchCurrentCtx': C.open = ['branches']; C.sel = null; C.ctx = 'b1'; break;
+      case 'branchRename': C.open = ['branches']; C.sel = null; C.field = { at:'replace:b3', kind:'rename', label:'ブランチの新しい名前', ph:'', value:'fix/file-tree-focus-ring', meta:'', hint:'↩ 名前を変える · esc 取り消し' }; break;
+      case 'switching': C.open = ['branches']; C.sel = 'b2'; C.busy = 'switch'; C.busyText = 'ブランチを切り替えています'; C.busyRow = { id:'b2', t:'切り替えています…' }; break;
+      case 'switchError': C.open = ['branches']; C.sel = 'b2'; C.err = ERR_SWITCH; break;
+      case 'remotes': C.open = ['remotes']; C.sel = null; C.hover = 'r2'; break;
+      case 'remoteCtx': C.open = ['remotes']; C.sel = null; C.ctx = 'r3'; break;
+      case 'fetching': C.open = ['remotes']; C.sel = null; C.fetching = true; break;
+      case 'stash': C.open = ['stash']; C.expanded = ['st0']; C.sel = 'st0f1'; break;
+      case 'stashNew': C.open = ['stash']; C.sel = null; C.field = { at:'stashTop', kind:'stash', label:'スタッシュのメッセージ（任意）', ph:'メッセージ（任意）', value:'', meta:'今の変更 9 件をしまいます（未追跡 2 件を含む）', hint:'↩ スタッシュ · esc 取り消し' }; break;
+      case 'stashCtx': C.open = ['stash']; C.sel = null; C.ctx = 'st0'; break;
+      case 'stashConflict': C.open = ['stash']; C.sel = 'st0'; C.err = ERR_STASH; break;
+      case 'empties': C.branch = 'main'; C.open = ['commits','branches','remotes','stash','graph']; C.staged = []; C.unstaged = [u1, F('e1','U','README.md','',12,0), F('e2','U','.gitignore','',4,0)]; C.msg = ''; C.sel = null; C.noCommits = true; C.upstream = false; C.ahead = 0; break;
+      case 'rowTip': C.sel = null; C.hover = 'u5'; C.keyTip = { id:'u5', t:'変更 · ステージされていません（一部ステージ済み）', keys:[['↩','『変更』タブで開く'],['⌥↩','開いて「変更」タブへ移る'],['Space','ステージ'],['⌃↩','メニュー']] }; break;
+      case 'headerTip': C.sel = null; C.keyTip = { id:'sec-branches', t:'ブランチ · 6 件 · 閉じています', keys:[['→  ←','開く ／ 閉じる'],['⌥↓  ⌥↑','次 ／ 前の区画へ'],['⌥⌘N','新しいブランチ']] }; break;
+      case 'actTip': C.sel = null; C.actTip = { key:'remotes', t:'取得（fetch）', k:'⇧⌘R' }; break;
+      case 'fieldTip': C.sel = null; C.msg = ''; C.fieldTip = true; break;
+      case 'commitTip': C.sel = null; C.commitTip = true; break;
+      case 'kbHeader': C.sel = null; C.focus = true; C.focusHdr = 'commits'; break;
+      case 'kbSub': C.sel = null; C.focus = true; C.focusSub = '変更'; break;
+      case 'kbButton': C.sel = null; C.focusBtn = 'commit'; break;
+      case 'afterCommit': C.open = ['changes','commits']; C.staged = []; C.msg = ''; C.sel = null; C.ahead = 3; C.newCommit = true; break;
+      case 'graph': C.open = ['graph']; C.sel = null; break;
+      case 'graphTip': C.open = ['graph']; C.sel = null; C.hover = 'g5'; C.tip = { id:'g5', t:'origin/feature/git-tab-workflow（リモートだけ）' }; break;
+    }
+    const st = C.state;
+    const listLike = st === 'list' || st === 'clean';
+    const msg = (this.state && typeof this.state.msg === 'string') ? this.state.msg : C.msg;
+    const nS = C.staged.length, nU = C.unstaged.length;
+    const detached = C.head === 'detached';
+    const writeBusy = !!C.busy;
+
+    const commitDis = !listLike || nS === 0 || !msg.trim() || writeBusy;
+    const statusText = st === 'loading' ? '読み込み中…' : st === 'loadError' ? '変更を読み込めていません'
+      : (C.busy && C.busyText) ? C.busyText
+      : nS === 0 ? 'ステージされた変更がありません' : !msg.trim() ? 'メッセージを入力してください'
+      : C.busy === 'commit' ? `ステージ済み ${nS} 件をコミットしています` : `ステージ済み ${nS} 件をコミットします`;
+    const commitBusy = C.busy === 'commit';
+    const btnBase = { font:'inherit', border:0, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', gap:6, whiteSpace:'nowrap', boxSizing:'border-box', minWidth:0, overflow:'hidden', flex:1 };
+    const commitStyle = { ...btnBase, height:28, padding:'0 12px', fontSize:13, fontWeight:600, color:'var(--onAccent)', background:'var(--accentFill)', opacity: commitDis && !commitBusy ? 0.4 : 1,
+      overflow: C.focusBtn === 'commit' ? 'visible' : 'hidden', boxShadow: C.focusBtn === 'commit' ? '0 0 0 2px var(--panel), 0 0 0 4px var(--accent)' : 'none' };
+    const pushBusy = C.busy === 'push';
+    const pushDis = !listLike || detached || C.noCommits || (writeBusy && !pushBusy) || (C.upstream && C.ahead === 0);
+    const secBtn = (dis) => ({ ...btnBase, height:24, padding:'0 8px', fontSize:12, color:'var(--fg)', background:'var(--ctl)', boxShadow:'0 0 0 0.5px var(--ctlBorder), 0 0.5px 1px rgba(0,0,0,0.1)', opacity: dis ? 0.4 : 1, textDecoration:'none' });
+    const prBusy = C.busy === 'pr';
+    const prDis = !listLike || detached || !C.upstream || C.noCommits || (writeBusy && !prBusy);
+    const aheadT = (!pushBusy && C.ahead > 0) ? '↑' + C.ahead : '';
+    const fieldLines = Math.min(5, Math.max(1, msg.split('\n').length));
+    const fieldStyle = { display:'block', width:'100%', boxSizing:'border-box', height: fieldLines * 18 + 10, resize:'none', overflow:'hidden', margin:0, padding:'5px 12px 5px 8px', border:0, borderRadius:6, outline:'none', background:'var(--field)', color:'var(--fg)', font:'inherit', fontSize:13, lineHeight:'18px',
+      boxShadow: C.msgFocus ? 'inset 0 0 0 1px var(--accent), 0 0 0 1px var(--accent)' : 'inset 0 0 0 1px var(--fieldBorder)', opacity: commitBusy ? 0.55 : 1 };
+
+    const SM = theme === 'light'
+      ? { bg:'rgba(236,236,236,0.96)', text:'rgba(0,0,0,0.85)', key:'rgba(0,0,0,0.5)', dis:'rgba(0,0,0,0.26)', sep:'rgba(0,0,0,0.10)', border:'0 0 0 0.5px rgba(0,0,0,0.18), 0 10px 30px rgba(0,0,0,0.18)' }
+      : { bg:'rgba(43,43,45,0.96)', text:'rgba(255,255,255,0.85)', key:'rgba(255,255,255,0.5)', dis:'rgba(255,255,255,0.26)', sep:'rgba(255,255,255,0.12)', border:'0 0 0 0.5px rgba(255,255,255,0.18), 0 10px 30px rgba(0,0,0,0.5)' };
+    const menu = (label, items) => {
+      let hiDone = false;
+      return { isMenu:true, h:0, label,
+        items: items.map(x => {
+          if (x === '-') return { isSep:true, s:{ height:1, background:SM.sep, margin:'4px 6px' } };
+          const hi = !x.dis && !hiDone; if (hi) hiDone = true;
+          return { isItem:true, t:x.t, dis: !!x.dis, k: x.k || '', ak: x.ak || '', ks:{ fontSize:13, marginLeft:16, color: hi ? 'rgba(255,255,255,0.85)' : x.dis ? SM.dis : SM.key }, s:{ display:'flex', alignItems:'center', height:22, padding:'0 10px', borderRadius:4, whiteSpace:'nowrap', fontSize:13, color: hi ? '#FFFFFF' : x.dis ? SM.dis : SM.text, background: hi ? '#0A64D8' : 'transparent' } };
+        }),
+        s:{ position:'absolute', left: Math.max(8, Math.min(44, W - 16 - 216)), top:-4, width:216, boxSizing:'border-box', background:SM.bg, borderRadius:8, boxShadow:SM.border, padding:5, display:'flex', flexDirection:'column' } };
+    };
+    const tipBlock = (t, k) => ({ isTip:true, h:0, t, k: k || '', s:{ position:'absolute', top:-2, right:4, padding:'4px 8px', borderRadius:6, background:'var(--popover)', boxShadow:'var(--shadow)', fontSize:11, color:'var(--fg)', whiteSpace:'nowrap', display:'flex', gap:10 } });
+    const keyTipBlock = (o) => ({ isKeyTip:true, h:0, t:o.t, keys:o.keys.map(([k, v]) => ({ k, v })), s:{ position:'absolute', top:-2, left:20, right:4, padding:'6px 9px', borderRadius:6, background:'var(--popover)', boxShadow:'var(--shadow)', display:'flex', flexDirection:'column', gap:2, boxSizing:'border-box' } });
+    const sub = (name, n, act) => {
+      const foc = C.focusSub === name;
+      const fc = foc ? 'var(--fg)' : 'var(--fg2)';
+      return { isSub:true, name, count:String(n), act, h:24, focused: foc,
+        actTitle: act ? act + '（小見出しで Space）' : '',
+        aria: `${name}、${n} 件、グループ${act ? '、Space で' + act : ''}`,
+        ts:{ fontSize:11, fontWeight:600, color:fc, whiteSpace:'nowrap' }, cs:{ fontSize:11, color:fc, fontVariantNumeric:'tabular-nums' },
+        as:{ height:20, padding:'0 6px', border:0, borderRadius:5, background:'transparent', font:'inherit', fontSize:11, color:fc, whiteSpace:'nowrap' },
+        s:{ height:24, display:'flex', alignItems:'center', gap:6, padding:'0 2px 0 22px', boxSizing:'border-box', borderRadius:6, background: foc ? 'var(--selStrong)' : 'transparent' } };
+    };
+
+    const rowBg = (id) => {
+      const sel = id === C.sel, hov = id === C.hover || id === C.ctx;
+      return { background: sel && C.focus ? 'var(--selStrong)' : sel ? 'var(--sel)' : hov ? 'var(--hover)' : 'transparent', boxShadow: id === C.ctx ? 'inset 0 0 0 2px var(--accent)' : 'none' };
+    };
+    const metaC = (id) => (id === C.sel) ? 'var(--fg)' : 'var(--fg2)';
+
+    const B = [];
+    const push = (b) => B.push(b);
+    const after = (id) => {
+      if (C.ctx === id) push(MENUS[id] || null);
+      if (C.tip && C.tip.id === id) push(tipBlock(C.tip.t, C.tip.k));
+      if (C.keyTip && C.keyTip.id === id) push(keyTipBlock(C.keyTip));
+      if (C.field && C.field.at === 'after:' + id) push(fieldBlock());
+    };
+    const fieldBlock = () => {
+      const f = C.field;
+      const val = (this.state && typeof this.state.fv === 'string') ? this.state.fv : f.value;
+      const pl = f.kind === 'rename' ? 26 : 22;
+      return { isField:true, h: 4 + (f.meta ? 20 : 0) + 24 + (f.error ? 20 : 0) + 20 + 6, meta:f.meta, label:f.label, ph:f.ph, value:val, showPh: !val && !!f.ph, hint:f.hint, error:f.error || '', invalid: !!f.error,
+        onChange:(e) => this.setState({ fv: e.target.value }),
+        s:{ padding:`4px 4px 6px ${pl}px`, boxSizing:'border-box' },
+        inputStyle:{ display:'block', width:'100%', boxSizing:'border-box', height:24, margin:0, padding:'0 8px', border:0, borderRadius:6, outline:'none', background:'var(--field)', color:'var(--fg)', font:'inherit', fontSize:13, fontFamily: f.kind === 'stash' ? 'inherit' : "ui-monospace,'SF Mono',Menlo,monospace",
+          boxShadow: f.error ? 'inset 0 0 0 1px var(--errMark), 0 0 0 1px var(--errMark)' : 'inset 0 0 0 1px var(--accent), 0 0 0 1px var(--accent)' } };
+    };
+
+    const open = new Set(C.open);
+    const expanded = new Set(C.expanded);
+    let firstSec = true;
+    const actS = { width:22, height:22, border:0, padding:0, borderRadius:5, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--fg2)', background:'transparent', flex:'none' };
+    const sec = (key, name, count, acts) => {
+      const o = open.has(key);
+      const foc = C.focusHdr === key;
+      const KEYOF = { '新しいブランチ…':['⌥⌘N','Alt+Meta+N'], 'スタッシュ…':['⌥⌘S','Alt+Meta+S'], '取得（fetch）':['⇧⌘R','Shift+Meta+R'] };
+      const hot = C.actTip && C.actTip.key === key;
+      push({ isSec:true, key, name, count, open:o, h:28,
+        acts: (acts || []).map(a => ({ ...a, title: KEYOF[a.t] ? a.t + '  ' + KEYOF[a.t][0] : a.t, ak: KEYOF[a.t] ? KEYOF[a.t][1] : '', s:{ ...actS, background: hot ? 'var(--hover)' : 'transparent', color: hot || foc ? 'var(--fg)' : 'var(--fg2)' }, spin: !!a.spin })),
+        chev:{ flex:'none', stroke: foc ? 'var(--fg)' : 'var(--fg2)', transform: o ? 'rotate(90deg)' : 'none' },
+        cs:{ fontSize:11, color: foc ? 'var(--fg)' : 'var(--fg2)', fontVariantNumeric:'tabular-nums' },
+        s: foc
+          ? { height:28, display:'flex', alignItems:'center', gap:6, boxSizing:'border-box', borderTop:'1px solid transparent', margin:0, paddingLeft:2, paddingRight:0, borderRadius:6, background:'var(--selStrong)' }
+          : { height:28, display:'flex', alignItems:'center', gap:6, boxSizing:'border-box', borderTop: firstSec ? '1px solid transparent' : '1px solid var(--sep)', margin: firstSec ? 0 : '0 -8px', paddingLeft: firstSec ? 2 : 10, paddingRight: firstSec ? 0 : 8 } });
+      firstSec = false;
+      if (hot) push({ ...tipBlock(C.actTip.t, C.actTip.k) });
+      after('sec-' + key);
+      return o;
+    };
+    const total = (n) => listLike ? String(n) : '';
+    const mkRow = (c, isStaged, i, n, opt) => {
+      const o = opt || {};
+      const sel = c.id === C.sel, hov = c.id === C.hover || c.id === C.ctx;
+      const showBtn = !o.noBtn && (sel || hov) && !C.busy;
+      const kc = { A:'var(--add)', D:'var(--del)' }[c.k] || 'var(--fg2)';
+      const addT = c.add ? '+' + c.add : '', delT = c.del ? '−' + c.del : '';
+      const label = isStaged ? 'ステージを外す' : 'ステージ';
+      return { isRow:true, h:28, k:c.k, name:c.name, dir:c.dir, addT, delT, selected: sel,
+        showCounts: !showBtn, showBtn, plus: !isStaged, minus: isStaged, btnLabel: label,
+        aria: `${c.name}、${KW[c.k]}${c.from ? '（元は ' + c.from + '）' : ''}${o.noBtn ? '' : (isStaged ? '、ステージ済み' : '、ステージされていません')}${c.partial ? '、一部ステージ済み' : ''}${c.add ? '、追加 ' + c.add + ' 行' : ''}${c.del ? '、削除 ' + c.del + ' 行' : ''}、${c.dir || 'プロジェクトの直下'}`,
+        s:{ position:'relative', display:'flex', alignItems:'center', gap:6, height:28, boxSizing:'border-box', padding:`0 4px 0 ${o.indent || 20}px`, borderRadius:6, ...rowBg(c.id) },
+        tagStyle:{ width:16, height:16, flex:'none', boxSizing:'border-box', borderRadius:4, boxShadow:'inset 0 0 0 1px var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"ui-monospace,'SF Mono',Menlo,monospace", fontSize:11, fontWeight:700, color: sel ? 'var(--fg)' : kc },
+        nameStyle:{ flex:'0 1 auto', minWidth:0, fontSize:13, color:'var(--fg)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+        dirStyle:{ flex:'1 1 0', minWidth:0, fontSize:11, color: sel ? 'var(--fg)' : 'var(--fg2)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', direction:'rtl', textAlign:'left' },
+        addStyle:{ color: sel ? 'var(--fg)' : 'var(--add)' }, delStyle:{ color: sel ? 'var(--fg)' : 'var(--del)' },
+        btnStyle:{ width:22, height:20, flex:'none', border:0, padding:0, borderRadius:5, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--fg)',
+          background: C.press ? 'var(--ctlPress)' : C.hoverBtn ? 'var(--ctlHover)' : 'var(--ctl)', boxShadow:'0 0 0 1px var(--btnEdge)' } };
+    };
+    const twoLine = (id, t, m, hash, up, canOpen, aria) => ({ isCommit:true, id, h:40, t, m, hash, up: up || '', open: expanded.has(id), selected: id === C.sel, aria,
+      ts:{ flex:'0 1 auto', minWidth:0, fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+      chev:{ flex:'none', stroke:'var(--fg2)', transform: expanded.has(id) ? 'rotate(90deg)' : 'none', opacity: canOpen ? 1 : 0 },
+      metaS:{ fontSize:11, color: metaC(id), overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+      s:{ position:'relative', height:40, display:'flex', alignItems:'center', gap:6, padding:'0 8px 0 6px', borderRadius:6, boxSizing:'border-box', ...rowBg(id) } });
+    const branchRow = (id, t, m, cur, aria, indent) => {
+      const busy = C.busyRow && C.busyRow.id === id;
+      return { isBranch:true, id, h:28, t, m: busy ? C.busyRow.t : m, cur: !!cur, busy, selected: id === C.sel, aria,
+        nameStyle:{ flex:1, minWidth:0, fontSize:13, fontWeight: cur ? 700 : 400, color:'var(--fg)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+        metaS:{ fontSize:11, color: metaC(id), flex:'none', fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap' },
+        s:{ position:'relative', height:28, display:'flex', alignItems:'center', gap:6, padding:`0 8px 0 ${indent || 22}px`, borderRadius:6, boxSizing:'border-box', ...rowBg(id) } };
+    };
+
+    const MENUS = {
+      s2: menu('GitCommitBar.swift', [{ t:'『変更』タブで開く' }, { t:'ステージを外す' }, '-', { t:'ファイルを開く' }, { t:'Finder で表示' }, { t:'パスをコピー', k:'⌥⌘C', ak:'Alt+Meta+C' }]),
+      c3: menu('コミット 19c6e88', [{ t:'ID をコピー', k:'⌘C', ak:'Meta+C' }, { t:'ここからブランチを作成…' }]),
+      b3: menu('fix/file-tree-focus-ring', [{ t:'切り替え' }, { t:'ここからブランチを作成…' }, { t:'名前の変更…' }, '-', { t:'削除…', k:'⌘⌫', ak:'Meta+Backspace' }]),
+      b1: menu('feature/git-tab-workflow', [{ t:'切り替え', dis:true }, { t:'ここからブランチを作成…' }, { t:'名前の変更…' }, '-', { t:'削除…', dis:true, k:'⌘⌫' }]),
+      r3: menu('origin/feature/bottom-panel', [{ t:'チェックアウト' }, { t:'ここからブランチを作成…' }]),
+      st0: menu('stash@{0}', [{ t:'適用' }, { t:'取り出す（適用して削除）' }, '-', { t:'削除…', k:'⌘⌫', ak:'Meta+Backspace' }])
+    };
+
+    const COMMITS = [
+      { id:'c1', t:'Git タブの上部にコミット欄を置く', a:'ryosuke', w:'3 時間前', h:'4e1a9c2', up:true },
+      { id:'c2', t:'GitWorkflowService に stage と unstage を追加', a:'Claude Code', w:'5 時間前', h:'b7d03f5', up:true, files:[F('c2f1','M','GitWorkflowService.swift',DK,9,0), F('c2f2','A','GitStageTests.swift','macos/Packages/GitKit/Tests/GitKitTests',42,0), F('c2f3','M','GitStatusParser.swift',DK,3,1)] },
+      { id:'c3', t:'「変更」タブの一覧を共有部品から外す', a:'Claude Code', w:'昨日', h:'19c6e88' },
+      { id:'c4', t:'Git タブを区画に分ける下準備', a:'ryosuke', w:'2 日前', h:'3d92af1' },
+      { id:'c5', t:'1.10.0 のリリースノート', a:'ryosuke', w:'4 日前', h:'a1f0c37' },
+      { id:'c6', t:'下部パネルの境界を ResizeGripView に揃える', a:'Codex', w:'5 日前', h:'7aa2d41' },
+      { id:'c7', t:'Phlox 1.10 の準備', a:'ryosuke', w:'1 週間前', h:'0b5e7d2' }
+    ];
+    if (C.newCommit) COMMITS.unshift({ id:'c0', t:'Git タブにコミット欄と区画を追加', a:'ryosuke', w:'たった今', h:'8b2e4d1', up:true, fresh:true });
+    const TAIL = [
+      { id:'t1', t:'プロジェクトのタブを閉じる確認を追加', a:'ryosuke', w:'3 週間前', h:'8c1d4e7' },
+      { id:'t2', t:'ワークツリーでセッションを始める', a:'Claude Code', w:'3 週間前', h:'f27a903' },
+      { id:'t3', t:'Codex のセッションに対応', a:'Codex', w:'4 週間前', h:'5e0b6a2' },
+      { id:'t4', t:'使用量のバーを追加', a:'ryosuke', w:'1 か月前', h:'d41c8f5' },
+      { id:'t5', t:'セッション一覧の承認待ちを太字にする', a:'Cursor', w:'1 か月前', h:'27ab9e0' },
+      { id:'t6', t:'ファイルツリーの初版', a:'ryosuke', w:'1 か月前', h:'9a6f31c' }
+    ];
+    const BRANCHES = [
+      ['b1', C.branch === 'main' ? 'main' : 'feature/git-tab-workflow', C.noCommits ? 'コミットなし' : '↑2', true],
+      ['b2','main','昨日'], ['b3','fix/file-tree-focus-ring','3 日前'], ['b4','feature/bottom-panel','4 日前'], ['b5','feature/worktree-start','5 日前'], ['b6','release/1.10','2 週間前']
+    ];
+    const ORIGIN = [['r1','main','昨日'], ['r2','feature/git-tab-workflow','5 時間前',true], ['r3','feature/bottom-panel','4 日前'], ['r4','release/1.10','2 週間前'], ['r5','dependabot/swift/swift-collections-1.2.0','3 週間前']];
+    const STASH = [
+      { id:'st0', t:'WIP: 差分の行番号を 300pt 以上で出す', w:'昨日', h:'stash@{0}', files:[F('st0f1','M','GitDiffView.swift',DD,18,4), F('st0f2','A','DiffLineNumberColumn.swift',DD,31,0)] },
+      { id:'st1', t:'On main: ResizeGripView を上下向きに試す', w:'3 日前', h:'stash@{1}' }
+    ];
+
+    if (st !== 'nogit') {
+      if (sec('changes', '変更', total(nS + nU), [])) {
+        if (st === 'loading') push({ isLoad:true, t:'変更を読み込んでいます…', h:48 });
+        else if (st === 'loadError') push({ isHint:true, t:'取得できませんでした（上の「再試行」）', h:28 });
+        else if (st === 'clean') push({ isEmpty:true, t:'変更はありません', b:'作業ツリーは HEAD と同じです', h:72 });
+        else {
+          push(sub('ステージ済み', nS, nS ? 'すべて外す' : ''));
+          if (!nS) push({ isHint:true, t:'＋ でステージしたファイルがここに入ります', h:28 });
+          C.staged.forEach((c, i) => { push(mkRow(c, true, i, nS)); after(c.id); if (c.id === C.hover && C.hoverBtn) push(tipBlock('ステージを外す', 'Space')); });
+          push(sub('変更', nU, nU ? 'すべてステージ' : ''));
+          if (!nU) push({ isHint:true, t:'ステージしていない変更はありません', h:28 });
+          C.unstaged.forEach((c, i) => { push(mkRow(c, false, i, nU)); after(c.id); if (c.id === C.hover && C.hoverBtn) push(tipBlock('ステージ', 'Space')); });
+        }
+      }
+      const known = st !== 'loading' && st !== 'loadError';
+      if (sec('commits', 'コミット', known ? (C.noCommits ? '0' : '128') : '', [])) {
+        if (C.noCommits) push({ isEmptyS:true, h:52, t:'コミットはまだありません', b:'ステージして上の「コミット」で最初のコミット' });
+        else {
+          (C.tail ? TAIL : COMMITS).forEach(c => {
+            const row = twoLine(c.id, c.t, `${c.w} · ${c.a}`, c.h, c.up ? '未プッシュ' : '', true, `${c.t}、${c.a}、${c.w}、${c.h}${c.up ? '、未プッシュ' : ''}${c.fresh ? '、新しく出た' : ''}`);
+            if (c.fresh) row.ts = { ...row.ts, fontWeight:600 };
+            push(row);
+            after(c.id);
+            if (expanded.has(c.id) && c.files) c.files.forEach((f, i) => { push(mkRow(f, false, i, c.files.length, { indent:38, noBtn:true })); after(f.id); });
+          });
+          if (C.tail) push({ isMore:true, h:36, idle: !C.moreLoading, loading: C.moreLoading, t:'さらに 50 件を読み込む', m:'50 / 128' });
+        }
+      }
+      if (sec('branches', 'ブランチ', known ? (C.noCommits ? '1' : '6') : '', [{ t:'新しいブランチ…', plus:true }])) {
+        if (C.field && C.field.at === 'branchesTop') push(fieldBlock());
+        const list = C.noCommits ? BRANCHES.slice(0, 1) : BRANCHES;
+        list.forEach(([id, t, m, cur]) => {
+          if (C.field && C.field.at === 'replace:' + id) { push(fieldBlock()); return; }
+          push(branchRow(id, t, m, cur, `${t}${cur ? '、今のブランチ、' + (C.noCommits ? 'コミットなし' : '2 件プッシュしていません') : '、' + m + 'に使用、Return で切り替え'}`));
+          after(id);
+        });
+      }
+      if (sec('remotes', 'リモートブランチ', known ? (C.noCommits ? '0' : '14') : '', [C.fetching ? { t:'取得しています', spin:true } : { t:'取得（fetch）', fetch:true }])) {
+        if (C.noCommits) push({ isEmptyS:true, h:52, t:'リモートはありません', b:'git remote add で追加すると、ここに並びます' });
+        else {
+          push({ isGroup:true, h:28, t:'origin', open:true, busy: C.fetching, m: C.fetching ? '取得しています…' : '5 · 12 分前に取得', aria:'origin、5 件、12 分前に取得', chev:{ flex:'none', stroke:'var(--fg2)', transform:'rotate(90deg)' } });
+          ORIGIN.forEach(([id, t, m, tr]) => { const r = branchRow(id, t, m, false, `origin/${t}${tr ? '、追跡中' : ''}、${m}`, 22); r.track = !!tr; push(r); after(id); });
+          push({ isGroup:true, h:28, t:'upstream', open:false, busy:false, m:'9', aria:'upstream、9 件、閉じています', chev:{ flex:'none', stroke:'var(--fg2)', transform:'none' } });
+        }
+      }
+      if (sec('stash', 'スタッシュ', known ? (C.noCommits ? '0' : '2') : '', [{ t:'スタッシュ…', plus:true }])) {
+        if (C.field && C.field.at === 'stashTop') push(fieldBlock());
+        if (C.noCommits) push({ isEmptyS:true, h:52, t:'スタッシュはありません', b:'＋ で今の変更をしまえます' });
+        else STASH.forEach(s => {
+          push(twoLine(s.id, s.t, s.w, s.h, '', true, `${s.h}、${s.t}、${s.w}`));
+          after(s.id);
+          if (expanded.has(s.id) && s.files) s.files.forEach((f, i) => { push(mkRow(f, false, i, s.files.length, { indent:38, noBtn:true })); after(f.id); });
+        });
+      }
+      if (sec('graph', 'グラフ', known ? (C.noCommits ? '0' : '1,284') : '', [])) {
+        if (C.noCommits) push({ isEmptyS:true, h:52, t:'コミットはまだありません', b:'最初のコミットの後に線が出ます' });
+        else {
+          const NONE = { d:'', s:{ stroke:'none' } };
+          const ln = (d, cur) => ({ d, s:{ stroke: cur ? 'var(--fg)' : 'var(--fg2)', strokeWidth:1.5, fill:'none', strokeLinecap:'round' } });
+          const short = (n) => { const s = n.split('/'); return s.length > 1 ? '…/' + s[s.length - 1] : n; };
+          const pill = (o) => ({ t: o.tag ? o.n : (o.remoteOnly ? short(o.n.replace(/^origin\//, '')) : short(o.n)), full: o.full || o.n, tag: !!o.tag, cloud: !!(o.cloud || o.remoteOnly),
+            s:{ height:16, padding:'0 5px', borderRadius:4, boxShadow: o.remoteOnly ? 'none' : (o.head ? 'inset 0 0 0 1px var(--fg)' : 'inset 0 0 0 1px var(--border)'), outline: o.remoteOnly ? '1px dashed var(--fg2)' : 'none', outlineOffset:-1, fontSize:11, display:'flex', alignItems:'center', gap:3, flex:'none', whiteSpace:'nowrap', maxWidth:112, overflow:'hidden', fontWeight: o.head ? 700 : 400, color:'var(--fg)', boxSizing:'border-box' } });
+          const G = [
+            { id:'g1', t:'Git タブの上部にコミット欄を置く', dot:8, cur:true, headDot:true, refs:[{ n:'feature/git-tab-workflow', head:true }], P:[['M8 14 V28',1]] },
+            { id:'g2', t:'Merge pull request #479 from csone/fix/file-tree-focus-ring', dot:18, merge:true, refs:[{ n:'main', cloud:true, full:'main · origin/main' }], P:[['M8 0 V28',1],['M18 14 V28'],['M18 14 C18 22 28 20 28 28']] },
+            { id:'g3', t:'GitWorkflowService に stage と unstage を追加', dot:8, cur:true, refs:[], P:[['M8 0 V28',1],['M18 0 V28'],['M28 0 V28']] },
+            { id:'g4', t:'ファイルツリーの選択行だけで入力先を示す', dot:28, refs:[{ n:'fix/file-tree-focus-ring' }], P:[['M8 0 V28',1],['M18 0 V28'],['M28 0 V28']] },
+            { id:'g5', t:'「変更」タブの一覧を共有部品から外す', dot:8, cur:true, refs:[{ n:'origin/feature/git-tab-workflow', remoteOnly:true }], P:[['M8 0 V28',1],['M18 0 V28'],['M28 0 V28']] },
+            { id:'g6', t:'下部パネルの見出しにシェル名を出す', dot:38, refs:[{ n:'feature/bottom-panel', cloud:true, full:'feature/bottom-panel · origin/feature/bottom-panel' }], P:[['M8 0 V28',1],['M18 0 V28'],['M28 0 V28'],['M38 14 V28']] },
+            { id:'g7', t:'一覧の外側のフォーカス枠を描かない（FX-1）', dot:28, refs:[], P:[['M8 0 V28',1],['M18 0 V28'],['M28 0 V14 C28 22 18 20 18 28'],['M38 0 V28']] },
+            { id:'g8', t:'Git タブを区画に分ける下準備', dot:8, cur:true, refs:[], P:[['M8 0 V14 C8 22 18 20 18 28',1],['M18 0 V28'],['M38 0 V28']] },
+            { id:'g9', t:'1.10.0 のリリースノート', dot:18, refs:[{ n:'v1.10.0', tag:true }, { n:'+2', full:'release/1.10 · origin/release/1.10 · hotfix/1.10.1' }], P:[['M18 0 V28'],['M38 0 V28']] },
+            { id:'g10', t:'下部パネルの境界を ResizeGripView に揃える', dot:18, refs:[], P:[['M18 0 V28'],['M38 0 C38 8 18 6 18 14']] },
+            { id:'g11', t:'Phlox 1.10 の準備', dot:18, refs:[], P:[['M18 0 V28']] }
+          ];
+          G.forEach(g => {
+            const ps = g.P.map(([d, c]) => ln(d, !!c));
+            while (ps.length < 5) ps.push(NONE);
+            push({ isGraph:true, id:g.id, h:28, t:g.t, refs: g.refs.map(pill), dot:g.dot, r: g.merge ? 4 : 3.5, selected: g.id === C.sel,
+              p0:ps[0], p1:ps[1], p2:ps[2], p3:ps[3], p4:ps[4],
+              dotS:{ fill: g.headDot ? 'var(--fg)' : 'var(--panel)', stroke: g.cur || g.headDot ? 'var(--fg)' : 'var(--fg2)', strokeWidth: g.merge ? 2 : 1.5 },
+              aria:`${g.t}${g.merge ? '、マージ' : ''}${g.headDot ? '、HEAD' : ''}${g.refs.length ? '、' + g.refs.map(r => r.tag ? 'タグ ' + r.n : (r.full || r.n)).join('、') : ''}、線 ${({ 8:'今のブランチ', 18:'main', 28:'fix/file-tree-focus-ring', 38:'feature/bottom-panel' })[g.dot]}`,
+              s:{ position:'relative', height:28, display:'flex', alignItems:'center', gap:6, padding:'0 8px 0 4px', borderRadius:6, boxSizing:'border-box', ...rowBg(g.id) } });
+            after(g.id);
+          });
+        }
+      }
+    }
+
+    let offset = 0, stuckHdr = { name:'', count:'', acts:[] };
+    if (C.stick) {
+      let y = 4;
+      for (const b of B) { if (b.isSec && b.key === C.stick) { stuckHdr = b; break; } y += b.h; }
+      offset = y + (C.stickExtra || 0);
+    }
+    const showTop = !C.flow;
+    const errBodyStyle = { fontFamily:"ui-monospace,'SF Mono',Menlo,monospace", fontSize:11, lineHeight:'16px', color:'var(--fg2)', whiteSpace:'pre-wrap', wordBreak:'break-all', maxHeight: C.errOpen ? 128 : 48, overflow: C.errOpen ? 'auto' : 'hidden' };
+
+    return {
+      showTop, isBranch: !detached && st !== 'nogit', isDetached: detached, isNoGit: st === 'nogit',
+      branchName: C.branch, branchAria: 'ブランチ ' + C.branch,
+      refreshBusy: st === 'loading', refreshIdle: st !== 'loading',
+      hasCommitUI: st !== 'nogit', msg, onMsg: (e) => this.setState({ msg: e.target.value }), fieldStyle, fieldScroll: msg.split('\n').length > 5,
+      commitDis, commitStyle, commitBusy, commitKey: !commitBusy, commitLabel: commitBusy ? 'コミットしています…' : 'コミット', statusText,
+      pushDis, pushBusy, pushLabel: pushBusy ? 'プッシュ中…' : 'プッシュ', aheadT, pushAria: pushBusy ? 'プッシュしています' : `プッシュ${C.ahead ? '、' + C.ahead + ' 件先行' : ''}`,
+      pushStyle: secBtn(pushDis && !pushBusy), pushTip: C.pushTip,
+      prIsLink: !!C.pr, prIsButton: !C.pr, prDis, prBusy, prLabel: prBusy ? '作成中…' : 'PR を作成', prTip: C.prTip,
+      prStyle: secBtn(prDis && !prBusy),
+      msgEmpty: !msg, fieldTip: C.fieldTip, commitTipT: C.commitTip ? `ステージ済み ${nS} 件をコミット` : '',
+      err: C.err, errOpen: C.errOpen, errMore: C.errOpen ? '詳細を隠す' : '詳細', errBodyStyle,
+      hasSections: st !== 'nogit', blocks: B.filter(Boolean), stuck: !!C.stick, stuckHdr,
+      thumbStyle:{ position:'absolute', right:2, top: C.tail ? 300 : 200, width:6, height:96, borderRadius:3, background:'var(--fg2)', opacity:0.4, zIndex:5 },
+      scrollStyle:{ position:'absolute', left:0, right:0, top:0, padding:'4px 8px 16px', transform:`translateY(${-offset}px)`, display:'flex', flexDirection:'column' },
+      topStyle:{ flex:'none', display:'flex', flexDirection:'column', padding: st === 'nogit' ? '0 12px 4px 14px' : '0 12px 12px 14px', borderBottom: st === 'nogit' ? '0' : '1px solid var(--sep)', position:'relative', zIndex:6 },
+      rootStyle:{ ...T[theme], width:W, height:H, boxSizing:'border-box', background:'var(--panel)', borderLeft:'1px solid var(--sep)', display:'flex', flexDirection:'column', overflow:'hidden', color:'var(--fg)', fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif", fontSize:13, WebkitFontSmoothing:'antialiased', position:'relative', flex:'none' }
+    };
+  }
+}
+</script>
+</body>
+</html>

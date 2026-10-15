@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GW Git タブの状態</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#E6E6E9;}
+</style>
+</helmet>
+<div style="width:2080px;min-height:4520px;box-sizing:border-box;padding:80px;display:flex;flex-direction:column;gap:24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1D1D1F;-webkit-font-smoothing:antialiased;background:#E6E6E9;">
+  <div style="display:flex;align-items:baseline;gap:16px;">
+    <div style="font-size:26px;font-weight:700;">S. Git タブの状態の描き分け（ダーク・280pt）</div>
+    <div style="font-size:13px;color:#5B5B60;">S1〜S7 行の操作 · S8〜S15 上部のボタン · S16〜S22 失敗と空の状態 · S23・S24 全区画を開いたとき</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(6,280px);column-gap:48px;row-gap:56px;">
+    <sc-for list="{{ cells }}" as="c" hint-placeholder-count="24">
+      <div id="{{ c.id }}" style="display:flex;flex-direction:column;gap:12px;width:280px;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:700;background:#1D1D1F;color:#fff;border-radius:5px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,monospace;flex:none;">{{ c.id }}</span><span style="font-size:14px;font-weight:600;">{{ c.title }}</span></div>
+        <div style="border-radius:8px;overflow:hidden;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.18);">
+          <dc-import name="GitPanel" variant="{{ c.v }}" width="280" height="838" hint-size="280px,838px"></dc-import>
+        </div>
+        <div style="font-size:12.5px;line-height:1.6;color:#3A3A3E;text-wrap:pretty;min-height:100px;">{{ c.caption }}</div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2080,"height":4520}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const C = (id, title, v, caption) => ({ id, title, v, caption });
+    const cells = [
+      C('S1','通常','normal','ステージ済み 3・変更 6。「変更」の GitTabView.swift を押した状態（入力先は中央なので塗り 9%、行数の代わりに「＋」）。理由の行は「ステージ済み 3 件をコミットします」。区画は「変更」だけ開く。'),
+      C('S2','行にホバー','hoverRow','ChangesTabView.swift にホバー。行の塗り 6%、行数（+9 −141）を隠して同じ右端に「＋」。種類の文字と名前・フォルダは動かない。'),
+      C('S3','「＋」にホバー','hoverBtn','ボタンの面が一段明るくなる（今の「コミット…」のホバーと同じ面）。ツールチップ「ステージ  Space」。'),
+      C('S4','「＋」を押している','pressBtn','押下中はもう一段明るい面。離すと行は「ステージ済み」へ移り、入力先は同じグループの次の行へ。'),
+      C('S5','一覧にキー入力','keyboard','⇧⌃⌘G か Tab で一覧へ。選んだ行は 24% の塗り、文字・種類・フォルダはすべて主文字色。一覧の外側に枠は描かない（FX-1）。Space でステージ。'),
+      C('S6','Space を押した後','afterSpace','ChangesTabView.swift が「ステージ済み」（4 件）の先頭へ移り、入力先は「変更」の次の行 GitSectionHeader.swift へ。VoiceOver「ChangesTabView.swift をステージしました。ステージ済み 4 件」。'),
+      C('S7','右クリック（ステージ済みの行）','ctx','GitCommitBar.swift の行に輪、選択は動かさない。行には「−」。メニューは「『変更』タブで開く」「ステージを外す」「ファイルを開く」「Finder で表示」「パスをコピー」（システムの見た目）。'),
+      C('S8','ステージ済みが 0','noStaged','「ステージ済み 0」の下に「＋ でステージしたファイルがここに入ります」。「コミット」は淡色、理由の行「ステージされた変更がありません」（GW-4）。「すべて外す」は出さない。'),
+      C('S9','メッセージが空','noMessage','ステージ済みはあるがメッセージが空。プレースホルダ「コミットメッセージ」、理由の行「メッセージを入力してください」。打ち始めると「ステージ済み 3 件をコミットします」に替わり、高さは変わらない。'),
+      C('S10','メッセージ 5 行で止まる','msgLong','入力中（欄の枠は残す: FX-3）。1 行 28pt から伸び、5 行（100pt）で止めて中をスクロール（右に細いスクロールの印）。下の区画はその分だけ下がる。'),
+      C('S11','コミット中','committing','「コミット」の中に回る印と「コミットしています…」。メッセージ欄は淡くして書き換え不可、ほかのボタンと「＋／−」も押せない。終わると欄が空になり、コミット区画の先頭に出る。'),
+      C('S12','プッシュ中','pushing','コミットの後。「プッシュ中…」と回る印、「PR を作成」は淡色。理由の行は「コミット」についてだけなので「ステージされた変更がありません」のまま。'),
+      C('S13','PR が押せない理由','prTip','まだ origin にブランチが無い。「PR を作成」は淡色で、ホバーのツールチップに理由。「プッシュ ↑3」は押せる（追跡付きでブランチを作る）。'),
+      C('S14','PR を作成中','prCreating','プッシュ済み（↑ なし）。「プッシュ」は淡色（ツールチップ「プッシュするコミットがありません」）、「PR を作成」の中に「作成中…」。'),
+      C('S15','PR を作った後','prDone','「PR を作成」の位置が「PR #482 ↗」のリンクに替わる（ブラウザで開く）。このブランチに PR がある間は出し続ける。VoiceOver「PR #482 を作成しました」。'),
+      C('S16','操作の失敗','opError','プッシュが拒否された。ボタンの下・区切り線の上に、題と git の出力を最初の 3 行だけそのまま。「詳細」で全文、× で閉じる。勝手にプル・強制しない（GW-14）。'),
+      C('S17','失敗の詳細','opErrorDetail','全文を 8 行の高さで止めて中をスクロール。「コピー」で出力を写す。次の操作（＋・コミット・プッシュなど）を始めると消える。'),
+      C('S18','読み込みの失敗','loadError','git status が失敗。上部に理由と「再試行」。区画の件数は出さず、「変更」区画は「取得できませんでした」。「コミット」は淡色、理由の行「変更を読み込めていません」。'),
+      C('S19','読み込み中','loading','初めて開いたとき。更新ボタンの位置に回る印、区画の件数は空、「変更」区画に「変更を読み込んでいます…」。メッセージは先に書ける。'),
+      C('S20','変更はありません','clean','「変更はありません」「作業ツリーは HEAD と同じです」。小見出しは出さない。プッシュしていない 2 件があれば「プッシュ ↑2」は押せる。'),
+      C('S21','Git 管理外','nogit','上部はブランチの行の位置に「Git 管理外」と更新だけ。メッセージ欄・ボタン・区画は出さない（GT-8）。'),
+      C('S22','detached HEAD','detached','ブランチの位置に「9f3c2e1 detached HEAD」。コミットはできる。「プッシュ」「PR を作成」は淡色で、ホバーで理由。'),
+      C('S23','全区画を開いた','allOpen','変更 → コミット（2 行の行: 要約／ID · 時刻 · 作者）→ ブランチ … が 1 本のスクロールに続く。上部の固定欄は動かない。'),
+      C('S24','全区画を開いてスクロール','allOpenScrolled','ブランチ区画までスクロールした状態。「ブランチ 6 ＋」の見出しが上に貼り付き、下に区切り線。今のブランチはチェックと太字（塗りではない）。右に重なるスクロールバー。')
+    ];
+    return { cells };
+  }
+}
+</script>
+</body>
+</html>

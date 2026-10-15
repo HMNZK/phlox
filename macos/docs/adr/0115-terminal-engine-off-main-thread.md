@@ -55,6 +55,7 @@ last-verified: 2026-07-23
 - 60fps の**表示更新予約**（16.67ms スロットル）は `queuePendingDisplay()`（`AppleTerminalView.swift:1703`, `fps60 = 16670000` `:1707`）と `queueMetalDisplay()`（`:1725`）にある。`updateDisplay(notifyAccessibility:)`（`:1568`）はその予約で走る**コールバック側**で、dirty range 計算とアクセシビリティ通知（`:1651`–`1656`）を行う。
 - CTLine/グリフ生成は `AppleTerminalView.swift:1270`（`Pre-create CTLines` → `:1274` `CTLineCreateWithAttributedString`）。glyph atlas は renderer インスタンスごと（`MetalTerminalRenderer.swift:196`–`197`, `:238`–`241`）＝タイル数分だけ重複。
 - PTY は 4KB 単位で `AsyncStream<Data>` に供給し、`bufferingNewest(2048)` で過負荷時に**古い chunk を破棄**する（`macos/Packages/PTYKit/Sources/PTYKit/PTYManager.swift:17`, `:24`, `:59`–`61`, 読み取りは専用 GCD キュー `:169`–`184`）。破棄は escape sequence を壊すため、backpressure（read 停止）で置き換える。
+  - 2026-10-16 追記: この破棄は ADR 0212 で `OutputGate`（PTYKit）による読み取りの停止・再開に置き換え済み（上の行番号は当時のもの）。現行の設計は `macos/docs/architecture/terminal-editor-panels.md` の「出力の配送と流量制御」。
 - SwiftTerm はローカル fork（`macos/Vendor/SwiftTerm`）で、参照するのは **`TerminalUI` パッケージのみ**（`macos/Packages/TerminalUI/Package.swift` が `path: "../../Vendor/SwiftTerm"` 参照）。→ fork 改造の影響範囲は `TerminalUI` に閉じている。
 
 ## 決定

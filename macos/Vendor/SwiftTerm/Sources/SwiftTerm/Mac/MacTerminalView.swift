@@ -958,6 +958,22 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         selection.active = false
         let eventFlags = event.modifierFlags
 
+        // 従来モードだけ単語移動に変換し、Kittyの押下・リピート・解放は既存の符号化へ渡す。
+        // function/numericPadは矢印自体に付く。追加の編集修飾キーは既存処理へ渡す。
+        let editingModifiers = eventFlags.intersection([.option, .shift, .control, .command])
+        if terminal.keyboardEnhancementFlags.isEmpty && !hasMarkedText() && editingModifiers == .option {
+            switch event.keyCode {
+            case UInt16(kVK_LeftArrow):
+                send(EscapeSequences.emacsBack)
+                return
+            case UInt16(kVK_RightArrow):
+                send(EscapeSequences.emacsForward)
+                return
+            default:
+                break
+            }
+        }
+
         // Shift+Enter は改行として扱う（送信は Enter 単体のみ）。macOS は Shift+Enter も
         // Enter と同じ insertNewline: セレクタに畳むため doCommand では区別できない。ここで
         // 横取りし、Ctrl+J 相当の LF(0x0A) を送って TUI(Claude/Codex/Cursor) の composer に
@@ -981,7 +997,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             let textEventType: KittyKeyboardEventType = (event.isARepeat && wantsEvents && wantsAllKeys) ? .repeatPress : .press
             if let functionKey = kittyFunctionalKey(from: event) {
                 let kittyEvent = KittyKeyEvent(key: .functional(functionKey),
-                                               modifiers: kittyModifiers(from: event, includeOption: optionAsMetaKey),
+                                               modifiers: kittyModifiers(from: event, includeOption: optionAsMetaKey || functionKey == .left || functionKey == .right),
                                                eventType: repeatEventType,
                                                text: kittyTextForFunctionalKey(functionKey, event: event),
                                                shiftedKey: nil,
@@ -1601,7 +1617,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
 
     private func kittyKeyEvent(from event: NSEvent, eventType: KittyKeyboardEventType, text: String? = nil) -> KittyKeyEvent? {
         if let functionKey = kittyFunctionalKey(from: event) {
-            let modifiers = kittyModifiers(from: event, includeOption: optionAsMetaKey)
+            let modifiers = kittyModifiers(from: event, includeOption: optionAsMetaKey || functionKey == .left || functionKey == .right)
             return KittyKeyEvent(key: .functional(functionKey),
                                  modifiers: modifiers,
                                  eventType: eventType,

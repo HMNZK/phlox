@@ -135,7 +135,7 @@ claude -p --input-format stream-json --output-format stream-json --verbose --saf
 
 ## 制約（技術・運用・期限）
 
-- 2026-10-15 の実装指示に基づき本計画を実装する。コミット・dev へのマージには別途承認が必要。既存の未コミット変更は保全する。
+- 2026-10-15 の実装指示に基づき本計画を実装し、同日のユーザー承認に基づきコミット・dev へのマージを行う。既存の未コミット変更は保全する。
 - `.env*`、ユーザーの入力ソース、稼働中の Release・ユーザーの Claude セッションを変更・終了しない。自分が作った検証用プロセス・データだけを終了・清掃する。
 - 直接 OAuth API を呼ぶために認証情報を抜き出さない。専用プロセスの認証も Claude Code の既存の仕組みを使う。
 - 共通の再試行フレームワーク・永続データベース・OS の常駐サービスは追加しない。取得の状態管理は一つにし、試験で差し替える境界を必要な箇所に限る。
@@ -166,9 +166,9 @@ claude -p --input-format stream-json --output-format stream-json --verbose --saf
 - 画面外描画で幅1100/800/500pt、数値/バー、正常/片枠期限切れ/両枠期限切れを確認。「前回値」も描画し、読み上げと同期のテストを追加した。見本HTMLのブラウザ表示はファイルURL制限で確認できず、HTMLの仕様と描画結果の照合まで。スクリーンショットの完全な重ね合わせ比較は未実施。
 - テストは `compact-test` と `run-swift-tests.sh` を経由。ビルド・型の検査はDebugの `xcodebuild ... build`。このworktreeにSwiftLint等の独立した設定はなく未設定。XCUITestは入力ソース追加禁止のため実行していない。
 - 途中で検出したテストのコンパイルエラー・過去のfixtureの時刻固定不足は修正した。既存テストのNSAccessibility非推奨、Sendableクロージャの捕捉、スナップショットの未使用変数の警告は別件として残る。
-- 自分が作ったDebugビルド、検証データ、CLIの検証会話、描画画像は終了・確認後に片付けた。Playwright関連は親子関係を監査し、所有を確定できない既存プロセスは停止していない。作業ブランチ・未コミット差分は承認待ちの成果物として保持する。
+- 自分が作ったDebugビルド、検証データ、CLIの検証会話、描画画像は終了・確認後に片付けた。Playwright関連は親子関係を監査し、所有を確定できない既存プロセスは停止していない。
 
-長時間常駐、別認証・旧CLI、SIGKILL時の回収は今回の検証範囲外。Release版への反映・コミット・マージは未実施。
+長時間常駐、別認証・旧CLI、SIGKILL時の回収は今回の検証範囲外。Release版への反映は未実施。実装はユーザー承認後に `92538c2f` としてコミットした。
 
 ### 最終コマンド結果
 
@@ -183,3 +183,12 @@ claude -p --input-format stream-json --output-format stream-json --verbose --saf
 | `git diff --check`・String Catalog JSON解析 | exit 0 |
 
 上記は実走した範囲の結果であり、条件付きスキップを検証済みとは扱わない。追加ツールの導入、入力ソースの追加、XCUITestは行っていない。
+
+### devとの統合検証
+
+- ユーザーの承認後、実装を `92538c2f` としてコミットし、`dev` の `9d7daddb` を作業ブランチへ取り込んだ。競合はADR索引だけで、0211〜0214の両側の記録を残した。
+- SwiftTermの更新に合わせ、TerminalUI・SessionFeature・DashboardFeatureのSPM成果物をcleanして再構築した。Debugのビルド・リンクはexit 0。
+- 最初の5パッケージ実行ではTerminalUI 108件、StructuredChatKit 28件、ClaudeAgentKit 207件、SessionFeature 1184件、DashboardFeatureの実Git 41件が成功。本体は2157件中、シミュレーターのスクロール入力3件で6個の期待違反が出てexit 1（別に既存のGit known issue 1件）。
+- シミュレーター入力の単独16件と、診断ログを加えたDashboardFeature全体の再実行は成功した。診断時の座標は期待どおりで、初回失敗の直接原因は再現・特定できていない。成功した再実行だけで原因解消とは扱わない。
+- スクロールのテストデータがNSScreenの高さとCGEventの座標変換を混在させていたため、イベント自身から座標原点を求める形へ変更し、生成座標が中心点であることの検査を追加した。配送結果の期待値・実行条件・製品コードは変更していない。この改善が初回失敗の原因を解消したかは未確定。
+- 上記のテストデータ改善後、`compact-test --full ... run-swift-tests.sh DashboardFeature` はexit 0。本体2157件（既存Git known issue 1件）、実Git 41件、XCTest 4件（1件スキップ）。シミュレーター入力16件も成功。通常の条件付きスキップ18件は検証済みとは扱わない。初回失敗が今後も起きないという保証にはしない。

@@ -25,8 +25,7 @@ struct SimulatorInputDeliveryTests {
                                          wheelCount: 2, wheel1: 20, wheel2: 10, wheel3: 0))
         let event = try #require(NSEvent(cgEvent: scroll))
         // scrollWheel の実際の座標変換にはウィンドウ座標のイベントを使う。
-        scroll.location = NSPoint(x: 200, y: NSScreen.screens[0].frame.maxY - 200)
-        let positioned = try #require(NSEvent(cgEvent: scroll))
+        let positioned = try positionedScroll(scroll)
         view.scrollWheel(with: positioned)
         #expect(view.pointerLocation == CGPoint(x: 200, y: 200))
         #expect(!view.pointerIsTouch)
@@ -347,8 +346,17 @@ struct SimulatorInputDeliveryTests {
         event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
         event.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
         event.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentum)
-        event.location = NSPoint(x: 200, y: NSScreen.screens[0].frame.maxY - 200)
-        return try #require(NSEvent(cgEvent: event))
+        return try positionedScroll(event)
+    }
+
+    private func positionedScroll(_ event: CGEvent) throws -> NSEvent {
+        // NSScreenのキャッシュとCGEventの座標系を混ぜず、イベント自身の変換で原点を求める。
+        event.location = .zero
+        let origin = event.unflippedLocation
+        event.location = CGPoint(x: 200, y: origin.y - 200)
+        let result = try #require(NSEvent(cgEvent: event))
+        #expect(result.locationInWindow == CGPoint(x: 200, y: 200))
+        return result
     }
 
     private func setup() throws -> (SimulatorScreenNSView, NSWindow, SimulatorDisplayConnection, InputTransport) {

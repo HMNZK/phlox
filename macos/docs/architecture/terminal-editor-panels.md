@@ -9,6 +9,32 @@ last-verified: 2026-10-15
 
 ## コンポーネント
 
+表示エンジンは SwiftTerm だけを使う。Ghostty は見送り、試作コードは dev に入れない（[ADR 0211](../adr/0211-decline-ghostty-user-terminal-engine.md)）。
+
+### 端末の描画方式（ADR 0213）
+
+ユーザー端末の `TerminalPanelSession` と、エージェント端末の `SessionSpawnService`（新規・復元）は `TerminalCoordinator` と共通の `IMETerminalView` を使い、CoreGraphics で描画する。描画方式の設定読み取りや切り替え処理は持たない。
+
+Metal の試用は、性能上の利点が小さく、メモリ増加と文字幅・位置の不良があったため見送った。計測値・表示の不具合・再検討条件は [ADR 0213](../adr/0213-terminal-metal-renderer-trial.md) に記録する。
+
+### SwiftTerm 変更後のテスト生成物
+
+SwiftTerm のクラス構造を変更した際は、それを使うパッケージの古い生成物も再構築する。`macos/scripts/run-swift-tests.sh` は通常の増分ビルドを行うため、依存先と呼び出し側の生成物の不整合が残る場合がある。構造変更後は `swift package --package-path macos/Packages/<パッケージ名> clean` を TerminalUI・DashboardFeature・SessionFeature に実行してから、通常のテスト入口で検証する。ソースや期待値を変更して回避しない。
+
+DashboardFeature の `TerminalFontAccessTests` は、パッケージ境界を越えたフォントの取得と11・13・20ptへの変更、画面外ウィンドウへの接続・切断後のサイズ保持を検査する。既存の `BottomPanelTests.twoWindowsAndContentHeight` は実際のパネル表示から設定値を検査する。2026-10-15 の signal 11 のスタックと再構築による解消の記録は [delivery 0054](../delivery/0054-swiftterm-test-artifact-mismatch.md) に置く。フォント設定・PTYKit・ADR 0212／0213 の判断は変更しない。
+
+### 共通端末のキー入力と応答（ADR 0212）
+
+キーの割り当ては `IMETerminalView` が継承する SwiftTerm の `TerminalView.keyDown` に置く。同メソッドは外部モジュールからオーバーライドできないため、既存のローカル fork に局所修正する。変換は現在のイベントとプロトコルの状態だけで判断し、押下記録は持たず、解放も消費しない。従来モードはキー解放を送信しない。Kitty の解放は既存処理へ渡す。
+
+ユーザー用とエージェント用の共通 `IMETerminalView` で、Option 単独＋左右矢印を `ESC b`／`ESC f` に割り当てる。`optionAsMetaKey` は false のまま、日本語配列の Option＋¥ などの文字入力は AppKit に渡す。Command・Control・Shift を伴う矢印と IME 未確定中の入力は既存処理へ渡す。この割り当ては `keyboardEnhancementFlags.isEmpty` のときだけ有効で、通常／アプリケーションカーソルモードの両方に適用する。Kitty が有効なときは左右矢印の Option 修飾を保持して既存の Kitty 符号化へ渡す。vim での編集動作はアプリ側の ESC b／f の解釈に従う。
+
+SwiftTerm の問い合わせ応答は PTY へ返す必要があるため、一律に抑制しない。`DCS 1!~0000 ST` は矩形チェックサム、`CSI ?65;…c` は DA1 の応答であり、元の大量出力が残っていない今回の観測だけでは問い合わせの有無を確定できない。チェックサム要求は中間文字 `*` がある場合だけ受け付ける（ローカル修正）。問い合わせではない `CSI 1y`・`CSI …$y`・`CSI … y` への誤応答は修正前に再現し、修正後に消えることを確認した。問い合わせなしの40万行（太字、通常／高輝度16色、256色、セミコロン／コロン形式の24bit前景・背景、4093バイトごとの分割）では応答ゼロだった。元の事故の根本原因は未確定で、SGR解析は変更していない。
+
+`TerminalOptionArrowTests` は NSEvent から共通ビュー・Coordinator の `onInput` を経由して実 PTY の slave に届くバイト、カーソル／Kittyモード、Option文字入力、追加修飾キー、未確定文字を検査する。通常の矢印のモード別バイトも維持する。`TerminalWordMovementTests`（DashboardFeature）は実zshのemacs編集モードで、`echo one two three` → Option左2回 → X → Return の出力が `one Xtwo three` となることを確認する。`TerminalResponseTests` はSGRの全バイト分割位置・RGB属性と後続SGR・明示問い合わせの応答も検査する。`PHLOX_TERMINAL_SNAPSHOT=1` で共通ビューを画面外に描画し、TerminalUI/.build/terminal-validation.png へ保存する。実アプリの起動、物理キーによる日本語変換、vim実プロセスの操作はこの検証に含めない。
+
+`TerminalOptionArrowTests.kittyOptionArrowLifecycle` は `>1u`・`>3u`・`>7u` の左右矢印について Kitty の押下・リピートと、要求された場合の解放を検査し、ESC b／f が混在しないことを検査する。フォーカス移動で元ビューに解放が届かない経路と、長押し途中で Option を追加・解除する経路も回帰テストに含める。通常矢印が ESC b に変わらず、Kitty の解放が残ることを検査する。`TerminalResponseTests.queriesAtEverySplit` は DA1・矩形チェックサムに加えて DA2・DSR（状態／カーソル位置）・DECCKSR の計6問い合わせを全バイト境界で分割し、未完の問い合わせには応答せず、完成時にだけ期待した応答を返すことを検査する。DA2 の識別値と DECCKSR のゼロは手元の SwiftTerm の実装に従う（ADR 0212 補足）。
+
 ### ユーザー用シェルの選択（ADR 0193）
 
 `UserShellSettings`（DashboardFeature/UserTerminal）が `/etc/shells` を読み、コメント・空行・重複・実行不可の項目を除く。任意パスは絶対パスの実行可能なファイルであることを保存前に検証する。保存先は `.phloxDefaults()` の `terminal.shellPath`（空文字はシステムの既定）。設定の「一般 › ターミナル › シェル」は既存の設定行を使う。
@@ -136,6 +162,7 @@ Git の履歴区画は区画ID、コミット行全体は `GitHistoryRowID.commi
 
 | ファイル | 固定している性質 |
 |---|---|
+| `TerminalCoreGraphicsTests`（TerminalUI） | 共通端末をウィンドウに接続・再接続しても CoreGraphics を維持し、全角を含む表示内容を保持する |
 | `TerminalEnvironmentTests` | ユーザー用端末の LANG の既定値 `en_US.UTF-8`、アプリ環境の LANG の優先（空文字も従来のエージェント用規則に従って維持）、HOME・PATH・TERM の保持 |
 | `GitHistoryWorkflowTests` | 一時リポジトリの履歴50件と続き、初回／空状態、参照、コミット／スタッシュの差分と本文、改名・削除・バイナリ、ブランチ操作、追跡付きチェックアウト、取得、未マージ削除、切り替え失敗、スタッシュ衝突とID保持、開閉に応じた更新。グラフ200件取得後の外部コミットでもIDが重複せず、先頭と末尾へ届くこと、現在／非現在／連続改名で利用順を引き継ぐことも検査 |
 | `GitHistoryPolicyTests` / `FocusBorderRenderTests` | 分岐・合流・複数親のレーン、札の束ね、実行中と作業フォルダの確認条件、開いた区画と展開行だけの操作、画面外ウィンドウへのキー入力とindex保全 |

@@ -13,6 +13,9 @@ last-verified: 2026-10-15
 | 番号 | 決定 | ステータス |
 |---|---|---|
 | 0214 | [Claude使用量を通知優先・1分補完・専用プロセスで取得する](0214-claude-usage-notifications-and-refresh.md) | accepted |
+| 0213 | [Metal 描画の切り替えを見送る](0213-terminal-metal-renderer-trial.md) | rejected（見送り・計測結果を記録） |
+| 0212 | [Option＋左右矢印を限定して割り当て、端末応答の要求を区別する](0212-terminal-option-arrows-and-query-responses.md) | accepted |
+| 0211 | [Ghostty をユーザー用ターミナルの表示エンジンとして採用しない](0211-decline-ghostty-user-terminal-engine.md) | 見送り（declined） |
 | 0210 | [Git の区画間で行を区別し、変更タブの名前を固定する](0210-git-section-row-identity-and-stable-changes-title.md) | accepted |
 | 0209 | [Git の一括処理順と履歴の連続性を保つ](0209-git-batch-order-and-history-continuity.md) | accepted |
 | 0208 | [Git 履歴の利用順と追加取得を要件へ合わせる](0208-git-history-review-corrections.md) | accepted（改名と追加取得は0209で補完） |

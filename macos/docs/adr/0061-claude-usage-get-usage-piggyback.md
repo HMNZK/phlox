@@ -1,9 +1,11 @@
 ---
-status: active
-last-verified: 2026-07-10
+status: superseded
+last-verified: 2026-10-15
 ---
 
 # ADR 0061: チャットモードの Claude Usage は常駐プロセスへの `get_usage` 相乗りで供給し、`/usage` プローブを廃止する
+
+2026-10-15: 通知優先・1分補完・会話なしの専用プロセスへ変更。現行の決定は [ADR 0214](0214-claude-usage-notifications-and-refresh.md)。以下は当時の決定であり、順次問い合わせ・期限切れの扱いは現行仕様ではない。
 
 > **このファイルの役割**: ADR 0059 のヘッドレスプローブを廃止し、常駐チャットプロセスへの `get_usage` control_request へ一本化した決定理由。
 > **書かないもの**: 供給経路の現行構成（→ architecture/claude-usage-supply.md）、実装詳細（→ Packages/ClaudeAgentKit/Sources/ClaudeAgentKit/ClaudeChatClient+Usage.swift）。
@@ -21,7 +23,7 @@ ADR 0059 は「チャットモードに供給が無い」前提で `claude -p '/
 ## 決定
 
 - `StructuredChatKit` に凍結公開面 `UsageQuerying`（`fetchRateLimits() async throws -> AgentRateLimitsSnapshot`）を置き、`ClaudeChatClient` が適合する（request_id 採番・pending 相関・タイムアウト既定10秒・respawn/close 窓の pending 全 fail で continuation リークを防止）。
-- `ClaudeChatUsageSource`（DashboardFeature）が生存チャットセッションを順に試行してスナップショットをバケット（`5h`/`weekly`）へ写像し、**セッション0本・全滅・空バケット時は statusLine キャッシュへフォールバック**する。`UsageMonitor` の既存 5 分周期に乗る。
+- `ClaudeChatUsageSource`（DashboardFeature）が生存チャットセッションを順に試行してスナップショットをバケット（`5h`/`weekly`）へ写像し、**セッション0本・全滅・空バケット時は statusLine キャッシュへフォールバック**する。`UsageMonitor` が起動時に 1 回、その後は自動更新がオンなら 1 分周期で取得する（2026-10-15、並列セッション実行時の表示の遅れを減らすため、ユーザー指示で 5 分から短縮）。
 - ADR 0059 のプローブ（`ClaudeUsageProbe*` 一式・テキスト解析）は**削除**。ADR 0059 は superseded。
 - ADR 0039 の表示仕様（行を消さず鮮度注記）と statusLine 供給（ターミナルセッション時）は**変更しない**。チャットも statusLine も無い時はキャッシュ最終値＋鮮度注記のまま（ユーザー了承の割り切り: その状況は Phlox 不使用時）。
 
@@ -32,5 +34,5 @@ ADR 0059 は「チャットモードに供給が無い」前提で `claude -p '/
 
 ## 結果
 
-- チャット運用中は実データ（実測: 5h/7d の utilization・resets_at）が 5 分周期で供給される。プロセス追加ゼロ・JSON 契約（テキスト解析より頑健）。
+- チャット運用中は実データ（実測: 5h/7d の utilization・resets_at）が 1 分周期で供給される。プロセス追加ゼロ・JSON 契約（テキスト解析より頑健）。
 - **`get_usage` は非公開・実験的 API**であり、CLI 更新で静かに壊れうる。壊れた場合は fetchRateLimits がタイムアウト/失敗し statusLine フォールバックへ自然に縮退する（誤値は出ない）。更新が止まったらまず CLI バージョンと control_response 形式を疑うこと。

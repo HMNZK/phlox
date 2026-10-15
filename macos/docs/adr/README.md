@@ -12,6 +12,7 @@ last-verified: 2026-10-15
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0214 | [Claude使用量を通知優先・1分補完・専用プロセスで取得する](0214-claude-usage-notifications-and-refresh.md) | accepted |
 | 0213 | [Metal 描画の切り替えを見送る](0213-terminal-metal-renderer-trial.md) | rejected（見送り・計測結果を記録） |
 | 0212 | [Option＋左右矢印を限定して割り当て、端末応答の要求を区別する](0212-terminal-option-arrows-and-query-responses.md) | accepted |
 | 0211 | [Ghostty をユーザー用ターミナルの表示エンジンとして採用しない](0211-decline-ghostty-user-terminal-engine.md) | 見送り（declined） |
@@ -150,7 +151,7 @@ last-verified: 2026-10-15
 | 0064 | [処理中インジケータは status を変えず表示専用述語で拡張する](0064-chat-processing-indicator-semantics.md) | active |
 | 0063 | [@ファイル補完は TCC 保護フォルダを「実パス一致」で除外する](0063-composer-suggestion-tcc-protected-folders.md) | active |
 | 0062 | [チャットのコンテキスト使用率は result/modelUsage と tokenUsageUpdated から実値供給する](0062-chat-context-usage-source.md) | active |
-| 0061 | [チャットモードの Claude Usage は常駐プロセスへの `get_usage` 相乗りで供給し、`/usage` プローブを廃止する](0061-claude-usage-get-usage-piggyback.md) | active |
+| 0061 | [チャットモードの Claude Usage は常駐プロセスへの `get_usage` 相乗りで供給し、`/usage` プローブを廃止する](0061-claude-usage-get-usage-piggyback.md) | superseded（0214） |
 | 0060 | [送信済みチャットメッセージの画像添付は「メタのみ永続・バッジ表示」とする](0060-chat-user-attachment-metadata.md) | active |
 | 0059 | [チャットモードの Claude Usage は `/usage` ヘッドレスプローブで供給する](0059-claude-usage-headless-probe.md) | superseded (0061) |
 | 0058 | [API spawn の総セッション数上限（16）を撤廃する](0058-remove-api-spawn-total-session-cap.md) | active |

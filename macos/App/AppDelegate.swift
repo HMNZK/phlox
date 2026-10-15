@@ -23,6 +23,7 @@ extension AppDelegate {
             await FileTabDocumentRegistry.shared.invalidateAndWait()
             // ユーザーターミナルの明示 shutdown と既存 PTY 終了、transcript flush を待つ。
             let ptyTask = Task {
+                await self.usageProcess?.shutdown()
                 await self.shutdownUserTerminal()
                 guard let ptyManager else { return }
                 await ptyManager.terminateAllAndWait(timeout: Self.cleanupTimeout)

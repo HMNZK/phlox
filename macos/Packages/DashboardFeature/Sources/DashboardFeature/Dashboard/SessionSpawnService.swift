@@ -8,6 +8,7 @@ import Security
 import TerminalUI
 import CodexAppServerKit
 import SessionFeature
+import StructuredChatKit
 
 // 隠している秘密: launch plan 生成・VM 生成・env/token 組み立て・appServer throw 後始末の詳細。
 
@@ -463,6 +464,7 @@ enum WorktreeIsolationSpawnError: Error, LocalizedError {
 
 @MainActor
 final class SessionSpawnService {
+    var onClaudeUsage: ((AgentRateLimitsSnapshot, UUID) -> Void)?
     struct AppServerSpawnResult {
         let vm: ChatSessionViewModel
         let codexThreadId: String?
@@ -760,6 +762,14 @@ final class SessionSpawnService {
         vm.projectID = projectID
         vm.parentSessionID = sessionOrigin.parentSessionID
         vm.launchContext = sessionOrigin.launchContext
+        let authOverrides = ["CLAUDE_CONFIG_DIR", "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
+                             "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"]
+        vm.usesStandardClaudeAuthentication = !authOverrides.contains { plan.env[$0] != nil }
+        vm.rateLimitsDidChange = { [weak self, weak vm] snapshot in
+            guard let self, let vm, vm.usesStandardClaudeAuthentication,
+                  self.sessionNodesSnapshot().first(where: { $0.id == sessionID })?.appServer === vm else { return }
+            self.onClaudeUsage?(snapshot, vm.usageConnectionID)
+        }
         let agentID = plan.descriptor.ref.id
         vm.codexSettingsDidChange = { [weak self] settings in
             self?.persistence.persistCodexSettings(id: sessionID, settings: settings)

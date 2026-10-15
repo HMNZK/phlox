@@ -174,7 +174,7 @@ struct TranscriptTypographyRenderHarness {
 
 // MARK: - 通信しないクライアント（DashboardFeature の DisconnectedStructuredAgentClient と同型）
 
-private final class DisconnectedHarnessClient: StructuredAgentClient, @unchecked Sendable {
+final class DisconnectedHarnessClient: StructuredAgentClient, @unchecked Sendable {
     let events: AsyncStream<NormalizedChatEvent>
 
     init() {
@@ -598,18 +598,22 @@ private func shouldPress(_ element: Any, includeHeaders: Bool) -> Bool {
 }
 
 @MainActor
-private func performPress(_ element: Any) -> Bool {
+func performPress(_ element: Any) -> Bool {
     if let button = element as? NSButton {
         button.performClick(nil)
         return true
     }
     let object = element as AnyObject
-    let names = object.accessibilityActionNames()
-    if names.contains(NSAccessibility.Action.press) {
-        object.accessibilityPerformAction(.press)
-        return true
+    guard let receiver = element as? NSObject else { return false }
+    if receiver.responds(to: NSSelectorFromString("accessibilityActionNames")),
+       receiver.responds(to: NSSelectorFromString("accessibilityPerformAction:")) {
+        let names = object.accessibilityActionNames()
+        if names.contains(NSAccessibility.Action.press) {
+            object.accessibilityPerformAction(.press)
+            return true
+        }
     }
-    if object.responds(to: #selector(NSAccessibilityProtocol.accessibilityPerformPress)) {
+    if receiver.responds(to: #selector(NSAccessibilityProtocol.accessibilityPerformPress)) {
         return object.accessibilityPerformPress()
     }
     return false

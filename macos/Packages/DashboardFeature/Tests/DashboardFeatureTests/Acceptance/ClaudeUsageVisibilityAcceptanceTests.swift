@@ -34,7 +34,9 @@ import Testing
     let suiteName = "phlox-claude-usage-acceptance-\(UUID().uuidString)"
     defer { UserDefaults().removePersistentDomain(forName: suiteName) }
 
-    let provider = ClaudeUsageProvider(rateLimitsURL: cacheURL, defaultsSuiteName: suiteName)
+    // この契約は元のデータ時刻の保持を検証する。壁時計でfixtureを期限切れにしない。
+    let provider = ClaudeUsageProvider(rateLimitsURL: cacheURL, defaultsSuiteName: suiteName,
+                                      now: { Date(timeIntervalSince1970: 1_783_096_600) })
     let usage = await provider.fetch()
 
     guard case .ok(let buckets) = usage.state else {

@@ -2001,6 +2001,10 @@ public final class ChatSessionViewModel: Identifiable {
         client as? any UsageQuerying
     }
 
+    public let usageConnectionID = UUID()
+    public var usesStandardClaudeAuthentication = true
+    public var rateLimitsDidChange: ((AgentRateLimitsSnapshot) -> Void)?
+
     private var spawnSettingsClient: (any SpawnAgentSettingsControlling)? {
         client as? any SpawnAgentSettingsControlling
     }
@@ -2338,6 +2342,11 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func handle(_ event: NormalizedChatEvent) async {
+        if case .rateLimitsUpdated(let snapshot) = event {
+            guard !isTerminating, processExit == nil, launchFailure == nil else { return }
+            rateLimitsDidChange?(snapshot)
+            return
+        }
         switch event {
         case .agentMessageDelta(_, let text), .reasoningDelta(_, let text):
             if !text.isEmpty { firstTurnInput = nil; awaitsNewChatFirstResponse = false }
@@ -2360,6 +2369,8 @@ public final class ChatSessionViewModel: Identifiable {
         switch event {
         case .agentMessageDelta, .reasoningDelta:
             break
+        case .rateLimitsUpdated:
+            break // 上で会話状態へ影響させず処理済み。
         case .taskListUpdated(let tasks):
             appendOrReplace(.taskList(id: "task-list", tasks: tasks, timestamp: eventDate))
             touchOutput()

@@ -14,11 +14,12 @@ struct UsageBottomBarView: View {
     @ViewBuilder
     var body: some View {
         if showUsage {
-            TimelineView(.periodic(from: .now, by: 60)) { context in
+            TimelineView(.periodic(from: .now, by: 60)) { _ in
+                let now = monitor.currentDate
                 let groups = UsageDisplay.bottomBarGroups(usages: monitor.usages, showUnavailable: showUnavailable)
                 if !groups.isEmpty {
                     GeometryReader { geometry in
-                        row(groups, width: geometry.size.width, now: context.date)
+                        row(groups, width: geometry.size.width, now: now)
                             .padding(.horizontal, DSSpacing.m)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     }
@@ -27,7 +28,8 @@ struct UsageBottomBarView: View {
                     .overlay(alignment: .top) { Rectangle().fill(DSColor.separator).frame(height: 1) }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Text(UsageDisplay.bottomBarAccessibilityLabel(
-                        groups: groups, now: context.date, locale: locale, bundle: localizationBundle
+                        groups: groups, now: now, locale: locale, bundle: localizationBundle,
+                        staleKinds: monitor.failures[.claudeCode] == nil ? [] : [.claudeCode]
                     )))
                 }
             }
@@ -57,6 +59,11 @@ struct UsageBottomBarView: View {
                                     now: now
                                 )
                             }
+                        }
+                        if group.kind == .claudeCode, let failure = monitor.failures[group.kind] {
+                            Text(verbatim: UsageDisplay.previousValueText(locale: locale, bundle: localizationBundle))
+                                .font(DSFont.meta)
+                                .help(Text(verbatim: failure.reason + "\n" + (monitor.usages[group.kind]?.dataAsOf ?? failure.at).formatted(date: .numeric, time: .standard)))
                         }
                     } else {
                         Text(UsageDisplay.bottomBarUnavailableText(locale: locale, bundle: localizationBundle))

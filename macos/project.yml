@@ -8,6 +8,8 @@ options:
   generateEmptyDirectories: true
 
 packages:
+  ClaudeAgentKit:
+    path: Packages/ClaudeAgentKit
   SimulatorBridgeKit:
     path: Packages/SimulatorBridgeKit
   AgentConfigKit:
@@ -120,6 +122,7 @@ targets:
       - package: AgentConfigKit
       - package: AppBootstrap
       - package: DashboardFeature
+      - package: ClaudeAgentKit
       - package: SessionFeature
       - package: ControlServer
       - package: MobileProxy

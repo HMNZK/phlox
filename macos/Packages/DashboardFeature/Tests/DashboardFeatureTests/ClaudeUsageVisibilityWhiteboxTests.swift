@@ -21,7 +21,7 @@ import Testing
         dataAsOf: asOf
     )
 
-    // 5h の reset は過ぎて bucket は 0% に正規化されるが、データ時刻は保持されるべき
+    // 5h は期限切れで不明になるが、元のデータ時刻は保持する。
     let normalized = UsageMonitor.expiringPassedResets(in: usage, now: Date(timeIntervalSince1970: 5_000))
     #expect(normalized.dataAsOf == asOf)
 }

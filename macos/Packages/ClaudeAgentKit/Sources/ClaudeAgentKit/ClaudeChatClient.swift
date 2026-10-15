@@ -7,6 +7,7 @@ public enum ClaudeChatClientError: Error, Equatable, Sendable {
     case usageRequestTimedOut
     case malformedUsageResponse
     case usageRequestFailed(String)
+    case usageRequestThrottled(retryAfter: TimeInterval)
     case permissionRequestFailed(String)
     case permissionRequestTimedOut
     case permissionRequestInProgress

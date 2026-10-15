@@ -1,37 +1,25 @@
 ---
 status: active
-last-verified: 2026-10-12
+last-verified: 2026-10-15
 ---
 
-# Claude Usage の供給経路（現行）
+# Claude 使用量の供給経路
 
-> **このファイルの役割**: 下部バー・サイドバーの Claude 5h/7d 残量が「今どう更新されるか」の構成図。
-> **書かないもの**: 供給経路の決定理由（→ ADR 0039・ADR 0061）、表示側の仕様（→ ADR 0039）。
+実装方針は [ADR 0214](../adr/0214-claude-usage-notifications-and-refresh.md)、検証条件は [修正計画](../specs/claude-usage-refresh-plan.md)。新方式の検証結果は計画書へ記録する。
 
-## 供給源（2系統・チャット相乗り優先）
+| 経路 | 用途 |
+|---|---|
+| 会話の `rate_limit_event` | `rate_limit_info.unifiedWindows` の使用率（割合）と `resetsAt`（Unix秒）を受信し、直ちに表示へ反映 |
+| チャットへの `get_usage` | 枠ごとの最終有効更新から60秒で不足を補完。1周期に1本を選び、失敗したら次の試行で別の接続を選ぶ |
+| 使用量専用Claude Code | 接続可能な標準認証のチャットがない時に1本だけ起動。制御要求だけ送り、会話・ツール・会話履歴を作らない |
+| statusLine キャッシュ | 能動取得失敗時の補助表示。元の `ts` を保持し、再読で更新期限を延ばさない |
 
-| 経路 | 動くとき | 実装 |
-|---|---|---|
-| `get_usage` 相乗り | 生存チャットセッション（常駐 `ClaudeChatClient`）が1本以上あるとき | `ClaudeChatUsageSource`（DashboardFeature/Usage/ClaudeChatUsageSource.swift） |
-| statusLine フック | ターミナルセッションで claude CLI が動作中 | `claude-statusline-wrapper.sh` → キャッシュ `claude-usage-rate-limits.json`（従来どおり） |
+`ClaudeChatClient` → `NormalizedChatEvent.rateLimitsUpdated` → `ChatSessionViewModel` のコールバック → `DashboardViewModel` → `UsageMonitor` 内の `ClaudeUsageRefresh` へ集約する。通知だけで会話の実行状態・履歴・費用・未読状態は変えない。
 
-どちらも無いとき（＝Phlox 不使用時）はキャッシュ最終値＋鮮度注記のまま（ADR 0039 の表示仕様）。旧 `/usage` ヘッドレスプローブ（ADR 0059）は廃止・削除済み。
+通知は割合を百分率へ変換する。問い合わせは従来どおり百分率・ISO8601リセット時刻を読む。非数値・負値・リセット時刻不明・期限切れの枠は不明とし、使用率0%を捏造しない。新しく受信した有効な使用率0%なら残量100%を表示する。有効なもう一方の枠は維持する。スマホへも期限切れ枠は送らず、取得失敗の補助表示は未取得として送る。
 
-## 相乗りの流れ
+能動取得は同時1件、開始間隔60秒以上。取得完了からも60秒を空け、プロセス準備や応答の遅延で間隔が短縮されるのを防ぐ。応答待ちの間に通知が来た枠は、遅れた応答で上書きしない。過去のリセット期間と登録解除したVMの応答は排除する。通知の整数秒と問い合わせの小数秒は同じ秒に揃えて期間を比較する。失敗時は120→240→480→900秒待つ。明示された待機時間は正常通知による表示復旧後も保持する。CLI共有キャッシュのサーバー取得時刻は応答から確定できず、受信時刻はサーバー観測時刻の保証ではない。
 
-`UsageMonitor`（既存 5 分周期の slowRefresh）
-→ `ClaudeChatUsageSource.fetch()`
-→ 注入された `sessions: () async -> [any UsageQuerying]`（`ChatSessionViewModel.usageQuerying` 経由で生存 `ClaudeChatClient` を列挙。CompositionRoot で結線）を順に試行
-→ `ClaudeChatClient.fetchRateLimits()` が stream-json stdin へ `{"type":"control_request","request_id":"get_usage-N","request":{"subtype":"get_usage"}}` を送信し、control_response を request_id で相関（タイムアウト既定10秒。ターン消費・トークン消費なし・ターン中割り込み可）
-→ `AgentRateLimitsSnapshot`（five_hour/seven_day の `usedPercentage`・`resetsAt`）をバケット `5h`/`weekly` へ写像
-→ セッション0本・全滅・空バケットは statusLine キャッシュ（`ClaudeUsageProvider`）へフォールバック。
+「自動で更新する」をオフにしても初回だけ取得し、以後は通知だけ採用する。専用プロセスは初回取得後に閉じる。「Claudeの使用量を取得する」がオフなら初回・通知・キャッシュを含め採用せず、専用プロセスも閉じる。設定変更で待機を再計算する。専用プロセスはチャットへの切り替え、通常終了、SIGTERM/SIGINTでも終了する。シグナル経路はMainActorを経由しない所有actorへ直接到達する。
 
-## 頑健性（契約・受け入れテスト凍結）
-
-- 公開面 `UsageQuerying`/`AgentRateLimitsSnapshot` は `StructuredChatKit` の凍結契約。
-- pending リクエストは respawn/close の suspension 窓でも全 fail され continuation リークしない（`ClaudeChatClient+Respawn.swift`。二重 resume は removeValue で冪等）。
-- `get_usage` は claude CLI（2.1.205 で実測）の非公開 API。壊れた場合はタイムアウト→フォールバックに縮退し、誤値を書く経路はない（→ ADR 0061 の結果節）。
-- 使用量はヘッダーではなく、ウィンドウ最下部の全幅バー（`Dashboard/UsageBottomBarView.swift`。`DashboardView` の `safeAreaInset(edge: .bottom)`、高さ 24pt）に出す（2026-10-12、ADR 0186。旧ヘッダーのチップ `UsageTopBarView`・`TrailingTopBarLayout` は廃止）。幅に応じて `UsageDisplay.bottomBarStage(forWidth:)`（1100pt 以上・600pt 以上・それ未満）で「枠の名前とリセット時刻あり → 名前のみ → 名前なし」の順に縮める。押しても何も開かない（インスペクタの使用量タブは 2026-10-13 に廃止。ADR 0192）。
-- 取得は `UsageMonitor` の定期更新（設定「自動で更新する」`phlox.usage.autoRefresh`）。オフでも起動時に 1 回は取る（手動の更新はインスペクタごと廃止した。ADR 0192）。
-- **表示可否と対象 CLI の決定（正本は `Usage/UsageDisplay.swift`）**: 下部バーを出すかは設定 `phlox.usage.showInHeader`（設定画面の「画面下部に使用量を表示する」。既定 true。キー名はヘッダー時代のまま。`UsageBottomBarView` が読む）。バーには `UsageDisplay.bottomBarGroups(usages:showUnavailable:)` が `AgentKind.allCases` の順で全バケットを並べる。取得できないハーネスは、設定 `phlox.usage.showUnavailable`（既定 false）がオンのときだけ「取得できません」として並べる。残量が `lowRemainingThreshold`（20%）以下のバケットは文字・棒を注意色にする。各枠は設定 `phlox.usage.bottomBarStyle`（`UsageSettings.BottomBarStyle`。既定 `bar`）に従い、残りの割合の横棒（`DSMeterBar`）か数値（%）で出す。読み上げはどちらでも数値。→ ADR 0112（ヘッダー時代の決定）・ADR 0186
-- **表示の視覚仕様（2026-07-17 統一・全エージェント共通）**: エージェント種別はテキスト名でなくブランドアイコン（`AgentBrandIcon(kind:size:)`）で示す。下部バーは文字だけで示し、ゲージは持たない。消費率の色分け（旧 `UsageDisplay.usageColor`）はどの画面からも使われなくなったので 2026-10-12 に消した。Cursor のバケットラベルは「Auto+Composer」を「Auto」へ統一（`CursorUsageProvider`）。回帰保護 `UsageDisplayTests`（ブランドアイコンほか）・`CursorUsageResponseTests`（Auto 表記）。
+表示は既存の `UsageDisplay` / `UsageBottomBarView` を使う。表示形式・幅別の縮小・ブランドアイコン・残量の配色は変更しない。CodexとCursorの従来5分周期も維持する。

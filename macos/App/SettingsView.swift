@@ -22,8 +22,8 @@ struct SettingsView: View {
     // 読む側（NotificationSettings）と同じ保存先に書く。
     @AppStorage(NotificationSettings.dockBadgeKey, store: .phloxDefaults()) private var dockBadgeCount = NotificationSettings.DockBadgeCount.attention
 
-    @AppStorage(UsageSettings.autoRefreshKey) private var usageAutoRefresh = true
-    @AppStorage(UsageSettings.claudeScrapeKey) private var claudeScrape = true
+    @AppStorage(UsageSettings.autoRefreshKey, store: .phloxDefaults()) private var usageAutoRefresh = true
+    @AppStorage(UsageSettings.claudeScrapeKey, store: .phloxDefaults()) private var claudeScrape = true
     @AppStorage(UsageSettings.showUnavailableKey) private var showUnavailableUsage = false
     @AppStorage(UsageSettings.showInHeaderKey) private var showUsageInHeader = true
     @AppStorage(UsageSettings.bottomBarStyleKey) private var usageBarStyle = UsageSettings.BottomBarStyle.bar
@@ -500,12 +500,14 @@ struct SettingsView: View {
                 Toggle(isOn: $usageAutoRefresh) {
                     SettingsLabel(title: Text("自動で更新する"), detail: Text("オフでも起動時に 1 回は取得する"))
                 }
+                .onChange(of: usageAutoRefresh) { ControlDashboardSupport.usageMonitor?.usageSettingsChanged() }
             }
             SettingsDivider()
             SettingsRow {
                 Toggle(isOn: $claudeScrape) {
                     SettingsLabel(title: Text("Claude の使用量を取得する"), detail: Text("Claude はほかの CLI と取得方法が異なるため、個別にオフにできる"))
                 }
+                .onChange(of: claudeScrape) { ControlDashboardSupport.usageMonitor?.usageSettingsChanged() }
             }
             SettingsDivider()
             SettingsRow {

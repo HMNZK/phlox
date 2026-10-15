@@ -359,6 +359,7 @@ public struct DashboardView: View {
                     }
                 }
             }
+            .dsPaneLayoutBoundary()
             .dsPaneAnimation(value: router.inspectorVisible)
             // 幅が足りないときの重ね表示。SwiftUI の overlay は端末の NSView より前面に描ける。
             .overlay(alignment: .topTrailing) {

@@ -11,6 +11,7 @@ import PTYKit
 import TerminalUI
 import UserNotifications
 import SessionFeature
+import ClaudeAgentKit
 
 /// ⌘W の横取り（AppDelegate）とメニュー（SessionCommands）の共通処理（13 Review で確定）：
 /// 子タブはそのタブを閉じ、会話・グリッドは確認してからセッションを削除する。
@@ -231,15 +232,17 @@ struct PhloxApp: App {
             #if DEBUG
             let root = try await appDelegate.simulatorVerificationComposition()
             #else
-            let root = try await CompositionRoot { dashboard, pty in
+            let root = try await CompositionRoot { dashboard, pty, usageProcess in
                 // 復元完了前の SIGTERM でも子終了経路が使えるよう、start() より前に配線する。
                 appDelegate.ptyManager = pty
                 appDelegate.dashboard = dashboard
+                appDelegate.usageProcess = usageProcess
             }
             #endif
             composition = root
             appDelegate.ptyManager = root.environment.pty as? PTYManager
             appDelegate.dashboard = root.dashboard
+            appDelegate.usageProcess = root.usage.claudeProcess
             appDelegate.router = root.router
         } catch {
             let failure: InitFailure = switch error {
@@ -305,9 +308,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if let task = simulatorVerificationInitialization { return try await task.value }
         let id = UUID()
         let task = Task { @MainActor in
-            try await CompositionRoot { dashboard, pty in
+            try await CompositionRoot { dashboard, pty, usageProcess in
                 self.ptyManager = pty
                 self.dashboard = dashboard
+                self.usageProcess = usageProcess
             }
         }
         simulatorVerificationInitializationID = id
@@ -331,6 +335,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// シグナルハンドラから MainActor を経由せずに PTYManager を読むための nonisolated な箱。
     /// `ptyManager` の didSet で同期する。PTYManager は actor（Sendable）なので参照を安全に保持できる。
     nonisolated fileprivate let ptyManagerBox = SignalSafeBox<PTYManager?>(nil)
+    var usageProcess: ClaudeUsageProcess? {
+        didSet { usageProcessBox.set(usageProcess) }
+    }
+    nonisolated fileprivate let usageProcessBox = SignalSafeBox<ClaudeUsageProcess?>(nil)
 
     /// SIGTERM / SIGINT を監視する DispatchSource。AppDelegate が保持して生存させる
     /// （ローカル変数のままだと即座に cancel され、ハンドラが発火しない）。
@@ -494,10 +502,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         signalSources = TerminationSignalHandlers.install(
             signals: [SIGTERM, SIGINT],
             queue: queue,
-            handler: { @Sendable [cleanupGuard, ptyManagerBox] in
+            handler: { @Sendable [cleanupGuard, ptyManagerBox, usageProcessBox] in
                 AppDelegate.handleTerminationSignal(
                     cleanupGuard: cleanupGuard,
-                    ptyManagerBox: ptyManagerBox
+                    ptyManagerBox: ptyManagerBox,
+                    usageProcessBox: usageProcessBox
                 )
             }
         )
@@ -506,7 +515,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// シグナル受信時の終了処理本体。バックグラウンドキューで実行される。
     nonisolated private static func handleTerminationSignal(
         cleanupGuard: CleanupGuard,
-        ptyManagerBox: SignalSafeBox<PTYManager?>
+        ptyManagerBox: SignalSafeBox<PTYManager?>,
+        usageProcessBox: SignalSafeBox<ClaudeUsageProcess?>
     ) {
         // 起動権を取れなければ（正常終了経路が先行している等）、子終了を二重に走らせない。
         guard cleanupGuard.beginCleanup() else { return }
@@ -514,9 +524,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // MainActor を経由せず、nonisolated な箱から直接 PTYManager を読む。
         // MainActor がブロック中でも到達できる。
         let manager = ptyManagerBox.value
+        let usageProcess = usageProcessBox.value
 
         let semaphore = DispatchSemaphore(value: 0)
         Task {
+            await usageProcess?.shutdown()
             if let manager {
                 await manager.terminateAllAndWait(timeout: Self.cleanupTimeout)
             }

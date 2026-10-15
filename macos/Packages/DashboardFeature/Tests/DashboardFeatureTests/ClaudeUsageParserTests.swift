@@ -42,8 +42,10 @@ struct ClaudeUsageProviderTests {
     defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
     let suiteName = makeIsolatedDefaultsSuiteName()
     defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+    let observed = Date().addingTimeInterval(-120).timeIntervalSince1970
+    let reset = Date().addingTimeInterval(3600).timeIntervalSince1970
     try Data("""
-    {"ts":1780923103.774998,"rate_limits":{"five_hour":{"used_percentage":25},"seven_day":{"used_percentage":43}}}
+    {"ts":\(observed),"rate_limits":{"five_hour":{"used_percentage":25,"resets_at":\(reset)},"seven_day":{"used_percentage":43,"resets_at":\(reset)}}}
     """.utf8).write(to: fileURL, options: .atomic)
 
     let usage = await ClaudeUsageProvider(rateLimitsURL: fileURL, defaultsSuiteName: suiteName).fetch()
@@ -53,6 +55,8 @@ struct ClaudeUsageProviderTests {
         return
     }
     #expect(usage.kind == .claudeCode)
+    #expect(usage.updatedAt == Date(timeIntervalSince1970: observed))
+    #expect(usage.dataAsOf == usage.updatedAt)
     #expect(buckets.first { $0.id == "5h" }?.usedPercent == 25)
     #expect(buckets.first { $0.id == "weekly" }?.usedPercent == 43)
 }
@@ -70,6 +74,20 @@ struct ClaudeUsageProviderTests {
         return
     }
     #expect(reason.contains("Claude使用量は未取得です"))
+}
+
+@Test(arguments: ["null", "0", "-1", "9999999999"])
+func claudeUsageProvider_rejectsUnknownOrFutureObservationTime(timestamp: String) async throws {
+    let fileURL = try makeTemporaryClaudeUsageURL()
+    defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+    let suite = makeIsolatedDefaultsSuiteName()
+    defer { UserDefaults().removePersistentDomain(forName: suite) }
+    let reset = Date().addingTimeInterval(3600).timeIntervalSince1970
+    try Data("""
+    {"ts":\(timestamp),"rate_limits":{"five_hour":{"used_percentage":25,"resets_at":\(reset)}}}
+    """.utf8).write(to: fileURL)
+    let usage = await ClaudeUsageProvider(rateLimitsURL: fileURL, defaultsSuiteName: suite).fetch()
+    guard case .unavailable = usage.state else { Issue.record("invalid observation time accepted"); return }
 }
 
 @Test func claudeUsageProvider_decodesResetsAtFromCache() throws {

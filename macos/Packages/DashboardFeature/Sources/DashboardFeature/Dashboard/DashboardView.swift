@@ -124,6 +124,9 @@ public struct DashboardView: View {
         shellWithTabDialogs
             .toolbar { DashboardToolbar(viewModel: viewModel, router: router, changeCount: editorPanel.viewModel.changes.count, bottomPanel: bottomPanel) }
             .focusedSceneValue(\.bottomPanelState, bottomPanel)
+            .focusedSceneValue(\.gitWorkflowModel,
+                router.inspectorVisible && router.inspectorTab == .git && router.selectedProjectID != nil
+                    ? editorPanel.viewModel : nil)
     }
 
     public var body: some View {
@@ -448,7 +451,7 @@ public struct DashboardView: View {
                     router.sidebarPeeking = false
                 }
             }
-            // 子タブ列の「変更 N」を出すため、変更タブを開いていなくても一覧を読む。
+            // Git タブと共有する一覧を、変更タブを開いていなくても読む。
             .task(id: editorPanel.target) {
                 await editorPanel.resolve(workspaces: editorPanelWorkspaces)
             }
@@ -751,6 +754,8 @@ public struct DashboardView: View {
             fileTreeModels: $fileTreeModels,
             files: fileTabs,
             editorPanel: editorPanel,
+            runningSessionNames: GitTabPolicy.runningSessionNames(sessions: viewModel.sessionNodes,
+                project: viewModel.projects.first { $0.id == router.selectedProjectID }),
             isOverlay: isOverlay
         )
     }

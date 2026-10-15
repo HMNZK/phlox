@@ -63,34 +63,34 @@ struct GitInspectorTests {
         #expect(preview.lines.map(\.number) == [nil, 1, 1, 2])
     }
 
-    @Test @MainActor func lateRetryCannotReplaceNewSelection() async throws {
-        let loader = GitDetailLoader()
-        await loader.load(path: "a") { _ in throw CocoaError(.fileReadNoPermission) }
-        #expect(loader.error != nil)
-        var finishA: CheckedContinuation<WorkingTreeDetail, Never>?
-        let retry = Task { await loader.load(path: "a") { _ in
-            await withCheckedContinuation { finishA = $0 }
-        } }
-        while finishA == nil { await Task.yield() }
-        await loader.load(path: "b") { _ in .diff("B") }
-        finishA?.resume(returning: .diff("A"))
-        await retry.value
-        #expect(loader.detail == .diff("B") && loader.error == nil)
+    @Test @MainActor func lateSelectionCannotReplaceNewPathOrSource() async throws {
+        let parent = FileManager.default.temporaryDirectory
+        let fixture = try GitWorkflowRenderFixture(parent: parent)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        for samePath in [false, true] {
+            let model = fixture.model()
+            var finish: CheckedContinuation<WorkingTreeDetail, Never>?
+            model.detailLoader = { _, _ in await withCheckedContinuation { finish = $0 } }
+            let old = Task { await model.select("Sources/Workflow.swift", source: .worktree) }
+            while finish == nil { await Task.yield() }
+            model.detailLoader = nil
+            let path = samePath ? "Sources/Workflow.swift" : "notes.md"
+            let source: WorkingTreeSource = samePath ? .staged : .worktree
+            await model.select(path, source: source)
+            let detail = model.detail
+            let draft = model.draft
+            finish?.resume(returning: .diff("古い差分"))
+            await old.value
+            #expect(model.gitSelection == .init(path: path, source: source))
+            #expect(model.selectedPath == path)
+            #expect(model.detail == detail)
+            #expect(model.draft == draft)
+            #expect(model.isReadOnly == samePath)
+        }
     }
 
-    @Test @MainActor func lateSamePathRequestCannotReplaceNewGeneration() async {
-        let loader = GitDetailLoader()
-        var finish: CheckedContinuation<WorkingTreeDetail, Never>?
-        let old = Task { await loader.load(path: "a") { _ in await withCheckedContinuation { finish = $0 } } }
-        while finish == nil { await Task.yield() }
-        await loader.load(path: "a") { _ in .diff("new") }
-        finish?.resume(returning: .diff("old"))
-        await old.value
-        #expect(loader.detail == .diff("new"))
-    }
-
-    @Test @MainActor func splitHeightIsRestoredWhenViewIsRecreated() {
-        let key = "phlox.inspector.git.listHeight"
+    @Test @MainActor func changesExpansionIsRestoredWhenViewIsRecreated() {
+        let key = "phlox.inspector.git.changesExpanded"
         let defaults = UserDefaults.standard
         let previous = defaults.object(forKey: key)
         defer {
@@ -98,11 +98,13 @@ struct GitInspectorTests {
             else { defaults.removeObject(forKey: key) }
         }
         let model = EditorPanelViewModel(service: nil)
-        let first = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _ in }, openFile: { _ in })
-        first.savedListHeight = 252
-        let restored = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _ in }, openFile: { _ in })
-        #expect(restored.savedListHeight == 252)
-        #expect(defaults.double(forKey: key) == 252)
+        defaults.removeObject(forKey: key)
+        let first = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in })
+        #expect(first.changesExpanded)
+        first.changesExpanded = false
+        let restored = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in })
+        #expect(!restored.changesExpanded)
+        #expect(!defaults.bool(forKey: key))
     }
 
     @Test func gitStringsHaveJapaneseAndEnglishTranslations() throws {
@@ -310,6 +312,10 @@ struct GitInspectorServiceTests {
         #expect(snapshot.lineCounts["small.txt"] == .init(added: 2, deleted: 0))
         #expect(snapshot.lineCounts["limit.txt"] == .init(added: 1024 * 1024, deleted: 0))
         for path in ["large.txt", "outside.txt", "missing.txt"] { #expect(snapshot.lineCounts[path] == nil) }
+        #expect(snapshot.unstagedChanges == snapshot.changes)
+        #expect(snapshot.unstagedLineCounts["small.txt"] == .init(added: 2, deleted: 0))
+        #expect(snapshot.unstagedLineCounts["limit.txt"] == .init(added: 1024 * 1024, deleted: 0))
+        for path in ["large.txt", "outside.txt", "missing.txt"] { #expect(snapshot.unstagedLineCounts[path] == nil) }
     }
 
     @Test func failedListRefreshPreservesUnsavedDraft() async throws {

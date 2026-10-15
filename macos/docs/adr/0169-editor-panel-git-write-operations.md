@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0204-git-staging-and-changes-navigation.md（選択パスのコミットと配置）、0206-git-history-branches-stashes-and-graph.md（書き込みの範囲。エラー保全・設定非変更は維持）
 last-verified: 2026-08-04
 supersedes: 0150-editor-panel-git-semantics.md
 ---

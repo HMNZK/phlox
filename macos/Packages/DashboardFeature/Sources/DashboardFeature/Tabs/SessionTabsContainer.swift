@@ -347,9 +347,8 @@ struct ChildTabBar: View {
         case .terminal: AppLocalizedString.string("ターミナル", locale: locale, bundle: localizationBundle)
         case .simulator: AppLocalizedString.string("シミュレーター", locale: locale, bundle: localizationBundle)
         case .browser: AppLocalizedString.string("ブラウザ", locale: locale, bundle: localizationBundle)
-        case .changes: changeCount > 0
-            ? String(format: AppLocalizedString.string("変更 %lld", locale: locale, bundle: localizationBundle), changeCount)
-            : AppLocalizedString.string("tab.changes", locale: locale, bundle: localizationBundle)
+        case .changes: locale.language.languageCode?.identifier == "ja"
+            ? "変更" : AppLocalizedString.string("tab.changes", locale: locale, bundle: localizationBundle)
         case .file(let path): (path as NSString).lastPathComponent
         }
     }

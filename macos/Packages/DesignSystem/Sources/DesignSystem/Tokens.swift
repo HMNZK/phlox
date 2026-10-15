@@ -89,8 +89,17 @@ public enum DSLayout {
     public static let bottomPanelMaximumFraction: CGFloat = 0.7
     public static let bottomPanelButtonWidth: CGFloat = 26
     public static let gitHeaderHeight: CGFloat = 48
+    /// Git 上部の失敗詳細が一覧を押し出さないための上限。
+    public static let gitWorkflowDetailsMaximumHeight: CGFloat = 220
     public static let gitRowHeight: CGFloat = 28
     public static let gitKindSize: CGFloat = 16
+    public static let gitGraphLaneSpacing: CGFloat = 10
+    public static let gitGraphCompactLaneSpacing: CGFloat = 8
+    public static let gitGraphLineWidth: CGFloat = 1.5
+    public static let gitGraphDotDiameter: CGFloat = 7
+    public static let gitGraphMergeDotDiameter: CGFloat = 8
+    public static let gitGraphMaximumLanes = 7
+    public static let gitGraphBadgeMaximumWidth: CGFloat = 112
     public static let gitDiffHeaderHeight: CGFloat = 28
     public static let gitListInitialHeight: CGFloat = 204
     public static let gitListMinimumHeight: CGFloat = 84

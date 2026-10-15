@@ -780,12 +780,59 @@ private struct UpdateCommands: Commands {
 /// 01 F「表示」。表示モード・分割 ｜ 領域とタブ ｜ 文字の大きさ。
 private struct ViewCommands: Commands {
     @FocusedValue(\.bottomPanelState) private var bottomPanelState
+    @FocusedValue(\.gitWorkflowModel) private var gitWorkflowModel
     var dashboard: DashboardViewModel?
     var router: AppRouter?
     var sessionTerminals: ProjectTerminalStore?
     var simulatorHub: SimulatorHub?
 
     var body: some Commands {
+        CommandMenu("Git") {
+            Button("取得") {
+                guard let model = gitWorkflowModel else { return }
+                Task { await model.fetchGitRemotes() }
+            }
+            .keyboardShortcut("r", modifiers: [.shift, .command])
+            .accessibilityLabel("取得")
+            .accessibilityIdentifier("git-menu-fetch")
+            .disabled(gitWorkflowModel?.listState != .ready || gitWorkflowModel?.isWorkflowBusy != false)
+
+            Button("スタッシュ") { gitWorkflowModel?.requestStashInput() }
+            .keyboardShortcut("s", modifiers: [.option, .command])
+            .accessibilityLabel("スタッシュ")
+            .accessibilityIdentifier("git-menu-stash")
+            .disabled(gitWorkflowModel?.listState != .ready || gitWorkflowModel?.isWorkflowBusy != false)
+
+            Button("コミットメッセージにフォーカス") {
+                gitWorkflowModel?.requestCommitFocus()
+            }
+            .keyboardShortcut("c", modifiers: [.shift, .command])
+            .disabled(gitWorkflowModel == nil)
+
+            Button("コミット") {
+                guard let model = gitWorkflowModel else { return }
+                Task { await model.commitStagedChanges() }
+            }
+            .accessibilityLabel("コミット")
+            .accessibilityIdentifier("git-menu-commit")
+            .keyboardShortcut(.return, modifiers: [.command])
+            .disabled(gitWorkflowModel?.canCommit != true || gitWorkflowModel?.commitMessageFocused != true)
+
+            Button("プッシュ") {
+                guard let model = gitWorkflowModel else { return }
+                Task { await model.pushCommittedChanges() }
+            }
+            .keyboardShortcut("p", modifiers: [.option, .command])
+            .disabled(gitWorkflowModel?.canPush != true)
+
+            Button("PR を作成") {
+                guard let model = gitWorkflowModel else { return }
+                Task { await model.createPullRequest() }
+            }
+            .accessibilityLabel("PR を作成")
+            .accessibilityIdentifier("git-menu-create-pr")
+            .disabled(gitWorkflowModel?.canCreatePullRequest != true)
+        }
         CommandGroup(after: .sidebar) {
             Button("前のプロジェクト") {
                 guard let router, let dashboard else { return }

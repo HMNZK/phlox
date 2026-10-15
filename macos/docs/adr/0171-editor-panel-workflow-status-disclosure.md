@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0204-git-staging-and-changes-navigation.md（Git 上部へ移設し3行と詳細で表示。全文のスクロール・コピーは維持）
 last-verified: 2026-08-07
 ---
 

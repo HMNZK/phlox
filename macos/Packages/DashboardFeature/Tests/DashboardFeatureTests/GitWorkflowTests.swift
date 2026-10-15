@@ -1,7 +1,7 @@
-// GitWorkflowService: commit（選択パスだけの部分コミット）/ push / PR 作成。
+// GitWorkflowService: commit（ステージ済みだけのコミット）/ push / PR 作成。
 // 実 git プロセスは必要最小限にし、時間予算テストを枯渇させない。
 //
-// 公開面: commit(paths:message:) -> String（SHA） / remoteNames() / push() / isGitHubCLIAvailable() /
+// 公開面: stage(paths:) / commit(message:) -> String（SHA） / remoteNames() / push() / isGitHubCLIAvailable() /
 // createPullRequest(title:body:) -> String。
 // GitWorkflowError { notARepository, noPathsSelected, emptyCommitMessage, noRemoteConfigured,
 //                    gitHubCLIUnavailable, commandFailed(arguments:output:) }
@@ -85,7 +85,8 @@ struct GitWorkflowTests {
 
         let service = GitWorkflowService(repositoryRoot: root)
         await #expect(throws: GitWorkflowError.emptyCommitMessage) {
-            _ = try await service.commit(paths: ["a.txt"], message: "")
+            try await service.stage(paths: ["a.txt"])
+            _ = try await service.commit(message: "")
         }
         #expect(try headSHA(root) == before)
     }
@@ -97,19 +98,20 @@ struct GitWorkflowTests {
 
         let service = GitWorkflowService(repositoryRoot: root)
         await #expect(throws: GitWorkflowError.emptyCommitMessage) {
-            _ = try await service.commit(paths: ["a.txt"], message: "   \n\t ")
+            try await service.stage(paths: ["a.txt"])
+            _ = try await service.commit(message: "   \n\t ")
         }
     }
 
-    @Test func パス未選択は拒否されコミットは作られない() async throws {
+    @Test func ステージ済みが空ならコミットは作られない() async throws {
         let root = try makeBaseRepo()
         defer { try? FileManager.default.removeItem(at: root) }
         try write("a2\n", to: "a.txt", in: root)
         let before = try headSHA(root)
 
         let service = GitWorkflowService(repositoryRoot: root)
-        await #expect(throws: GitWorkflowError.noPathsSelected) {
-            _ = try await service.commit(paths: [], message: "変更")
+        await #expect(throws: GitWorkflowError.noStagedChanges) {
+            _ = try await service.commit(message: "変更")
         }
         #expect(try headSHA(root) == before)
     }
@@ -121,7 +123,8 @@ struct GitWorkflowTests {
 
         let service = GitWorkflowService(repositoryRoot: root)
         await #expect(throws: GitWorkflowError.notARepository) {
-            _ = try await service.commit(paths: ["a.txt"], message: "変更")
+            try await service.stage(paths: ["a.txt"])
+            _ = try await service.commit(message: "変更")
         }
     }
 
@@ -135,7 +138,8 @@ struct GitWorkflowTests {
         let before = try headSHA(root)
 
         let service = GitWorkflowService(repositoryRoot: root)
-        let sha = try await service.commit(paths: ["a.txt"], message: "a だけ変更")
+        try await service.stage(paths: ["a.txt"])
+        let sha = try await service.commit(message: "a だけ変更")
 
         #expect(!sha.isEmpty)
         #expect(try headSHA(root) != before)
@@ -161,7 +165,8 @@ struct GitWorkflowTests {
         try git(["mv", "a.txt", "renamed.txt"], cwd: root)
 
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["renamed.txt"], message: "a.txt を renamed.txt へ改名")
+        try await service.stage(paths: ["renamed.txt"])
+        _ = try await service.commit(message: "a.txt を renamed.txt へ改名")
 
         let tree = try git(["ls-tree", "-r", "--name-only", "HEAD"], cwd: root)
         #expect(tree.contains("renamed.txt"), "新パスがコミットされていない: \(tree)")
@@ -187,7 +192,8 @@ struct GitWorkflowTests {
         try git(["mv", "日本語.txt", "日本語2.txt"], cwd: root)
 
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["sp ace2.txt", "日本語2.txt"], message: "特殊文字の改名")
+        try await service.stage(paths: ["sp ace2.txt", "日本語2.txt"])
+        _ = try await service.commit(message: "特殊文字の改名")
 
         // ls-tree は既定でパスを引用するので -z で生パスを取る（比較を引用規則に依存させない）。
         let treeRaw = try git(["ls-tree", "-r", "--name-only", "-z", "HEAD"], cwd: root)
@@ -264,24 +270,20 @@ struct GitWorkflowTests {
 
     // MARK: - commit の特殊パス・失敗時の後始末・他ステージの保全
 
-    @Test func 他パスのステージ済み変更を巻き込まず選択パスだけコミットする() async throws {
+    @Test func ステージ済みだけコミットし未ステージの変更は残す() async throws {
         let root = try makeBaseRepo()
         defer { try? FileManager.default.removeItem(at: root) }
         try write("a2\n", to: "a.txt", in: root)
         try write("b2\n", to: "b.txt", in: root)
         try git(["add", "b.txt"], cwd: root)
-
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["a.txt"], message: "a only")
-
+        _ = try await service.commit(message: "staged only")
         let head = try git(["show", "--name-only", "--format=%s", "HEAD"], cwd: root)
-        #expect(head.contains("a only"))
-        #expect(head.contains("a.txt"))
-        #expect(!head.contains("b.txt"), "ステージ済み b.txt までコミットしてしまった: \(head)")
-
-        let status = try git(["status", "--porcelain"], cwd: root)
-        #expect(status.contains("b.txt"), "b.txt のステージが消えている: \(status)")
-        #expect(!status.contains("a.txt"))
+        #expect(head.contains("b.txt"))
+        #expect(!head.contains("a.txt"))
+        let status = try porcelainStatus(root)
+        #expect(status.contains(" M a.txt"))
+        #expect(!status.contains("b.txt"))
     }
 
     // 失敗した git コマンドの出力を握りつぶさず、実行引数と原因（pathspec 不一致）をエラーに含める。
@@ -292,7 +294,8 @@ struct GitWorkflowTests {
         let service = GitWorkflowService(repositoryRoot: root)
         var captured: GitWorkflowError?
         do {
-            _ = try await service.commit(paths: ["missing-file.txt"], message: "nope")
+            try await service.stage(paths: ["missing-file.txt"])
+            _ = try await service.commit(message: "nope")
         } catch let error as GitWorkflowError {
             captured = error
         }
@@ -323,10 +326,8 @@ struct GitWorkflowTests {
         try write("d2\n", to: "--dashed.txt", in: root)
 
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(
-            paths: ["file with space.txt", "日本語.txt", "--dashed.txt"],
-            message: "special paths"
-        )
+        try await service.stage(paths: ["file with space.txt", "日本語.txt", "--dashed.txt"])
+        _ = try await service.commit(message: "special paths")
 
         // `git show` は非 ASCII を C-quote するため、quotepath を切って名前を読む。
         let head = try git(
@@ -345,7 +346,8 @@ struct GitWorkflowTests {
         try FileManager.default.removeItem(at: root.appendingPathComponent("a.txt"))
 
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["a.txt"], message: "remove a")
+        try await service.stage(paths: ["a.txt"])
+        _ = try await service.commit(message: "remove a")
 
         let tracked = try git(["ls-files"], cwd: root)
         #expect(!tracked.split(whereSeparator: \.isNewline).map(String.init).contains("a.txt"))
@@ -360,7 +362,7 @@ struct GitWorkflowTests {
         try git(["rm", "-q", "a.txt"], cwd: root)
 
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["a.txt"], message: "remove staged")
+        _ = try await service.commit(message: "remove staged")
 
         let head = try git(["show", "--name-only", "--format=%s", "HEAD"], cwd: root)
         #expect(head.contains("remove staged"))
@@ -377,7 +379,8 @@ struct GitWorkflowTests {
         try write("a2\n", to: "a.txt", in: root)
 
         let service = GitWorkflowService(repositoryRoot: sub)
-        _ = try await service.commit(paths: ["a.txt"], message: "from subdir")
+        try await service.stage(paths: ["a.txt"])
+        _ = try await service.commit(message: "from subdir")
 
         let head = try git(["show", "--name-only", "--format=%s", "HEAD"], cwd: root)
         #expect(head.contains("from subdir"))
@@ -394,7 +397,8 @@ struct GitWorkflowTests {
 
         try write("a2\n", to: "a.txt", in: root)
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["a.txt"], message: "touch")
+        try await service.stage(paths: ["a.txt"])
+        _ = try await service.commit(message: "touch")
 
         #expect(try configValue("user.name", in: root) == beforeName)
         #expect(try configValue("user.email", in: root) == beforeEmail)
@@ -414,7 +418,8 @@ struct GitWorkflowTests {
         try write("y2\n", to: "test[1].txt", in: root) // これだけ選ぶ
 
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["test[1].txt"], message: "only bracket")
+        try await service.stage(paths: ["test[1].txt"])
+        _ = try await service.commit(message: "only bracket")
 
         let head = try git(["show", "--name-only", "--format=%s", "HEAD"], cwd: root)
         #expect(head.contains("only bracket"))
@@ -430,12 +435,13 @@ struct GitWorkflowTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try write("c\n", to: ":colon.txt", in: root)
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: [":colon.txt"], message: "colon")
+        try await service.stage(paths: [":colon.txt"])
+        _ = try await service.commit(message: "colon")
         let tracked = try git(["ls-files"], cwd: root)
         #expect(tracked.contains(":colon.txt"))
     }
 
-    @Test func コミットが失敗しても選択パスのステージ状態を元に戻す() async throws {
+    @Test func コミットが失敗してもステージ状態を変えない() async throws {
         let root = try makeBaseRepo()
         defer { try? FileManager.default.removeItem(at: root) }
         let hooks = root.appendingPathComponent(".git/hooks", isDirectory: true)
@@ -447,17 +453,17 @@ struct GitWorkflowTests {
         try git(["config", "--unset", "core.hooksPath"], cwd: root)
         try write("a2\n", to: "a.txt", in: root)
         try write("b2\n", to: "b.txt", in: root)
-        let before = try git(["status", "--porcelain"], cwd: root)
-
         let service = GitWorkflowService(repositoryRoot: root)
+        try await service.stage(paths: ["a.txt"])
+        let before = try porcelainStatus(root)
         await #expect(throws: (any Error).self) {
-            _ = try await service.commit(paths: ["a.txt"], message: "rejected")
+            _ = try await service.commit(message: "rejected")
         }
         let after = try git(["status", "--porcelain"], cwd: root)
         #expect(after == before, "失敗後に index が変わっている: before=\(before) after=\(after)")
     }
 
-    @Test func 未追跡パスのコミット失敗後は未追跡のまま戻る() async throws {
+    @Test func 新規ファイルのコミット失敗後もステージを保持する() async throws {
         let root = try makeBaseRepo()
         defer { try? FileManager.default.removeItem(at: root) }
         let hooks = root.appendingPathComponent(".git/hooks", isDirectory: true)
@@ -467,16 +473,16 @@ struct GitWorkflowTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hook.path)
         try git(["config", "--unset", "core.hooksPath"], cwd: root)
         try write("new\n", to: "new.txt", in: root)
-        let before = try git(["status", "--porcelain"], cwd: root)
-        #expect(before.contains("?? new.txt"))
-
         let service = GitWorkflowService(repositoryRoot: root)
+        try await service.stage(paths: ["new.txt"])
+        let before = try porcelainStatus(root)
+        #expect(before.contains("A  new.txt"))
         await #expect(throws: (any Error).self) {
-            _ = try await service.commit(paths: ["new.txt"], message: "rejected new")
+            _ = try await service.commit(message: "rejected new")
         }
         let after = try git(["status", "--porcelain"], cwd: root)
         #expect(after == before, "未追跡の add が残っている: before=\(before) after=\(after)")
-        #expect(after.contains("?? new.txt"))
+        #expect(after.contains("A  new.txt"))
     }
 
     @Test func 空文字列のパスは全ファイルコミットに化けない() async throws {
@@ -485,11 +491,13 @@ struct GitWorkflowTests {
         try write("a2\n", to: "a.txt", in: root)
         try write("b2\n", to: "b.txt", in: root)
         let service = GitWorkflowService(repositoryRoot: root)
-        await #expect(throws: GitWorkflowError.noPathsSelected) {
-            _ = try await service.commit(paths: [""], message: "empty pathspec")
+        await #expect(throws: (any Error).self) {
+            try await service.stage(paths: [""])
+            _ = try await service.commit(message: "empty pathspec")
         }
-        await #expect(throws: GitWorkflowError.noPathsSelected) {
-            _ = try await service.commit(paths: ["  "], message: "whitespace pathspec")
+        await #expect(throws: (any Error).self) {
+            try await service.stage(paths: ["../outside"])
+            _ = try await service.commit(message: "whitespace pathspec")
         }
         let status = try git(["status", "--porcelain"], cwd: root)
         #expect(status.contains("a.txt") && status.contains("b.txt"), "全ファイルを巻き込んだ: \(status)")
@@ -507,7 +515,8 @@ struct GitWorkflowTests {
         )
 
         let service = GitWorkflowService(repositoryRoot: root)
-        _ = try await service.commit(paths: ["link"], message: "add symlink")
+        try await service.stage(paths: ["link"])
+        _ = try await service.commit(message: "add symlink")
 
         let head = try git(["show", "--name-only", "--format=%s", "HEAD"], cwd: root)
         #expect(head.contains("add symlink"))
@@ -525,14 +534,15 @@ struct GitWorkflowTests {
         let service = GitWorkflowService(repositoryRoot: root)
         var thrown: Error?
         do {
-            _ = try await service.commit(paths: ["a.txt/child.txt"], message: "should not commit")
+            try await service.stage(paths: ["a.txt/child.txt"])
+            _ = try await service.commit(message: "should not commit")
         } catch {
             thrown = error
         }
 
         let error = try #require(thrown, "実在を判定できないパスなのにコミットが成功した")
         #expect(
-            error is CocoaError,
+            error is GitWorkflowError,
             "実在判定の失敗理由が握りつぶされ、別の失敗に化けている: \(error)"
         )
     }

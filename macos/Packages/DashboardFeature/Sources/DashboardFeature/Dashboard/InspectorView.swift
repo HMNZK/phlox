@@ -10,6 +10,7 @@ struct InspectorView: View {
     @Binding var fileTreeModels: [String: FileTreeModel]
     let files: FileTabDocuments
     let editorPanel: EditorPanelCoordinator
+    var runningSessionNames: [String] = []
     var isOverlay = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
@@ -21,7 +22,8 @@ struct InspectorView: View {
                 FileTreeInspectorView(router: router, project: project, models: $fileTreeModels, files: files, isOverlay: isOverlay)
             } else {
                 GitInspectorView(model: editorPanel.viewModel, workingDirectory: project?.directoryPath ?? "",
-                    openChanges: openChanges, openFile: openFile, focusRequest: router.inspectorFocusToken)
+                    openChanges: openChanges, openFile: openFile, focusRequest: router.inspectorFocusToken,
+                    runningSessionNames: runningSessionNames)
                     .id(project?.id)
             }
         }
@@ -35,14 +37,14 @@ struct InspectorView: View {
             }
     }
 
-    private func openChanges(_ path: String?, _ commit: Bool) {
+    private func openChanges(_ path: String?, _ source: WorkingTreeSource, _ commit: Bool) {
         guard let project else { return }
         router.selectedProjectID = project.id
         router.openChildTab(.changes)
         if isOverlay { router.inspectorVisible = false }
         let model = editorPanel.viewModel
         if commit { model.requestCommitFocus() }
-        if let path { Task { await model.select(path) } }
+        if let path { Task { await model.select(path, source: source) } }
     }
 
     private func openFile(_ path: String) {

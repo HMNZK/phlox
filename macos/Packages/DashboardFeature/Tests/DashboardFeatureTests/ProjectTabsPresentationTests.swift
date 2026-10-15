@@ -5,7 +5,7 @@ import DesignSystem
 @testable import DashboardFeature
 
 @Suite @MainActor struct ProjectTabsPresentationTests {
-    @Test func SessionTabTitlesUseEnglishForBrowserSimulatorAndChangeCount() throws {
+    @Test func SessionTabTitlesUseEnglishForBrowserSimulatorAndChanges() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("tab-localization-\(UUID()).bundle")
         let english = root.appendingPathComponent("en.lproj")
         try FileManager.default.createDirectory(at: english, withIntermediateDirectories: true)
@@ -31,7 +31,27 @@ import DesignSystem
             layout: ProjectTabLayout(), chats: [], changeCount: 1, files: FileTabDocuments())
         #expect(bar.titleText(for: .browser, locale: Locale(identifier: "en"), bundle: bundle) == "Browser")
         #expect(bar.titleText(for: .simulator, locale: Locale(identifier: "en"), bundle: bundle) == "Simulator")
-        #expect(bar.titleText(for: .changes, locale: Locale(identifier: "en"), bundle: bundle) == "Changes 1")
+        #expect(bar.titleText(for: .changes, locale: Locale(identifier: "en"), bundle: bundle) == "Changes")
+    }
+    @Test func 変更タブを開き直しても名前は件数によらず変更のまま() throws {
+        let fixtures = FileManager.default.temporaryDirectory.appendingPathComponent("git-display-strings-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: fixtures) }
+        let strings = try DesignSnapshotRenderTests().localizationBundle(fixtures: fixtures)
+        let project = Project(name: "Tabs", directoryPath: "/tmp", createdAt: Date(), isManagedDirectory: false)
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() }))
+        let router = AppRouter()
+        router.selectProject(project.id)
+        for count in [0, 1, 2, 3] {
+            router.openChildTab(.changes)
+            router.openChildTab(.changes)
+            let layout = router.tabs.layout(for: project.id)
+            #expect(layout.items == [.changes])
+            let bar = ChildTabBar(router: router, viewModel: dashboard, project: project,
+                                  layout: layout, chats: [], changeCount: count, files: FileTabDocuments())
+            #expect(bar.titleText(for: .changes, locale: Locale(identifier: "ja"), bundle: strings) == "変更")
+            #expect(bar.titleText(for: .changes, locale: Locale(identifier: "en"), bundle: strings) == "Changes")
+            router.tabs.updateLayout(for: project.id) { _ = $0.close(.changes) }
+        }
     }
     @Test func closeRequestsRouteToTheMatchingDeletionConfirmation() {
         let project = ProjectID()

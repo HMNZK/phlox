@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0204-git-staging-and-changes-navigation.md（Git 内差分。共有取得・更新時機は維持）
 ---
 
 # 0195: インスペクタに共有作業ツリーの Git タブを戻す

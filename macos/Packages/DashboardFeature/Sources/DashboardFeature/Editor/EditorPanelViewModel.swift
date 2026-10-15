@@ -27,6 +27,33 @@ public final class EditorPanelViewModel {
 
     public private(set) var listState: ListState = .noProject
     public private(set) var changes: [WorkingTreeChange] = []
+    public private(set) var stagedChanges: [WorkingTreeChange] = []
+    public private(set) var unstagedChanges: [WorkingTreeChange] = []
+    public private(set) var conflictedPaths: [String] = []
+    private(set) var stagedLineCounts: [String: WorkingTreeLineCount] = [:]
+    private(set) var unstagedLineCounts: [String: WorkingTreeLineCount] = [:]
+    public private(set) var selectedSource: WorkingTreeSource = .worktree
+    public private(set) var gitSelection: GitChangeSelection?
+    var activeGitRow: GitHistoryRowID?
+    var historyCommits: [GitHistoryCommit] = []
+    var localBranches: [GitBranch] = []
+    var remoteBranches: [GitBranch] = []
+    var gitStashes: [GitStash] = []
+    var graphRows: [GitGraphRow] = []
+    var historyFiles: [WorkingTreeSource: [WorkingTreeChange]] = [:]
+    var expandedHistoryRows: Set<WorkingTreeSource> = []
+    var openHistorySections: Set<GitHistorySection> = []
+    var loadedHistorySections: Set<GitHistorySection> = []
+    var loadingHistorySections: Set<GitHistorySection> = []
+    var hasMoreCommits = false
+    var loadedCommitLimit = 50
+    var hasMoreGraph = false
+    var loadedGraphLimit = 200
+    var lastFetchDate: Date?
+    public var stashFocusToken = 0
+    public func requestStashInput() { stashFocusToken &+= 1 }
+    public private(set) var aheadCount = 0
+    public private(set) var hasUpstream = false
     public private(set) var selectedPath: String?
     public private(set) var detail: Detail = .none
     /// 変更一覧の帰属範囲。`ListState`（表示対象の有無）とは分離して保持する。
@@ -62,7 +89,9 @@ public final class EditorPanelViewModel {
     private var refreshPending = false
     var commitFocusToken = 0
 
-    func requestCommitFocus() { commitFocusToken &+= 1 }
+    public var commitMessageFocused = false
+
+    public func requestCommitFocus() { commitFocusToken &+= 1 }
     func takeCommitFocusRequest() -> Bool {
         guard commitFocusToken > 0 else { return false }
         commitFocusToken = 0
@@ -70,9 +99,9 @@ public final class EditorPanelViewModel {
     }
     func markGitPathSeen(_ path: String) { freshPaths.remove(path) }
 
-    func gitDetail(for path: String) async throws -> WorkingTreeDetail {
+    func gitDetail(for path: String, source: WorkingTreeSource = .worktree) async throws -> WorkingTreeDetail {
         guard let service else { throw WorkingTreeServiceError.notRepository }
-        return try await service.detail(for: path)
+        return try await service.detail(for: path, source: source)
     }
 
     func acceptSnapshot(_ snapshot: WorkingTreeSnapshot) {
@@ -81,6 +110,11 @@ public final class EditorPanelViewModel {
         newChangeCount = freshPaths.count
         previousPaths = Set(sorted.map(\.path))
         changes = sorted
+        stagedChanges = snapshot.stagedChanges.sorted { $0.path < $1.path }
+        unstagedChanges = snapshot.unstagedChanges.sorted { $0.path < $1.path }
+        conflictedPaths = snapshot.conflictedPaths
+        stagedLineCounts = snapshot.stagedLineCounts
+        unstagedLineCounts = snapshot.unstagedLineCounts
         branchLabel = snapshot.branch
         lineCounts = snapshot.lineCounts
         listState = .ready
@@ -89,9 +123,15 @@ public final class EditorPanelViewModel {
     }
 
     func setSnapshotNotRepository() {
+        clearHistoryState()
         listState = .notARepository
         listErrorMessage = nil
         changes = []
+        stagedChanges = []
+        unstagedChanges = []
+        conflictedPaths = []
+        stagedLineCounts = [:]
+        unstagedLineCounts = [:]
         branchLabel = ""
         lineCounts = [:]
         freshPaths = []
@@ -100,14 +140,13 @@ public final class EditorPanelViewModel {
         clearWorkflowStateForMissingRepository()
     }
 
-    // MARK: - git write workflow（ADR 0169）
+    // MARK: - Git の書き込み操作（ADR 0204）
 
-    /// コミット対象として選んだパス（変更一覧のチェック）。詳細選択とは独立。
-    public private(set) var pathsSelectedForCommit: Set<String> = []
     public var commitMessage = ""
     public private(set) var isWorkflowBusy = false
     /// 実行中の Git 操作（07「コミットしています…」とボタンの「コミット中…」）。
     public private(set) var runningOperation: GitOperation?
+    var runningRepositoryAction: GitRepositoryAction?
     public private(set) var workflowStatusMessage: String?
     public private(set) var workflowStatusIsError = false
     /// `nil` なら push 可能。非 `nil` なら理由を UI に出す。
@@ -123,6 +162,9 @@ public final class EditorPanelViewModel {
     /// 選択時に読んだ内容。競合検出の基準であり、draft そのものではない。
     private var loadedDiskContent: String?
     private var selectionGeneration = 0
+    /// 取得待ちの選択競合を実際の共有モデルで検査するための差分読み取り口。
+    var detailLoader: (@MainActor (String, WorkingTreeSource) async throws -> WorkingTreeDetail)?
+
 
     /// バイナリや読み込みに失敗したファイルを TextEditor に渡さないための内部状態。
     var canEdit: Bool {
@@ -133,16 +175,18 @@ public final class EditorPanelViewModel {
 
     public var canCommit: Bool {
         listState == .ready
-            && !pathsSelectedForCommit.isEmpty
+            && !stagedChanges.isEmpty
+            && conflictedPaths.isEmpty
+            && !isWorkflowBusy
             && !commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     public var canPush: Bool {
-        listState == .ready && pushAvailabilityReason == nil
+        listState == .ready && pushAvailabilityReason == nil && !isWorkflowBusy
     }
 
     public var canCreatePullRequest: Bool {
-        listState == .ready && pullRequestAvailabilityReason == nil
+        listState == .ready && pullRequestAvailabilityReason == nil && !isWorkflowBusy
     }
 
     public init(
@@ -185,9 +229,15 @@ public final class EditorPanelViewModel {
 
     private func refreshOnce() async {
         guard let service else {
+            clearHistoryState()
             listState = .noProject
             listErrorMessage = nil
             changes = []
+            stagedChanges = []
+            unstagedChanges = []
+            conflictedPaths = []
+            stagedLineCounts = [:]
+            unstagedLineCounts = [:]
             clearSelection()
             clearWorkflowStateForMissingRepository()
             return
@@ -197,16 +247,38 @@ public final class EditorPanelViewModel {
             let snapshot = try await service.snapshot()
             guard !Task.isCancelled else { return }
             acceptSnapshot(snapshot)
-            pruneCommitSelection()
+            let previousActiveRow = activeGitRow
             if let selectedPath, !isDirty {
-                if changes.contains(where: { $0.path == selectedPath }) { await select(selectedPath) }
-                else { clearSelection() }
+                if selectedSource.isHistory {
+                    await select(selectedPath, source: selectedSource)
+                } else if (selectedSource == .staged ? stagedChanges : unstagedChanges).contains(where: { $0.path == selectedPath }) {
+                    await select(selectedPath, source: selectedSource)
+                } else if (selectedSource == .staged ? unstagedChanges : stagedChanges).contains(where: { $0.path == selectedPath }) {
+                    await select(selectedPath, source: selectedSource == .staged ? .worktree : .staged)
+                } else { clearSelection() }
+            }
+            switch previousActiveRow {
+            case .change(let item), .file(let item, _):
+                if gitSelection == item { activeGitRow = previousActiveRow }
+            case .none: break
+            default: activeGitRow = previousActiveRow
             }
             await refreshWorkflowCapabilities()
+            loadedHistorySections = []
+            historyFiles = [:]
+            for section in GitHistorySection.allCases where openHistorySections.contains(section) {
+                await loadHistorySection(section)
+            }
+            for source in expandedHistoryRows { await loadHistoryFiles(source) }
         } catch WorkingTreeServiceError.notRepository {
             setSnapshotNotRepository()
         } catch {
             changes = []
+            stagedChanges = []
+            unstagedChanges = []
+            conflictedPaths = []
+            stagedLineCounts = [:]
+            unstagedLineCounts = [:]
             if !isDirty { clearSelection() }
             listState = .ready
             lineCounts = [:]
@@ -215,15 +287,166 @@ public final class EditorPanelViewModel {
             if case WorkingTreeServiceError.gitCommandFailed(let arguments, let output) = error {
                 listErrorMessage = "git " + arguments.joined(separator: " ") + "\n" + output.trimmingCharacters(in: .whitespacesAndNewlines)
             } else { listErrorMessage = error.localizedDescription }
-            pathsSelectedForCommit = []
         }
     }
 
-    public func toggleCommitSelection(for path: String) {
-        if pathsSelectedForCommit.contains(path) {
-            pathsSelectedForCommit.remove(path)
-        } else {
-            pathsSelectedForCommit.insert(path)
+    public func stage(paths: [String]) async { await changeStaging(paths: paths, source: .worktree) }
+    public func unstage(paths: [String]) async { await changeStaging(paths: paths, source: .staged) }
+    public func stageAll() async { await stage(paths: unstagedChanges.map(\.path)) }
+    public func unstageAll() async { await unstage(paths: stagedChanges.map(\.path)) }
+
+    func setHistorySection(_ section: GitHistorySection, expanded: Bool) async {
+        if expanded {
+            openHistorySections.insert(section)
+            if !loadedHistorySections.contains(section) { await loadHistorySection(section) }
+        } else { openHistorySections.remove(section) }
+    }
+
+    private func clearHistoryState() {
+        historyCommits = []; localBranches = []; remoteBranches = []; gitStashes = []; graphRows = []
+        historyFiles = [:]; loadedHistorySections = []; expandedHistoryRows = []
+        hasMoreCommits = false
+        hasMoreGraph = false
+        lastFetchDate = nil
+    }
+
+    func loadHistorySection(_ section: GitHistorySection) async {
+        guard let service, listState == .ready, !loadingHistorySections.contains(section) else { return }
+        loadingHistorySections.insert(section)
+        defer { loadingHistorySections.remove(section) }
+        do {
+            switch section {
+            case .commits:
+                let commits = try await service.history(limit: loadedCommitLimit + 1)
+                hasMoreCommits = commits.count > loadedCommitLimit
+                historyCommits = Array(commits.prefix(loadedCommitLimit))
+            case .branches: localBranches = try await service.branches()
+            case .remotes:
+                remoteBranches = try await service.branches(remote: true)
+                lastFetchDate = try await service.lastFetchDate()
+            case .stashes: gitStashes = try await service.stashes()
+            case .graph:
+                let commits = try await service.history(limit: loadedGraphLimit + 1, all: true)
+                hasMoreGraph = commits.count > loadedGraphLimit
+                graphRows = GitGraphRow.make(Array(commits.prefix(loadedGraphLimit)))
+            }
+            loadedHistorySections.insert(section)
+        } catch { presentWorkflowError(describeWorkflowError(error)) }
+    }
+
+    func loadMoreCommits() async {
+        guard let service, hasMoreCommits, !loadingHistorySections.contains(.commits) else { return }
+        loadingHistorySections.insert(.commits)
+        defer { loadingHistorySections.remove(.commits) }
+        do {
+            let next = try await service.history(skip: historyCommits.count, limit: 51)
+            hasMoreCommits = next.count > 50
+            historyCommits += next.prefix(50)
+            loadedCommitLimit = historyCommits.count
+        } catch { presentWorkflowError(describeWorkflowError(error)) }
+    }
+
+    func loadMoreGraph() async {
+        guard let service, hasMoreGraph, !loadingHistorySections.contains(.graph) else { return }
+        loadingHistorySections.insert(.graph)
+        defer { loadingHistorySections.remove(.graph) }
+        do {
+            let limit = graphRows.count + 200
+            let commits = try await service.history(limit: limit + 1, all: true)
+            hasMoreGraph = commits.count > limit
+            graphRows = GitGraphRow.make(Array(commits.prefix(limit)))
+            loadedGraphLimit = graphRows.count
+        } catch { presentWorkflowError(describeWorkflowError(error)) }
+    }
+
+    func toggleHistoryRow(_ source: WorkingTreeSource) async {
+        if expandedHistoryRows.contains(source) { expandedHistoryRows.remove(source) }
+        else {
+            expandedHistoryRows.insert(source)
+            if historyFiles[source] == nil { await loadHistoryFiles(source) }
+        }
+    }
+
+    private func loadHistoryFiles(_ source: WorkingTreeSource) async {
+        guard let service else { return }
+        do { historyFiles[source] = try await service.historyFiles(source: source) }
+        catch { presentWorkflowError(describeWorkflowError(error)) }
+    }
+
+    func branchIsMerged(_ name: String) async -> Bool? {
+        guard let service else { return nil }
+        do { return try await service.isBranchMerged(name) }
+        catch { presentWorkflowError(describeWorkflowError(error)); return nil }
+    }
+
+    public func fetchGitRemotes() async { await performRepositoryAction(.fetch) }
+
+    func performRepositoryAction(_ action: GitRepositoryAction) async {
+        guard !isWorkflowBusy, listState == .ready else { return }
+        dismissWorkflowStatus()
+        isWorkflowBusy = true
+        runningRepositoryAction = action
+        runningOperation = switch action {
+        case .fetch: .fetch
+        case .stash, .applyStash, .popStash, .dropStash: .stash
+        default: .branch
+        }
+        defer { isWorkflowBusy = false; runningOperation = nil; runningRepositoryAction = nil }
+        guard let workflow = await resolveWorkflowService() else {
+            presentWorkflowError(Self.localized("Git リポジトリを開けません。")); return
+        }
+        do { try await workflow.perform(action) }
+        catch { presentWorkflowError(describeWorkflowError(error)) }
+        // pop の衝突など、失敗時も一部のファイルが変わり得る。
+        await refresh()
+    }
+
+    func visibleGitRows(changesExpanded: Bool) -> [GitChangeSelection] {
+        guard changesExpanded else { return [] }
+        return stagedChanges.map { .init(path: $0.path, source: .staged) }
+            + unstagedChanges.map { .init(path: $0.path, source: .worktree) }
+    }
+
+    func moveGitSelection(by offset: Int, changesExpanded: Bool) async {
+        let items = visibleGitRows(changesExpanded: changesExpanded)
+        guard !items.isEmpty else { return }
+        let index = gitSelection.flatMap { items.firstIndex(of: $0) } ?? (offset > 0 ? -1 : items.count)
+        let next = items[min(max(index + offset, 0), items.count - 1)]
+        await select(next.path, source: next.source)
+    }
+
+    public func toggleSelectedStaging(changesExpanded: Bool = true) async {
+        guard let selection = gitSelection,
+              visibleGitRows(changesExpanded: changesExpanded).contains(selection) else { return }
+        await changeStaging(paths: [selection.path], source: selection.source)
+    }
+
+    private func changeStaging(paths: [String], source: WorkingTreeSource) async {
+        guard !isWorkflowBusy, !paths.isEmpty else { return }
+        dismissWorkflowStatus()
+        isWorkflowBusy = true
+        runningOperation = source == .staged ? .unstage : .stage
+        defer {
+            isWorkflowBusy = false
+            runningOperation = nil
+        }
+        guard let workflow = await resolveWorkflowService() else {
+            presentWorkflowError(Self.localized("Git リポジトリを開けません。"))
+            return
+        }
+        let group = source == .staged ? stagedChanges : unstagedChanges
+        let movedPaths = Set(paths)
+        let anchor = group.firstIndex { movedPaths.contains($0.path) } ?? 0
+        let nextPath = group.dropFirst(anchor + 1).first { !movedPaths.contains($0.path) }?.path
+        do {
+            if source == .staged { try await workflow.unstage(paths: paths) }
+            else { try await workflow.stage(paths: paths) }
+            await refresh()
+            if let nextPath { await select(nextPath, source: source) }
+            else { clearSelection() }
+        } catch {
+            await refresh()
+            presentWorkflowError(describeWorkflowError(error))
         }
     }
 
@@ -245,14 +468,34 @@ public final class EditorPanelViewModel {
             pushAvailabilityReason = nil
         }
 
+        do {
+            let state = try await workflow.pushState()
+            hasUpstream = state.hasUpstream
+            aheadCount = try await workflow.aheadCount()
+            if pushAvailabilityReason == nil {
+                if !state.hasCommit {
+                    pushAvailabilityReason = Self.localized("初回コミット前はプッシュできません。")
+                } else if !state.hasBranch {
+                    pushAvailabilityReason = Self.localized("detached HEAD ではプッシュできません。ブランチを作成してください。")
+                } else if state.hasUpstream && aheadCount == 0 {
+                    pushAvailabilityReason = Self.localized("プッシュするコミットがありません。")
+                }
+            }
+        } catch {
+            aheadCount = 0
+            pushAvailabilityReason = describeWorkflowError(error)
+        }
         if await workflow.isGitHubCLIAvailable() {
-            pullRequestAvailabilityReason = nil
+            do {
+                pullRequestAvailabilityReason = try await workflow.hasPushedBranch()
+                    ? nil : Self.localized("PR を作成するには先にプッシュしてください。")
+            } catch { pullRequestAvailabilityReason = describeWorkflowError(error) }
         } else {
             pullRequestAvailabilityReason = Self.localized("GitHub CLI（gh）が利用できません。PR 作成は不可です。")
         }
     }
 
-    public func commitSelectedPaths() async {
+    public func commitStagedChanges() async {
         guard canCommit, !isWorkflowBusy else { return }
         guard let workflow = await resolveWorkflowService() else {
             presentWorkflowError(Self.localized("Git リポジトリを開けません。"))
@@ -263,15 +506,13 @@ public final class EditorPanelViewModel {
         runningOperation = .commit
         workflowStatusMessage = nil
         workflowStatusIsError = false
-        let paths = pathsSelectedForCommit.sorted()
         let message = commitMessage
         do {
             // actor 上の Process 待ちは MainActor を解放する（UI 固着を避ける）。
-            let sha = try await workflow.commit(paths: paths, message: message)
+            let sha = try await workflow.commit(message: message)
             workflowStatusMessage = String(format: Self.localized("%@ をコミットしました。"), String(sha.prefix(7)))
             workflowStatusIsError = false
             commitMessage = ""
-            pathsSelectedForCommit = []
             lastPullRequestURL = nil
             await refresh()
         } catch {
@@ -296,7 +537,7 @@ public final class EditorPanelViewModel {
             try await workflow.push()
             workflowStatusMessage = Self.localized("リモートへプッシュしました。")
             workflowStatusIsError = false
-            await refreshWorkflowCapabilities()
+            await refresh()
         } catch {
             presentWorkflowError(describeWorkflowError(error))
             await refreshWorkflowCapabilities()
@@ -342,7 +583,7 @@ public final class EditorPanelViewModel {
         runningOperation = nil
     }
 
-    public func select(_ path: String) async {
+    public func select(_ path: String, source: WorkingTreeSource = .worktree) async {
         selectionGeneration &+= 1
         let generation = selectionGeneration
         guard let service else {
@@ -351,8 +592,17 @@ public final class EditorPanelViewModel {
         }
 
         do {
-            let workingTreeDetail = try await service.detail(for: path)
+            let workingTreeDetail: WorkingTreeDetail
+            if let detailLoader { workingTreeDetail = try await detailLoader(path, source) }
+            else { workingTreeDetail = try await service.detail(for: path, source: source) }
             guard generation == selectionGeneration else { return }
+            selectedSource = source
+            gitSelection = .init(path: path, source: source)
+            let item = GitChangeSelection(path: path, source: source)
+            let graph: Bool
+            if case .file(let current, let isGraph) = activeGitRow, current == item { graph = isGraph }
+            else { graph = false }
+            activeGitRow = source.isHistory ? .file(item, graph: graph) : .change(item)
             switch workingTreeDetail {
             case .binary:
                 selectedPath = path
@@ -363,9 +613,10 @@ public final class EditorPanelViewModel {
                 selectedPath = path
                 detail = .diff(diff)
                 do {
-                    let contents = try await service.fileContents(path)
+                    let contents = try await service.fileContents(path, source: source)
                     guard generation == selectionGeneration else { return }
                     loadDraft(contents)
+                    if source != .worktree { isReadOnly = true }
                 } catch {
                     guard generation == selectionGeneration else { return }
                     clearDraft()
@@ -448,18 +699,14 @@ public final class EditorPanelViewModel {
 
     private func clearSelection() {
         selectedPath = nil
+        gitSelection = nil
+        activeGitRow = nil
         detail = .none
         readOnlyMessage = nil
         clearDraft()
     }
 
-    private func pruneCommitSelection() {
-        let visible = Set(changes.map(\.path))
-        pathsSelectedForCommit = pathsSelectedForCommit.intersection(visible)
-    }
-
     private func clearWorkflowStateForMissingRepository() {
-        pathsSelectedForCommit = []
         pushAvailabilityReason = Self.localized("Git リポジトリではありません。")
         pullRequestAvailabilityReason = Self.localized("GitHub CLI（gh）が利用できません。")
         lastPullRequestURL = nil
@@ -495,16 +742,21 @@ public final class EditorPanelViewModel {
     }
 
     private func describeWorkflowError(_ error: Error) -> String {
+        if case WorkingTreeServiceError.gitCommandFailed(let arguments, let output) = error {
+            return "git " + arguments.joined(separator: " ") + "\n" + output
+        }
         guard let error = error as? GitWorkflowError else {
             return error.localizedDescription
         }
         switch error {
         case .notARepository:
             return Self.localized("Git リポジトリではありません。")
-        case .noPathsSelected:
-            return Self.localized("コミットするファイルを選択してください。")
+        case .noPathsSelected, .noStagedChanges:
+            return Self.localized("コミットするファイルをステージしてください。")
         case .emptyCommitMessage:
             return Self.localized("コミットメッセージを入力してください。")
+        case .unmergedChanges:
+            return Self.localized("競合をターミナルなどで解消してください")
         case .noRemoteConfigured:
             return Self.localized("リモートが設定されていません。")
         case .gitHubCLIUnavailable:
@@ -528,6 +780,11 @@ public final class EditorPanelViewModel {
 
 /// コミット欄の Git 操作。
 public enum GitOperation: Sendable {
+    case fetch
+    case stash
+    case branch
+    case stage
+    case unstage
     case commit
     case push
     case pullRequest

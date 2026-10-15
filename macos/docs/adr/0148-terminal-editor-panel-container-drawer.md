@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0187-project-tabs.md（子タブの容器）、0196-project-bottom-terminal-panel.md（下部シェル）、0205-git-status-records-and-visible-row-actions.md（変更タブの1ペイン表示）
 last-verified: 2026-08-01
 ---
 

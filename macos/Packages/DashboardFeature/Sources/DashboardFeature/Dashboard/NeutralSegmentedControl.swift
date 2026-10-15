@@ -4,6 +4,7 @@ import DesignSystem
 /// 淡いトラックの上で選んだ側だけを面で示す切り替え（07 のインスペクタのタブ・差分 / 内容）。
 /// システムの segmented はアクセント色で塗るため、色を対応待ちに取っておく方針に合わせて無彩色で描く。
 struct NeutralSegmentedControl<Value: Hashable>: View {
+    @Environment(\.localizationBundle) private var bundle
     @Binding var selection: Value
     let options: [(value: Value, title: LocalizedStringKey)]
     var fillsWidth = true
@@ -18,7 +19,7 @@ struct NeutralSegmentedControl<Value: Hashable>: View {
                 Button {
                     selection = option.value
                 } label: {
-                    Text(option.title)
+                    Text(option.title, bundle: bundle)
                         .font(.system(size: fontSize))
                         .foregroundStyle(isOn ? DSColor.textPrimary : DSColor.textSecondary)
                         .lineLimit(1)

@@ -224,8 +224,7 @@ struct DesignSnapshotRenderTests {
                         let frame = Frame(id: id, name: "Git", width: CGFloat(width), height: 620, light: light, language: english ? "en" : "ja")
                         try await capture(VStack(spacing: 0) {
                             InspectorTabPicker(selection: .constant(.git))
-                            GitInspectorView(model: model, workingDirectory: "/Users/ryosuke/Projects/design-notes", openChanges: { _, _ in }, openFile: { _ in },
-                                previewPath: path, previewDetail: detail, loadsDetail: false)
+                            GitInspectorView(model: model, workingDirectory: "/Users/ryosuke/Projects/design-notes", openChanges: { _, _, _ in }, openFile: { _ in })
                         }.background(DSColor.surface), frame: frame, output: output)
                         #expect(FileManager.default.fileExists(atPath: destination(frame, output).path))
                     }

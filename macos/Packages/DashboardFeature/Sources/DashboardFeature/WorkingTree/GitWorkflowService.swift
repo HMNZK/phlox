@@ -6,8 +6,10 @@ import Foundation
 /// 出力（stdout+stderr）をそのまま保持し、UI がユーザーへ提示できるようにする。
 public enum GitWorkflowError: Error, Equatable {
     case notARepository
+    case noStagedChanges
     case noPathsSelected
     case emptyCommitMessage
+    case unmergedChanges
     case noRemoteConfigured
     case gitHubCLIUnavailable
     case commandFailed(arguments: [String], output: String)
@@ -16,7 +18,7 @@ public enum GitWorkflowError: Error, Equatable {
 /// ワーキングツリーの変更を commit / push し、PR を作る（task-4 契約）。
 ///
 /// 受け入れテスト `GitWorkflowTests` が凍結する。
-/// 読み取り専用の `WorkingTreeService` と対になる書き込み側（ADR 0169）。
+/// 読み取り専用の `WorkingTreeService` と対になる書き込み側（ADR 0204）。
 public actor GitWorkflowService {
     private let repositoryRoot: URL
     private let gitHubCLIPath: String?
@@ -36,68 +38,172 @@ public actor GitWorkflowService {
         self.gitHubCLIPath = gitHubCLIPath
     }
 
-    /// 指定したパスだけをステージしてコミットする。
-    ///
-    /// - Returns: 作成されたコミットの SHA。
-    /// - Throws: `.noPathsSelected`（paths が空／空文字のみ）/ `.emptyCommitMessage`（空白のみを含む）/
-    ///   `.notARepository` / `.commandFailed`。
-    /// - Note: **選択していないパスの変更はワーキングツリーに残る**（全ステージしない）。
-    ///   他パスの既存ステージ済みエントリもコミットに巻き込まない（`git commit -- <paths>`＝`--only`）。
-    ///   pathspec は `:(literal)` でワイルドカード／magic 解釈を止める。
-    ///   `add` は index に無い（未追跡）パスだけに限定し、commit 失敗時は
-    ///   `git rm --cached` でその分だけ戻す（`.git/index` を直接差し替えない）。
-    public func commit(paths: [String], message: String) async throws -> String {
-        guard !paths.isEmpty else {
-            throw GitWorkflowError.noPathsSelected
-        }
-        // `:(literal)` + 空文字は git が「全ファイル」と解釈するため、ここで拒否する。
-        guard !paths.contains(where: {
-            $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }) else {
-            throw GitWorkflowError.noPathsSelected
-        }
-        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedMessage.isEmpty else {
-            throw GitWorkflowError.emptyCommitMessage
-        }
+    func perform(_ action: GitRepositoryAction) throws {
         try requireRepository()
-
-        let commitPaths = try expandPathsWithStagedRenameSources(paths)
-        let literalPaths = Self.literalPathspecs(commitPaths)
-        // `commit -- <paths>` は既に `--only` 意味論なので、追跡済みパスは add 不要。
-        // ワークツリーに実在するが index に無いパスだけ add し、失敗時は `rm --cached` で戻す
-        // （ステージ済み削除は index にもワークツリーにも無いため add 不要）。
-        let untrackedPaths = try pathsNeedingAddBeforeCommit(paths)
-        let literalUntracked = Self.literalPathspecs(untrackedPaths)
-        if !literalUntracked.isEmpty {
-            try runGitAllowingFailure(arguments: ["add", "--"] + literalUntracked)
+        switch action {
+        case .switchBranch(let name):
+            try validateBranchName(name)
+            try runGitAllowingFailure(arguments: ["switch", "--", name])
+        case .createBranch(let name, let start, let switchTo):
+            try validateBranchName(name)
+            if start == "HEAD", switchTo {
+                try runGitAllowingFailure(arguments: ["switch", "-c", name])
+                return
+            }
+            let resolved = try runGitAllowingFailure(arguments: ["rev-parse", "--verify", "--end-of-options", start + "^{commit}"])
+            let id = String(decoding: resolved.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            try runGitAllowingFailure(arguments: switchTo ? ["switch", "-c", name, id] : ["branch", "--", name, id])
+        case .renameBranch(let old, let new):
+            try validateBranchName(old)
+            try validateBranchName(new)
+            try runGitAllowingFailure(arguments: ["branch", "-m", "--", old, new])
+        case .deleteBranch(let name, let force):
+            try validateBranchName(name)
+            try runGitAllowingFailure(arguments: ["branch", force ? "-D" : "-d", "--", name])
+        case .checkoutRemote(let name):
+            let parts = name.split(separator: "/", maxSplits: 1)
+            guard parts.count == 2 else { throw GitWorkflowError.commandFailed(arguments: ["switch"], output: "Invalid remote branch: " + name) }
+            let local = String(parts[1])
+            try validateBranchName(local)
+            let exists = try runGitRaw(arguments: ["show-ref", "--verify", "--quiet", "refs/heads/" + local])
+            if exists.terminationStatus == 0 { try runGitAllowingFailure(arguments: ["switch", "--", local]) }
+            else { try runGitAllowingFailure(arguments: ["switch", "--track", "-c", local, "refs/remotes/" + name]) }
+        case .fetch:
+            try runGitAllowingFailure(arguments: ["fetch", "--all"])
+        case .stash(let message):
+            try runGitAllowingFailure(arguments: ["stash", "push", "--include-untracked"] + (message.isEmpty ? [] : ["-m", message]))
+        case .applyStash(let id):
+            try runGitAllowingFailure(arguments: ["stash", "apply", try stashName(for: id)])
+        case .popStash(let id):
+            try runGitAllowingFailure(arguments: ["stash", "pop", try stashName(for: id)])
+        case .dropStash(let id):
+            try runGitAllowingFailure(arguments: ["stash", "drop", try stashName(for: id)])
         }
-        do {
-            try runGitAllowingFailure(arguments: ["commit", "-m", trimmedMessage, "--"] + literalPaths)
-        } catch let commitError {
-            if !literalUntracked.isEmpty {
-                do {
-                    try runGitAllowingFailure(
-                        arguments: ["rm", "--cached", "-f", "--"] + literalUntracked
-                    )
-                } catch let restoreFailure {
-                    // 復元失敗を握りつぶさない。主因は commit 失敗なのでそこに追記する。
-                    if case let .commandFailed(arguments, output) = commitError as? GitWorkflowError {
-                        throw GitWorkflowError.commandFailed(
-                            arguments: arguments,
-                            output: output
-                                + "\nunstage after failed commit also failed: \(restoreFailure)"
-                        )
+    }
+
+    private func validateBranchName(_ name: String) throws {
+        guard !name.hasPrefix("-"), !name.contains("\0"), !name.hasPrefix("@{-") else {
+            throw GitWorkflowError.commandFailed(arguments: ["check-ref-format", "--branch", name], output: "Invalid branch name: " + name)
+        }
+        try runGitAllowingFailure(arguments: ["check-ref-format", "--branch", name])
+    }
+
+    /// 番号は外部の操作で移動するため、一覧のIDを現在の reflog に解決し直す。
+    private func stashName(for id: String) throws -> String {
+        let result = try runGitAllowingFailure(arguments: ["stash", "list", "--format=%H%x09%gd"])
+        for line in String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline) {
+            let fields = line.split(separator: "\t")
+            if fields.count == 2, fields[0] == id { return String(fields[1]) }
+        }
+        throw GitWorkflowError.commandFailed(arguments: ["stash", "list"], output: "Stash no longer exists: " + id)
+    }
+
+    /// index にある内容だけをコミットする。作業ツリーの内容やステージ状態を変更しない。
+    public func commit(message: String) async throws -> String {
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMessage.isEmpty else { throw GitWorkflowError.emptyCommitMessage }
+        try requireRepository()
+        let unmerged = try runGitAllowingFailure(arguments: ["ls-files", "--unmerged", "-z"])
+        guard unmerged.output.isEmpty else { throw GitWorkflowError.unmergedChanges }
+        let staged = try runGitAllowingFailure(arguments: ["diff", "--cached", "--name-only", "-z"])
+        guard !staged.output.isEmpty else { throw GitWorkflowError.noStagedChanges }
+        try runGitAllowingFailure(arguments: ["commit", "-m", trimmedMessage])
+        let result = try runGitAllowingFailure(arguments: ["rev-parse", "HEAD"])
+        return String(decoding: result.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func stage(paths: [String]) async throws {
+        try requireRepository()
+        try validatePaths(paths)
+        let snapshot = try await WorkingTreeService(repositoryRoot: workingTreeRoot ?? repositoryRoot).snapshot()
+        guard Set(paths).isDisjoint(with: snapshot.conflictedPaths) else { throw GitWorkflowError.unmergedChanges }
+        let renameSources = try renameSourcesByDestination(source: .worktree)
+        let deleted = Set(snapshot.unstagedChanges.filter { $0.kind == .deleted }.map(\.path))
+        let removals = Set(paths.filter { deleted.contains($0) } + paths.compactMap { renameSources[$0] })
+        let additions = paths.filter { !deleted.contains($0) }
+        for path in removals.sorted() {
+            try runGitAllowingFailure(arguments: ["rm", "--cached", "--quiet", "--"] + Self.literalPathspecs([path]))
+        }
+        if !additions.isEmpty {
+            try runGitAllowingFailure(arguments: ["add", "-A", "--"] + Self.literalPathspecs(additions))
+        }
+    }
+
+    public func unstage(paths: [String]) async throws {
+        try requireRepository()
+        try validatePaths(paths)
+        let expanded = try expandPathsWithRenameSources(paths, source: .staged)
+        let snapshot = try await WorkingTreeService(repositoryRoot: workingTreeRoot ?? repositoryRoot).snapshot()
+        guard Set(expanded).isDisjoint(with: snapshot.conflictedPaths) else { throw GitWorkflowError.unmergedChanges }
+        let head = try runGitRaw(arguments: ["rev-parse", "--verify", "HEAD"])
+        var removals: [String] = []
+        var restorations: [(path: String, mode: String, id: String)] = []
+        var seen: Set<String> = []
+        for path in expanded where seen.insert(path).inserted {
+            if head.terminationStatus == 0 {
+                let tree = try runGitAllowingFailure(arguments: ["ls-tree", "-z", "HEAD", "--"] + Self.literalPathspecs([path]))
+                let entry = tree.output.split(separator: 0).first { record in
+                    record.split(separator: 9, maxSplits: 1).last.map { String(decoding: $0, as: UTF8.self) == path } == true
+                }
+                if let entry {
+                    let metadata = entry.split(separator: 9, maxSplits: 1)[0].split(separator: 32)
+                    // cacheinfo は pathspec ではなく完全一致のindex項目を受け取る。
+                    if metadata.count == 3, metadata[1] != Data("tree".utf8)[...] {
+                        restorations.append((path, String(decoding: metadata[0], as: UTF8.self), String(decoding: metadata[2], as: UTF8.self)))
+                        continue
                     }
-                    throw commitError
                 }
             }
-            throw commitError
+            removals.append(path)
         }
+        for path in removals {
+            try runGitAllowingFailure(arguments: ["rm", "--cached", "--quiet", "--"] + Self.literalPathspecs([path]))
+        }
+        // 同名の子の追加を先に外し、選択外の子と衝突する復元は Git に拒否させる。
+        for entry in restorations.sorted(by: { $0.path.split(separator: "/").count > $1.path.split(separator: "/").count }) {
+            try runGitAllowingFailure(arguments: ["update-index", "--add", "--cacheinfo", entry.mode, entry.id, entry.path])
+        }
+    }
 
-        let shaResult = try runGitAllowingFailure(arguments: ["rev-parse", "HEAD"])
-        return String(decoding: shaResult.output, as: UTF8.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    private func validatePaths(_ paths: [String]) throws {
+        guard !paths.isEmpty else { throw GitWorkflowError.noPathsSelected }
+        for path in paths {
+            _ = try WorkingTreeService.relativeURL(for: path, relativeTo: workingTreeRoot ?? repositoryRoot)
+        }
+    }
+
+    /// upstream がないブランチでは既定のリモートブランチとの差を使う。
+    public func aheadCount() async throws -> Int {
+        try requireRepository()
+        guard try runGitRaw(arguments: ["rev-parse", "--verify", "HEAD"]).terminationStatus == 0 else { return 0 }
+        let upstream = try runGitRaw(arguments: ["rev-parse", "--verify", "@{upstream}"])
+        var base: String?
+        if upstream.terminationStatus == 0 { base = "@{upstream}" }
+        else if let remote = preferredRemote(in: await remoteNames()) {
+            let branch = try runGitRaw(arguments: ["symbolic-ref", "--quiet", "refs/remotes/" + remote + "/HEAD"])
+            if branch.terminationStatus == 0 {
+                base = String(decoding: branch.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        let arguments = ["rev-list", "--count", base.map { $0 + "..HEAD" } ?? "HEAD"]
+        let count = try runGitAllowingFailure(arguments: arguments)
+        return Int(String(decoding: count.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    func pushState() throws -> (hasCommit: Bool, hasBranch: Bool, hasUpstream: Bool) {
+        try requireRepository()
+        return (
+            try runGitRaw(arguments: ["rev-parse", "--verify", "HEAD"]).terminationStatus == 0,
+            try runGitRaw(arguments: ["symbolic-ref", "--quiet", "HEAD"]).terminationStatus == 0,
+            try runGitRaw(arguments: ["rev-parse", "--verify", "@{upstream}"]).terminationStatus == 0
+        )
+    }
+
+    public func hasPushedBranch() async throws -> Bool {
+        try requireRepository()
+        let result = try runGitRaw(arguments: ["rev-parse", "--verify", "@{upstream}"])
+        guard result.terminationStatus == 0 else { return false }
+        return try await aheadCount() == 0
     }
 
     /// 設定済みリモート名の一覧。
@@ -191,40 +297,16 @@ public actor GitWorkflowService {
         return url
     }
 
-    // MARK: - pathspec / untracked staging
+    // MARK: - pathspec / renamed paths
 
     /// pathspec の glob / magic 解釈を止め、ファイル名を文字どおり扱う。
-    static func literalPathspecs(_ paths: [String]) -> [String] {
+    nonisolated static func literalPathspecs(_ paths: [String]) -> [String] {
         paths.map { ":(literal)" + $0 }
     }
 
-    /// index に無いがワークツリーに実在するパス。これらだけ `git add` が必要。
-    private func pathsNeedingAddBeforeCommit(_ paths: [String]) throws -> [String] {
-        let absentFromIndex = try pathsAbsentFromIndex(paths)
-        guard let workingTreeRoot else {
-            return absentFromIndex
-        }
-        return try absentFromIndex.filter { path in
-            let fullPath = workingTreeRoot.appendingPathComponent(path).path
-            do {
-                // `fileExists` ではなく属性取得を使うのは、壊れた symlink（リンク先が無い）も
-                // 「実在する」と数えるため（`attributesOfItem` は lstat 相当）。
-                _ = try FileManager.default.attributesOfItem(atPath: fullPath)
-                return true
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-                // 実在しない＝`git add` の対象外。これは失敗ではなく判定結果なので握りつぶしではない。
-                return false
-            }
-            // 権限不足・親が非ディレクトリ等で「実在するか」を判定できない場合は、
-            // 契約の不変条件どおり理由を握りつぶさずそのまま投げる。
-        }
-    }
-
-    /// ステージ済みリネームの新パスが選ばれたとき、旧パスを pathspec に補う。
-    /// 変更一覧は新パス 1 件しか返さないが、`git commit -- <new>` だけでは
-    /// 旧パスの削除が取り残され HEAD に二重に残る。
-    private func expandPathsWithStagedRenameSources(_ paths: [String]) throws -> [String] {
-        let renameSources = try stagedRenameSourcesByDestination()
+    /// 改名の行には新パスしか表示しないため、旧パスの削除も操作に含める。
+    private func expandPathsWithRenameSources(_ paths: [String], source: WorkingTreeSource) throws -> [String] {
+        let renameSources = try renameSourcesByDestination(source: source)
         guard !renameSources.isEmpty else { return paths }
         var expanded = paths
         for path in paths {
@@ -241,8 +323,8 @@ public actor GitWorkflowService {
     /// （`R  "sp ace.txt" -> "sp ace2.txt"`）、生パスを返す変更一覧側（`WorkingTreeService`）の
     /// キーと一致しなくなる。読み方はその `statusEntries` と同じ流儀に揃える
     /// （`\0` 区切り・状態 2 文字＋空白＋パス・R/C は次レコードが旧パス）。
-    private func stagedRenameSourcesByDestination() throws -> [String: String] {
-        let result = try runGitRaw(arguments: ["status", "--porcelain=v1", "-z"])
+    private func renameSourcesByDestination(source: WorkingTreeSource) throws -> [String: String] {
+        let result = try runGitAllowingFailure(arguments: ["status", "--porcelain=v1", "-z"])
         let records = result.output.split(separator: 0, omittingEmptySubsequences: false)
         var map: [String: String] = [:]
         var index = 0
@@ -252,13 +334,14 @@ public actor GitWorkflowService {
                 index += 1
                 continue
             }
-            let isRenameOrCopy = indexStatus == 82 || indexStatus == 67 // R / C
+            let worktreeStatus = record[record.index(after: record.startIndex)]
+            let isRenameOrCopy = [indexStatus, worktreeStatus].contains(82) || [indexStatus, worktreeStatus].contains(67) // R / C
             guard isRenameOrCopy else {
                 index += 1
                 continue
             }
             // コピー（C）は旧パスがツリーに残るので補わない。削除を伴うリネーム（R）だけを対象にする。
-            if indexStatus == 82, index + 1 < records.count {
+            if (source == .staged ? indexStatus : worktreeStatus) == 82, index + 1 < records.count {
                 let newPath = String(decoding: record.dropFirst(3), as: UTF8.self)
                 let oldPath = String(decoding: records[index + 1], as: UTF8.self)
                 if !newPath.isEmpty, !oldPath.isEmpty {
@@ -268,18 +351,6 @@ public actor GitWorkflowService {
             index += 2
         }
         return map
-    }
-
-    /// index にまだ載っていないパス。
-    private func pathsAbsentFromIndex(_ paths: [String]) throws -> [String] {
-        let literal = Self.literalPathspecs(paths)
-        let result = try runGitRaw(arguments: ["ls-files", "--full-name", "-z", "--"] + literal)
-        let tracked = Set(
-            String(decoding: result.output, as: UTF8.self)
-                .split(separator: "\0", omittingEmptySubsequences: true)
-                .map(String.init)
-        )
-        return paths.filter { !tracked.contains($0) }
     }
 
     // MARK: - repository / remotes

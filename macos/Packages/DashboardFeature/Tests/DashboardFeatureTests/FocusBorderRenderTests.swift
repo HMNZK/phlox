@@ -76,18 +76,22 @@ struct FocusBorderRenderTests {
                 panelState = state
                 window = makeWindow(BottomPanelView(panel: session, state: state))
             } else {
-                let model = EditorPanelViewModel(service: nil, changeScope: .isolated(repositoryRoot: root.path))
-                model.acceptSnapshot(.init(branch: "feature/files", changes: [
-                    .init(path: "notes.txt", kind: .modified, isBinary: false)
-                ], lineCounts: [:]))
-                window = makeWindow(GitInspectorView(model: model, workingDirectory: root.path,
-                    openChanges: { _, _ in }, openFile: { _ in }, focusRequest: 1,
-                    previewPath: "notes.txt", previewDetail: .diff("@@ -1,80 +1,80 @@\n" + (1...80).map { " context line \($0)" }.joined(separator: "\n")), loadsDetail: false))
+                let fixture = try GitWorkflowRenderFixture(parent: root)
+                if target == "git-diff" { try fixture.prepareContextDiff() }
+                let model = fixture.model()
+                await model.refresh()
+                if target == "git-diff" {
+                    await model.select("Sources/Workflow.swift", source: .worktree)
+                    window = makeWindow(EditorPanelView(viewModel: model, workingDirectory: fixture.root.path, focusRequest: 1))
+                } else {
+                    window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
+                        openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1))
+                }
             }
             let host = try #require(window.contentView)
             do {
                 try await settle(host)
-                let id = target == "files" ? "file-tree" : target == "terminal" ? "bottom-panel" : "git-inspector-" + (target == "git-list" ? "list" : "diff")
+                let id = target == "files" ? "file-tree" : target == "terminal" ? "bottom-panel" : target == "git-diff" ? "editor-diff-scroll" : "git-inspector-list"
                 let region = try #require(IntegrationFixAccessibility.find(id, in: host))
                 let scrolls = descendants(host).compactMap { $0 as? NSScrollView }.sorted {
                     host.convert($0.bounds, from: $0).minY < host.convert($1.bounds, from: $1).minY
@@ -108,7 +112,7 @@ struct FocusBorderRenderTests {
                     #expect(panelState?.isTerminalFocused == true)
                 } else {
                     if target == "git-diff" {
-                        // Tab は SwiftUI の実際のフォーカス順に従って一覧から差分へ移す。
+                        // Tab は SwiftUI の実際のフォーカス順に従って差分へ移す。
                         for _ in 0..<8 {
                             if focusedRect(host) == bounds { break }
                             try key("\t", code: 48, window: window)
@@ -134,7 +138,17 @@ struct FocusBorderRenderTests {
                         }
                     }
                 }
-                #expect(changed == 0, "\(target) の外周に背景と異なる画素: \(changed)")
+                var edgeSamples: [String] = []
+                if changed > 0 {
+                    for left in [true, false] {
+                        for offset in [-2.0, 0.0, 2.0, 6.0] {
+                            let x = left ? bounds.minX + offset : bounds.maxX - offset
+                            let pixel = try color(image, point: NSPoint(x: x, y: bounds.midY))
+                            edgeSamples.append("\(left ? "左" : "右")\(offset): \(pixel)")
+                        }
+                    }
+                }
+                #expect(changed == 0, "\(target) の外周に背景と異なる画素: \(changed), 領域: \(bounds), 背景: \(background), 内部: \(inside), 中央の外周: \(edgeSamples)")
                 if ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" {
                     let output = workspace.appendingPathComponent(".build/design-snapshots")
                     try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -148,6 +162,152 @@ struct FocusBorderRenderTests {
             }
             close(window)
             await panel?.controller.shutdown()
+        }
+    }
+
+    @Test func 折りたたむと見出しへ入力先が移りキーでindexを変えない() async throws {
+        try await withAppearance {
+            // 共通の撮影設定の argumentDomain は保存値より優先され、開閉を固定してしまう。
+            let defaults = UserDefaults.standard
+            let expansionKey = "phlox.inspector.git.changesExpanded"
+            var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+            arguments.removeValue(forKey: expansionKey)
+            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+            let previous = defaults.object(forKey: expansionKey)
+            defaults.set(true, forKey: expansionKey)
+            defer {
+                if let previous { defaults.set(previous, forKey: expansionKey) }
+                else { defaults.removeObject(forKey: expansionKey) }
+            }
+            let root = try fixtureDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let fixture = try GitWorkflowRenderFixture(parent: root)
+            let model = fixture.model()
+            await model.refresh()
+            await model.select("Sources/Workflow.swift", source: .worktree)
+            let before = try await WorkingTreeService(repositoryRoot: fixture.root).snapshot()
+            let index = try await WorkingTreeService(repositoryRoot: fixture.root).fileContents("Sources/Workflow.swift", source: .staged)
+            let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
+                openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1))
+            defer { close(window) }
+            let host = try #require(window.contentView)
+            try await settle(host)
+            let toggle = try #require(IntegrationFixAccessibility.find("git-section-changes-toggle", in: host))
+            #expect((toggle as AnyObject).accessibilityPerformPress())
+            try await settle(host)
+            let focus = try #require(focusedRect(host))
+            #expect(focus.intersects(rect(toggle, in: host)))
+            #expect(IntegrationFixAccessibility.find("git-change-worktree-Sources/Workflow.swift", in: host) == nil)
+            try key("\u{f701}", code: 125, window: window)
+            try key(" ", code: 49, window: window)
+            try await settle(host)
+            let after = try await WorkingTreeService(repositoryRoot: fixture.root).snapshot()
+            #expect(after.stagedChanges == before.stagedChanges)
+            #expect(try await WorkingTreeService(repositoryRoot: fixture.root).fileContents("Sources/Workflow.swift", source: .staged) == index)
+        }
+    }
+
+    @Test func 履歴の開いた区画だけを上下キーで移動する() async throws {
+        try await withAppearance {
+            let defaults = UserDefaults.standard
+            var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+            arguments["phlox.inspector.git.commitsExpanded"] = true
+            arguments["phlox.inspector.git.branchesExpanded"] = false
+            arguments["phlox.inspector.git.remotesExpanded"] = false
+            arguments["phlox.inspector.git.stashesExpanded"] = false
+            arguments["phlox.inspector.git.graphExpanded"] = false
+            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+            let fixture = try GitHistoryFixture()
+            defer { fixture.remove() }
+            let model = fixture.model()
+            await model.refresh()
+            await model.setHistorySection(.commits, expanded: true)
+            let commit = try #require(model.historyCommits.first)
+            let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
+                openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1))
+            defer { close(window) }
+            let host = try #require(window.contentView)
+            try await settle(host)
+            try key("\u{f701}", code: 125, window: window)
+            try await settle(host)
+            #expect(model.activeGitRow == .commit(commit.id, graph: false))
+            try key("\r", code: 36, window: window)
+            try await settle(host)
+            #expect(model.expandedHistoryRows.contains(.commit(commit.id)))
+            try key("\u{f701}", code: 125, window: window)
+            try await settle(host)
+            #expect(model.activeGitRow == .file(.init(path: "a.txt", source: .commit(commit.id)), graph: false))
+            let index = try Data(contentsOf: fixture.root.appendingPathComponent(".git/index"))
+            try key(" ", code: 49, window: window)
+            #expect(try Data(contentsOf: fixture.root.appendingPathComponent(".git/index")) == index)
+            let toggle = try #require(IntegrationFixAccessibility.find("git-section-commits-toggle", in: host))
+            #expect((toggle as AnyObject).accessibilityPerformPress())
+            try await settle(host)
+            let selected = model.activeGitRow
+            try key("\u{f701}", code: 125, window: window)
+            try key("\r", code: 36, window: window)
+            try await settle(host)
+            #expect(model.activeGitRow == selected)
+            #expect(try Data(contentsOf: fixture.root.appendingPathComponent(".git/index")) == index)
+        }
+    }
+
+    @Test func 選択行のControlReturnで行メニューを開く() async throws {
+        try await withAppearance {
+            let root = try fixtureDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let fixture = try GitWorkflowRenderFixture(parent: root)
+            let model = fixture.model()
+            await model.refresh()
+            await model.select("Sources/Workflow.swift", source: .worktree)
+            let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
+                openChanges: { _, _, _ in Issue.record("ControlReturn が差分を開いた") }, openFile: { _ in }, focusRequest: 1))
+            defer { close(window) }
+            let host = try #require(window.contentView)
+            try await settle(host)
+            try key("\r", code: 36, modifiers: .control, window: window)
+            try await settle(host)
+            let menu = NSApp.windows.compactMap(\.contentView).compactMap {
+                IntegrationFixAccessibility.find("git-row-menu", in: $0)
+            }.first
+            #expect(menu != nil)
+            try key("\u{1b}", code: 53, window: window)
+        }
+    }
+
+    @Test func コミット欄のCommandReturnだけがコミットする() async throws {
+        try await withAppearance {
+            let root = try fixtureDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let fixture = try GitWorkflowRenderFixture(parent: root)
+            let model = fixture.model()
+            await model.refresh()
+            model.commitMessage = "キーからのコミット"
+            model.requestCommitFocus()
+            let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
+                openChanges: { _, _, _ in }, openFile: { _ in }))
+            let host = try #require(window.contentView)
+            try await settle(host)
+            #expect(model.commitMessageFocused)
+            try key("\r", code: 36, modifiers: .command, window: window)
+            for _ in 0..<100 {
+                if model.commitMessage.isEmpty && !model.isWorkflowBusy { break }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            #expect(model.commitMessage.isEmpty)
+            #expect(!model.workflowStatusIsError)
+            #expect(model.stagedChanges.isEmpty)
+            close(window)
+            await model.stage(paths: ["Sources/Workflow.swift"])
+            model.commitMessage = "非表示ではコミットしない"
+            let other = makeWindow(EmptyView())
+            defer { close(other) }
+            try await settle(try #require(other.contentView))
+            #expect(!model.commitMessageFocused)
+            try key("\r", code: 36, modifiers: .command, window: other)
+            try await settle(try #require(other.contentView))
+            #expect(model.commitMessage == "非表示ではコミットしない")
+            #expect(!model.stagedChanges.isEmpty)
         }
     }
 
@@ -175,6 +335,7 @@ struct FocusBorderRenderTests {
         let appearance = NSApp.appearance
         var dark = arguments
         dark[ThemeStore.themeKey] = AppTheme.phlox.id
+        dark["phlox.inspector.git.changesExpanded"] = true
         defaults.setVolatileDomain(dark, forName: UserDefaults.argumentDomain)
         NSApp.appearance = NSAppearance(named: .darkAqua)
         defer {
@@ -233,8 +394,8 @@ struct FocusBorderRenderTests {
         return try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: window.windowNumber, context: nil, eventNumber: type == .leftMouseDown ? 1 : 2, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
     }
-    private func key(_ text: String, code: UInt16, window: NSWindow) throws {
-        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+    private func key(_ text: String, code: UInt16, modifiers: NSEvent.ModifierFlags = [], window: NSWindow) throws {
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: window.windowNumber, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: code))
         window.sendEvent(event)
     }

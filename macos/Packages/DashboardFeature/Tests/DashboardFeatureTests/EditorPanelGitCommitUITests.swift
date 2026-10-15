@@ -2,6 +2,7 @@
 
 import AppKit
 import Foundation
+import DesignSystem
 import SwiftUI
 import Testing
 @testable import DashboardFeature
@@ -41,7 +42,7 @@ struct EditorPanelGitCommitUITests {
         #expect(!viewModel.canCreatePullRequest)
     }
 
-    @Test func commit成功後のCreatePRは直近コミットsubjectをタイトルにする() async throws {
+    @Test func ステージ済みのコミットをプッシュした後のPRは直近subjectをタイトルにする() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("phlox-editor-pr-title-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -71,6 +72,10 @@ struct EditorPanelGitCommitUITests {
         try "a1\n".write(to: root.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
         try git(["add", "a.txt"])
         try git(["commit", "-m", "initial"])
+        let remote = root.appendingPathComponent("remote.git")
+        try git(["init", "--bare", remote.path])
+        try git(["remote", "add", "origin", remote.path])
+        try git(["push", "--set-upstream", "origin", "main"])
 
         let fakeGh = root.appendingPathComponent("fake-gh")
         try """
@@ -95,11 +100,18 @@ struct EditorPanelGitCommitUITests {
             workflowService: workflow
         )
         await viewModel.refresh()
-        viewModel.toggleCommitSelection(for: "a.txt")
+        await viewModel.stage(paths: ["a.txt"])
         viewModel.commitMessage = "feat: only-this-title"
-        await viewModel.commitSelectedPaths()
+        await viewModel.commitStagedChanges()
         #expect(viewModel.commitMessage.isEmpty)
         #expect(viewModel.workflowStatusIsError == false)
+        #expect(!viewModel.canCreatePullRequest)
+        #expect(viewModel.aheadCount == 1)
+        await viewModel.pushCommittedChanges()
+        #expect(viewModel.workflowStatusIsError == false)
+        #expect(viewModel.aheadCount == 0)
+        #expect(!viewModel.canPush)
+        #expect(viewModel.pushAvailabilityReason?.contains("コミット") == true)
         #expect(viewModel.canCreatePullRequest)
 
         await viewModel.createPullRequest()
@@ -107,6 +119,13 @@ struct EditorPanelGitCommitUITests {
         let title = try String(contentsOf: titlePath, encoding: .utf8)
         #expect(title == "feat: only-this-title")
         #expect(title != "Update")
+        try git(["branch", "--unset-upstream"])
+        try git(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"])
+        await viewModel.refreshWorkflowCapabilities()
+        #expect(viewModel.aheadCount == 0)
+        #expect(!viewModel.hasUpstream)
+        #expect(viewModel.canPush)
+
     }
 
     /// 折りたたまれた状態メッセージは、詳細表示を開くまでコンパクトに保たれる。
@@ -143,15 +162,157 @@ struct EditorPanelGitCommitUITests {
         #expect(viewModel.workflowStatusIsError == false)
     }
 
-    /// 狭い split 列幅では ViewThatFits が縦積みへ落ち、高さが広幅より有意に増える。
-    @Test func 狭い列幅でもコミットパネルのアクションは収まる() {
+    @Test func 要件の260ptと340ptでコミットパネルのアクションが収まる() {
         let viewModel = EditorPanelViewModel(service: nil, changeScope: .unavailable)
-        let narrow = measureCommitPanelSize(viewModel: viewModel, width: 180)
-        let wide = measureCommitPanelSize(viewModel: viewModel, width: 388)
-        #expect(
-            narrow.height > wide.height + 30,
-            "狭い列で ViewThatFits が縦積みへ落ちていない: narrow=\(narrow.height) wide=\(wide.height)"
-        )
+        for width in [CGFloat(260), 340] {
+            let size = measureCommitPanelSize(viewModel: viewModel, width: width)
+            #expect(size.width <= width, "操作部が列幅からはみ出す: \(size)")
+            #expect(size.height > 60 && size.height < 220, "固定操作部の高さ: \(size)")
+        }
+    }
+
+    @Test(arguments: [CGFloat(320), 760]) func 未選択の案内と差分の出どころを表示する(_ width: CGFloat) async throws {
+        let parent = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build")
+        let fixture = try GitWorkflowRenderFixture(parent: parent)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let model = fixture.model()
+        await model.refresh()
+        try await withAccessibilityHost(EditorPanelView(viewModel: model), width: width) { host in
+            let notice = try #require(IntegrationFixAccessibility.find("editor-no-selection", in: host))
+            #expect((notice as AnyObject).accessibilityRole() == .staticText)
+            #expect((notice as AnyObject).accessibilityValue() as? String == "Git タブで変更を選んでください")
+            #expect(IntegrationFixAccessibility.find("git-commit-panel", in: host) == nil)
+            #expect(IntegrationFixAccessibility.find("editor-change-list", in: host) == nil)
+            #expect(IntegrationFixAccessibility.find("editor-no-selection-help", in: host) != nil)
+            #expect(IntegrationFixAccessibility.find("editor-git-shortcut", in: host) != nil)
+            let edit = try #require(IntegrationFixAccessibility.find("editor-open-file", in: host))
+            #expect(!(edit as AnyObject).isAccessibilityEnabled())
+        }
+        for (source, label) in [(WorkingTreeSource.worktree, "作業ツリー"), (.staged, "ステージ済み")] {
+            await model.select("Sources/Workflow.swift", source: source)
+            try await withAccessibilityHost(EditorPanelView(viewModel: model), width: width) { host in
+                let origin = try #require(IntegrationFixAccessibility.find("editor-diff-source", in: host))
+                #expect((origin as AnyObject).accessibilityRole() == .staticText)
+                #expect((origin as AnyObject).accessibilityValue() as? String == label)
+                #expect(IntegrationFixAccessibility.find("editor-no-selection", in: host) == nil)
+                #expect(IntegrationFixAccessibility.find("editor-open-file", in: host) != nil)
+                let folder = try #require(IntegrationFixAccessibility.find("editor-diff-folder", in: host))
+                #expect((folder as AnyObject).accessibilityValue() as? String == "Sources")
+                #expect(IntegrationFixAccessibility.find("editor-diff-counts", in: host) != nil)
+                #expect(IntegrationFixAccessibility.find("editor-change-list", in: host) == nil)
+            }
+        }
+    }
+
+    @Test func 短い差分をスクロール領域の上端から表示する() async throws {
+        let parent = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build")
+        let fixture = try GitWorkflowRenderFixture(parent: parent)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let model = fixture.model()
+        await model.refresh()
+        for source in [WorkingTreeSource.worktree, .staged] {
+            await model.select("Sources/Workflow.swift", source: source)
+            try await withAccessibilityHost(EditorPanelView(viewModel: model), width: 760) { host in
+                let scroll = try #require(IntegrationFixAccessibility.find("editor-diff-scroll", in: host))
+                let first = try #require(IntegrationFixAccessibility.find("editor-code-line-0", in: host))
+                let topGap = (scroll as AnyObject).accessibilityFrame().maxY - (first as AnyObject).accessibilityFrame().maxY
+                #expect(abs((scroll as AnyObject).accessibilityFrame().height - (host.bounds.height - DSLayout.gitDiffHeaderHeight)) <= DSSpacing.xxs)
+                #expect(topGap >= 0 && topGap <= DSSpacing.m, "差分先頭の上端からの距離: \(topGap)")
+                #expect((first as AnyObject).accessibilityFrame().height <= DSLayout.gitDiffLineHeight + DSSpacing.xxs)
+                let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                let y = DSLayout.gitDiffHeaderHeight + DSSpacing.chip + DSLayout.gitDiffLineHeight * 2.5
+                let sample = try #require(bitmap.colorAt(x: Int(DSSpacing.xxs * CGFloat(bitmap.pixelsWide) / host.bounds.width),
+                    y: Int(y * CGFloat(bitmap.pixelsHigh) / host.bounds.height))?.usingColorSpace(.deviceRGB))
+                #expect(sample.redComponent > sample.greenComponent + 0.02,
+                    "上端付近の削除行が描かれていない: \(sample)")
+            }
+        }
+    }
+
+    @Test func ホバー時はステージ操作とVoiceOverラベルを表示する() async throws {
+        let model = EditorPanelViewModel(service: nil, changeScope: .unavailable)
+        let path = "Sources/Workflow.swift"
+        let change = WorkingTreeChange(path: path, kind: .modified, isBinary: false)
+        model.acceptSnapshot(.init(branch: "feature/git-workflow", changes: [change], lineCounts: [:],
+            unstagedChanges: [change], unstagedLineCounts: [path: .init(added: 2, deleted: 1)]))
+        let view = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in },
+            openFile: { _ in }, snapshotHoveredSelection: .init(path: path, source: .worktree))
+        try await withAccessibilityHost(view) { host in
+            let action = try #require(IntegrationFixAccessibility.find("git-stage-" + path, in: host))
+            #expect((action as AnyObject).accessibilityLabel() == "ステージ")
+        }
+    }
+
+    @Test(arguments: [WorkingTreeSource.worktree, .staged])
+    func ステージ処理中に閉じた区画は完了後も見出しに入力先がある(_ source: WorkingTreeSource) async throws {
+        let fixture = try GitWorkflowRenderFixture(parent: FileManager.default.temporaryDirectory)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let model = fixture.model()
+        await model.refresh()
+        await model.select("Sources/Workflow.swift", source: source)
+        var finish: CheckedContinuation<WorkingTreeDetail, Never>?
+        model.detailLoader = { _, _ in await withCheckedContinuation { finish = $0 } }
+        let view = GitInspectorView(model: model, workingDirectory: fixture.root.path,
+            openChanges: { _, _, _ in }, openFile: { _ in },
+            snapshotHoveredSelection: .init(path: "Sources/Workflow.swift", source: source))
+        try await withAccessibilityHost(view) { host in
+            let identifier = source == .staged ? "git-unstage-Sources/Workflow.swift" : "git-stage-Sources/Workflow.swift"
+            let stage = try #require(IntegrationFixAccessibility.find(identifier, in: host))
+            #expect((stage as AnyObject).accessibilityPerformPress())
+            for _ in 0..<200 where finish == nil { try await Task.sleep(for: .milliseconds(10)) }
+            let continuation = try #require(finish)
+            // 完了後の次行選択がもう一度待機しないよう、取得口を通常へ戻す。
+            model.detailLoader = nil
+            let header = try #require(IntegrationFixAccessibility.find("git-section-changes-toggle", in: host))
+            #expect((header as AnyObject).accessibilityPerformPress())
+            try await Task.sleep(for: .milliseconds(100))
+            continuation.resume(returning: .diff("待機していた差分"))
+            for _ in 0..<200 where model.isWorkflowBusy { try await Task.sleep(for: .milliseconds(10)) }
+            #expect(!model.isWorkflowBusy)
+            try await Task.sleep(for: .milliseconds(100))
+            host.layoutSubtreeIfNeeded()
+            let collapsedHeader = try #require(IntegrationFixAccessibility.find("git-section-changes-toggle", in: host))
+            let headerRect = (collapsedHeader as AnyObject).accessibilityFrame()
+            // SwiftUIの入力先はNSHostingView内のAX要素。firstResponderの枠はホスト全体になる。
+            let selector = NSSelectorFromString("accessibilityFocusedUIElement")
+            let focused = try #require(host.perform(selector)?.takeUnretainedValue() as? NSObject)
+            let focus = (focused as AnyObject).accessibilityFrame()
+            #expect(focus.intersects(headerRect))
+            #expect(focus.height <= DSLayout.gitRowHeight + DSSpacing.xxs, "一覧全体ではなく見出しが入力先である")
+            #expect((collapsedHeader as AnyObject).accessibilityValue() as? String == "折りたたみ中")
+        }
+    }
+
+    private func withAccessibilityHost(_ content: some View, width: CGFloat = 340, check: (NSView) async throws -> Void) async throws {
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let defaults = UserDefaults.standard
+        let key = "phlox.inspector.git.changesExpanded"
+        let previousExpansion = defaults.object(forKey: key)
+        defaults.set(true, forKey: key)
+        defer {
+            if let previousExpansion { defaults.set(previousExpansion, forKey: key) }
+            else { defaults.removeObject(forKey: key) }
+        }
+        let getter = NSSelectorFromString("accessibilityAttributeValue:")
+        let setter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
+        let host = NSHostingView(rootView: content.environment(\.locale, Locale(identifier: "ja")).frame(width: width, height: 520))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: 520),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.contentView = nil; window.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        host.layoutSubtreeIfNeeded()
+        try await check(host)
     }
 
     @MainActor

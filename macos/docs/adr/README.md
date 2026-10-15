@@ -12,6 +12,13 @@ last-verified: 2026-10-15
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0210 | [Git の区画間で行を区別し、変更タブの名前を固定する](0210-git-section-row-identity-and-stable-changes-title.md) | accepted |
+| 0209 | [Git の一括処理順と履歴の連続性を保つ](0209-git-batch-order-and-history-continuity.md) | accepted |
+| 0208 | [Git 履歴の利用順と追加取得を要件へ合わせる](0208-git-history-review-corrections.md) | accepted（改名と追加取得は0209で補完） |
+| 0207 | [競合の分離とindexの1項目に限定した操作](0207-git-conflicts-and-exact-index-entry-actions.md) | accepted |
+| 0206 | [Git タブに履歴・ブランチ・スタッシュ・グラフを集約する](0206-git-history-branches-stashes-and-graph.md) | accepted |
+| 0205 | [Git の出どころ別の状態と表示中の操作対象を保持する](0205-git-status-records-and-visible-row-actions.md) | superseded（分類と操作範囲は0207） |
+| 0204 | [Git タブにステージと書き込みを集約し、差分は変更タブで開く](0204-git-staging-and-changes-navigation.md) | accepted |
 | 0203 | [新規チャットの worktree の起点を選び、作成時に再解決する](0203-new-chat-worktree-start-point.md) | accepted |
 | 0202 | [一覧と下部端末のフォーカス外枠をなくし、高さの境界を共通部品にする](0202-borderless-focus-and-shared-bottom-resize-grip.md) | accepted |
 | 0201 | [ユーザー用 PTY の制御端末をシェルの実装に頼らず確立する](0201-interactive-pty-controlling-terminal.md) | accepted |
@@ -20,7 +27,7 @@ last-verified: 2026-10-15
 | 0198 | [ユーザー用端末の初期設定とヘッダーの操作境界を分ける](0198-user-terminal-cooked-mode-and-toolbar-selection.md) | accepted |
 | 0197 | [下部ターミナルの表示器をプロジェクトごとに1つにする](0197-bottom-terminal-single-display.md) | accepted |
 | 0196 | [中央の下部パネルにプロジェクトごとのターミナルを置く](0196-project-bottom-terminal-panel.md) | superseded |
-| 0195 | [インスペクタに共有作業ツリーの Git タブを戻す](0195-inspector-git-shared-working-tree.md) | accepted |
+| 0195 | [インスペクタに共有作業ツリーの Git タブを戻す](0195-inspector-git-shared-working-tree.md) | superseded（差分配置は0204） |
 | 0194 | [ファイルツリーの Return を名前変更に使う](0194-file-tree-inline-operations.md) | accepted |
 | 0193 | [ユーザー用ターミナルのシェルを設定から解決する](0193-user-terminal-shell-selection.md) | accepted |
 | 0192 | [インスペクタの「使用量」と「セッション」のタブを廃止し、ファイルだけにする](0192-inspector-files-only.md) | accepted |
@@ -44,7 +51,7 @@ last-verified: 2026-10-15
 | 0174 | [表示切替後のターミナル空白を、接続先の所有権管理で防ぐ](0174-terminal-mount-ownership-prevents-blank-after-view-mode-switch.md) | active |
 | 0173 | [Claude Code の stream フラグとサブエージェント部分メッセージ](0173-claude-code-stream-flags-and-subagent-partials.md) | accepted |
 | 0172 | [Claude のツール許可要求をユーザー承認へ中継する](0172-tool-permission-requests-forwarded-to-user-approval.md) | accepted |
-| 0171 | [エディタパネルの Git 状態詳細は展開可能なスクロール領域で表示する](0171-editor-panel-workflow-status-disclosure.md) | accepted |
+| 0171 | [エディタパネルの Git 状態詳細は展開可能なスクロール領域で表示する](0171-editor-panel-workflow-status-disclosure.md) | superseded（配置と折りたたみは0204） |
 | 0170 | [worktree 隔離に失敗したら起動を中止する（従来挙動へフォールバックしない）](0170-worktree-isolation-aborts-instead-of-falling-back.md) | accepted |
 | 0161 | [`.appServer` グリッドのカクつきの主因は transcript 全件の再グルーピングであり、ADR 0116 の対処1・2・4 では改善しない](0161-appserver-grid-jank-root-cause-is-full-transcript-grouping.md) | active |
 | 0160 | [Data Protection Keychain への移行と、端末別モバイルトークン](0160-data-protection-keychain-and-per-device-mobile-tokens.md) | active |
@@ -60,7 +67,7 @@ last-verified: 2026-10-15
 | 0169 | [エディタパネルの git 書き込み操作（stage/commit/push/PR）](0169-editor-panel-git-write-operations.md) | accepted |
 | 0150 | [エディタパネルの git 連動仕様（変更一覧の一本化・保存競合・不変条件の意味論化）](0150-editor-panel-git-semantics.md) | superseded → 0169 |
 | 0149 | [ユーザーターミナルはセッション非依存・cwd はホーム固定・シェルは閉じても保持](0149-user-terminal-lifecycle.md) | accepted（一部を 0187 で置換） |
-| 0148 | [ターミナル／エディタパネルの容器はメインウィンドウ内のドロワーにする](0148-terminal-editor-panel-container-drawer.md) | accepted |
+| 0148 | [ターミナル／エディタパネルの容器はメインウィンドウ内のドロワーにする](0148-terminal-editor-panel-container-drawer.md) | superseded |
 | 0147 | [コードビューを枠線付きカードへ 1 本化し、見出しの重複・時刻・件数を落とす](0147-chat-code-card-and-header-dedup.md) | accepted |
 | 0146 | [ファイル変更をコードビューで描く（行番号は推測しない）](0146-diff-code-view.md) | accepted |
 | 0145 | [ツール実行グループの見出しを recap にし、開閉トグルを右端へ移す](0145-tool-group-recap-header.md) | accepted |

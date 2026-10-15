@@ -3,35 +3,6 @@ import Observation
 import AgentDomain
 import SessionFeature
 
-@MainActor @Observable
-final class GitDetailLoader {
-    private(set) var detail: WorkingTreeDetail?
-    private(set) var error: String?
-    private var path: String?
-    private var generation = 0
-
-    func clear() {
-        generation &+= 1
-        path = nil
-        detail = nil
-        error = nil
-    }
-
-    func load(path: String, fetch: (String) async throws -> WorkingTreeDetail) async {
-        clear()
-        self.path = path
-        let request = generation
-        do {
-            let result = try await fetch(path)
-            guard !Task.isCancelled, self.path == path, generation == request else { return }
-            detail = result
-        } catch {
-            guard !Task.isCancelled, self.path == path, generation == request else { return }
-            self.error = error.localizedDescription
-        }
-    }
-}
-
 struct WorkingTreeLineCount: Equatable, Sendable {
     var added: Int
     var deleted: Int
@@ -41,10 +12,29 @@ struct WorkingTreeSnapshot: Sendable {
     var branch: String
     var changes: [WorkingTreeChange]
     var lineCounts: [String: WorkingTreeLineCount]
+    var stagedChanges: [WorkingTreeChange] = []
+    var unstagedChanges: [WorkingTreeChange] = []
+    var conflictedPaths: [String] = []
+    var stagedLineCounts: [String: WorkingTreeLineCount] = [:]
+    var unstagedLineCounts: [String: WorkingTreeLineCount] = [:]
 }
 
 /// 表示・更新規則。一覧の正本は EditorPanelViewModel。
 enum GitTabPolicy {
+    static func isUnmerged(index: UInt8, worktree: UInt8) -> Bool {
+        ["DD", "AU", "UD", "UA", "DU", "AA", "UU"].contains(String(decoding: [index, worktree], as: UTF8.self))
+    }
+    static func runningInProject(status: SessionStatus, workspacePath: String, projectPath: String) -> Bool {
+        status == .running && WorkspaceCollisionPolicy.canonicalPath(workspacePath) == WorkspaceCollisionPolicy.canonicalPath(projectPath)
+    }
+
+    @MainActor
+    static func runningSessionNames(sessions: [SessionNode], project: Project?) -> [String] {
+        guard let project else { return [] }
+        return sessions.filter {
+            $0.projectID == project.id && runningInProject(status: $0.status, workspacePath: $0.rawWorkspacePath, projectPath: project.directoryPath)
+        }.map { $0.id.description }
+    }
     @MainActor
     static func turnCompletions(sessions: [SessionNode], projectID: ProjectID?) -> [SessionID: Date] {
         guard let projectID else { return [:] }

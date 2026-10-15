@@ -24,11 +24,10 @@ last-verified: 2026-10-15
 | 表示とシェルの束ね | `TerminalPanelSession`（DashboardFeature/UserTerminal/TerminalPanelView.swift） | `UserTerminalController` と `TerminalUI.TerminalCoordinator` を束ねる。ターミナル子タブごとと、下部パネルのプロジェクトごとに1つ |
 | パネル寿命の所有者 | `ProjectTerminalStore`（DashboardFeature/UserTerminal/ProjectTerminalStore.swift、`@MainActor`。`PhloxApp` の `@State` が 1 つ持つ） | `TerminalTabID` → （`TerminalPanelSession`・プロジェクト ID・作業フォルダ）の置き場。`terminal(for:projectID:workingDirectory:)` が初めて開くときだけ作る（フォルダが変わっていたら旧い場所のシェルを止めて作り直す）。子タブとは別にプロジェクトごとの下部シェルを保持する。`close(_:)` は子タブだけ、`closeProject(_:)`・`shutdownAll()` は下部シェルも止める |
 | ターミナル表示 | `TerminalPanelView`（同ファイル） | `TerminalCoordinator` を `TerminalUI.TerminalView`（SwiftTerm 表示）へ橋渡しする、容器非依存の View |
-| git 読み書き | `WorkingTreeService`（DashboardFeature/WorkingTree、`actor`） | `/usr/bin/git`（`--no-optional-locks` 付き）をラップし、`isGitRepository()` / `changes()` / `detail(for:)` / `fileContents(_:)` / `save(path:content:expectedDiskContent:)` を提供 |
+| git 読み取り・ファイル保存 | `WorkingTreeService`（DashboardFeature/WorkingTree、`actor`） | `/usr/bin/git`（`--no-optional-locks` 付き）をラップ。`snapshot()` はステージ別の一覧・行数、`detail(for:source:)` と `fileContents(_:source:)` は比較元別の差分・本文を取得。旧 `detail(for:)` の HEAD 比較とファイル保存 API も維持 |
 | git 値型 | `WorkingTreeChange` / `WorkingTreeDetail` / `WorkingTreeSaveOutcome`（DashboardFeature/WorkingTree/WorkingTreeTypes.swift） | 変更エントリ（path/kind/isBinary）・詳細（diff/untrackedContent/binary）・保存結果（saved/conflict） |
 | エディタ VM | `EditorPanelViewModel`（DashboardFeature/Editor、`@MainActor @Observable`） | `listState`（noProject/notARepository/ready）・`changes`・`selectedPath`・`detail`・`draft`・`isDirty` を保持し、`refresh()` / `select(_:)` / `save()` / `overwrite()` を提供。競合検出は「選択時点でロードしたディスク内容」を基準にする |
-| エディタ内部レイアウト | `EditorPanelLayout`（DashboardFeature/Editor/EditorPanelView.swift、SwiftUI 非依存の純粋 enum） | 表示幅から `.split`（変更リスト＋詳細を左右分割。内在最小幅 541pt）／`.stacked`（縦積み）を決める |
-| エディタ表示 | `EditorPanelView`（同ファイル） | 変更一覧・diff/内容プレビュー（`ChatCodeHighlighter.highlight` で構文ハイライト。SessionFeature の `ChatCodeBlock.swift` を共有）・`TextEditor` での編集・保存・競合アラートを持つ、容器非依存の View |
+| 変更タブ表示 | `EditorPanelView`（DashboardFeature/Editor/EditorPanelView.swift） | 選択された1ファイルの差分／内容を表示。構文ハイライトは既存の `ChatCodeHighlighter.highlight` を共有し、編集はファイルタブへ渡す |
 | PTY spawn 起動 | `makeTerminalPanelSession(environment:workingDirectory:)`（App/PhloxApp.swift） | `UserTerminalController` にプロジェクトのフォルダと `UserShellSettings.resolve` を渡す（`HOME` はホーム）。`ProjectTerminalStore` の factory として渡し、`AppDelegate.sessionUserTerminals` へも同じ置き場を渡す |
 | 終了処理 | `AppDelegate`（App/AppDelegate.swift、extension） | `applicationShouldTerminate` から `shutdownUserTerminal()`（`ProjectTerminalStore.shutdownAll()`）→ `PTYManager.terminateAllAndWait` を待つ Task と、全チャットセッションの `flushTranscriptNow()` を待つ Task を並行実行し、両方の完了後に reply する（[ADR 0110](../adr/0110-midturn-flush-and-termination-race.md)・[ADR 0149](../adr/0149-user-terminal-lifecycle.md)） |
 | fd 衛生 | `Posix.spawn`（PTYKit/Sources/PTYKit/Posix.swift） | raw は `POSIX_SPAWN_CLOEXEC_DEFAULT`（[ADR 0151](../adr/0151-pty-spawn-fd-hygiene.md)）、interactive は C の子で標準入出力と errno 通知用 pipe 以外を閉じる（[ADR 0201](../adr/0201-interactive-pty-controlling-terminal.md)） |
@@ -75,21 +74,50 @@ Picker の AXLabel は画面外の同じ構成で手元確認し、追加ラベ�
 
 下部シェルの `hasStarted` は初回起動の成功後に立つ。表示メニューの再起動はその値を条件とし、閉じていてもパネルを開く。起動中は見出しの再起動を無効にし、失敗理由は表示に残す。
 
-## データフロー（エディタ）
+## Git・変更タブ（ADR 0204〜0209、GW-1〜15）
 
-右サイドバーの Git タブも `EditorPanelCoordinator.viewModel` の一覧・取得状態・ブランチ・行数を参照する（ADR 0195）。一覧の読み直しは共有モデルだけが行い、更新中の要求はまとめて追従する。Git 側は選択パスと読み取り専用の差分を別に持ち、変更タブの選択・下書きを変更しない。Git のダブルクリック／Return／メニューは `AppRouter.openChildTab(.changes)` と既存の `select(_:)` に渡す。コミット欄は変更タブの既存欄を表示し、入力フォーカスを要求する。
+ADR 0206 により、変更の後にコミット・ブランチ・リモートブランチ・スタッシュ・グラフを配置する。読み取りは WorkingTreeService、書き込みは GitWorkflowService を使う。開いた区画は refresh から更新し、閉じた区画は次に開いたとき読む。履歴行のファイルは行を開いたときだけ取得する。履歴の差分は比較元にコミットIDを保持して変更タブに渡し、読み取り専用とする。⇧⌘R は取得、⌥⌘S はスタッシュ入力を開く。
 
-更新は Git タブ表示時、対象プロジェクトに属するセッションの `lastTurnCompletedAt` の変化、`.fileTreeFileSaved`（保存と作成・名前変更・削除）、`NSApplication.didBecomeActiveNotification`、手動更新を共有モデルへ渡す。保存・ツリー操作通知は共有モデル自身が購読し、DashboardView はツリーの更新だけを行う。対象外のプロジェクトのイベントは無視する。新着は直前の成功した一覧にないパスだけとし、初回と失敗後の再試行で全行を新着にしない。差分はハンク見出しを含め60行で切り、300pt以上で行番号を出す。未追跡テキストは追加行、バイナリは専用表示。失敗理由と管理外を区別する。
+グラフの `--all` から `refs/stash` を除外し、スタッシュのindex／未追跡を保存する内部コミットをブランチ履歴へ混ぜない。スタッシュの一覧と差分は独立した区画から読む。
+
+ADR 0208 により、モデル交換時も開いた区画を同期する。ADR 0209 により、ブランチは現在のブランチを先頭とし、HEAD reflog の切り替え先の新しい順を各ローカル参照の改名記録から現在名へ引き継ぐ。記録のないものは最終コミット時刻順。グラフは最初200件、続きを読むでは必要件数を200件増やして先頭から再取得し、一覧とレーンを置き換える。外部でコミットが増えてもページを連結して重複させない。コミット／スタッシュのバイナリ判定は `--numstat` を使う。スタッシュ確認は操作名・対象件数・未追跡件数とHEADへ戻す説明を含む。リモート単位で開閉し（originは既定で開く）、FETCH_HEADの更新時刻とローカルのupstreamに基づく追跡中の印を表示する。取得履歴がなければ時刻を出さない。
+
+既知の制限: 旧名を別ブランチが再利用してから再度改名すると、利用順が混同される（並び順だけでデータには影響しない）。reflog では見分けられないため受け入れた。テストは既知の不具合として残す。経緯は [ADR 0209](../adr/0209-git-batch-order-and-history-continuity.md) に調査結果を記録する。
+
+Git の書き込み欄は既存の `GitCommitPanel` と共有 `EditorPanelViewModel` を右サイドバー上部に配置する。ブランチ・更新・メッセージ・コミット／プッシュ／PR・理由・状態表示はスクロール外に置く。メッセージは1〜5行、失敗は3行の要約と詳細、×で閉じる。次の操作で状態表示を消す。⇧⌘C はメッセージへ入力先を移し、⌥⌘P はプッシュする。Git 表示中だけメニューから利用できる。
+
+その下は保存した開閉状態と貼り付く見出しを持つ1本のスクロールとする。「変更」区画は index の「ステージ済み」と作業ツリーの「変更」に分ける。行の選択は出どころとパスで識別し、部分ステージのファイルも区別する。ホバー／選択中は行数を＋／−に置き換える。Space・VoiceOver のカスタムアクション・グループの一括操作は同じ `GitWorkflowService` を使い、操作後は同じグループの次の行へ進む。
+
+コミットは index だけを対象とし、選択チェック状態は持たない。読み取りは `WorkingTreeService` の `--no-optional-locks` を維持し、出どころ別に一覧・行数・差分を取得する。Git タブに差分やドラッグ境界は置かない。行のクリックで既存の変更子タブへ選択パスと出どころを渡し、重ね表示の右サイドバーを閉じる。
+
+自動更新は選択パスを保持する。元のグループから消え、反対のグループに同じパスが残った場合は出どころを切り替えて追従する。ステージ操作後の次行移動は自動更新とは別に、操作対象のグループ内で決める。初回コミット前にステージした後さらに本文を編集すると、`git rm --cached` が保護のため解除を拒否する場合がある。この場合も git の理由を表示し、index と作業ファイルを保持する。強制解除は実装しない。
+
+変更タブは幅によらず1ファイルの差分／内容と「ファイルタブで編集」を表示する。タブ列とウィンドウ見出しの名前は件数や開き直しによらず「変更」（英語は Changes）に固定する。左一覧・コミット欄・「エディタ」の見出しは無い。見出しにはファイル名・フォルダ・追加／削除行数・比較元（作業ツリー／ステージ済み／コミットID／スタッシュ名）を示す。未選択時も無効なツールバーと、選択の案内・補足説明・Git タブを表示するキー（⇧⌃⌘G）を出す。
+
+Git の履歴区画は区画ID、コミット行全体は `GitHistoryRowID.commit(id, graph:)` で識別する。同じコミットを2区画に表示しても遅延描画の行を共有しない。展開ファイルのAX識別子もグラフ／コミットを区別する。現在ブランチの先行数は正のときだけ表示する（ADR 0210）。
+
+状態取得は porcelain v1 の XY と改名元を保持し、同じパスの削除レコードと未追跡レコードを潰さない。DD/AU/UD/UA/DU/AA/UU は通常分類より先に競合として分離し、専用の一覧とターミナルでの解消案内を出す。競合行はステージ／解除の対象に含めず、競合が残る間はコミットを無効にして理由を示す（ADR 0207）。ステージ済みと作業ツリーはそれぞれの状態から独立に列挙し、差分取得も出どころでレコードを選ぶ。旧一覧向けのパス単位の集約はこの2一覧へ流用しない。
+
+削除のステージは `git rm --cached --quiet` で該当index項目だけを削除する。改名元の補完も同じ操作とする。一括ステージは対象全体の削除を追加より先に行う。解除は対象全体を分類し、HEAD にない追加を再帰指定のない `rm --cached` で先に外してから、HEAD の完全一致する項目を子から親の順で `update-index --add --cacheinfo` により戻す。同名ディレクトリの選択外の子へ対象を広げず、衝突する復元は拒否する。失敗時も共有一覧を再取得し、実際の index と失敗理由を表示する（ADR 0209）。初回前の部分ステージの解除は引き続き Git の保護に従う。
+
+ステージ／解除の完了時にも開閉状態を確認し、処理中に閉じた区画は見出しへの入力先を保つ。グラフの履歴行を展開すると、直後のレーン位置に縦線を描き、ファイル一覧・読込中・空の領域を通して次のコミットへ接続する。
+
+折りたたみ時は見出しへ入力先を移し、行の移動・Space・Return・行メニューは表示中の行だけに適用する。プッシュはリモートがあり、コミットとブランチが存在し、追跡先なし、または先行数が正のときだけ有効とする。追跡先なしは「プッシュ（追跡先を作る）」を案内し、既存の push -u を使う。Git 表示中は ⌃↩ で行メニュー、コミット欄では ⌘↩ でコミットでき、Git メニューから PR を作成できる。
+
+## データフロー（エディタ、共通の取得・保存）
+
+右サイドバーの Git タブも `EditorPanelCoordinator.viewModel` の一覧・取得状態・ブランチ・行数を参照する。一覧の読み直しは共有モデルだけが行い、更新中の要求はまとめて追従する。Git のクリック／Return／メニューは `AppRouter.openChildTab(.changes)` と `select(_:source:)` に渡す。コミット欄の入力先も同じモデルへ要求する。
+
+更新は Git タブ表示時、対象プロジェクトに属するセッションの `lastTurnCompletedAt` の変化、`.fileTreeFileSaved`（保存と作成・名前変更・削除）、`NSApplication.didBecomeActiveNotification`、手動更新を共有モデルへ渡す。保存・ツリー操作通知は共有モデル自身が購読し、DashboardView はツリーの更新だけを行う。対象外のプロジェクトのイベントは無視する。新着は直前の成功した一覧にないパスだけとし、初回と失敗後の再試行で全行を新着にしない。未追跡テキストは追加行、バイナリは専用表示。失敗理由と管理外を区別する。
 
 1. `DashboardView.updateEditorPanel()` は `EditorPanelCoordinator.update(project:workspaces:)` に対象を渡す。
    `.task(id: editorPanel.target)` が `resolve(workspaces:)` を呼び、対象プロジェクトが変わったら
    `WorkingTreeService(repositoryRoot:)` を注入した新しい `EditorPanelViewModel` を作る（未選択時は `service: nil`）。
-2. `EditorPanelView` は表示幅（`GeometryReader`）を `EditorPanelLayout.mode(forWidth:)` に通し、
-   `.split`（`HSplitView`）／`.stacked`（`VSplitView`）を切り替えて変更一覧と詳細ペインを配置する。
+2. `EditorPanelView` は選択されたファイルの詳細ペインを表示する。
 一覧取得失敗・Git 管理外への変化でも、未保存下書きがある場合は、その選択と下書きを保持する。保存通知は通知元と共有 Git ルートが包含関係にある場合に更新するため、リポジトリ内の下位フォルダをプロジェクトとして開いた場合も対象にする。未追跡ファイルの行数は最大1MBまでの読み取りで求め、上限超過・読み取り不能・ルート外 symlink ではその行の行数だけ省く。追跡ファイルの行数とバイナリ判定は同じ numstat の結果を使う。Git の通常取得・再試行は同じ処理を通り、選択パス・取得世代・キャンセルを確認してから差分を反映する。本文中の `+++` / `---` はハンク開始後なら差分行として残す。
 
 3. Refresh ボタン → `viewModel.refresh()` → `WorkingTreeService.snapshot()`。ファイル選択 →
-   `viewModel.select(_:)` → `WorkingTreeService.detail(for:)` + `fileContents(_:)`（追跡ファイルの
+   `viewModel.select(_:source:)` → `WorkingTreeService.detail(for:source:)` + `fileContents(_:)`（追跡ファイルの
    場合、diff 表示と同時に本文を読み込んで `draft` へロードする）。
    編集可否は `WorkingTreeText.maximumEditableFileSize`（5 MB）、内容の閲覧可否は `maximumReadableFileSize`（20 MB）を共有する。BOM込みで判定し、5 MB超は保存・dirtyを止め、既存のファイルタブへ閲覧を渡す。20 MB超は変更プレビューのみ。差分の色付けと500行単位のプレビューは維持し、「内容」は1 MB超を本文色とする。外部変更は再選択で読み直す。
 4. 保存 → `viewModel.save()` → `WorkingTreeService.save(path:content:expectedDiskContent:)`。
@@ -100,13 +128,18 @@ Picker の AXLabel は画面外の同じ構成で手元確認し、追加ラベ�
 
 保存通知の対象は `WorkingTreeService` が現在解決する Git ルートで判定する。管理外で開いた後に `git init` し、手動更新で復帰した場合も保存に追従する。ターン終了日時の収集と更新の接続は `GitTabPolicy` の小さな関数にまとめ、DashboardView の監視から呼ぶ。対象プロジェクトの日時が変わった場合だけ共有モデルを更新する。
 
-差分は `diff --git` ごとにハンク状態を戻し、次のファイルの `---`／`+++` を本文に含めない。Git 側の行背景は共有色トークンの不透明度を調整し、本文の左余白は既存の最小間隔を加える。管理外見出しは通常書体・副文字色、パスは `~` 表記、管理外と失敗の本文タイトルは主文字色。失敗説明の追加行間は `DSSpacing.xs` とする。既存の決定の変更はないため、新しい ADR は追加しない。
+差分は `diff --git` ごとにハンク状態を戻し、次のファイルの `---`／`+++` を本文に含めない。Git の行背景には共有色トークンを使う。管理外見出しは通常書体・副文字色、パスは `~` 表記、管理外と失敗の本文タイトルは主文字色。失敗説明の追加行間は `DSSpacing.xs` とする。
 
 ## テスト
+
+ブランチ行の先行数は、`GitDisplayRegressionTests` で製品の `branchRow` を画面外描画し、右端の画素を文字なし／`↑1` の参照描画と比較する。0件では文字がなく、1件では `↑1` があることを検査し、AX値の上書きに依存しない。表示条件を旧条件へ戻した場合の失敗も手元で確認する（この一時変更は製品コードに残さない）。
 
 | ファイル | 固定している性質 |
 |---|---|
 | `TerminalEnvironmentTests` | ユーザー用端末の LANG の既定値 `en_US.UTF-8`、アプリ環境の LANG の優先（空文字も従来のエージェント用規則に従って維持）、HOME・PATH・TERM の保持 |
+| `GitHistoryWorkflowTests` | 一時リポジトリの履歴50件と続き、初回／空状態、参照、コミット／スタッシュの差分と本文、改名・削除・バイナリ、ブランチ操作、追跡付きチェックアウト、取得、未マージ削除、切り替え失敗、スタッシュ衝突とID保持、開閉に応じた更新。グラフ200件取得後の外部コミットでもIDが重複せず、先頭と末尾へ届くこと、現在／非現在／連続改名で利用順を引き継ぐことも検査 |
+| `GitHistoryPolicyTests` / `FocusBorderRenderTests` | 分岐・合流・複数親のレーン、札の束ね、実行中と作業フォルダの確認条件、開いた区画と展開行だけの操作、画面外ウィンドウへのキー入力とindex保全 |
+| `GitHistoryRenderTests` | `PHLOX_DESIGN_SNAPSHOTS=1 PHLOX_DESIGN_SNAPSHOT_SCOPE=git-history` で通常・空・展開・確認・失敗・グラフ・履歴差分の144画像（260/340pt、日英、明暗）を書き出す。通常の全件テストでは画像生成を行わない |
 | `UserShellSettingsTests` | `/etc/shells` の読み取り・候補の整理・実行可能性・無効パスの保存拒否・システム既定への代替・存在確認後の消失・再試行回数とエラー伝播・再起動時の反映・注意の出力順と旧プロンプトとの分離・出力待機の期限と失敗時の終了処理・実際の bash の `$0` と `$SHELL` |
 | `AcceptanceUserTerminalTests` / `UserTerminalControllerWhiteboxTests` | PTY 起動の冪等性・入出力・自然終了→再起動・世代分離・drain 待ち・shutdown 冪等 |
 | `AcceptanceWorkingTreeTests` / `WorkingTreeServiceWhiteboxTests` | 変更一覧・diff・保存・競合検出・リネーム/非 ASCII パス・巨大 stderr 耐性 |
@@ -114,11 +147,15 @@ Picker の AXLabel は画面外の同じ構成で手元確認し、追加ラベ�
 | `TerminalCoordinatorVisibleTextTests`（TerminalUI） | 行内の空セル・タブ移動は空白、全角文字の後続セルは除外し、VoiceOver の値にNULを含めない |
 | `TerminalPanelViewWhiteboxTests` | パネルの表示器が共有コントローラを保持し、入出力を `TerminalCoordinator` へ接続すること |
 | `EditorPanelVMTests` | VM の一覧/選択/編集/保存/競合フロー |
+| `GitStagingTests` / `GitWorkflowTests` | 実リポジトリでのステージ・解除・部分ステージの index だけのコミット・特殊名・削除・改名・初回コミット前・失敗時の状態保全・次行移動・外部操作後の選択パス維持・比較元別の差分／本文／行数／バイナリ。未マージ7種類の分離・一括ステージの除外・コミット禁止、同名ディレクトリの子を巻き込まない削除／改名／解除も検査。ファイルと同名ディレクトリの相互置換の一括操作、引数の正順／逆順、途中失敗後および外部変更後の一覧と実際のindexの一致も検査 |
+| `EditorPanelGitCommitUITests` / `GitWorkflowRenderTests` | 未選択と比較元の AX 静的テキスト値・ホバー操作・260/340pt・プッシュ前後の PR 可否。差分取得の待機中に区画を閉じ、＋／−の完了後もAXの入力先が見出しであることを検査。`PHLOX_DESIGN_SNAPSHOTS=1 PHLOX_DESIGN_SNAPSHOT_SCOPE=git-workflow` で競合を含む Git 40 状態と変更タブ12状態を画面外に描画。`git-rereview` は履歴144画像も同じ実行で生成 |
 | `GitInspectorTests` / `GitInspectorServiceTests` | 複数ファイル差分のヘッダー除外・管理外から Git 管理へ復帰した後のファイルタブ保存による共有一覧更新（ルートと子フォルダ）・実際のターン終了日時から共有一覧更新への接続・別プロジェクトと同じ日時の更新抑止 |
-| `PanelIntegrationWhiteboxTests` | 左右分割/縦積みの切替幅・変更種別ごとの SF Symbol |
+| `EditorPanelGitCommitUITests` / `GitInspectorTests` | 320/760ptの1ペイン表示・選択の世代競合・非表示行のキー操作抑止・見出しと未選択案内 |
+| `PanelIntegrationWhiteboxTests` | 変更種別ごとの SF Symbol |
+| `GitDisplayRegressionTests` / `ProjectTabsPresentationTests` | 同じコミットをコミット区画とグラフ区画で繰り返し展開し、行とファイルのAX識別子・グラフ行の高さ・ファイルの左余白・先頭の空白を検査する。変更タブは件数0〜3で開閉・再選択し、1枚だけを保持して日英の名前を固定する。`PHLOX_INTEGRATION_FIX_SNAPSHOTS=1` と `GitDisplayRegressionTests` の絞り込みで全区画展開の画面外画像を保存する |
 | `PosixSpawnCloexecTests`（PTYKit） | spawn した子が無関係な fd を継承しないこと |
 | `PTYTerminalModeTests`（PTYKit） | ユーザー用の echo・icanon・制御文字、従来のエージェント用 raw 設定、実 bash の stty と Return 前の入力エコー |
 | `InteractiveSpawnTests`（PTYKit） | zsh/bash の前景 TPGID・Ctrl-C・前景へのサイズ変更、標準 fd 欠落時の ENOENT・子回収、高番号 fd 非継承、起動失敗反復後の fd 数・子回収、cwd・環境、既定 raw のサイズ変更通知 |
 | `FileTreeInteractionTests` | 右クリック／Return から入力欄の表示・フォーカス・拡張子前の選択・確定までを通し、ファイル／フォルダ内のタブと未保存本文・Undo の同一性を保つ |
-| `FocusBorderRenderTests` | 画面外のウィンドウでファイルツリー・Git 一覧・Git 差分・下部端末へ入力先を移し、左右の外周画素を検査する。アプリと窓のアクティブ状態だけをテストプロセス内で代替し、入力先は実際の SwiftUI フォーカス要素／端末の first responder から確認する。行クリックと共通の AX 押下処理→ポインタ退出→ファイル／フォルダの選択の塗り→Return の名前変更対象も検査する。画像保存は `PHLOX_DESIGN_SNAPSHOTS=1` で指定し、WS の `worktree-start` 画像と同じ実行で出力できる |
+| `FocusBorderRenderTests` | Git の折りたたみ後の見出しへの入力先移動とindex保全・⌃↩の行メニュー・コミット欄の⌘↩と非表示時の抑止。画面外のウィンドウでファイルツリー・Git 一覧・変更タブの差分・下部端末へ入力先を移し、左右の外周画素を検査する。差分は中立の通常行を測り、追加・削除の色と外枠を混同しない。アプリと窓のアクティブ状態だけをテストプロセス内で代替し、入力先は実際の SwiftUI フォーカス要素／端末の first responder から確認する。行クリックと共通の AX 押下処理→ポインタ退出→ファイル／フォルダの選択の塗り→Return の名前変更対象も検査する。画像保存は `PHLOX_DESIGN_SNAPSHOTS=1` で指定する |
 | `ToolbarInteractionTests` | 標準タイトルバーで日英の開閉ボタンの名前が独立し、実際の AX 操作後に選択状態が変わる |

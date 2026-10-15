@@ -52,6 +52,8 @@ private struct StatusEntry {
     let path: String
     let kind: WorkingTreeChange.Kind
     var originalPath: String? = nil
+    var indexStatus: UInt8 = 32
+    var worktreeStatus: UInt8 = 32
 }
 
 private final class GitDataCapture: @unchecked Sendable {
@@ -91,6 +93,17 @@ public actor WorkingTreeService {
     }
 
     /// 取得に失敗した一覧は混在させず、既定の HEAD だけに戻す（WS-2）。
+    func referenceNames(prefix: String) throws -> [String] {
+        let arguments = ["for-each-ref", "--sort=-committerdate", "--format=%(refname)%09%(symref)", prefix]
+        let result = try runGit(arguments)
+        try requireSuccessful(result, arguments: arguments)
+        return String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline).compactMap { line in
+            let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+            guard fields.count == 2, fields[1].isEmpty, fields[0].hasPrefix(prefix) else { return nil }
+            return String(fields[0].dropFirst(prefix.count))
+        }
+    }
+
     func worktreeStartPoints() -> [WorktreeStartPointItem] {
         do {
             var items = [WorktreeStartPointItem(point: .head)]
@@ -99,14 +112,7 @@ public actor WorkingTreeService {
                 ("refs/remotes/", WorktreeStartPoint.remoteBranch),
                 ("refs/tags/", WorktreeStartPoint.tag),
             ] {
-                let arguments = ["for-each-ref", "--sort=-committerdate", "--format=%(refname)%09%(symref)", prefix]
-                let result = try runGit(arguments)
-                try requireSuccessful(result, arguments: arguments)
-                for line in String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline) {
-                    let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
-                    guard fields.count == 2, fields[1].isEmpty, fields[0].hasPrefix(prefix) else { continue }
-                    items.append(.init(point: makePoint(String(fields[0].dropFirst(prefix.count)))))
-                }
+                items += try referenceNames(prefix: prefix).map { .init(point: makePoint($0)) }
             }
             let arguments = ["log", "-30", "--format=%H%x09%s", "HEAD", "--"]
             let result = try runGit(arguments)
@@ -173,7 +179,11 @@ public actor WorkingTreeService {
         let result = try runGit(args, in: root)
         try requireSuccessful(result, arguments: args)
         let binaryPaths = Self.parseBinaryPaths(result.output)
-        let changes = entries.map { entry in
+        // 旧一覧だけはパス単位。出どころ別一覧には集約前の XY レコードを使う。
+        let legacyEntries = Dictionary(grouping: entries, by: \.path).values.compactMap { records in
+            records.first { $0.kind == .untracked } ?? records.first
+        }
+        let changes = legacyEntries.map { entry in
             let url = try? Self.containedURL(Self.relativeURL(for: entry.path, relativeTo: root), under: root)
             let binary = binaryPaths.contains(entry.path) || (url.map { isBinaryFile(at: $0) } ?? false)
             return WorkingTreeChange(path: entry.path, kind: entry.kind, isBinary: binary)
@@ -184,8 +194,39 @@ public actor WorkingTreeService {
                 counts[change.path] = .init(added: count, deleted: 0)
             }
         }
-        let branch = branchLabel()
-        return .init(branch: branch, changes: changes, lineCounts: counts)
+        func group(_ source: WorkingTreeSource, binaryPaths: Set<String>) -> [WorkingTreeChange] {
+            entries.compactMap { entry in
+                guard !GitTabPolicy.isUnmerged(index: entry.indexStatus, worktree: entry.worktreeStatus) else { return nil }
+                let status = source == .staged ? entry.indexStatus : entry.worktreeStatus
+                guard status != 32, status != 63 || source == .worktree else { return nil }
+                let kind = status == 63 ? WorkingTreeChange.Kind.untracked : changeKind(for: Data([status])[...])
+                let binary = binaryPaths.contains(entry.path) || (kind == .untracked && (changes.first { $0.path == entry.path }?.isBinary ?? false))
+                return .init(path: entry.path, kind: kind, isBinary: binary)
+            }.sorted { $0.path < $1.path }
+        }
+        func sourceStats(_ source: WorkingTreeSource) throws -> (counts: [String: WorkingTreeLineCount], binaryPaths: Set<String>) {
+            var arguments = ["diff", "--no-ext-diff", "--numstat", "-z"]
+            if source == .staged { arguments.append("--cached") }
+            let result = try runGit(arguments, in: root)
+            try requireSuccessful(result, arguments: arguments)
+            var counts = Self.parseLineCounts(result.output)
+            if source == .worktree {
+                for change in changes where change.kind == .untracked && !change.isBinary {
+                    // 行数は補助情報。読めないリンクや大容量でも変更一覧自体は残す。
+                    if let count = try? untrackedLineCount(change.path, root: root) {
+                        counts[change.path] = .init(added: count, deleted: 0)
+                    }
+                }
+            }
+            return (counts, Self.parseBinaryPaths(result.output))
+        }
+        let stagedStats = try sourceStats(.staged)
+        let unstagedStats = try sourceStats(.worktree)
+        return .init(branch: branchLabel(), changes: changes, lineCounts: counts,
+                     stagedChanges: group(.staged, binaryPaths: stagedStats.binaryPaths),
+                     unstagedChanges: group(.worktree, binaryPaths: unstagedStats.binaryPaths),
+                     conflictedPaths: entries.filter { GitTabPolicy.isUnmerged(index: $0.indexStatus, worktree: $0.worktreeStatus) }.map(\.path).sorted(),
+                     stagedLineCounts: stagedStats.counts, unstagedLineCounts: unstagedStats.counts)
     }
 
     private func untrackedLineCount(_ path: String, root: URL) throws -> Int? {
@@ -263,6 +304,33 @@ public actor WorkingTreeService {
         return .untrackedContent(try fileContents(path))
     }
 
+    public func detail(for path: String, source: WorkingTreeSource) throws -> WorkingTreeDetail {
+        if source.isHistory { return try historyDetail(path: path, source: source) }
+        let root = try requireRepository()
+        _ = try Self.relativeURL(for: path, relativeTo: root)
+        let entry = try statusEntries(in: root).first {
+            $0.path == path && (source == .staged ? $0.indexStatus != 32 && $0.indexStatus != 63 : $0.worktreeStatus != 32)
+        }
+        if source == .worktree, entry?.worktreeStatus == 63 {
+            let url = try accessibleFileURL(for: path)
+            return isBinaryFile(at: url) ? .binary : .untrackedContent(try fileContents(path))
+        }
+        var arguments = ["diff", "--no-ext-diff"]
+        if source == .staged { arguments.append("--cached") }
+        var paths = [path]
+        if let entry, (source == .staged ? entry.indexStatus : entry.worktreeStatus) == 82,
+           let original = entry.originalPath { paths.append(original) }
+        let literalPaths = GitWorkflowService.literalPathspecs(paths)
+        let statsArguments = arguments + ["--numstat", "-z", "--"] + literalPaths
+        let stats = try runGit(statsArguments, in: root)
+        try requireSuccessful(stats, arguments: statsArguments)
+        if Self.parseBinaryPaths(stats.output).contains(path) { return .binary }
+        arguments += ["--"] + literalPaths
+        let result = try runGit(arguments, in: root)
+        try requireSuccessful(result, arguments: arguments)
+        return .diff(String(decoding: result.output, as: UTF8.self))
+    }
+
     /// 保存・読み込みと同じ基準（Git のルート）で解決した絶対パス。
     public func absolutePath(_ path: String) -> String? {
         try? accessibleFileURL(for: path).path
@@ -271,6 +339,190 @@ public actor WorkingTreeService {
     public func fileContents(_ path: String) throws -> String {
         let data = try Data(contentsOf: accessibleFileURL(for: path))
         return try WorkingTreeText.decodeUTF8(data)
+    }
+
+    public func fileContents(_ path: String, source: WorkingTreeSource) throws -> String {
+        if source == .worktree { return try fileContents(path) }
+        let root = try requireRepository()
+        _ = try Self.relativeURL(for: path, relativeTo: root)
+        let revision = try source.revision.map { try verifiedHistoryRevision($0) } ?? ""
+        let tree = try historyTree(path: path, source: source, revision: revision)
+        let arguments = ["show", tree + ":" + path]
+        let result = try runGit(arguments, in: root)
+        try requireSuccessful(result, arguments: arguments)
+        return try WorkingTreeText.decode(result.output).text
+    }
+
+    func history(skip: Int = 0, limit: Int = 50, all: Bool = false) throws -> [GitHistoryCommit] {
+        let root = try requireRepository()
+        if !all && !hasHEAD(in: root) { return [] }
+        let arguments = ["log", "--topo-order", "--decorate=full", "-z", "--format=%H%x00%P%x00%s%x00%an%x00%ct%x00%D",
+                         "--max-count=\(limit)", "--skip=\(skip)"] + (all ? ["--exclude=refs/stash", "--all"] : ["HEAD"]) + ["--"]
+        let result = try runGit(arguments)
+        try requireSuccessful(result, arguments: arguments)
+        let fields = String(decoding: result.output, as: UTF8.self).split(separator: "\0", omittingEmptySubsequences: false)
+        var commits: [GitHistoryCommit] = []
+        for i in stride(from: 0, to: max(0, fields.count - 5), by: 6) {
+            let parents = fields[i+1].split(separator: " ").map(String.init)
+            let date = Date(timeIntervalSince1970: Double(fields[i+4]) ?? 0)
+            let refs = fields[i+5].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            commits.append(GitHistoryCommit(id: String(fields[i]), parents: parents, summary: String(fields[i+2]),
+                                            author: String(fields[i+3]), date: date, refs: refs))
+        }
+        return commits
+    }
+
+    func branches(remote: Bool = false) throws -> [GitBranch] {
+        _ = try requireRepository()
+        let current = branchLabel()
+        var names = try referenceNames(prefix: remote ? "refs/remotes/" : "refs/heads/")
+        if !remote, !names.isEmpty {
+            let renameArguments = ["reflog", "show", "--all", "--format=%gD%x09%gs", "--"]
+            let renames = try runGit(renameArguments)
+            try requireSuccessful(renames, arguments: renameArguments)
+            var renamedBranches: [String: String] = [:]
+            for line in String(decoding: renames.output, as: UTF8.self).split(whereSeparator: \.isNewline) {
+                let fields = line.split(separator: "\t", maxSplits: 1)
+                guard fields.count == 2, fields[0].hasPrefix("refs/heads/"),
+                      let selector = fields[0].range(of: "@{", options: .backwards),
+                      fields[1].hasPrefix("Branch: renamed refs/heads/"),
+                      let separator = fields[1].range(of: " to refs/heads/") else { continue }
+                let name = String(fields[0][..<selector.lowerBound].dropFirst("refs/heads/".count))
+                let old = String(fields[1][..<separator.lowerBound].dropFirst("Branch: renamed refs/heads/".count))
+                if names.contains(name), renamedBranches[old] == nil { renamedBranches[old] = name }
+            }
+            let arguments = ["reflog", "show", "--format=%gs", "HEAD", "--"]
+            let result = try runGit(arguments)
+            try requireSuccessful(result, arguments: arguments)
+            var recent: [String] = names.contains(current) ? [current] : []
+            for line in String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline)
+                where line.hasPrefix("checkout: moving from ") {
+                guard let range = line.range(of: " to ", options: .backwards) else { continue }
+                let previousName = String(line[range.upperBound...])
+                let name = names.contains(previousName) ? previousName : renamedBranches[previousName] ?? previousName
+                if names.contains(name), !recent.contains(name) { recent.append(name) }
+            }
+            names = recent + names.filter { !recent.contains($0) }
+        }
+        if !remote, names.isEmpty, !current.isEmpty, !current.contains("detached HEAD") { names = [current] }
+        var upstreams: Set<String> = []
+        if remote {
+            let arguments = ["for-each-ref", "--format=%(upstream:short)", "refs/heads/"]
+            let result = try runGit(arguments)
+            try requireSuccessful(result, arguments: arguments)
+            upstreams = Set(String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline).map(String.init))
+        }
+        return names.map { .init(name: $0, current: !remote && $0 == current, tracked: upstreams.contains($0)) }
+    }
+
+    func lastFetchDate() throws -> Date? {
+        let root = try requireRepository()
+        let arguments = ["rev-parse", "--git-path", "FETCH_HEAD"]
+        let result = try runGit(arguments)
+        try requireSuccessful(result, arguments: arguments)
+        let path = String(decoding: result.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = URL(fileURLWithPath: path, relativeTo: root)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+    }
+
+    func isBranchMerged(_ name: String) throws -> Bool {
+        let arguments = ["for-each-ref", "--merged=HEAD", "--format=%(refname)", "refs/heads/"]
+        let result = try runGit(arguments)
+        try requireSuccessful(result, arguments: arguments)
+        return String(decoding: result.output, as: UTF8.self).split(whereSeparator: \.isNewline).contains(Substring("refs/heads/" + name))
+    }
+
+    func stashes() throws -> [GitStash] {
+        _ = try requireRepository()
+        let arguments = ["stash", "list", "-z", "--format=%H%x00%gd%x00%gs%x00%ct"]
+        let result = try runGit(arguments)
+        try requireSuccessful(result, arguments: arguments)
+        let fields = String(decoding: result.output, as: UTF8.self).split(separator: "\0", omittingEmptySubsequences: false)
+        return stride(from: 0, to: max(0, fields.count - 3), by: 4).map { i in
+            .init(id: String(fields[i]), name: String(fields[i+1]), message: String(fields[i+2]),
+                  date: Date(timeIntervalSince1970: Double(fields[i+3]) ?? 0))
+        }
+    }
+
+    private func verifiedHistoryRevision(_ revision: String) throws -> String {
+        guard WorktreeStartPoint.isCommitID(revision) else { throw WorkingTreeServiceError.invalidRelativePath(revision) }
+        return try resolveWorktreeStartPoint(.commit(revision))
+    }
+
+    func historyFiles(source: WorkingTreeSource) throws -> [WorkingTreeChange] {
+        guard let revision = source.revision else { return [] }
+        let id = try verifiedHistoryRevision(revision)
+        var arguments = ["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--name-status", "-z"]
+        let parent = try runGit(["rev-parse", "--verify", id + "^1"])
+        if parent.terminationStatus == 0 { arguments.append(id + "^1") }
+        arguments += [id, "--"]
+        var changes = try historyFileRecords(arguments)
+        if case .stash = source {
+            let untracked = try runGit(["rev-parse", "--verify", id + "^3"])
+            if untracked.terminationStatus == 0 {
+                changes += try historyFileRecords(["diff-tree", "--root", "--no-commit-id", "-r", "--name-status", "-z", id + "^3", "--"])
+            }
+        }
+        return changes.sorted { $0.path < $1.path }
+    }
+
+    private func historyFileRecords(_ arguments: [String]) throws -> [WorkingTreeChange] {
+        let result = try runGit(arguments)
+        try requireSuccessful(result, arguments: arguments)
+        let fields = String(decoding: result.output, as: UTF8.self).split(separator: "\0", omittingEmptySubsequences: false)
+        var rows: [WorkingTreeChange] = []
+        var i = 0
+        while i + 1 < fields.count {
+            let status = fields[i].first
+            let renamed = status == "R" || status == "C"
+            let pathIndex = i + (renamed ? 2 : 1)
+            guard pathIndex < fields.count, !fields[pathIndex].isEmpty else { break }
+            let kind: WorkingTreeChange.Kind = switch status {
+            case "A": .added
+            case "D": .deleted
+            case "R": .renamed
+            default: .modified
+            }
+            rows.append(.init(path: String(fields[pathIndex]), kind: kind, isBinary: false,
+                              originalPath: renamed ? String(fields[i+1]) : nil))
+            i = pathIndex + 1
+        }
+        return rows
+    }
+
+    private func historyTree(path: String, source: WorkingTreeSource, revision: String) throws -> String {
+        guard case .stash = source else { return revision }
+        let untracked = try runGit(["cat-file", "-e", revision + "^3:" + path])
+        return untracked.terminationStatus == 0 ? revision + "^3" : revision
+    }
+
+    private func historyDetail(path: String, source: WorkingTreeSource) throws -> WorkingTreeDetail {
+        let root = try requireRepository()
+        _ = try Self.relativeURL(for: path, relativeTo: root)
+        guard let revision = source.revision else { return .diff("") }
+        let id = try verifiedHistoryRevision(revision)
+        let tree = try historyTree(path: path, source: source, revision: id)
+        let original = try historyFiles(source: source).first { $0.path == path }?.originalPath
+        let literal = GitWorkflowService.literalPathspecs([path] + (original.map { [$0] } ?? []))
+        let arguments: [String]
+        if tree != id {
+            arguments = ["show", "--format=", "--no-ext-diff", "--no-textconv", tree, "--"] + literal
+        } else {
+            let parent = try runGit(["rev-parse", "--verify", id + "^1"])
+            arguments = parent.terminationStatus == 0
+                ? ["diff", "--no-ext-diff", "--no-textconv", id + "^1", id, "--"] + literal
+                : ["show", "--format=", "--no-ext-diff", "--no-textconv", id, "--"] + literal
+        }
+        let statArguments = [arguments[0], "--numstat"] + Array(arguments.dropFirst())
+        let stat = try runGit(statArguments)
+        try requireSuccessful(stat, arguments: statArguments)
+        if String(decoding: stat.output, as: UTF8.self).split(whereSeparator: \.isNewline).contains(where: { $0.hasPrefix("-\t-\t") }) {
+            return .binary
+        }
+        let result = try runGit(arguments)
+        try requireSuccessful(result, arguments: arguments)
+        return .diff(String(decoding: result.output, as: UTF8.self))
     }
 
     public func fileData(_ path: String) throws -> Data {
@@ -354,7 +606,7 @@ public actor WorkingTreeService {
         try requireSuccessful(result, arguments: arguments)
 
         let records = result.output.split(separator: 0, omittingEmptySubsequences: false)
-        var entriesByPath: [String: StatusEntry] = [:]
+        var entries: [StatusEntry] = []
         var index = 0
 
         while index < records.count {
@@ -368,31 +620,15 @@ public actor WorkingTreeService {
             let path = String(decoding: record.dropFirst(3), as: UTF8.self)
             let isRenameOrCopy = status.contains(82) || status.contains(67) // R / C
             let original = isRenameOrCopy && index + 1 < records.count ? String(decoding: records[index + 1], as: UTF8.self) : nil
-            let entry = StatusEntry(path: path, kind: changeKind(for: status), originalPath: original)
+            let entry = StatusEntry(path: path, kind: changeKind(for: status), originalPath: original,
+                                    indexStatus: status.first ?? 32, worktreeStatus: status.last ?? 32)
             if !path.hasSuffix("/") {
-                if let existing = entriesByPath[path] {
-                    entriesByPath[path] = preferredEntry(between: existing, and: entry)
-                } else {
-                    entriesByPath[path] = entry
-                }
+                entries.append(entry)
             }
             index += isRenameOrCopy ? 2 : 1
         }
 
-        return Array(entriesByPath.values)
-    }
-
-    private func preferredEntry(between first: StatusEntry, and second: StatusEntry) -> StatusEntry {
-        func priority(of kind: WorkingTreeChange.Kind) -> Int {
-            switch kind {
-            case .modified: 1
-            case .added: 2
-            case .deleted: 3
-            case .renamed: 4
-            case .untracked: 5
-            }
-        }
-        return priority(of: second.kind) >= priority(of: first.kind) ? second : first
+        return entries
     }
 
     private func changeKind(for status: Data.SubSequence) -> WorkingTreeChange.Kind {

@@ -43,8 +43,18 @@ public enum Posix {
         env: [String: String],
         masterFD: Int32,
         slaveFD: Int32,
-        workingDirectory: String?
+        workingDirectory: String?,
+        terminalMode: PTYTerminalMode = .raw
     ) throws -> pid_t {
+        if terminalMode == .interactive {
+            return try ([command] + args).withCStringBuffer { argv in
+                try env.map { "\($0.key)=\($0.value)" }.sorted().withCStringBuffer { environment in
+                    let pid = cpty_spawn_interactive(command, argv, environment, slaveFD, workingDirectory)
+                    guard pid >= 0 else { throw PTYError.spawnFailed(errno: errno) }
+                    return pid
+                }
+            }
+        }
         var fileActions: posix_spawn_file_actions_t?
         try checkSpawnResult(posix_spawn_file_actions_init(&fileActions))
         defer { posix_spawn_file_actions_destroy(&fileActions) }
@@ -173,7 +183,7 @@ public enum Posix {
         }
     }
 
-    /// 子プロセスがあるか。前景のプロセスグループは使えない（スレーブ PTY を制御端末にしていない）ので、子の有無で見る。
+    /// 子プロセスがあるか。raw では制御端末の確立を保証しないため、前景グループではなく子の有無で見る。
     /// ponytail: シェルが常駐の子（プロンプトの補助など）を持つと常に true になる。その場合は従来どおり毎回確認する。
     public static func hasChildProcesses(pid: pid_t) -> Bool {
         var children = [pid_t](repeating: 0, count: 16)

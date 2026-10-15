@@ -21,4 +21,8 @@ int cpty_set_winsize(int fd, unsigned short cols, unsigned short rows);
 /// `cols` and `rows` may be NULL (unused out-parameters).
 int cpty_get_winsize(int fd, unsigned short *cols, unsigned short *rows);
 
+/// 制御端末を確立して exec。失敗は errno を設定して -1 を返し、子は回収する。
+pid_t cpty_spawn_interactive(const char *command, char *const argv[], char *const envp[],
+                             int slave_fd, const char *working_directory);
+
 #endif /* CPTYHelpers_h */

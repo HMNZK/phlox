@@ -12,6 +12,7 @@ last-verified: 2026-10-15
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0201 | [ユーザー用 PTY の制御端末をシェルの実装に頼らず確立する](0201-interactive-pty-controlling-terminal.md) | accepted |
 | 0200 | [下部パネルの開閉を ⌘J にし、「次の対応待ちへ」を ⇧⌘J へ移す](0200-bottom-panel-command-j.md) | accepted |
 | 0199 | [名前変更の開始をメニュー処理から分け、開閉状態をトグルとして公開する](0199-file-rename-menu-and-accessibility-state.md) | accepted |
 | 0198 | [ユーザー用端末の初期設定とヘッダーの操作境界を分ける](0198-user-terminal-cooked-mode-and-toolbar-selection.md) | accepted |

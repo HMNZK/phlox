@@ -31,7 +31,7 @@ last-verified: 2026-10-15
 | エディタ表示 | `EditorPanelView`（同ファイル） | 変更一覧・diff/内容プレビュー（`ChatCodeHighlighter.highlight` で構文ハイライト。SessionFeature の `ChatCodeBlock.swift` を共有）・`TextEditor` での編集・保存・競合アラートを持つ、容器非依存の View |
 | PTY spawn 起動 | `makeTerminalPanelSession(environment:workingDirectory:)`（App/PhloxApp.swift） | `UserTerminalController` にプロジェクトのフォルダと `UserShellSettings.resolve` を渡す（`HOME` はホーム）。`ProjectTerminalStore` の factory として渡し、`AppDelegate.sessionUserTerminals` へも同じ置き場を渡す |
 | 終了処理 | `AppDelegate`（App/AppDelegate.swift、extension） | `applicationShouldTerminate` から `shutdownUserTerminal()`（`ProjectTerminalStore.shutdownAll()`）→ `PTYManager.terminateAllAndWait` を待つ Task と、全チャットセッションの `flushTranscriptNow()` を待つ Task を並行実行し、両方の完了後に reply する（[ADR 0110](../adr/0110-midturn-flush-and-termination-race.md)・[ADR 0149](../adr/0149-user-terminal-lifecycle.md)） |
-| fd 衛生 | `Posix.spawn`（PTYKit/Sources/PTYKit/Posix.swift） | `posix_spawnattr_setflags` に `POSIX_SPAWN_CLOEXEC_DEFAULT` を含め、`file_actions` で明示 dup2 されていない fd を子へ継承しない（[ADR 0151](../adr/0151-pty-spawn-fd-hygiene.md)） |
+| fd 衛生 | `Posix.spawn`（PTYKit/Sources/PTYKit/Posix.swift） | raw は `POSIX_SPAWN_CLOEXEC_DEFAULT`（[ADR 0151](../adr/0151-pty-spawn-fd-hygiene.md)）、interactive は C の子で標準入出力と errno 通知用 pipe 以外を閉じる（[ADR 0201](../adr/0201-interactive-pty-controlling-terminal.md)） |
 
 ## データフロー（ターミナル）
 
@@ -40,6 +40,14 @@ last-verified: 2026-10-15
 3. `TerminalPanelSession.init` が `TerminalCoordinator.onInput` / `.onResize` を `UserTerminalController.send(_:)` / `.resize(cols:rows:)` に配線し、`makeOutputStream()` を継続的に消費して `TerminalCoordinator.feed(_:)` へ流す（表示器が閉じていても購読は継続）。
 4. `TerminalPanelView.task` が初回表示・自然終了後の再表示のときに `ensureStarted()` を呼び、`UserTerminalController.ensureStarted()` が未起動なら作業フォルダでシェルを spawn する。
 5. タブを切り替えてもシェルは残る。タブを閉じる（実行中のコマンドがあれば確認）と `ProjectTerminalStore.close(_:)`、プロジェクトを削除すると `closeProject(_:)`、アプリ終了で `shutdownAll()` がシェルを止める。ターミナルのタブは保存しない（次の起動では開き直さない）。
+
+### ユーザー用 PTY の起動（ADR 0201）
+
+ユーザー用端末の環境は `TerminalEnvironment.userShell` で組み立て、`LANG` はエージェント用と共通の規則（アプリ環境の値、無ければ `en_US.UTF-8`）で渡す。Ctrl-C の判定は `sleep 20` の実行中に Ctrl-C を送ってから5秒以内にプロンプトへ戻り、次の行の `echo AFTER` が返ることとする。zsh は同じ行の残りのコマンドを取り消すため、それを成功条件にしない。
+
+子タブと下部パネルは共通の `PTYManager(terminalMode: .interactive)` を使う。`Posix.spawn` は C の `cpty_spawn_interactive` へ渡し、fork 後の子で `setsid` と `TIOCSCTTY` により slave を制御端末にしてから標準入出力を複製し、指定の cwd・環境でシェルを exec する。zsh の前景にも Ctrl-C とサイズ変更の SIGWINCH が届く。interactive の resize は `TIOCSWINSZ` の前景グループ通知を使い、起動したシェルへの明示送信はしない。
+
+親で fork 直前に fd 一覧と soft limit から閉鎖上限を求め、子は `close` だけで不要 fd を閉じる。fork 後に fd 列挙・メモリ確保・Swift の処理はしない。子の失敗は3以上へ移した close-on-exec の pipe で errno を返し、親が回収して `spawnFailed` にする。既定の `.raw` は従来の `posix_spawn` と起動したプロセスへの明示 SIGWINCH を維持する。
 
 ### 下部パネル（ADR 0196）
 
@@ -98,6 +106,7 @@ Picker の AXLabel は画面外の同じ構成で手元確認し、追加ラベ�
 
 | ファイル | 固定している性質 |
 |---|---|
+| `TerminalEnvironmentTests` | ユーザー用端末の LANG の既定値 `en_US.UTF-8`、アプリ環境の LANG の優先（空文字も従来のエージェント用規則に従って維持）、HOME・PATH・TERM の保持 |
 | `UserShellSettingsTests` | `/etc/shells` の読み取り・候補の整理・実行可能性・無効パスの保存拒否・システム既定への代替・存在確認後の消失・再試行回数とエラー伝播・再起動時の反映・注意の出力順と旧プロンプトとの分離・出力待機の期限と失敗時の終了処理・実際の bash の `$0` と `$SHELL` |
 | `AcceptanceUserTerminalTests` / `UserTerminalControllerWhiteboxTests` | PTY 起動の冪等性・入出力・自然終了→再起動・世代分離・drain 待ち・shutdown 冪等 |
 | `AcceptanceWorkingTreeTests` / `WorkingTreeServiceWhiteboxTests` | 変更一覧・diff・保存・競合検出・リネーム/非 ASCII パス・巨大 stderr 耐性 |
@@ -109,5 +118,6 @@ Picker の AXLabel は画面外の同じ構成で手元確認し、追加ラベ�
 | `PanelIntegrationWhiteboxTests` | 左右分割/縦積みの切替幅・変更種別ごとの SF Symbol |
 | `PosixSpawnCloexecTests`（PTYKit） | spawn した子が無関係な fd を継承しないこと |
 | `PTYTerminalModeTests`（PTYKit） | ユーザー用の echo・icanon・制御文字、従来のエージェント用 raw 設定、実 bash の stty と Return 前の入力エコー |
+| `InteractiveSpawnTests`（PTYKit） | zsh/bash の前景 TPGID・Ctrl-C・前景へのサイズ変更、標準 fd 欠落時の ENOENT・子回収、高番号 fd 非継承、起動失敗反復後の fd 数・子回収、cwd・環境、既定 raw のサイズ変更通知 |
 | `FileTreeInteractionTests` | 右クリック／Return から入力欄の表示・フォーカス・拡張子前の選択・確定までを通し、ファイル／フォルダ内のタブと未保存本文・Undo の同一性を保つ |
 | `ToolbarInteractionTests` | 標準タイトルバーで日英の開閉ボタンの名前が独立し、実際の AX 操作後に選択状態が変わる |

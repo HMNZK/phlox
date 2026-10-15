@@ -153,7 +153,8 @@ public actor PTYManager: PTYManagerProtocol {
                 env: env,
                 masterFD: masterFD,
                 slaveFD: slaveFD,
-                workingDirectory: workingDirectory
+                workingDirectory: workingDirectory,
+                terminalMode: terminalMode
             )
         } catch {
             close(masterFD)
@@ -329,13 +330,8 @@ public actor PTYManager: PTYManagerProtocol {
             throw PTYError.sessionNotFound
         }
         try Posix.resize(fd: session.masterFD, cols: cols, rows: rows)
-        // 子プロセスは posix_spawn + POSIX_SPAWN_SETSID で起動するが、スレーブ PTY を
-        // 制御端末として確立していない (dup2 では TIOCSCTTY が走らない)。そのため
-        // tty に前景プロセスグループがなく、master への TIOCSWINSZ では SIGWINCH が
-        // 子に自動配送されない。SIGWINCH を受けて初めて winsize を再読込・再描画する
-        // TUI (claude/Ink) のために明示的に送る。これがないと winsize 値だけ更新され、
-        // 子は旧サイズのまま描画を続けて、縮小時に折り返し崩れが残る。
-        Darwin.kill(session.pid, SIGWINCH)
+        // interactive は制御端末の前景へ ioctl が通知する。raw の既存経路だけ明示送信する。
+        if terminalMode == .raw { Darwin.kill(session.pid, SIGWINCH) }
     }
 
     /// 登録済みセッションの子プロセス pid。

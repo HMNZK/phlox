@@ -96,7 +96,7 @@ public struct AgentLaunchPlanner: Sendable {
             "PATH": environment.pathEnvironment,
             "HOME": ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory(),
             "USER": ProcessInfo.processInfo.environment["USER"] ?? NSUserName(),
-            "LANG": ProcessInfo.processInfo.environment["LANG"] ?? "en_US.UTF-8",
+            "LANG": TerminalEnvironment.language(from: ProcessInfo.processInfo.environment),
             "TERM": "xterm-256color",
             "COLORTERM": "truecolor",
             "PHLOX_SESSION_ID": sessionID.rawValue.uuidString,

@@ -210,11 +210,7 @@ struct PhloxApp: App {
                 pty: PTYManager(terminalMode: .interactive),
                 shellPath: UserShellSettings.loginShellPath(),
                 workingDirectory: workingDirectory,
-                environment: [
-                    "HOME": home,
-                    "PATH": environment.pathEnvironment,
-                    "TERM": "xterm-256color",
-                ],
+                environment: TerminalEnvironment.userShell(home: home, path: environment.pathEnvironment),
                 resolveShell: { UserShellSettings.resolve() },
                 shellWarning: { path in
                     String(format: AppLocalizedString.string(

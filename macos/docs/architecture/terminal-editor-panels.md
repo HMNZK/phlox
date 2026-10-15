@@ -9,6 +9,8 @@ last-verified: 2026-10-15
 
 ## コンポーネント
 
+表示エンジンは SwiftTerm だけを使う。Ghostty は見送り、試作コードは dev に入れない（[ADR 0211](../adr/0211-decline-ghostty-user-terminal-engine.md)）。
+
 ### 端末の描画方式（ADR 0213）
 
 ユーザー端末の `TerminalPanelSession` と、エージェント端末の `SessionSpawnService`（新規・復元）は `TerminalCoordinator` と共通の `IMETerminalView` を使い、CoreGraphics で描画する。描画方式の設定読み取りや切り替え処理は持たない。

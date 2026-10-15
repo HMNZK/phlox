@@ -17,6 +17,7 @@
 #   SWIFT_TEST_SERIAL_PACKAGES  --no-parallel で走らせるパッケージ（既定 SessionFeature DashboardFeature）
 #   SWIFT_TEST_GIT_SUITES       実 git を起動するスイート。DashboardFeature の別パスで走らせる
 #   SWIFT_TEST_OUTPUT           compact（成功時は要約）または full（全ログ）。既定 compact
+#   SWIFT_TEST_CONFIGURATION    debug または release。既定 debug。テストと資源の事前ビルドに共通。
 #   SWIFT_TEST_FILTER           空白区切りで swift test --filter に渡す（スイート名・テスト名・正規表現）。
 #                               作業中に失敗したテストだけを回すためのもの。指定すると実 git の別パス分けを
 #                               せず 1 回で走らせ、**全件の合格にはならない**（完了の判定は未指定の全件で行う）。
@@ -25,6 +26,12 @@
 # 3.2 は `$label）` を変数名 `label）` として読み、unbound variable で落ちる。
 # 空配列の展開も `${arr[@]+"${arr[@]}"}` の形にする（3.2 は set -u 下で素の展開が落ちる）。
 set -uo pipefail
+
+TEST_CONFIGURATION="${SWIFT_TEST_CONFIGURATION-debug}"
+case "$TEST_CONFIGURATION" in
+  debug|release) ;;
+  *) echo "run-swift-tests: SWIFT_TEST_CONFIGURATION は debug または release を指定してください: ${TEST_CONFIGURATION}" >&2; exit 1 ;;
+esac
 
 MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPACT_COMMAND="$MACOS_DIR/scripts/compact-command.sh"
@@ -102,19 +109,26 @@ run_swift_test() {
   echo "=== swift test --package-path Packages/${pkg} $* [${label}] ==="
   COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
     COMPACT_COMMAND_SUMMARY_PATTERN='^(✔ Test run with|[[:space:]]*Executed [0-9]+ tests)' \
-    "$COMPACT_COMMAND" "${pkg} / ${label}" swift test --package-path "Packages/$pkg" "$@"
+    "$COMPACT_COMMAND" "${pkg} / ${label}" swift test --configuration "$TEST_CONFIGURATION" --package-path "Packages/$pkg" "$@"
 }
 
 # SwiftPM は xcassets をコンパイルしないので、DesignSystem のロゴ（Icons.xcassets）を描くテストの
 # ために、テストの前に資源バンドルへ Assets.car を作る。テストの中で作ると、先に走った別のテストが
 # 画像を引いて「無い」ことを覚えた後になり、ビルドし直した直後の全件実行でだけロゴが描かれず落ちる。
 prepare_asset_catalog() {  # <package>
-  swift build --build-tests --package-path "Packages/$1" >/dev/null 2>&1 || return 1
-  local bundle
-  bundle="$(swift build --show-bin-path --package-path "Packages/$1")/DesignSystem_DesignSystem.bundle"
+  local testability_args=()
+  if [ "$TEST_CONFIGURATION" = release ]; then testability_args=(-Xswiftc -enable-testing); fi
+  COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
+    "$COMPACT_COMMAND" "$1 / 資源の事前ビルド" \
+    swift build --build-tests ${testability_args[@]+"${testability_args[@]}"} --configuration "$TEST_CONFIGURATION" --package-path "Packages/$1" || return 1
+  local bin_path bundle
+  bin_path="$(swift build --show-bin-path --configuration "$TEST_CONFIGURATION" --package-path "Packages/$1")" || return 1
+  bundle="$bin_path/DesignSystem_DesignSystem.bundle"
   if [ ! -d "$bundle/Icons.xcassets" ] || [ -f "$bundle/Assets.car" ]; then return 0; fi
-  xcrun actool --compile "$bundle" --platform macosx --minimum-deployment-target 14.0 \
-    "$bundle/Icons.xcassets" >/dev/null
+  COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
+    "$COMPACT_COMMAND" "$1 / 資源カタログ" \
+    xcrun actool --compile "$bundle" --platform macosx --minimum-deployment-target 14.0 \
+    "$bundle/Icons.xcassets"
 }
 
 cd "$MACOS_DIR" || { echo "run-swift-tests: macos ディレクトリが無い: $MACOS_DIR" >&2; exit 1; }
@@ -127,8 +141,11 @@ for pkg in $PACKAGES; do
     continue
   fi
 
-  # 失敗しても続ける。ビルドの失敗は直後の swift test が原因つきで報告する。
-  prepare_asset_catalog "$pkg" || echo "run-swift-tests: ${pkg} の資源の準備に失敗（原因は続く swift test が出す）" >&2
+  # 原診断を残して失敗に数える。後続の swift test も走らせ、別の診断があれば集める。
+  prepare_asset_catalog "$pkg" || {
+    echo "run-swift-tests: ${pkg} の資源の準備に失敗（原診断は上記）" >&2
+    failed="$failed $pkg(assets)"
+  }
 
   serial_arg="$(serial_args_for "$pkg")"
   serial_args=()

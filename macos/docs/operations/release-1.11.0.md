@@ -2,7 +2,7 @@
 
 ## 状態
 
-公開手順中。ユーザーがリリースを指示した（2026-10-16）。`ios/` の未コミットの資料はコミットせずに残す。配布物と検証ログはリポジトリの `.build/releases/1.11.0/` に保持する。
+公開済み：[GitHub Release v1.11.0](https://github.com/HMNZK/phlox/releases/tag/v1.11.0)。リリースタグは `9ea81d0f`。ユーザーがリリースを指示した（2026-10-16）。`ios/` の未コミットの資料はコミットせずに残す。配布物と検証ログはリポジトリの `.build/releases/1.11.0/` に保持する。
 
 ## 変更
 
@@ -26,6 +26,9 @@
 - Sparkle ZIP は staple 後のアプリから作り、Ed25519 署名を本体に埋め込んだ公開鍵で検証して成功（CryptoKit による手元の検証。リポジトリのテストには未登録）。
 - 実画面：下部パネル・Git タブ・ターミナル（日本語・Ctrl-C・Option+←/→・大量出力の後の残り文字なし・`yes` のメモリ横ばい）は Debug ビルドで確認済み。エージェント実行中の閉じる確認、⇧⌘J の対応待ちへの移動、変更行の右クリックメニューは未確認。
 - lint・独立した静的解析：未設定。
+- マージ時のセキュリティゲートは、デザイン見本 `macos/docs/specs/ClaudeDesign/13 Bottom Panel Files Git/support.js`・`14 Git Tab Workflow/support.js` の `nosemgrep` 抑制コメントを要確認として挙げた（中断なし）。アプリに含まれない資料のため、そのまま公開した。
+- 公開後疎通：`https://phlox.cc/appcast.xml` の先頭は 1.11.0 / build 33。最新 DMG（`releases/latest` は v1.11.0 へ転送）と更新 ZIP のダウンロード先は HTTP 200。ダウンロードした DMG・ZIP の SHA-256 は手元の配布物と一致。
+- Pages run [38825681344](https://github.com/HMNZK/phlox/actions/runs/38825681344) は `9ea81d0f` のデプロイに成功。
 
 ## 配布物
 

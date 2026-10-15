@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-12
+last-verified: 2026-10-15
 ---
 
 # ファイルツリー・マークダウンのブロック編集・HTML 表示の現行構成
@@ -16,7 +16,7 @@ last-verified: 2026-10-12
 ```
 InspectorView（InspectorView.swift。ファイルだけ。ADR 0192）
         └ FileTreeInspectorView ── FileTreeModel（ルートごと） ── FileTreeLoader（actor）
-                          │ 行クリック・Return・右クリック「右に分割して開く」
+                          │ 行クリック・⌘↓・右クリック「右に分割して開く」
                           ▼
 FileTabDocuments.openFileTab(projectID:root:relativePath:split:router:requestedWorkingDirectory:currentWorkingDirectory:)
    ← ⌘P（NSOpenPanel）・変更タブ・ファイルツリー・マークダウン/HTML のリンク が共通で通る
@@ -53,23 +53,44 @@ FileTabDocuments.openFileTab(projectID:root:relativePath:split:router:requestedW
 
 ## ファイルツリー
 
+### 実操作からの名前変更（2026-10-15）
+
+`FileTreeEditableRow` は行ごとの View として `model.edit` を直接監視する。`LazyVStack` の `ForEach` 内の分岐だけでは、パス・並びが同じ既存行の入力状態が更新されないため、観測の境界を行に置く。右クリックと Return は同じ `beginRename` を通す。画面外ウィンドウでも、描画済みの行から入力欄へ変わること、拡張子より前の選択、Return の確定から文書・タブの付け替えまでを検査する。初期状態に入力欄を与える画像だけでは、この遷移を検証できない。
+
+右クリックの名前変更はメニューのアクションが戻った後のメインキューで開始する。メニューを所有する通常行を、メニュー処理中に入力行へ置き換えない。Return の経路は同期のまま。設計理由は [ADR 0199](../adr/0199-file-rename-menu-and-accessibility-state.md)。
+
+Swift Testing の `FileTreeInteractionTests` は、実 NSMenu のアクション直後に編集状態が未開始であること、その後に入力欄・フォーカス・選択範囲が揃うことを検査する。循環警告そのものを捕捉するテストではない。
+
+実アプリの再確認（2026-10-15、`/tmp/phlox-rt-shots2/debug-stderr-run1.log`・`run2.log`）では、右クリックの名前変更で循環警告が37〜90件、Return・新規ファイル・Escでは0件だった。旧 delivery/0049 の未解決事項をここへ移した。メニュー経路の修正後の実アプリと VoiceOver の音声出力は未検証。画面外のテストで警告が出ないことだけでは実アプリの再発防止を断定しない。
+
 | 型（`DashboardFeature/Files/`） | 種別 | 役割 |
 |---|---|---|
 | `FileTreeInspectorView`（`FileTreeView.swift`） | View | 選択中のプロジェクトのフォルダ（`Project.directoryPath`）から `FileTabOpening.root(for:)`（symlink 解決済みの絶対パス）を求め、`FileTreeModel` を取得・登録して `refresh()` する。プロジェクト未選択時は空状態の文言、ルート解決中は `ProgressView`。セッションの作業フォルダ（worktree）は見ない。accessibilityIdentifier `inspector-files` |
-| `FileTreeView` | View | ヘッダー（ルートのパス・ブランチ名・更新ボタン）と `ScrollView` + `LazyVStack`。選択行 `selectedPath` はこの View の `@State`。↑↓（表示中の行間を移動）・→（展開／最初の子へ）・←（折りたたみ／親へ）・Return（フォルダは開閉、ファイルは開く）は `onKeyPress` から自前のキー処理へ渡す。右クリックは「右に分割して開く」（開ける行のみ）・「Finder で表示」・「パスをコピー」。識別子 `file-tree`・`file-tree-row-<相対パス>` |
+| `FileTreeView` | View | ヘッダー（ルートのパス・ブランチ名・新規の「＋」・更新）と `ScrollView` + `LazyVStack`。選択行 `selectedPath` はこの View の `@State`。↑↓は表示行の移動、→は展開／最初の子、←は折りたたみ／親、Returnは名前変更、⌘↓は開く。既存の右クリック操作に新規ファイル・新規フォルダ・名前変更・ゴミ箱を加える。識別子 `file-tree`・`file-tree-row-<相対パス>` |
 | `FileTreeModel` | `@MainActor @Observable` | `root`・`childrenByDir`・`expanded`・`errorsByDir`・`omittedByDir`・`loading`・`branch`。`DashboardView` の `@State fileTreeModels: [ルートパス: FileTreeModel]`（ウィンドウごと・非永続）に置く。`expand`・`collapse`・`refresh`（展開中フォルダとルートを並行再読込し、ブランチ名も取り直す）・`fileSaved`（保存したファイルの親フォルダを再読込）・`load`（フォルダごとの世代 UUID で古い結果を捨てる） |
 | `FileTreeLoader` | `actor` | `children(of:refresh:)` を `Task.detached` で実行する。読込中の同一フォルダへの要求は同じ Task に集約し、`refresh: true` の要求は置き換えて、置き換えられた側は `nil` を返す |
 | `FileTreeRows` | 純関数群 | `visibleRows`（深さつき平坦化）・`action(for:key:rows:expanded:)`（キー操作の解釈）・`visibleSelection`・`openPath`（単体表示で、そのプロジェクトの選択中のタブがファイルのときだけ、そのパスを返す） |
 | `FileTreeEntry` | 値型 | `Kind` は `directory` / `file` / `symlinkToDirectory` / `symlinkOutsideRoot` / `symlinkToFile` / `unavailable`。展開できるのは `directory` だけ、開けるのは `file` と `symlinkToFile` だけ |
+| `FileTreeOperations` | `actor` | 名前の検査・包含確認・作成・名前変更・ゴミ箱・件数の上限。共通の包含確認後に親を `openat` / `O_NOFOLLOW` で固定する。排他的な作成と `renameatx_np(RENAME_EXCL)` で衝突時の上書きを防ぐ。同一項目の大文字小文字変更には `renameat` を使う。ゴミ箱は file-reference URL の識別子から現在のパスを解決し直し、包含検査したパスを `FileManager.trashItem` に渡す |
+| `FileTreeEdit` / `FileTreeFailure` | 値型 | 入力中の種類・親・元パス・名前・誤り、操作失敗の種類と理由。入力行の並び位置は確定するまで動かさない |
 
 - `FileTreeLoader.readDirectory`: `contentsOfDirectory` の結果から `.git` と `.DS_Store` を除く。並びはフォルダ先、次に `localizedStandardCompare`（同順位はバイト列順）。
   各行は `WorkingTreeService.containedURL` でルート内か確認し、ルート外を指す symlink は `symlinkOutsideRoot`（解決先つき）にする。
   読めない・通常ファイルでもフォルダでもない行は `unavailable`（理由つき）。展開対象のパスのどこかの祖先が symlink なら読み込まずエラーにする。
 - **1 フォルダの上限は 5,000 件**。超えた分は捨て、残り件数を `omittedByDir` に持ち、「ほか N 件（⌘P で開けます）」と表示する。
 - ブランチ名は `WorkingTreeService.branchLabel()`: ブランチ名／`detached HEAD <短縮コミット>`／`Git 管理外`／取得失敗は空文字。
+- 操作で作成・名前変更した行が先頭5,000件に入らない場合は、先頭4,999件と対象行を表示する。対象の選択と表示上限を両立し、省略件数は変えない。`.git`・`.DS_Store` は入力からも作成・名前変更の対象外とする。
 - 再読込の契機: 更新ボタン・フォルダ展開・ファイル保存成功（`Notification.Name.fileTreeFileSaved` を `DashboardView` が受けて `FileTreeModel.fileSaved`）・「ファイル」タブの表示時（`FileTreeInspectorView` の `.task(id: プロジェクト ID + プロジェクトのフォルダ)`）。ファイル監視は無い。
-- ツリー自体はディスクへ書き込まない。
 - ショートカット: ⌃⌘B（`PhloxApp.swift` のメニュー項目「ファイルツリー」）→ `AppRouter.showFilesInInspector()`（`inspectorVisible = true`）。
+- 作成・名前変更・ゴミ箱への移動は `FileTreeOperations` を通す。`WorkingTreeService.relativeURL` / `containedURL` を共有し、操作直前にルートと対象を再検査する。ルート自体とルート外へのリンクは変更しない。新規ファイルは排他的に作成し、同名の競合では上書きしない。
+- Return は選択行の名前変更、⌘↓ はファイルを開く。新規は ⌥⌘N / ⇧⌥⌘N、ゴミ箱は ⌘⌫。右クリックは既存の3操作に新規・名前変更・ゴミ箱を追加し、Return のキー表示は付けない。見出しの「＋」と空白のメニューはルート直下への作成を扱う（[ADR 0194](../adr/0194-file-tree-inline-operations.md)）。
+- 入力は行内に置き、名前の誤りは下の行を動かさず重ねる。失敗の帯は見出しの下に置き、閉じるか次の操作で消す。成功・失敗とも親フォルダを再読込する。成功時は対象行を選択してスクロールする。
+- ゴミ箱の確認はウィンドウに付く `NSAlert`。通常はゴミ箱が既定、未保存の本文・ブロックを失う場合だけ破壊的ボタンにしてキャンセルが既定。Esc はキャンセルへ転送し、⌘⌫ は実行キーにしない。フォルダの件数は1,000件で打ち切り、リンクの中は数えない。
+- `FileTabDocumentRegistry` は全ウィンドウの対象文書と配置を集める。名前変更は同じ `FileTabDocument` のパスと配置を付け替え、本文・ブロック編集・Undoを保つ。削除成功後に対象タブを閉じる。保存中は完了を待ってから操作し、操作中の保存は拒否する。
+- ゴミ箱は `CFURLCreateFileReferenceURL` で作った参照の識別子を文字列で保持する（Swift `URL` への変換で移動前のパスに変わることを避ける）。送る直前に `CFURLCreateFilePathURL` で現在のパスを解決し、共通の包含確認へ渡す。確認と `trashItem` の間の外部移動は原子的には防げない（OS 呼び出し直前の同期区間だけが残る）。外を指していれば中止して失敗の帯を出す。
+- 削除確認時の文書の同一性・各文書の未保存状態・タブのパスを保持し、確認の後と保存待ちの後に照合する。文書・タブが変わった場合や新たに未保存になった文書がある場合はロックを解いて再確認する。全ウィンドウの排他制御は追加しない。
+- 操作のロック前にブロック欄の未確定入力を同期する。ソース欄とブロック欄の `CodeTextEditor` は恒久的な編集可否（`isEditable`）と一時的な操作ロック（`isTemporarilyLocked`）を分ける。ロック中は NSTextView を編集不可にして Undo の受付も止めるが、履歴を保持して解除後に使えるようにする。恒久的な編集可否の切替・ブロック確定・撤去時の履歴消去は従来どおり。名前変更先の復元タブも衝突検査に含め、配置の付け替え時にも重複を除く。
+- キーボード選択行には VoiceOver の選択属性を付ける。行内入力中はツリーのフォーカス枠を消し、入力欄だけに枠を出す。空欄の案内は新規ファイルが「ファイル名」、新規フォルダが「フォルダ名」（英語は Folder name）、名前変更が「名前」。名前の誤りは12pt・行の右端まで、未保存の札は主文字色と薄い枠線、失敗の帯の閉じる印は8ptの細い形とする。確認本文は日本語の文間に空白を入れず、英語は開いているタブの単数・複数を分ける。
 
 ## 開く共通関数
 
@@ -175,6 +196,7 @@ FileTabDocuments.openFileTab(projectID:root:relativePath:split:router:requestedW
 | `FileTabDocumentBytesTests` / `FileTabDocumentLifecycleTests` / `FileTabLastWriterTests` | バイト比較・BOM・失効・保存の直列化 |
 | `OpenFileTabTests` / `CrossWindowDraftTests` / `TerminationConfirmationTests` | 開く共通関数・複数ウィンドウの未保存・終了確認 |
 | `FileTreeLoaderTests` / `FileTreeRowsTests` / `FileTreeModelTests` / `FileTreeGitTests` | ツリーの読込・平坦化・モデル・ブランチ名 |
+| `FileTreeOperationsTests` / `MarkdownBlockEditorLifecycleTests` / `DesignSnapshotRenderTests.fileTreeOperationSnapshots` | 名前・衝突・包含確認・上限・失敗後の再読込・文書と分割配置の付け替え・復元タブの重複・参照の外部移動・実際のゴミ箱移動・保存待ち後の状態比較・ブロック欄の編集不可・操作ロック後のソース欄とブロック欄のUndo/Redo保持・恒久的な編集可否切替とブロック再編集時の履歴消去・行の選択属性・確認ボタンのキー設定。明示指定時に日英・明暗・260/280ptで行内入力の案内文を検査し、誤り・失敗の帯、NSAlertと一覧を画面外描画（画像生成自体は見た目の合否を判定しない）。保存待ち後の実操作の中止・再確認経路は未検証（SwiftUI内部状態とシートへの確認応答を制御する仕組みが必要） |
 | `MarkdownBlocksTests` / `MarkdownRenderParityTests` / `MarkdownCorpusParityTests` / `ActiveBlockEditTests` / `MarkdownBlockEditorTests` / `MarkdownBlockEditorLifecycleTests` / `MarkdownBlockClickTests` / `MarkdownLinkRoutingTests` / `FileMarkdownPresentationTests` | ブロック分割・描画の一致・編集状態・リンク |
 | `MarkdownScrollPerformanceTests` | 通常実行でホバー背景の表示・退出・画面外往復、親bodyと本文構築の抑止、リンクの背景抑止・行き先解決、原文と版の不変を検証。Release・`PHLOX_SCROLL_PERFORMANCE=1` では実際のファイルタブで表あり・表なし・小文書のレンダリング／ソース表示のp95 ≤ 16.7msを画面外計測。表の可視区間と全体の超過件数・最大値を分けて記録する。通常実行・測定文書がない場合は性能測定だけスキップ |
 | `WorktreeSchemeHandlerTests` / `HTMLNavigationPolicyTests` / `HTMLContentRuleTests` / `HTMLNetworkIsolationTests` / `HTMLPreviewRefreshTests` | HTML の配信・遷移判定・遮断・再描画 |

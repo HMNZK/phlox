@@ -72,7 +72,7 @@ public final class FileTabDocument {
         case outsideRoot(String)
     }
 
-    public enum DocumentError: Error, Equatable { case invalidated, blockEditVersionMismatch, readOnly }
+    public enum DocumentError: Error, Equatable { case invalidated, blockEditVersionMismatch, readOnly, fileOperationInProgress }
 
     public enum Presentation: Sendable { case rendered, source }
     private var storedPresentation: Presentation = .source
@@ -92,7 +92,7 @@ public final class FileTabDocument {
         manager.groupsByEvent = false
         manager.mayRestoreDocument = { [weak self] expected in
             guard let self else { return false }
-            return !self.isReadOnly && self.activeBlockEdit == nil && !self.invalidationRequested
+            return !self.isReadOnly && !self.fileOperationInProgress && self.activeBlockEdit == nil && !self.invalidationRequested
                 && self.draft.utf8.elementsEqual(expected.utf8)
         }
         return manager
@@ -195,7 +195,7 @@ public final class FileTabDocument {
 
     @discardableResult
     public func beginBlockEdit(range: Range<Int>) -> Bool {
-        guard !invalidationRequested, !isReadOnly, isMarkdown, !markdownPresentationLocked else { return false }
+        guard !invalidationRequested, !fileOperationInProgress, !isReadOnly, isMarkdown, !markdownPresentationLocked else { return false }
         synchronizeActiveBlockEditor?()
         let previousEdit = activeBlockEdit
         if previousEdit?.range == range, previousEdit?.baseVersion == version { return true }
@@ -220,12 +220,12 @@ public final class FileTabDocument {
     }
 
     public func updateActiveBlockEdit(id: UUID, current: String) {
-        guard !invalidationRequested, activeBlockEdit?.id == id else { return }
+        guard !invalidationRequested, !fileOperationInProgress, activeBlockEdit?.id == id else { return }
         activeBlockEdit?.current = current
     }
 
     public func discardActiveBlockEdit(id: UUID) {
-        guard activeBlockEdit?.id == id else { return }
+        guard !fileOperationInProgress, activeBlockEdit?.id == id else { return }
         activeBlockEdit = nil
         synchronizeActiveBlockEditor = nil
         blockEditFailure = nil
@@ -250,7 +250,7 @@ public final class FileTabDocument {
 
     @discardableResult
     public func commitActiveBlockEdit() -> Bool {
-        guard !invalidationRequested else { return false }
+        guard !invalidationRequested, !fileOperationInProgress else { return false }
         guard let edit = activeBlockEdit else { return true }
         guard edit.baseVersion == version else {
             blockEditFailure = "文書が先に変わったため確定できません"
@@ -294,7 +294,14 @@ public final class FileTabDocument {
     }
 
     /// worktree 直下からの相対パス。
-    public let path: String
+    public private(set) var path: String
+    var fileOperationInProgress = false
+
+    func retarget(to path: String) {
+        self.path = path
+        absolutePath = URL(fileURLWithPath: root).appendingPathComponent(path).path
+        reloadHTMLPreview()
+    }
     @ObservationIgnored private var draftContent = ""
     public var draft: String {
         get {
@@ -302,15 +309,19 @@ public final class FileTabDocument {
             return draftContent
         }
         set {
-            guard !invalidationRequested, !isReadOnly else { return }
-            let current = draftContent as NSString
-            let incoming = newValue as NSString
-            guard current !== incoming,
-                  current.length != incoming.length || !current.isEqual(incoming) else { return }
-            withMutation(keyPath: \.draft) { draftContent = newValue }
-            version += 1
-            scheduleMarkdownAnalysis()
+            guard !invalidationRequested, !fileOperationInProgress, !isReadOnly else { return }
+            updateDraftContent(newValue)
         }
+    }
+
+    private func updateDraftContent(_ newValue: String) {
+        let current = draftContent as NSString
+        let incoming = newValue as NSString
+        guard current !== incoming,
+              current.length != incoming.length || !current.isEqual(incoming) else { return }
+        withMutation(keyPath: \.draft) { draftContent = newValue }
+        version += 1
+        scheduleMarkdownAnalysis()
     }
 
     public private(set) var loadState: LoadState = .unloaded
@@ -445,7 +456,7 @@ public final class FileTabDocument {
             loadedDiskText = decoded.text as NSString
             bom = decoded.bom
             baselineAt = startedAt
-            draft = decoded.text
+            updateDraftContent(decoded.text)
             isReadOnly = bytes.count > WorkingTreeText.maximumEditableFileSize
             if isReadOnly { readOnlyText = ReadOnlyText(decoded.text) }
             loadState = .loaded
@@ -475,6 +486,7 @@ public final class FileTabDocument {
 
     func enqueueSave(overwrite: Bool) throws -> Task<SaveResult, Error> {
         guard !invalidationRequested else { throw DocumentError.invalidated }
+        guard !fileOperationInProgress else { throw DocumentError.fileOperationInProgress }
         guard !isReadOnly else { throw DocumentError.readOnly }
         synchronizeActiveBlockEditor?()
         guard commitActiveBlockEdit() else { throw DocumentError.blockEditVersionMismatch }
@@ -531,6 +543,7 @@ public final class FileTabDocument {
 @MainActor
 public final class FileTabDocuments {
     private var storedDocuments: [ProjectID: [String: FileTabDocument]] = [:]
+    weak var router: AppRouter?
 
     public init() {}
 
@@ -576,6 +589,15 @@ public final class FileTabDocuments {
 
     func documentEntries() -> [(ProjectID, FileTabDocument)] {
         storedDocuments.flatMap { id, documents in documents.values.map { (id, $0) } }
+    }
+
+    func retarget(root: String, from old: String, to new: String) {
+        for (id, document) in documentEntries() where document.root == root {
+            guard let path = FileTreeOperations.renamedPath(document.path, from: old, to: new) else { continue }
+            storedDocuments[id]?[document.path] = nil
+            document.retarget(to: path)
+            storedDocuments[id, default: [:]][path] = document
+        }
     }
 
     public func invalidateAndWait(for projectIDs: Set<ProjectID>? = nil) async {

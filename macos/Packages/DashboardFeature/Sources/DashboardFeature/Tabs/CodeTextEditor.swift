@@ -12,6 +12,7 @@ struct CodeTextEditor: NSViewRepresentable {
     var path = ""
     var bomByteCount = 0
     var isEditable = true
+    var isTemporarilyLocked = false
     var readOnlyText: ReadOnlyText?
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var localizationBundle
@@ -23,7 +24,7 @@ struct CodeTextEditor: NSViewRepresentable {
     var requestBlockFocus = false
 
     init(getText: @escaping () -> String, setText: @escaping (String) -> Void,
-         path: String = "", bomByteCount: Int = 0, isEditable: Bool = true,
+         path: String = "", bomByteCount: Int = 0, isEditable: Bool = true, isTemporarilyLocked: Bool = false,
          readOnlyText: ReadOnlyText? = nil,
          blockEditID: UUID? = nil, synchronizeBlockEdit: ((UUID, String) -> Void)? = nil,
          commitBlockEdit: ((UUID) -> Bool)? = nil, onBlockCommit: (() -> Void)? = nil,
@@ -34,6 +35,7 @@ struct CodeTextEditor: NSViewRepresentable {
         self.path = path
         self.bomByteCount = bomByteCount
         self.isEditable = isEditable
+        self.isTemporarilyLocked = isTemporarilyLocked
         self.readOnlyText = readOnlyText
         self.blockEditID = blockEditID
         self.synchronizeBlockEdit = synchronizeBlockEdit
@@ -59,7 +61,7 @@ struct CodeTextEditor: NSViewRepresentable {
         textView.minSize = .zero
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
         textView.isRichText = false
-        textView.isEditable = isEditable
+        textView.isEditable = isEditable && !isTemporarilyLocked
         textView.isSelectable = true
         textView.isIncrementalSearchingEnabled = true
         textView.usesFindBar = true
@@ -106,11 +108,12 @@ struct CodeTextEditor: NSViewRepresentable {
         guard let textView = scrollView.documentView as? CurrentLineTextView else { return }
         context.coordinator.setText = setText
         context.coordinator.bomByteCount = bomByteCount
-        if textView.isEditable != isEditable {
+        // Undo の許可は恒久的な編集可否に従い、操作ロックでは履歴を消さない。
+        if textView.allowsUndo != isEditable {
             textView.undoManager?.removeAllActions()
-            textView.isEditable = isEditable
-            textView.allowsUndo = isEditable
         }
+        textView.isEditable = isEditable && !isTemporarilyLocked
+        textView.allowsUndo = isEditable
         configureBlockEdit(textView)
         let display = context.coordinator.displayText(getText(), readOnlyText: readOnlyText,
                                                      locale: locale, bundle: localizationBundle)

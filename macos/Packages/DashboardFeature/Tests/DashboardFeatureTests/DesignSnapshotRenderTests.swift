@@ -136,6 +136,107 @@ struct DesignSnapshotRenderTests {
         }
     }
 
+    @Test func fileTreeOperationSnapshots() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        var worktree = URL(fileURLWithPath: #filePath)
+        for _ in 0..<6 { worktree.deleteLastPathComponent() }
+        let output = worktree.appendingPathComponent(".build/design-snapshots")
+        let fixtures = output.appendingPathComponent("file-tree-operations")
+        let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
+        if FileManager.default.fileExists(atPath: cachedStrings.path) { try FileManager.default.removeItem(at: cachedStrings) }
+        let defaults = UserDefaults.standard
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        let appearance = NSApp.appearance
+        defer { defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain); NSApp.appearance = appearance }
+        try FileManager.default.createDirectory(at: fixtures.appendingPathComponent("docs/guides"), withIntermediateDirectories: true)
+        for name in ["file-tree.md", "step-1-setup.md"] {
+            try Data("本文".utf8).write(to: fixtures.appendingPathComponent("docs/guides/" + name))
+        }
+        for english in [false, true] {
+            for light in [false, true] {
+                var themeArguments = arguments
+                themeArguments[ThemeStore.themeKey] = light ? AppTheme.phloxLight.id : AppTheme.phlox.id
+                defaults.setVolatileDomain(themeArguments, forName: UserDefaults.argumentDomain)
+                NSApp.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
+                let suffix = (english ? "-en" : "-ja") + (light ? "-light" : "-dark")
+                for state in ["new-file", "new-folder", "rename", "error-file", "error-folder", "error-slash", "error-empty", "failure"] {
+                    for width in [260, 280] {
+                    let model = FileTreeModel(root: fixtures.path, readBranch: { "feature/files" })
+                    await model.refresh()
+                    await model.expand("docs")
+                    await model.expand("docs/guides")
+                    if state == "rename", let entry = model.rows.first(where: { $0.id == "docs/guides/file-tree.md" })?.entry {
+                        model.beginRename(entry)
+                    } else if state == "failure" {
+                        model.operationFailure = FileTreeFailure(operationKey: "名前を変更できませんでした: %@", error: CocoaError(.fileWriteNoPermission))
+                    } else {
+                        let parent = try #require(model.rows.first { $0.id == "docs/guides" }?.entry)
+                        await model.beginCreate(at: parent, folder: state == "new-folder")
+                        switch state {
+                        case "error-file": model.updateName("file-tree.md")
+                        case "error-folder":
+                            model.edit?.error = "同じ名前のフォルダがあります"
+                            model.edit?.name = "guides"
+                        case "error-slash": model.updateName("a/b.md")
+                        case "error-empty": _ = model.submitEdit()
+                        default: break
+                        }
+                    }
+                    let frame = Frame(id: "13-ft-" + state + suffix + (width == 260 ? "-260" : ""), name: "ファイル操作", width: CGFloat(width), height: 440,
+                        light: light, language: english ? "en" : "ja")
+                    try await capture(FileTreeView(model: model, openPath: "docs/guides/file-tree.md", open: { _, _ in },
+                                                  showsFocus: state == "rename", inputRequestsFocus: false), frame: frame, output: output,
+                        prepare: { host, window in
+                            if state == "new-file" || state == "new-folder" {
+                                let field = try #require(descendants(host).compactMap { $0 as? NSTextField }
+                                    .first { $0.accessibilityIdentifier() == "file-tree-name-input" })
+                                #expect(field.stringValue.isEmpty)
+                                #expect(field.placeholderAttributedString?.string == (english ? (state == "new-file" ? "File name" : "Folder name")
+                                    : (state == "new-file" ? "ファイル名" : "フォルダ名")))
+                            }
+                            guard state == "rename" else { return }
+                            let field = try #require(descendants(host).compactMap { $0 as? NSTextField }
+                                .first { $0.accessibilityIdentifier() == "file-tree-name-input" })
+                            window.makeFirstResponder(field)
+                            let editor = try #require(field.currentEditor() as? NSTextView)
+                            editor.setSelectedRange(FileTreeOperations.nameSelection(field.stringValue, folder: false))
+                            #expect(editor.selectedRange().length == ("file-tree" as NSString).length)
+                        })
+                    }
+                }
+                for dirty in [false, true] {
+                    let locale = Locale(identifier: english ? "en" : "ja")
+                    let bundle = try localizationBundle(fixtures: output)
+                    let confirmation = FileTreeTrashConfirmation(
+                        entry: .init(relativePath: "docs/guides/file-tree.md", name: "file-tree.md", kind: .file),
+                        root: fixtures.path, count: nil, openItems: [.init(path: "docs/guides/file-tree.md", dirty: dirty)])
+                    let alert = FileTreeTrashAlert.make(confirmation, locale: locale, bundle: bundle)
+                    #expect(!alert.informativeText.contains("。 "))
+                    if english { #expect(alert.informativeText.contains("The open tab will be closed.")) }
+                    let multiple = FileTreeTrashConfirmation(entry: confirmation.entry, root: fixtures.path, count: nil,
+                        openItems: confirmation.openItems + [.init(path: "docs/guides/step-1-setup.md", dirty: false)])
+                    if english { #expect(multiple.message(locale: locale, bundle: bundle).contains("Open tabs will be closed.")) }
+                    alert.window.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
+                    alert.layout()
+                    alert.window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+                    let content = try #require(alert.window.contentView)
+                    content.layoutSubtreeIfNeeded()
+                    let frame = Frame(id: "13-ft-trash-" + (dirty ? "unsaved" : "light") + suffix,
+                                      name: "NSAlert", width: content.bounds.width, height: content.bounds.height)
+                    try saveBitmap(content, bounds: content.bounds, to: destination(frame, output))
+                    alert.window.close()
+                    // 標準アラートの画面外描画がOSで欠けても、実際のaccessoryの比較画像を残す。
+                    try await capture(FileTreeTrashContent(confirmation: confirmation).padding(DSSpacing.m),
+                        frame: Frame(id: frame.id + "-content", name: "確認の一覧", width: 320, height: dirty ? 180 : 100,
+                                     light: light, language: english ? "en" : "ja"), output: output)
+                }
+            }
+        }
+    }
+
     @Test func commandDescriptionSnapshots() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }

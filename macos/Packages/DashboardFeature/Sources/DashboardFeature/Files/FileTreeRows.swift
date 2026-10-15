@@ -6,7 +6,12 @@ enum FileTreeRows {
         return path
     }
 
-    static func selection(openPath: String?, selectedPath: String?, rows: [Row]) -> String? {
+    static func selection(openPath: String?, selectedPath: String?, rows: [Row],
+                          previousOpenPath: String? = nil, renamed: (from: String, to: String)? = nil) -> String? {
+        // フォルダ内のタブの付け替えでは、操作したフォルダの選択を保つ。
+        if let renamed, let previousOpenPath, selectedPath == renamed.to,
+           FileTreeOperations.renamedPath(previousOpenPath, from: renamed.from, to: renamed.to) == openPath,
+           rows.contains(where: { $0.id == renamed.to }) { return renamed.to }
         if let openPath, rows.contains(where: { $0.isOpen(openPath) }) { return openPath }
         return visibleSelection(selectedPath, rows: rows)
     }
@@ -18,9 +23,9 @@ enum FileTreeRows {
         func isOpen(_ path: String?) -> Bool { entry.canOpen && id == path }
     }
 
-    enum Key { case up, down, right, left, activate }
+    enum Key { case up, down, right, left, activate, rename, open }
     enum Action: Equatable {
-        case select(String), expand(String), collapse(String), open(String), explainBlocked(String)
+        case select(String), expand(String), collapse(String), open(String), rename(String), explainBlocked(String)
     }
 
     static func visibleRows(childrenByDir: [String: [FileTreeEntry]], expanded: Set<String>) -> [Row] {
@@ -40,6 +45,8 @@ enum FileTreeRows {
     static func action(for path: String?, key: Key, rows: [Row], expanded: Set<String>) -> Action? {
         guard let row = rows.first(where: { $0.id == path }) else { return nil }
         switch key {
+        case .rename: return row.entry.canModify ? .rename(row.id) : nil
+        case .open: return row.entry.canOpen ? .open(row.id) : nil
         case .up, .down:
             guard let index = rows.firstIndex(where: { $0.id == path }) else { return nil }
             let next = key == .up ? index - 1 : index + 1

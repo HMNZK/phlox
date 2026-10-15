@@ -453,7 +453,7 @@ public struct DashboardView: View {
                 await editorPanel.resolve(workspaces: editorPanelWorkspaces)
             }
         }
-        .background(WindowChromeConfigurator(files: fileTabs, fileContext: { [weak viewModel] id in
+        .background(WindowChromeConfigurator(files: fileTabs, router: router, fileContext: { [weak viewModel] id in
             return UnsavedFileContext(project: viewModel?.projects.first { $0.id == id }?.name ?? "")
         }, projectName: { [weak viewModel, weak router] in
             guard let viewModel, let router else { return "" }

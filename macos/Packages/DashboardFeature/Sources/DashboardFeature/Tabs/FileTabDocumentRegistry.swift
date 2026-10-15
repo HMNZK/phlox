@@ -133,6 +133,13 @@ struct UnsavedChangesContent: View {
     }
 }
 
+/// 削除確認で承認された文書とタブ。未保存状態は文書ごとに比較する。
+struct FileTreeTrashState {
+    let documents: [FileTabDocument]
+    let dirtyDocuments: Set<ObjectIdentifier>
+    let paths: [String]
+}
+
 /// 下書きは各ウィンドウが所有し、破棄の確認だけを全ウィンドウで集約する。
 @MainActor
 @Observable
@@ -163,6 +170,76 @@ public final class FileTabDocumentRegistry {
     private var changingProjects: [ProjectID: Int] = [:]
 
     public init() {}
+
+    func operationStores(including files: FileTabDocuments) -> [FileTabDocuments] {
+        var stores = entries.compactMap(\.files)
+        if !stores.contains(where: { $0 === files }) { stores.append(files) }
+        return stores
+    }
+
+    func operationDocuments(root: String, path: String, including files: FileTabDocuments) -> [FileTabDocument] {
+        operationStores(including: files).flatMap { $0.documents() }.filter {
+            $0.root == root && FileTreeOperations.renamedPath($0.path, from: path, to: path) != nil
+        }
+    }
+
+    func operationTabPaths(root: String, path: String, projectID: ProjectID, including files: FileTabDocuments) -> [String] {
+        let stores = operationStores(including: files)
+        return Array(Set(stores.flatMap { store -> [String] in
+            let ids = Set(store.documentEntries().filter { $0.1.root == root }.map(\.0)).union([projectID])
+            return ids.flatMap { id in
+                (store.router?.tabs.layout(for: id).items ?? []).compactMap { tab in
+                    guard case .file(let file) = tab,
+                          FileTreeOperations.renamedPath(file, from: path, to: path) != nil else { return nil }
+                    return file
+                }
+            }
+        })).sorted()
+    }
+
+    func trashState(root: String, path: String, projectID: ProjectID, including files: FileTabDocuments) -> FileTreeTrashState {
+        let documents = operationDocuments(root: root, path: path, including: files)
+        for document in documents { document.synchronizeActiveBlockEditor?() }
+        return FileTreeTrashState(documents: documents,
+            dirtyDocuments: Set(documents.filter(\.hasUnsavedChanges).map(ObjectIdentifier.init)),
+            paths: operationTabPaths(root: root, path: path, projectID: projectID, including: files))
+    }
+
+    func trashStateMatches(_ approved: FileTreeTrashState, root: String, path: String,
+                           projectID: ProjectID, including files: FileTabDocuments) -> Bool {
+        let current = trashState(root: root, path: path, projectID: projectID, including: files)
+        return Set(current.documents.map(ObjectIdentifier.init)) == Set(approved.documents.map(ObjectIdentifier.init))
+            && current.dirtyDocuments.isSubset(of: approved.dirtyDocuments) && current.paths == approved.paths
+    }
+
+    func trashStateMatchesAfterSaves(_ approved: FileTreeTrashState, root: String, path: String,
+                                     projectID: ProjectID, including files: FileTabDocuments) async -> Bool {
+        for document in approved.documents { await document.waitForPendingSaves() }
+        return trashStateMatches(approved, root: root, path: path, projectID: projectID, including: files)
+    }
+
+    func retargetOperationTabs(root: String, from old: String, to new: String, projectID: ProjectID, including files: FileTabDocuments) {
+        for store in operationStores(including: files) {
+            let ids = Set(store.documentEntries().filter { $0.1.root == root }.map(\.0)).union([projectID])
+            store.retarget(root: root, from: old, to: new)
+            for id in ids { store.router?.tabs.updateLayout(for: id) { $0.retargetFiles(from: old, to: new) } }
+        }
+    }
+
+    func closeOperationTabs(root: String, path: String, projectID: ProjectID, including files: FileTabDocuments) async {
+        for store in operationStores(including: files) {
+            let ids = Set(store.documentEntries().filter { $0.1.root == root }.map(\.0)).union([projectID])
+            for id in ids {
+                let tabs = store.router?.tabs.layout(for: id).items ?? []
+                for tab in tabs {
+                    guard case .file(let file) = tab,
+                          FileTreeOperations.renamedPath(file, from: path, to: path) != nil else { continue }
+                    await store.remove(for: id, path: file)
+                    store.router?.tabs.updateLayout(for: id) { _ = $0.close(tab) }
+                }
+            }
+        }
+    }
 
     func isChangingProject(_ id: ProjectID) -> Bool { changingProjects[id] != nil }
 

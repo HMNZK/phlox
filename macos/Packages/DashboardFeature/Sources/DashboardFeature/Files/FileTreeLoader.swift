@@ -14,6 +14,14 @@ struct FileTreeEntry: Identifiable, Equatable, Sendable {
     var id: String { relativePath }
     var canExpand: Bool { kind == .directory }
     var canOpen: Bool { kind == .file || kind == .symlinkToFile }
+    var canModify: Bool { kind != .symlinkOutsideRoot && kind != .unavailable && !relativePath.isEmpty }
+    var canCreate: Bool {
+        guard canModify else { return false }
+        if kind == .symlinkToDirectory, let resolvedPath {
+            return !URL(fileURLWithPath: resolvedPath).pathComponents.contains(where: FileTreeLoader.excludedNames.contains)
+        }
+        return true
+    }
     var isFolder: Bool { kind == .directory || kind == .symlinkToDirectory || outsideTargetIsDirectory }
 
     var linkDestination: String? {
@@ -48,6 +56,7 @@ struct FileTreeEntry: Identifiable, Equatable, Sendable {
 }
 
 actor FileTreeLoader {
+    nonisolated static let excludedNames: Set<String> = [".git", ".DS_Store"]
     struct Listing: Equatable, Sendable {
         let entries: [FileTreeEntry]
         let omittedCount: Int
@@ -66,14 +75,20 @@ actor FileTreeLoader {
     }
 
     /// 更新で置き換えられた要求は、成功・失敗とも画面へ返さない。
-    func children(of path: String, refresh: Bool = false) async throws -> Listing? {
+    func children(of path: String, refresh: Bool = false, revealing: String? = nil) async throws -> Listing? {
         let request: (id: UUID, task: Task<Listing, Error>)
         if !refresh, let existing = pending[path], !completed.contains(existing.id) {
             request = existing
         } else {
             let root = root
             let read = read
-            request = (UUID(), Task.detached { try await read(root, path) })
+            request = (UUID(), Task.detached {
+                let listing = try await read(root, path)
+                if let revealing, listing.omittedCount > 0, !listing.entries.contains(where: { $0.id == revealing }) {
+                    return try FileTreeLoader.readDirectory(root: root, path: path, revealing: revealing)
+                }
+                return listing
+            })
             if let old = pending[path] { completed.remove(old.id) }
             pending[path] = request
         }
@@ -84,7 +99,7 @@ actor FileTreeLoader {
         return try result.get()
     }
 
-    nonisolated static func readDirectory(root: URL, path: String) throws -> Listing {
+    nonisolated static func readDirectory(root: URL, path: String, revealing: String? = nil) throws -> Listing {
         let directory = try WorkingTreeService.relativeURL(for: path, relativeTo: root, allowRoot: true)
         _ = try WorkingTreeService.containedURL(directory, under: root, allowRoot: true)
         // 途中のフォルダがリンクへ置き換わった場合も展開しない。
@@ -98,7 +113,7 @@ actor FileTreeLoader {
         let urls = try FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey]
         )
-        let entries = urls.filter { ![".git", ".DS_Store"].contains($0.lastPathComponent) }.map { url in
+        let entries = urls.filter { !excludedNames.contains($0.lastPathComponent) }.map { url in
             var entry = FileTreeEntry(
                 relativePath: path.isEmpty ? url.lastPathComponent : path + "/" + url.lastPathComponent,
                 name: url.lastPathComponent, kind: .unavailable
@@ -137,7 +152,11 @@ actor FileTreeLoader {
             let order = $0.name.localizedStandardCompare($1.name)
             return order == .orderedSame ? $0.name.utf8.lexicographicallyPrecedes($1.name.utf8) : order == .orderedAscending
         }
-        return Listing(entries: Array(entries.prefix(5_000)), omittedCount: max(0, entries.count - 5_000))
+        let visible: [FileTreeEntry]
+        if let revealing, let index = entries.firstIndex(where: { $0.id == revealing }), index >= 5_000 {
+            visible = Array(entries.prefix(4_999)) + [entries[index]]
+        } else { visible = Array(entries.prefix(5_000)) }
+        return Listing(entries: visible, omittedCount: max(0, entries.count - 5_000))
     }
 
     nonisolated static func failureReason(_ error: Error) -> String {

@@ -755,7 +755,8 @@ struct FileTabView: View {
                 } else {
                     CodeTextEditor(getText: { document.draft }, setText: { document.draft = $0 },
                                    path: document.path, bomByteCount: document.bom.count,
-                                   isEditable: !document.isReadOnly, readOnlyText: document.readOnlyText)
+                                   isEditable: !document.isReadOnly, isTemporarilyLocked: document.fileOperationInProgress,
+                                   readOnlyText: document.readOnlyText)
                         .disabled(document.invalidated)
                 }
             case .unloaded, .loading:
@@ -763,6 +764,7 @@ struct FileTabView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(document.fileOperationInProgress)
         .task { await document.loadIfNeeded() }
         .task {
             if document.isHTML { await htmlPreview.prepare() }
@@ -776,7 +778,7 @@ struct FileTabView: View {
                 .accessibilityHidden(true)
             Button("保存") { requestSave() }
             .keyboardShortcut("s", modifiers: .command)
-            .disabled(!isFocused || document.isReadOnly)
+            .disabled(!isFocused || document.isReadOnly || document.fileOperationInProgress)
             .hidden()
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
@@ -910,7 +912,7 @@ struct FileTabView: View {
     }
 
     private var canSave: Bool {
-        document.isLoaded && !document.isReadOnly && !document.invalidated && document.hasUnsavedChanges && document.blockEditFailure == nil
+        document.isLoaded && !document.isReadOnly && !document.fileOperationInProgress && !document.invalidated && document.hasUnsavedChanges && document.blockEditFailure == nil
     }
 
     func openInBrowser(_ open: (URL) -> Void) {

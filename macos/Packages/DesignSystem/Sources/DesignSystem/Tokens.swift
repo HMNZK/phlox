@@ -86,6 +86,10 @@ public enum DSLayout {
     public static let bottomPanelContentMinimumHeight: CGFloat = 200
     public static let bottomPanelMaximumFraction: CGFloat = 0.7
     public static let bottomPanelButtonWidth: CGFloat = 26
+    public static let fileTreeInputHeight: CGFloat = 22
+    public static let fileTreeInputRadius: CGFloat = 5
+    public static let fileTreeTrashContentWidth: CGFloat = 280
+    public static let fileTreeDismissSize: CGFloat = 20
     /// 進捗バー高。Compact（旧 4）と本体（5）の値ドリフトを 5 に統一。
     public static let progressBarHeight: CGFloat = 5
 
@@ -166,6 +170,7 @@ public enum DSAnimation {
 /// SF Symbol などアイコングリフの固有サイズ。本文フォント(DSFont)とは別系統で、
 /// 頻出する実寸を一元化する（weight は利用箇所で指定）。一回限りの特大アイコンは対象外。
 public enum DSIconSize {
+    public static let fileTreeDismiss: CGFloat = 8
     public static let modeSegment: CGFloat = 14
     public static let s: CGFloat = 10
     public static let m: CGFloat = 12

@@ -8,6 +8,87 @@ import Testing
 struct MarkdownBlockEditorLifecycleTests {
     static let source = "# 見出し\n\n本文A\n\n本文B\n"
 
+    @Test("操作ロックの解除後も実際の編集欄で入力をUndoできる", arguments: [false, true])
+    func fileOperationPreservesEditorUndo(sourceEditor: Bool) async throws {
+        let (root, _, document, window, view) = try await setUp(usesFileTab: sourceEditor)
+        defer { window.close(); try? FileManager.default.removeItem(at: root) }
+        if sourceEditor {
+            #expect(document.setPresentation(.source))
+            try await Task.sleep(for: .milliseconds(100))
+            view.layoutSubtreeIfNeeded()
+        } else {
+            try await clickText("本文A", view: view, window: window)
+        }
+        let editor = try #require(editors(in: view).first as? CurrentLineTextView)
+        let before = editor.string
+        editor.insertText("X", replacementRange: NSRange(location: 0, length: 0))
+        editor.breakUndoCoalescing()
+        #expect(editor.undoManager?.canUndo == true)
+        for locked in [true, false] {
+            document.fileOperationInProgress = locked
+            try await Task.sleep(for: .milliseconds(100))
+            view.layoutSubtreeIfNeeded()
+            #expect(editor.isEditable == !locked)
+            #expect(editor.string == "X" + before)
+            if locked { #expect(editor.undoManager == nil) }
+        }
+        #expect(editor.undoManager?.canUndo == true)
+        editor.undo(nil)
+        #expect(editor.string == before)
+        #expect(editor.undoManager?.canRedo == true)
+        editor.redo(nil)
+        #expect(editor.string == "X" + before)
+    }
+
+    @Test("恒久的な編集可否の切替では従来どおりUndo履歴を消す")
+    func readOnlyTransitionClearsEditorUndo() async throws {
+        var text = "本文"
+        func content(editable: Bool) -> CodeTextEditor {
+            CodeTextEditor(getText: { text }, setText: { text = $0 }, isEditable: editable)
+        }
+        let view = NSHostingView(rootView: content(editable: true))
+        view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
+        view.layoutSubtreeIfNeeded()
+        let editor = try #require(editors(in: view).first as? CurrentLineTextView)
+        editor.insertText("X", replacementRange: NSRange(location: 0, length: 0))
+        editor.breakUndoCoalescing()
+        #expect(editor.undoManager?.canUndo == true)
+        for editable in [false, true] {
+            view.rootView = content(editable: editable)
+            try await Task.sleep(for: .milliseconds(100))
+            view.layoutSubtreeIfNeeded()
+            #expect(editors(in: view).first === editor)
+            #expect(editor.isEditable == editable)
+            #expect(editor.allowsUndo == editable)
+        }
+        #expect(editor.undoManager?.canUndo == false)
+        #expect(editor.string == "X本文")
+    }
+
+    @Test("ファイル操作中は実際のブロック編集欄が編集不可になり未確定入力を保持する")
+    func fileOperationDisablesBlockEditor() async throws {
+        let (root, _, document, window, view) = try await setUp()
+        defer { window.close(); try? FileManager.default.removeItem(at: root) }
+        try await clickText("本文A", view: view, window: window)
+        let editor = try #require(editors(in: view).first as? CurrentLineTextView)
+        #expect(editor.isEditable)
+        // NSTextView 内に残る未確定入力をロック前に文書へ同期する。
+        editor.string = "同期前の入力"
+        document.synchronizeActiveBlockEditor?()
+        #expect(document.activeBlockEdit?.current == "同期前の入力")
+        document.fileOperationInProgress = true
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        #expect(!editor.isEditable)
+        #expect(editor.string == "同期前の入力")
+        #expect(document.activeBlockEdit?.current == "同期前の入力")
+        document.fileOperationInProgress = false
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
+        #expect(editor.isEditable)
+        #expect(editor.string == "同期前の入力")
+    }
+
     @Test func editorAttachedAfterInitialUpdateReceivesKeyboardFocus() async throws {
         let id = UUID()
         let view = NSHostingView(rootView: CodeTextEditor(getText: { "本文" }, setText: { _ in }, blockEditID: id,
@@ -149,6 +230,7 @@ struct MarkdownBlockEditorLifecycleTests {
         let reopened = try #require(editors(in: view).first)
         #expect(window.firstResponder === reopened)
         #expect(window.delegate?.windowWillReturnUndoManager?(window) === reopened.undoManager)
+        #expect(reopened.undoManager?.canUndo == false)
         reopened.insertText("V", replacementRange: NSRange(location: 0, length: 0))
         reopened.breakUndoCoalescing()
         #expect(reopened.tryToPerform(NSSelectorFromString("undo:"), with: nil))

@@ -6,12 +6,14 @@ import AgentDomain
 struct WindowChromeConfigurator: NSViewRepresentable {
     @Environment(\.locale) private var locale
     var files: FileTabDocuments? = nil
+    var router: AppRouter? = nil
     var fileContext: (ProjectID) -> UnsavedFileContext = { _ in UnsavedFileContext() }
     var projectName: () -> String = { "" }
 
     func makeNSView(context: Context) -> NSView {
         let view = ChromeView()
         view.files = files
+        files?.router = router
         view.fileContext = fileContext
         view.projectName = projectName
         view.locale = locale
@@ -20,6 +22,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         guard let view = nsView as? ChromeView else { return }
         view.files = files
+        files?.router = router
         view.fileContext = fileContext
         view.projectName = projectName
         view.locale = locale

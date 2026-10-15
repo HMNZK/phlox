@@ -66,6 +66,19 @@ public struct ProjectTabLayout: Codable, Equatable, Sendable {
         select(tab)
     }
 
+    mutating func retargetFiles(from old: String, to new: String) {
+        func retarget(_ tab: ProjectTab) -> ProjectTab {
+            guard case .file(let path) = tab,
+                  let changed = FileTreeOperations.renamedPath(path, from: old, to: new) else { return tab }
+            return .file(changed)
+        }
+        var seen = Set<ProjectTab>()
+        items = items.map(retarget).filter { seen.insert($0).inserted }
+        left = left.map(retarget)
+        right = right.map(retarget)
+        if left == right { right = nil; focusesRight = false }
+    }
+
     public mutating func select(_ tab: ProjectTab) {
         guard tab.isChat || items.contains(tab) else { return }
         if tab == left { focusesRight = false }

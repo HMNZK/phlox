@@ -138,6 +138,8 @@ struct MarkdownBlockEditor: View {
                     },
                     setText: { document.updateActiveBlockEdit(id: edit.id, current: $0) },
                     path: "block.md",
+                    isEditable: !document.isReadOnly,
+                    isTemporarilyLocked: document.fileOperationInProgress,
                     blockEditID: edit.id,
                     synchronizeBlockEdit: { document.updateActiveBlockEdit(id: $0, current: $1) },
                     commitBlockEdit: { id in

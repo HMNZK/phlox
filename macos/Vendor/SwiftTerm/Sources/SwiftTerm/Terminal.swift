@@ -2750,6 +2750,8 @@ open class Terminal {
     //   The x's are hexadecimal digits 0-9 and A-F.
     func cmdDECRQCRA (_ pars: [Int], _ collect: cstring)
     {
+        // チェックサム要求はCSI ... * yだけ。他のCSI yには応答しない。
+        guard collect == [UInt8(ascii: "*")] else { return }
         var checksum: UInt32 = 0
         let rid = pars.count > 0 ? pars [0] : 1
         let _ = pars.count > 1 ? pars [1] : 0

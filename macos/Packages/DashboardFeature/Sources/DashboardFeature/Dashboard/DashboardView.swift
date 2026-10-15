@@ -461,9 +461,17 @@ public struct DashboardView: View {
         }))
         .onReceive(NotificationCenter.default.publisher(for: .fileTreeFileSaved)) { notification in
             guard let root = notification.userInfo?["root"] as? String,
-                  let path = notification.userInfo?["path"] as? String,
-                  let model = fileTreeModels[root] else { return }
-            Task { await model.fileSaved(root: root, relativePath: path) }
+                  let path = notification.userInfo?["path"] as? String else { return }
+            Task { if let model = fileTreeModels[root] { await model.fileSaved(root: root, relativePath: path) } }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshGit(for: .foreground)
+        }
+        .onChange(of: projectTurnCompletions) { old, new in
+            let model = editorPanel.viewModel
+            Task {
+                await GitTabPolicy.refreshAfterTurnCompletions(old: old, new: new, model: model)
+            }
         }
         .onAppear {
             migrateProjectTabs()
@@ -742,8 +750,19 @@ public struct DashboardView: View {
             project: viewModel.projects.first { $0.id == router.selectedProjectID },
             fileTreeModels: $fileTreeModels,
             files: fileTabs,
+            editorPanel: editorPanel,
             isOverlay: isOverlay
         )
+    }
+
+    private var projectTurnCompletions: [SessionID: Date] {
+        GitTabPolicy.turnCompletions(sessions: viewModel.sessionNodes, projectID: router.selectedProjectID)
+    }
+
+    private func refreshGit(for event: GitTabPolicy.RefreshEvent) {
+        guard GitTabPolicy.shouldRefresh(event, projectRoot: editorPanel.target.workingDirectory) else { return }
+        let model = editorPanel.viewModel
+        Task { await model.refresh() }
     }
 
     private var verticalSeparator: some View {

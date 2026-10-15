@@ -136,6 +136,75 @@ struct DesignSnapshotRenderTests {
         }
     }
 
+    @Test func gitInspectorSnapshots() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        var worktree = URL(fileURLWithPath: #filePath)
+        for _ in 0..<6 { worktree.deleteLastPathComponent() }
+        let output = worktree.appendingPathComponent(".build/design-snapshots")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
+        if FileManager.default.fileExists(atPath: cachedStrings.path) { try FileManager.default.removeItem(at: cachedStrings) }
+        let defaults = UserDefaults.standard
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        let appearance = NSApp.appearance
+        defer { defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain); NSApp.appearance = appearance }
+        let changes: [WorkingTreeChange] = [
+            .init(path: "docs/notes/bottom-panel.md", kind: .untracked, isBinary: false),
+            .init(path: "macos/App/Resources/panel@2x.png", kind: .added, isBinary: true),
+            .init(path: "macos/Packages/DashboardFeature/Sources/BottomPanel/BottomPanelModel.swift", kind: .added, isBinary: false),
+            .init(path: "macos/Packages/DashboardFeature/Sources/BottomPanel/BottomPanelView.swift", kind: .modified, isBinary: false),
+            .init(path: "macos/Packages/DashboardFeature/Sources/Git/GitChangesList.swift", kind: .renamed, isBinary: false),
+            .init(path: "macos/Packages/DashboardFeature/Sources/Inspector/InspectorFilesOnlyView.swift", kind: .deleted, isBinary: false),
+            .init(path: "macos/Packages/DashboardFeature/Sources/Inspector/InspectorView.swift", kind: .modified, isBinary: false)
+        ]
+        let gitFixture = output.appendingPathComponent("git-fixture")
+        let binaryFile = gitFixture.appendingPathComponent(changes[1].path)
+        try FileManager.default.createDirectory(at: binaryFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 0, count: 24_000).write(to: binaryFile)
+        let diff = "@@ -18,3 +18,5 @@ struct BottomPanelView: View {\n     @Bindable var model: BottomPanelModel\n-    var body: some View {\n-        TerminalHostView(session: model.session)\n+    @FocusState private var isTerminalFocused: Bool\n+\n+    var body: some View {\n+        BottomPanelHeader(model: model, isFocused: isTerminalFocused)\n+        TerminalHostView(session: model.session)\n"
+        for english in [false, true] {
+            for light in [false, true] {
+                var themeArguments = arguments
+                themeArguments[ThemeStore.themeKey] = light ? AppTheme.phloxLight.id : AppTheme.phlox.id
+                defaults.setVolatileDomain(themeArguments, forName: UserDefaults.argumentDomain)
+                NSApp.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
+                for width in [260, 280, 340] {
+                    for state in ["list", "fresh", "clean", "nogit", "error", "long", "binary", "untracked"] {
+                        let model = EditorPanelViewModel(service: nil, changeScope: .isolated(repositoryRoot: gitFixture.path))
+                        if state == "fresh" {
+                            model.acceptSnapshot(.init(branch: "feature/bottom-panel", changes: Array(changes.dropFirst().dropLast()), lineCounts: [:]))
+                        }
+                        if state != "nogit" {
+                            model.acceptSnapshot(.init(branch: "feature/bottom-panel", changes: state == "clean" || state == "error" ? [] : changes,
+                                lineCounts: Dictionary(uniqueKeysWithValues: changes.filter { !$0.isBinary }.map { ($0.path, WorkingTreeLineCount(added: 12, deleted: 3)) })))
+                        } else { model.setSnapshotNotRepository() }
+                        if state == "error" { model.listErrorMessage = "fatal: detected dubious ownership in repository at '/Users/ryosuke/Projects/Phlox-oss'" }
+                        let detail: WorkingTreeDetail
+                        let path: String
+                        switch state {
+                        case "long":
+                            detail = .untrackedContent((1...86).map { "    let line\($0) = model.session" }.joined(separator: "\n")); path = changes[2].path
+                        case "binary": detail = .binary; path = changes[1].path
+                        case "untracked": detail = .untrackedContent("# 下部パネル メモ\n\n- 閉じてもシェルは終了しない\n"); path = changes[0].path
+                        default: detail = .diff(diff); path = changes[3].path
+                        }
+                        let id = "13-gt-\(state)-\(width)-\(light ? "light" : "dark")-\(english ? "en" : "ja")"
+                        let frame = Frame(id: id, name: "Git", width: CGFloat(width), height: 620, light: light, language: english ? "en" : "ja")
+                        try await capture(VStack(spacing: 0) {
+                            InspectorTabPicker(selection: .constant(.git))
+                            GitInspectorView(model: model, workingDirectory: "/Users/ryosuke/Projects/design-notes", openChanges: { _, _ in }, openFile: { _ in },
+                                previewPath: path, previewDetail: detail, loadsDetail: false)
+                        }.background(DSColor.surface), frame: frame, output: output)
+                        #expect(FileManager.default.fileExists(atPath: destination(frame, output).path))
+                    }
+                }
+            }
+        }
+    }
+
     @Test func fileTreeOperationSnapshots() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }

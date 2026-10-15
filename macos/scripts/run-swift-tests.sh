@@ -9,6 +9,7 @@
 #   macos/scripts/run-swift-tests.sh                      # 既定のパッケージを全部
 #   macos/scripts/run-swift-tests.sh AgentDomain          # パッケージを指定
 #   SWIFT_TEST_SKIP="SuiteA SuiteB" macos/scripts/run-swift-tests.sh
+#   SWIFT_TEST_FILTER="BottomPanelTests" macos/scripts/run-swift-tests.sh DashboardFeature  # 作業中の絞り込み
 #
 # 環境変数:
 #   SWIFT_TEST_PACKAGES         空白区切りのパッケージ名。引数が無いときの対象（既定は下記）
@@ -16,6 +17,9 @@
 #   SWIFT_TEST_SERIAL_PACKAGES  --no-parallel で走らせるパッケージ（既定 SessionFeature DashboardFeature）
 #   SWIFT_TEST_GIT_SUITES       実 git を起動するスイート。DashboardFeature の別パスで走らせる
 #   SWIFT_TEST_OUTPUT           compact（成功時は要約）または full（全ログ）。既定 compact
+#   SWIFT_TEST_FILTER           空白区切りで swift test --filter に渡す（スイート名・テスト名・正規表現）。
+#                               作業中に失敗したテストだけを回すためのもの。指定すると実 git の別パス分けを
+#                               せず 1 回で走らせ、**全件の合格にはならない**（完了の判定は未指定の全件で行う）。
 #
 # 注意（macOS の bash は 3.2）: 全角文字の直前の変数は必ず ${var} と括る。
 # 3.2 は `$label）` を変数名 `label）` として読み、unbound variable で落ちる。
@@ -80,6 +84,10 @@ SKIP_ARGS=()
 for suite in ${SWIFT_TEST_SKIP:-}; do
   SKIP_ARGS+=(--skip "$suite")
 done
+FILTER_ARGS=()
+for pattern in ${SWIFT_TEST_FILTER:-}; do
+  FILTER_ARGS+=(--filter "$pattern")
+done
 
 serial_args_for() {  # <package>
   case " $SERIAL_PACKAGES " in
@@ -126,7 +134,10 @@ for pkg in $PACKAGES; do
   serial_args=()
   [ -n "$serial_arg" ] && serial_args=("$serial_arg")
 
-  if [ "$pkg" = "$GIT_PASS_PACKAGE" ] && [ -n "$GIT_SUITES" ]; then
+  if [ ${#FILTER_ARGS[@]} -gt 0 ]; then
+    run_swift_test "$pkg" "絞り込み" ${serial_args[@]+"${serial_args[@]}"} ${SKIP_ARGS[@]+"${SKIP_ARGS[@]}"} \
+      "${FILTER_ARGS[@]}" || failed="$failed $pkg"
+  elif [ "$pkg" = "$GIT_PASS_PACKAGE" ] && [ -n "$GIT_SUITES" ]; then
     # パス1: 実 git スイートを外した本体。
     main_args=(${serial_args[@]+"${serial_args[@]}"} ${SKIP_ARGS[@]+"${SKIP_ARGS[@]}"})
     filter_args=()
@@ -163,5 +174,5 @@ if [ -n "$failed" ]; then
   echo "run-swift-tests: FAILED ->$failed" >&2
   exit 1
 fi
-echo "run-swift-tests: OK ($PACKAGES${SWIFT_TEST_SKIP:+ / skipped:$SWIFT_TEST_SKIP}${GIT_SUITES:+ / git別パス:$GIT_SUITES}${SERIAL_PACKAGES:+ / 直列:$SERIAL_PACKAGES})"
+echo "run-swift-tests: OK ($PACKAGES${SWIFT_TEST_FILTER:+ / 絞り込み:${SWIFT_TEST_FILTER}（全件の合格ではない）}${SWIFT_TEST_SKIP:+ / skipped:$SWIFT_TEST_SKIP}${GIT_SUITES:+ / git別パス:$GIT_SUITES}${SERIAL_PACKAGES:+ / 直列:$SERIAL_PACKAGES})"
 exit 0

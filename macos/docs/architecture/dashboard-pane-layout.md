@@ -6,14 +6,15 @@ last-verified: 2026-10-15
 # Dashboard 3ペインレイアウトと幅クランプ
 
 > **このファイルの役割**: メインウィンドウの3ペイン（左サイドバー・detail・右インスペクター）構成と、ペイン幅の決定・クランプ機構の現行仕様。
-> **書かないもの**: なぜこの方式か（→ adr/0090）、空状態カードの中身（→ dashboard-empty-state-agent-cards.md）、使用量サイドバーの内容（→ claude-usage-supply.md）。
+> **書かないもの**: 決定の理由（→ adr/0195）、ファイルと差分のデータフロー（→ file-explorer-and-markdown-editing.md・terminal-editor-panels.md）。
 
 ## 構成（Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/）
 
-- `DashboardView.navigationShell` — `GeometryReader` + `HStack(spacing: 0)` の自前3ペイン。左=`DashboardSidebarView`（`.frame(width: sidebarWidth)`）、中央=`DashboardDetailView`（`.frame(maxWidth: .infinity)`）、右=`InspectorView`（ファイルツリー。`.frame(width: inspectorWidth)`）。表示状態は `AppRouter.sidebarVisible` / `inspectorVisible`。
-- `PaneWidthPolicy` — ペイン幅決定の単一の正本（純関数）。定数 `sidebarMinWidth=240` / `inspectorMinWidth=240` / `detailMinWidth=400`。`clamped(windowWidth:sidebarVisible:inspectorVisible:sidebarWidth:inspectorWidth:) -> PaneWidths` は「縮小方向のみ・インスペクター優先で縮小・両 min で床止め・非表示ペインはパススルー」（意味論の理由は ADR 0090）。
-- クランプの発火点（`DashboardView.applyPaneWidthClamp`）: ①`onChange(of: geometry.size.width, initial: true)`（ウィンドウリサイズ・起動直後）②`router.sidebarVisible` の `onChange` ③`router.inspectorVisible` の `onChange`。適用後は `sidebarWidthAtDragStart` / `inspectorWidthAtDragStart` も同期する（次のドラッグ開始基準の飛び防止）。
-- リサイズグリップ（`ResizeGripView` のオーバーレイ）: ドラッグ中のクランプは従来式のまま（`min(max(min幅, 提案), 窓幅 − detailMin − 反対側)`）。定数は `PaneWidthPolicy` を参照。
+- `DashboardView.navigationShell` — `GeometryReader` + `HStack(spacing: 0)` の自前3ペイン。左=`DashboardSidebarView`、中央=子タブ、右=`InspectorView`（ファイル / Git。ADR 0195）。表示状態は `AppRouter.sidebarVisible` / `inspectorVisible`。右は260〜340pt（既定280pt）。中央に480ptを残せない場合は右をカードとして重ね、Gitから変更タブへ渡すとカードを閉じる。
+- `PaneWidthPolicy.resolve` は `DSLayout.sidebarWidth` / `inspectorWidth` で幅をクランプする純関数。中央の最小幅は480pt。横に並ばない右ペインは重ね表示にし、左も横に並ばなければ自動で隠す。隠れた左は一時表示できる。
+- `DashboardView` はウィンドウ幅・表示状態から毎回 `resolve` して配置する。幅は `SceneStorage` でウィンドウごとに保持する。`ResizeGripView` のドラッグは `draggedSidebarWidth` / `draggedInspectorWidth` を通し、中央の最小幅と範囲を守る。
+- Git内の上下の境目は見た目1pt・操作領域8pt。一覧は最小84pt（3行）、差分は最小120pt。リサイズ時に比率を保ち、VoiceOverの増減操作でも調整できる。一覧の高さは UserDefaults に保存し、タブ再表示・アプリ再起動で復元する。通常のキーボード調整は追加しない（2026-10-14 ユーザー決定）。
+- Git の行はフォルダを先に縮め、ファイル名・種類・行数を優先する。差分本文は文字単位で折り返す。バイナリは名前・種類・サイズ、未追跡は追加のハンク見出しを出す。共有差分色は変えず Git 側だけ塗りを薄くする。寸法は既存 DesignSystem トークンの近似値を使う。
 
 ## 中央の下部パネル（ADR 0196・0197）
 
@@ -31,11 +32,9 @@ last-verified: 2026-10-15
 
 ## テスト
 
-- 受け入れ（凍結）: `AcceptancePaneWidthPolicyTests.swift` — 定数凍結・縮小のみ・インスペクター優先・床止め・パススルーの境界値と総性質。
-- 白箱: `PaneWidthPolicyWhiteboxTests.swift`。
-- ランタイム描画: `DashboardPaneClampRuntimeTests.swift` — 実 `DashboardView` を `NSHostingView` でホストし、900pt（クランプ 260/240・右サイドバー完全表示・カード縦積み）と 1400pt（無クランプ 280/300・横並び）の参照 PNG を `/tmp/dashboard-both-sidebars-*.png` へ出力。`ImageRenderer` は `ScrollView` 内容と `onChange` 更新を描画できないため使わない。
+- `PaneLayoutPolicyTests` は右の重ね表示・左の自動非表示・ドラッグ幅の境界を検査する。
+- `DesignSnapshotRenderTests.gitInspectorSnapshots` は260/280/340pt、日英・明暗、一覧＋差分／変更なし／管理外／取得失敗と再試行／長い差分／バイナリ／未追跡を画面外描画する。明示指定 `PHLOX_DESIGN_SNAPSHOTS=1` の場合だけ画像を出す。
 
 ## 前提・境界
 
-- ウィンドウ幅 882pt（= 240+400+240+区切り2）未満は両ペイン min 床止めのまま理論上あふれ得る（許容。ADR 0090）。
-- `TrailingTopBarLayout.occupiedWidthForUsageLayout` の凍結シグネチャ（usageAvailableWidth 契約）はこの機構と独立に維持。
+- 使用量バーは下端のまま。Gitタブ追加で左右の幅の規則を変更しない。

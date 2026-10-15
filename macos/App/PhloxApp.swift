@@ -862,6 +862,12 @@ private struct ViewCommands: Commands {
             .keyboardShortcut("b", modifiers: [.command, .control])
             .disabled(router == nil)
 
+            Button("Git タブ") {
+                router?.showGitInInspector()
+            }
+            .keyboardShortcut("g", modifiers: [.shift, .command, .control])
+            .disabled(router == nil)
+
             Button("変更のタブ") {
                 router?.openChildTab(.changes)
             }

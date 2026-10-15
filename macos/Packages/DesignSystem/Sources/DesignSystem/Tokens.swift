@@ -35,9 +35,11 @@ public enum DSFont {
     /// 書体は DashboardFeature が同梱し、`NewChatHeadingFont` が初回の参照で登録する。
     public static let newChatHeading = Font.custom("DotGothic16-Regular", fixedSize: 32)
     public static let mono = Font.system(.body, design: .monospaced)
-    public static let monoCaption = Font.system(size: 11, design: .monospaced)
+    public static let monoCaptionSize: CGFloat = 11
+    public static let monoCaption = Font.system(size: monoCaptionSize, design: .monospaced)
     /// バッジ等の極小アイコン用。生値 `.system(size: 9)` の直書きを排除する。
     public static let iconTiny = Font.system(size: 9, weight: .bold)
+    public static let gitFailureIcon = Font.system(size: 26, weight: .semibold)
     /// iOSの下部タブの図記号。選択状態による太さは呼び出し側で指定する。
     public static let iconTab = Font.system(size: 20)
     /// iOSの接続失敗の図記号。
@@ -86,6 +88,19 @@ public enum DSLayout {
     public static let bottomPanelContentMinimumHeight: CGFloat = 200
     public static let bottomPanelMaximumFraction: CGFloat = 0.7
     public static let bottomPanelButtonWidth: CGFloat = 26
+    public static let gitHeaderHeight: CGFloat = 48
+    public static let gitRowHeight: CGFloat = 28
+    public static let gitKindSize: CGFloat = 16
+    public static let gitDiffHeaderHeight: CGFloat = 28
+    public static let gitListInitialHeight: CGFloat = 204
+    public static let gitListMinimumHeight: CGFloat = 84
+    public static let gitDiffMinimumHeight: CGFloat = 120
+    public static let gitLineNumberWidth: CGFloat = 32
+    public static let gitSignWidth: CGFloat = 14
+    public static let gitSplitHitHeight: CGFloat = 8
+    public static let gitSplitHoverHeight: CGFloat = 3
+    public static let gitDiffLineHeight: CGFloat = 16
+    public static let inspectorSegmentRadius: CGFloat = 7
     public static let fileTreeInputHeight: CGFloat = 22
     public static let fileTreeInputRadius: CGFloat = 5
     public static let fileTreeTrashContentWidth: CGFloat = 280
@@ -276,6 +291,7 @@ public enum DSColor {
 
     /// ファイル差分の色（再設計: 追加=緑・削除=赤。各テーマで 4.5:1 以上に導出）。
     public static var diffAdded: Color { theme.palette.diffAdded.color }
+    public static var clear: Color { .clear }
     public static var diffRemoved: Color { theme.palette.diffRemoved.color }
     /// 差分の追加・削除行の面（PhloxChat.dc.html の --addTint / --delTint。ライト 10%/9%、ダーク 12%）。
     public static var diffAddedTint: Color { diffAdded.opacity(theme.palette.isLight ? 0.10 : 0.12) }

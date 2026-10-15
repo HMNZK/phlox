@@ -17,6 +17,7 @@ last-verified: 2026-10-15
 | 0198 | [ユーザー用端末の初期設定とヘッダーの操作境界を分ける](0198-user-terminal-cooked-mode-and-toolbar-selection.md) | accepted |
 | 0197 | [下部ターミナルの表示器をプロジェクトごとに1つにする](0197-bottom-terminal-single-display.md) | accepted |
 | 0196 | [中央の下部パネルにプロジェクトごとのターミナルを置く](0196-project-bottom-terminal-panel.md) | superseded |
+| 0195 | [インスペクタに共有作業ツリーの Git タブを戻す](0195-inspector-git-shared-working-tree.md) | accepted |
 | 0194 | [ファイルツリーの Return を名前変更に使う](0194-file-tree-inline-operations.md) | accepted |
 | 0193 | [ユーザー用ターミナルのシェルを設定から解決する](0193-user-terminal-shell-selection.md) | accepted |
 | 0192 | [インスペクタの「使用量」と「セッション」のタブを廃止し、ファイルだけにする](0192-inspector-files-only.md) | accepted |

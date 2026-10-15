@@ -51,6 +51,7 @@ private struct GitCommandResult {
 private struct StatusEntry {
     let path: String
     let kind: WorkingTreeChange.Kind
+    var originalPath: String? = nil
 }
 
 private final class GitDataCapture: @unchecked Sendable {
@@ -112,26 +113,65 @@ public actor WorkingTreeService {
     }
 
     public func changes() throws -> [WorkingTreeChange] {
-        let repositoryURL = try requireRepository()
+        try snapshot().changes
+    }
 
-        let entries = try statusEntries(in: repositoryURL)
-        let repositoryHasHEAD = hasHEAD(in: repositoryURL)
-        let binaryDiffPaths = try binaryPathsChangedFromHEAD(
-            in: repositoryURL,
-            repositoryHasHEAD: repositoryHasHEAD
-        )
-
-        return try entries.map { entry in
-            let needsFileInspection = !repositoryHasHEAD
-                || entry.kind == .untracked
-                || entry.kind == .renamed
-            var isBinary = binaryDiffPaths.contains(entry.path)
-            if !isBinary, needsFileInspection {
-                isBinary = isBinaryFile(at: try Self.relativeURL(for: entry.path, relativeTo: repositoryURL))
+    /// 両方の変更一覧が一度の取得結果を参照する。本文は未追跡の行数と選択差分だけ読む。
+    func snapshot() throws -> WorkingTreeSnapshot {
+        let root = try requireRepository().resolvingSymlinksInPath().standardizedFileURL
+        let entries = try statusEntries(in: root)
+        let args = hasHEAD(in: root)
+            ? ["diff", "--no-ext-diff", "--numstat", "-z", "HEAD"]
+            : ["diff", "--no-ext-diff", "--numstat", "-z", "--cached"]
+        let result = try runGit(args, in: root)
+        try requireSuccessful(result, arguments: args)
+        let binaryPaths = Self.parseBinaryPaths(result.output)
+        let changes = entries.map { entry in
+            let url = try? Self.containedURL(Self.relativeURL(for: entry.path, relativeTo: root), under: root)
+            let binary = binaryPaths.contains(entry.path) || (url.map { isBinaryFile(at: $0) } ?? false)
+            return WorkingTreeChange(path: entry.path, kind: entry.kind, isBinary: binary)
+        }.sorted { $0.path < $1.path }
+        var counts = Self.parseLineCounts(result.output)
+        for change in changes where change.kind == .untracked && !change.isBinary {
+            if let count = try? untrackedLineCount(change.path, root: root) {
+                counts[change.path] = .init(added: count, deleted: 0)
             }
-            return WorkingTreeChange(path: entry.path, kind: entry.kind, isBinary: isBinary)
         }
-        .sorted { $0.path < $1.path }
+        let branch = branchLabel()
+        return .init(branch: branch, changes: changes, lineCounts: counts)
+    }
+
+    private func untrackedLineCount(_ path: String, root: URL) throws -> Int? {
+        let url = try Self.containedURL(Self.relativeURL(for: path, relativeTo: root), under: root)
+        guard try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { return nil }
+        let file = try FileHandle(forReadingFrom: url)
+        defer { try? file.close() }
+        // ponytail: 行数は1MBまで。超過時は省略し、大容量の行数が必要になったら遅延取得する。
+        let limit = 1024 * 1024
+        let bytes = try file.read(upToCount: limit + 1) ?? Data()
+        guard bytes.count <= limit else { return nil }
+        return bytes.reduce(0) { $0 + ($1 == 10 ? 1 : 0) } + (bytes.last.map { $0 == 10 ? 0 : 1 } ?? 0)
+    }
+
+    static func parseLineCounts(_ data: Data) -> [String: WorkingTreeLineCount] {
+        let records = data.split(separator: 0, omittingEmptySubsequences: false)
+        var counts: [String: WorkingTreeLineCount] = [:]
+        var index = 0
+        while index < records.count {
+            let fields = records[index].split(separator: 9, maxSplits: 2, omittingEmptySubsequences: false)
+            guard fields.count == 3 else { index += 1; continue }
+            let added = Int(String(decoding: fields[0], as: UTF8.self))
+            let deleted = Int(String(decoding: fields[1], as: UTF8.self))
+            var path = String(decoding: fields[2], as: UTF8.self)
+            if path.isEmpty {
+                guard index + 2 < records.count else { break }
+                path = String(decoding: records[index + 2], as: UTF8.self)
+                index += 2
+            }
+            if let added, let deleted { counts[path] = .init(added: added, deleted: deleted) }
+            index += 1
+        }
+        return counts
     }
 
     public func detail(for path: String) throws -> WorkingTreeDetail {
@@ -155,11 +195,14 @@ public actor WorkingTreeService {
                 return .binary
             }
 
-            let arguments: [String]
+            var arguments: [String]
             if repositoryHasHEAD {
                 arguments = ["diff", "--no-ext-diff", "HEAD", "--", path]
             } else {
                 arguments = ["diff", "--no-ext-diff", "--cached", "--", path]
+            }
+            if let original = try statusEntries(in: repositoryURL).first(where: { $0.path == path })?.originalPath {
+                arguments.append(original)
             }
             let diff = try runGit(arguments, in: repositoryURL)
             try requireSuccessful(diff, arguments: arguments)
@@ -241,7 +284,9 @@ public actor WorkingTreeService {
         let arguments = ["rev-parse", "--show-toplevel"]
         let result = try runGit(arguments)
         guard result.terminationStatus == 0 else {
-            throw WorkingTreeServiceError.notRepository
+            let output = String(decoding: result.errorOutput, as: UTF8.self)
+            if output.contains("not a git repository") { throw WorkingTreeServiceError.notRepository }
+            throw WorkingTreeServiceError.gitCommandFailed(arguments: arguments, output: output)
         }
 
         let path = String(decoding: result.output, as: UTF8.self)
@@ -275,7 +320,8 @@ public actor WorkingTreeService {
             let status = record.prefix(2)
             let path = String(decoding: record.dropFirst(3), as: UTF8.self)
             let isRenameOrCopy = status.contains(82) || status.contains(67) // R / C
-            let entry = StatusEntry(path: path, kind: changeKind(for: status))
+            let original = isRenameOrCopy && index + 1 < records.count ? String(decoding: records[index + 1], as: UTF8.self) : nil
+            let entry = StatusEntry(path: path, kind: changeKind(for: status), originalPath: original)
             if !path.hasSuffix("/") {
                 if let existing = entriesByPath[path] {
                     entriesByPath[path] = preferredEntry(between: existing, and: entry)
@@ -334,8 +380,12 @@ public actor WorkingTreeService {
         let result = try runGit(arguments, in: repositoryURL)
         try requireSuccessful(result, arguments: arguments)
 
+        return Self.parseBinaryPaths(result.output)
+    }
+
+    private static func parseBinaryPaths(_ data: Data) -> Set<String> {
         var binaryPaths: Set<String> = []
-        let records = result.output.split(separator: 0, omittingEmptySubsequences: false)
+        let records = data.split(separator: 0, omittingEmptySubsequences: false)
         var index = 0
         while index < records.count {
             let record = records[index]

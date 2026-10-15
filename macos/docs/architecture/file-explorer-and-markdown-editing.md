@@ -14,7 +14,7 @@ last-verified: 2026-10-15
 ## 全体像
 
 ```
-InspectorView（InspectorView.swift。ファイルだけ。ADR 0192）
+InspectorView（InspectorView.swift。ファイル / Git。ADR 0195）
         └ FileTreeInspectorView ── FileTreeModel（ルートごと） ── FileTreeLoader（actor）
                           │ 行クリック・⌘↓・右クリック「右に分割して開く」
                           ▼
@@ -78,10 +78,9 @@ Swift Testing の `FileTreeInteractionTests` は、実 NSMenu のアクション
   各行は `WorkingTreeService.containedURL` でルート内か確認し、ルート外を指す symlink は `symlinkOutsideRoot`（解決先つき）にする。
   読めない・通常ファイルでもフォルダでもない行は `unavailable`（理由つき）。展開対象のパスのどこかの祖先が symlink なら読み込まずエラーにする。
 - **1 フォルダの上限は 5,000 件**。超えた分は捨て、残り件数を `omittedByDir` に持ち、「ほか N 件（⌘P で開けます）」と表示する。
-- ブランチ名は `WorkingTreeService.branchLabel()`: ブランチ名／`detached HEAD <短縮コミット>`／`Git 管理外`／取得失敗は空文字。
 - 操作で作成・名前変更した行が先頭5,000件に入らない場合は、先頭4,999件と対象行を表示する。対象の選択と表示上限を両立し、省略件数は変えない。`.git`・`.DS_Store` は入力からも作成・名前変更の対象外とする。
+- ブランチ名は `WorkingTreeService.branchLabel()`: ブランチ名／`<短縮コミット> detached HEAD`／`Git 管理外`／取得失敗は空文字。Gitタブの取得失敗は共有モデルが理由を別に保持し、管理外と区別する。
 - 再読込の契機: 更新ボタン・フォルダ展開・ファイル保存成功（`Notification.Name.fileTreeFileSaved` を `DashboardView` が受けて `FileTreeModel.fileSaved`）・「ファイル」タブの表示時（`FileTreeInspectorView` の `.task(id: プロジェクト ID + プロジェクトのフォルダ)`）。ファイル監視は無い。
-- ショートカット: ⌃⌘B（`PhloxApp.swift` のメニュー項目「ファイルツリー」）→ `AppRouter.showFilesInInspector()`（`inspectorVisible = true`）。
 - 作成・名前変更・ゴミ箱への移動は `FileTreeOperations` を通す。`WorkingTreeService.relativeURL` / `containedURL` を共有し、操作直前にルートと対象を再検査する。ルート自体とルート外へのリンクは変更しない。新規ファイルは排他的に作成し、同名の競合では上書きしない。
 - Return は選択行の名前変更、⌘↓ はファイルを開く。新規は ⌥⌘N / ⇧⌥⌘N、ゴミ箱は ⌘⌫。右クリックは既存の3操作に新規・名前変更・ゴミ箱を追加し、Return のキー表示は付けない。見出しの「＋」と空白のメニューはルート直下への作成を扱う（[ADR 0194](../adr/0194-file-tree-inline-operations.md)）。
 - 入力は行内に置き、名前の誤りは下の行を動かさず重ねる。失敗の帯は見出しの下に置き、閉じるか次の操作で消す。成功・失敗とも親フォルダを再読込する。成功時は対象行を選択してスクロールする。
@@ -91,6 +90,8 @@ Swift Testing の `FileTreeInteractionTests` は、実 NSMenu のアクション
 - 削除確認時の文書の同一性・各文書の未保存状態・タブのパスを保持し、確認の後と保存待ちの後に照合する。文書・タブが変わった場合や新たに未保存になった文書がある場合はロックを解いて再確認する。全ウィンドウの排他制御は追加しない。
 - 操作のロック前にブロック欄の未確定入力を同期する。ソース欄とブロック欄の `CodeTextEditor` は恒久的な編集可否（`isEditable`）と一時的な操作ロック（`isTemporarilyLocked`）を分ける。ロック中は NSTextView を編集不可にして Undo の受付も止めるが、履歴を保持して解除後に使えるようにする。恒久的な編集可否の切替・ブロック確定・撤去時の履歴消去は従来どおり。名前変更先の復元タブも衝突検査に含め、配置の付け替え時にも重複を除く。
 - キーボード選択行には VoiceOver の選択属性を付ける。行内入力中はツリーのフォーカス枠を消し、入力欄だけに枠を出す。空欄の案内は新規ファイルが「ファイル名」、新規フォルダが「フォルダ名」（英語は Folder name）、名前変更が「名前」。名前の誤りは12pt・行の右端まで、未保存の札は主文字色と薄い枠線、失敗の帯の閉じる印は8ptの細い形とする。確認本文は日本語の文間に空白を入れず、英語は開いているタブの単数・複数を分ける。
+- インスペクタ上端に「ファイル / Git」を置く（ADR 0195）。`AppRouter.inspectorTab` は `UserDefaults.phloxDefaults` に保存する。⌃⌘B → `showFilesInInspector()`、⇧⌃⌘G → `showGitInInspector()` はタブを選んで右側を開く。
+- ツリー操作の成功通知とファイル保存通知 `.fileTreeFileSaved` はツリーの再読込に加え、同じプロジェクトの共有変更一覧も更新する。Gitからファイルを開く経路は `FileTabOpening.projectRelativeChangePath` と `FileTabDocuments.openFileTab` を再利用する。
 
 ## 開く共通関数
 

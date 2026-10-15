@@ -10,6 +10,7 @@ struct GitCommitPanel: View {
     @ScaledMetric(relativeTo: .body) private var workflowStatusDetailsHeight: CGFloat = 220
     @ScaledMetric(relativeTo: .body) private var collapsedLogHeight: CGFloat = 84
     @State private var isLogExpanded = false
+    @FocusState private var messageFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -31,6 +32,7 @@ struct GitCommitPanel: View {
                 .background(DSColor.fieldBackground, in: RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DSColor.fieldBorder, lineWidth: 1))
                 .accessibilityIdentifier("git-commit-message")
+                .focused($messageFocused)
                 .disabled(viewModel.isWorkflowBusy)
 
             workflowActionButtons
@@ -43,6 +45,10 @@ struct GitCommitPanel: View {
             Rectangle().fill(DSColor.separator).frame(height: 1)
         }
         .accessibilityIdentifier("git-commit-panel")
+        .onAppear { if viewModel.takeCommitFocusRequest() { messageFocused = true } }
+        .onChange(of: viewModel.commitFocusToken) { _, token in
+            if token > 0, viewModel.takeCommitFocusRequest() { messageFocused = true }
+        }
     }
 
     /// 押せない理由（プッシュと PR で同じなら 1 つ）。

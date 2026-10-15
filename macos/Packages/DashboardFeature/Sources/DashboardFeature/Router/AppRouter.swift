@@ -8,6 +8,8 @@ public enum ViewMode: String, CaseIterable, Sendable {
     case grid
 }
 
+public enum InspectorTab: String, CaseIterable, Sendable { case files, git }
+
 /// メニューから画面へ渡す要求。
 public enum TabRequest: Equatable, Sendable {
     /// 子タブを閉じる（ターミナルはシェル終了の確認、未保存ファイルは破棄の確認を挟む）。
@@ -60,6 +62,11 @@ public final class AppRouter {
     public var sidebarVisible: Bool
     /// 右側インスペクター（ファイルツリー）の表示状態。
     public var inspectorVisible: Bool
+    public var inspectorTab: InspectorTab {
+        didSet { inspectorDefaults.set(inspectorTab.rawValue, forKey: "phlox.inspector.tab") }
+    }
+    @ObservationIgnored private let inspectorDefaults: UserDefaults
+    public private(set) var inspectorFocusToken = 0
     /// プロジェクトタブの右クリック「プロジェクト名を変更…」。サイドバーがその行を編集に入れる。
     public var projectRenameRequest: ProjectID?
     /// プロジェクトの項目・選択・分割。メニューと画面で共有する。
@@ -87,7 +94,8 @@ public final class AppRouter {
         mainRoute: MainRoute = .sessions,
         sidebarVisible: Bool = true,
         inspectorVisible: Bool = false,
-        tabs: ProjectTabStore = ProjectTabStore()
+        tabs: ProjectTabStore = ProjectTabStore(),
+        inspectorDefaults: UserDefaults = .phloxDefaults()
     ) {
         self.selectedSession = selectedSession
         self.viewMode = viewMode
@@ -95,6 +103,8 @@ public final class AppRouter {
         self.sidebarVisible = sidebarVisible
         self.inspectorVisible = inspectorVisible
         self.tabs = tabs
+        self.inspectorDefaults = inspectorDefaults
+        self.inspectorTab = InspectorTab(rawValue: inspectorDefaults.string(forKey: "phlox.inspector.tab") ?? "") ?? .files
     }
 
     public func showSessions() {
@@ -120,7 +130,15 @@ public final class AppRouter {
 
     /// ⌃⌘B：インスペクタを開いてファイルツリーを表示する。
     public func showFilesInInspector() {
+        inspectorTab = .files
         inspectorVisible = true
+        inspectorFocusToken &+= 1
+    }
+
+    public func showGitInInspector() {
+        inspectorTab = .git
+        inspectorVisible = true
+        inspectorFocusToken &+= 1
     }
 
     public func selectTab(_ tab: ProjectTab, in projectID: ProjectID) {

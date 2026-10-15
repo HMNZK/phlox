@@ -50,4 +50,9 @@ set -e
 assert_exit "$invalid_exit" 1
 assert_contains "$invalid" "compact または full"
 
+filtered="$(PATH="$TEMP_DIR/bin:$PATH" SWIFT_TEST_FILTER="SuiteA SuiteB" SWIFT_TEST_OUTPUT=full "$RUNNER" DashboardFeature)"
+assert_contains "$filtered" "--filter SuiteA --filter SuiteB [絞り込み]"
+assert_not_contains "$filtered" "[実git]"
+assert_contains "$filtered" "全件の合格ではない"
+
 echo "run-swift-tests-output.test: OK"

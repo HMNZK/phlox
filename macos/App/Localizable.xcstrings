@@ -1,9 +1,1621 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "シェルは終了しました": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The shell exited"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェルは終了しました"
+          }
+        }
+      }
+    },
+    "シェル終了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exited"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終了"
+          }
+        }
+      }
+    },
+    "%lldポイント": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld points"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldポイント"
+          }
+        }
+      }
+    },
+    "設定のシェルが見つかりません": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configured shell not found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定のシェルが見つかりません"
+          }
+        }
+      }
+    },
+    "シェルを起動しています…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting shell…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェルを起動しています…"
+          }
+        }
+      }
+    },
+    "シェルは終了しました（終了コード %lld）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The shell exited (exit code %lld)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェルは終了しました（終了コード %lld）"
+          }
+        }
+      }
+    },
+    "下部パネル（⌘J）": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "下部パネル（⌘J）" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Bottom panel (⌘J)" } }
+      }
+    },
+    "下部パネルの高さ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom panel height"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネルの高さ"
+          }
+        }
+      }
+    },
+    "パネルを閉じる": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Panel"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パネルを閉じる"
+          }
+        }
+      }
+    },
+    "下部パネルのシェルを再起動": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Bottom Panel Shell"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネルのシェルを再起動"
+          }
+        }
+      }
+    },
+    "下部パネルを隠す（⌘J）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Bottom Panel (⌘J)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネルを隠す（⌘J）"
+          }
+        }
+      }
+    },
+    "下部パネルを表示（⌘J）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Bottom Panel (⌘J)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネルを表示（⌘J）"
+          }
+        }
+      }
+    },
+    "下部パネルを隠す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Bottom Panel"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネルを隠す"
+          }
+        }
+      }
+    },
+    "下部パネルを表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Bottom Panel"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネルを表示"
+          }
+        }
+      }
+    },
+    "下部パネル、ターミナル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom panel, terminal"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネル、ターミナル"
+          }
+        }
+      }
+    },
+    "下部パネル": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom Panel"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネル"
+          }
+        }
+      }
+    },
+    "ファイルを開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルを開く"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open File"
+          }
+        }
+      }
+    },
+    "パスをコピー": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスをコピー"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Path"
+          }
+        }
+      }
+    },
+    "バイナリ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バイナリ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Binary"
+          }
+        }
+      }
+    },
+    "Git 管理外": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git 管理外"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a Git repository"
+          }
+        }
+      }
+    },
+    "全 %lld 行": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全 %lld 行"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All %lld lines"
+          }
+        }
+      }
+    },
+    "%lld か所": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld か所"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hunks: %lld"
+          }
+        }
+      }
+    },
+    "Git": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git"
+          }
+        }
+      }
+    },
+    "Git タブ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git タブ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git Tab"
+          }
+        }
+      }
+    },
+    "右サイドバーの表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右サイドバーの表示"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspector tabs"
+          }
+        }
+      }
+    },
+    "コミット…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コミット…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit…"
+          }
+        }
+      }
+    },
+    "『変更』タブのコミット欄を開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "『変更』タブのコミット欄を開く"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the commit panel in Changes"
+          }
+        }
+      }
+    },
+    "『変更』タブで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "『変更』タブで開く"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Changes"
+          }
+        }
+      }
+    },
+    "続きを『変更』タブで見る": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "続きを『変更』タブで見る"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue in Changes"
+          }
+        }
+      }
+    },
+    "一覧と差分の境目": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一覧と差分の境目"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Divider between changes and diff"
+          }
+        }
+      }
+    },
+    "変更ファイル": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更ファイル"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed files"
+          }
+        }
+      }
+    },
+    "名前変更": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前変更"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renamed"
+          }
+        }
+      }
+    },
+    "未追跡": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未追跡"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untracked"
+          }
+        }
+      }
+    },
+    "新しく出た": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しく出た"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Newly appeared"
+          }
+        }
+      }
+    },
+    "変更を読み込んでいます…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を読み込んでいます…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading changes…"
+          }
+        }
+      }
+    },
+    "変更はありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更はありません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No changes"
+          }
+        }
+      }
+    },
+    "作業ツリーは HEAD と同じです": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作業ツリーは HEAD と同じです"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The working tree matches HEAD"
+          }
+        }
+      }
+    },
+    "Git 管理外のフォルダです": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git 管理外のフォルダです"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This folder is not a Git repository"
+          }
+        }
+      }
+    },
+    "変更を取得できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を取得できませんでした"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not retrieve changes"
+          }
+        }
+      }
+    },
+    "取得できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取得できませんでした"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not retrieve changes"
+          }
+        }
+      }
+    },
+    "変更なし": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更なし"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No changes"
+          }
+        }
+      }
+    },
+    "%lld 件の変更": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件の変更"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld changes"
+          }
+        }
+      }
+    },
+    "%lld 件増えました": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件増えました"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld new changes"
+          }
+        }
+      }
+    },
+    "%lld 行追加、%lld 行削除": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 行追加、%lld 行削除"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld lines added, %lld lines deleted"
+          }
+        }
+      }
+    },
+    "ほか %lld 行": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ほか %lld 行"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld more lines"
+          }
+        }
+      }
+    },
+    "差分を読み込めませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分を読み込めませんでした"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load the diff"
+          }
+        }
+      }
+    },
+    "差分は出しません。中身は「ファイルを開く」で確かめられます": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分は出しません。中身は「ファイルを開く」で確かめられます"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No diff is shown. Use Open File to inspect the contents"
+          }
+        }
+      }
+    },
+    "この名前はファイル操作の対象外です": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この名前はファイル操作の対象外です"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This name is excluded from file operations"
+          }
+        }
+      }
+    },
+    "同じ名前のファイルのタブが開いています": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ名前のファイルのタブが開いています"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A tab for this file name is already open"
+          }
+        }
+      }
+    },
+    "権限がありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "権限がありません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permission denied"
+          }
+        }
+      }
+    },
+    "ディスクは読み取り専用です": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスクは読み取り専用です"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The disk is read-only"
+          }
+        }
+      }
+    },
+    "ディスクに空き領域がありません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスクに空き領域がありません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The disk is full"
+          }
+        }
+      }
+    },
+    "プロジェクトのフォルダの外では操作できません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロジェクトのフォルダの外では操作できません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot operate outside the project folder"
+          }
+        }
+      }
+    },
+    "新規ファイル・フォルダ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規ファイル・フォルダ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New File or Folder"
+          }
+        }
+      }
+    },
+    "新規ファイル": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規ファイル"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New File"
+          }
+        }
+      }
+    },
+    "新規フォルダ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規フォルダ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Folder"
+          }
+        }
+      }
+    },
+    "名前を入力してください": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前を入力してください"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a name"
+          }
+        }
+      }
+    },
+    "名前に / は使えません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前に / は使えません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Names cannot contain /"
+          }
+        }
+      }
+    },
+    "「.」と「..」は名前に使えません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「.」と「..」は名前に使えません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Names cannot be . or .."
+          }
+        }
+      }
+    },
+    "名前に NUL は使えません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前に NUL は使えません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Names cannot contain NUL"
+          }
+        }
+      }
+    },
+    "同じ名前のファイルがあります": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ名前のファイルがあります"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A file with this name already exists"
+          }
+        }
+      }
+    },
+    "同じ名前のフォルダがあります": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ名前のフォルダがあります"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A folder with this name already exists"
+          }
+        }
+      }
+    },
+    "使えない名前": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使えない名前"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid name"
+          }
+        }
+      }
+    },
+    "%@ の直下に作成": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の直下に作成"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create in %@"
+          }
+        }
+      }
+    },
+    "（ルート）": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（ルート）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (Root)"
+          }
+        }
+      }
+    },
+    "ルートの外を指すリンク": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルートの外を指すリンク"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link outside the project folder"
+          }
+        }
+      }
+    },
+    "新規フォルダの名前、%@ の中": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規フォルダの名前、%@ の中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New folder name, in %@"
+          }
+        }
+      }
+    },
+    "新規ファイルの名前、%@ の中": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規ファイルの名前、%@ の中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New file name, in %@"
+          }
+        }
+      }
+    },
+    "名前を変更、%@ の中": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前を変更、%@ の中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename, in %@"
+          }
+        }
+      }
+    },
+    "作成できませんでした: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作成できませんでした: %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not create: %@"
+          }
+        }
+      }
+    },
+    "名前を変更できませんでした: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前を変更できませんでした: %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not rename: %@"
+          }
+        }
+      }
+    },
+    "ゴミ箱に入れられませんでした: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱に入れられませんでした: %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not move to Trash: %@"
+          }
+        }
+      }
+    },
+    "1,000 項目以上": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1,000 項目以上"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1,000 or more items"
+          }
+        }
+      }
+    },
+    "%lld 項目": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項目"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items"
+          }
+        }
+      }
+    },
+    "%@ と中の %@ をゴミ箱に入れますか？": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ と中の %@ をゴミ箱に入れますか？"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move %@ and its %@ to Trash?"
+          }
+        }
+      }
+    },
+    "%@ をゴミ箱に入れますか？": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をゴミ箱に入れますか？"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move %@ to Trash?"
+          }
+        }
+      }
+    },
+    "数えるのは 1,000 項目までです。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数えるのは 1,000 項目までです。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Counting stops at 1,000 items."
+          }
+        }
+      }
+    },
+    "フォルダ %lld・ファイル %lld を含みます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダ %lld・ファイル %lld を含みます。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contains %lld folders and %lld files."
+          }
+        }
+      }
+    },
+    "開いているタブを閉じます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いているタブを閉じます。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The open tab will be closed."
+          }
+        }
+      }
+    },
+    "開いている複数のタブを閉じます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いているタブを閉じます。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open tabs will be closed."
+          }
+        }
+      }
+    },
+    "ファイル名": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル名"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File name"
+          }
+        }
+      }
+    },
+    "未保存の変更は失われます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未保存の変更は失われます。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsaved changes will be lost."
+          }
+        }
+      }
+    },
+    "ゴミ箱から元に戻せます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱から元に戻せます。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can restore it from Trash."
+          }
+        }
+      }
+    },
+    "開いているタブ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いているタブ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open tab"
+          }
+        }
+      }
+    },
+    "ゴミ箱に入れるファイル": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱に入れるファイル"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files to move to Trash"
+          }
+        }
+      }
+    },
+    "ファイルはゴミ箱から戻せますが、保存していない変更は戻りません。保存するには、キャンセルしてタブで ⌘S を押します。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルはゴミ箱から戻せますが、保存していない変更は戻りません。保存するには、キャンセルしてタブで ⌘S を押します。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files can be restored from Trash, but unsaved changes cannot. To save, cancel and press ⌘S in the tab."
+          }
+        }
+      }
+    },
+    "シェル": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェル"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell"
+          }
+        }
+      }
+    },
+    "これから起動するシェルに反映されます。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これから起動するシェルに反映されます。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applies to shells started from now on."
+          }
+        }
+      }
+    },
+    "システムの既定（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システムの既定（%@）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System default (%@)"
+          }
+        }
+      }
+    },
+    "その他…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other…"
+          }
+        }
+      }
+    },
+    "シェルのパス": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェルのパス"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell path"
+          }
+        }
+      }
+    },
+    "シェルのパスを保存": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェルのパスを保存"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save shell path"
+          }
+        }
+      }
+    },
+    "実行できるファイルの絶対パスを入力してください。保存していません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実行できるファイルの絶対パスを入力してください。保存していません。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter an absolute path to an executable file. Not saved."
+          }
+        }
+      }
+    },
+    "/etc/shells を読み取れません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/etc/shells を読み取れません。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read /etc/shells."
+          }
+        }
+      }
+    },
+    "設定のシェル（%@）が見つからないため、システムの既定で起動しました": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定のシェル（%@）が見つからないため、システムの既定で起動しました"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The configured shell (%@) was not found. Started with the system default."
+          }
+        }
+      }
+    },
     "オフでも起動時に 1 回は取得する": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Still fetches once at launch when off"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still fetches once at launch when off"
+          }
+        }
+      }
     },
     "使用量の表示": {
       "extractionState": "manual",
@@ -51,227 +1663,619 @@
     },
     "何から始めますか？": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What would you like to work on?"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What would you like to work on?"
+          }
+        }
+      }
     },
     "今日は何を進めますか？": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What are we building today?"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What are we building today?"
+          }
+        }
+      }
     },
     "さあ、始めましょう": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Let's get started"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's get started"
+          }
+        }
+      }
     },
     "次は何を作りますか？": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What's next?"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What's next?"
+          }
+        }
+      }
     },
     "どこから手をつけますか？": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Where should we begin?"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where should we begin?"
+          }
+        }
+      }
     },
     "アイデアを形にしましょう": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Let's turn ideas into code"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's turn ideas into code"
+          }
+        }
+      }
     },
     "今日の課題を教えてください": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Tell me what you're working on"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell me what you're working on"
+          }
+        }
+      }
     },
     "どんな変更を加えますか？": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "What would you like to change?"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What would you like to change?"
+          }
+        }
+      }
     },
     "続きを進めましょう": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Let's keep going"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's keep going"
+          }
+        }
+      }
     },
     "何をお手伝いしましょうか？": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "How can I help?"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How can I help?"
+          }
+        }
+      }
     },
     "やりたいことを入力（/ でコマンド）": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Describe a task (/ for commands)"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe a task (/ for commands)"
+          }
+        }
+      }
     },
     "メッセージ": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Message"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message"
+          }
+        }
+      }
     },
     "プロジェクトを選んでください": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Select a project"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a project"
+          }
+        }
+      }
     },
     "%@ が見つかりません。インストールするか、別のハーネスを選んでください": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ wasn't found. Install it or choose another harness."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wasn't found. Install it or choose another harness."
+          }
+        }
+      }
     },
     "%@ は画像を送れません。画像を外すか、画像を送れるハーネスを選んでください": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ can't send images. Remove them or choose a harness that supports images."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ can't send images. Remove them or choose a harness that supports images."
+          }
+        }
+      }
     },
     "モデルを絞り込む": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Filter models"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter models"
+          }
+        }
+      }
     },
     "未検出": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Not detected"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not detected"
+          }
+        }
+      }
     },
     "%@ が見つかりません。インストールすると選べます": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ wasn't detected. Install it to select it."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wasn't detected. Install it to select it."
+          }
+        }
+      }
     },
     "既定": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Default"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        }
+      }
     },
     "ハーネスとモデル": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Harness and model"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harness and model"
+          }
+        }
+      }
     },
     "計画": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Plan"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan"
+          }
+        }
+      }
     },
     "低": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Low"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Low"
+          }
+        }
+      }
     },
     "中": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Medium"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium"
+          }
+        }
+      }
     },
     "高": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "High"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High"
+          }
+        }
+      }
     },
     "非常に高": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Very high"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Very high"
+          }
+        }
+      }
     },
     "最大": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Max"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Max"
+          }
+        }
+      }
     },
     "未選択": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Not selected"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not selected"
+          }
+        }
+      }
     },
     "新規チャット": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "New Chat"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Chat"
+          }
+        }
+      }
     },
     "既存ディレクトリ": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Existing directory"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Existing directory"
+          }
+        }
+      }
     },
     "新しい worktree": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "New worktree"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New worktree"
+          }
+        }
+      }
     },
     "git リポジトリではないため worktree を作れません": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Worktrees aren't available because this isn't a Git repository."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worktrees aren't available because this isn't a Git repository."
+          }
+        }
+      }
     },
     "作業場所": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Workspace"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workspace"
+          }
+        }
+      }
     },
     "本文と添付はプロジェクトごとに保たれます": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Draft text and attachments are saved per project."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft text and attachments are saved per project."
+          }
+        }
+      }
     },
     "下書きあり": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Draft saved"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft saved"
+          }
+        }
+      }
     },
     "起動できませんでした": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't start"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't start"
+          }
+        }
+      }
     },
     "起動しています。終わったら最初のメッセージを送ります": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Starting. The first message will be sent when startup finishes."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting. The first message will be sent when startup finishes."
+          }
+        }
+      }
     },
     "起動できませんでした。本文を入力欄に戻しました": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't start. The text was returned to the draft."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't start. The text was returned to the draft."
+          }
+        }
+      }
     },
     "起動しました。最初のメッセージを送りました": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Started. The first message was sent."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Started. The first message was sent."
+          }
+        }
+      }
     },
     "履歴から再開…": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume from history…"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume from history…"
+          }
+        }
+      }
     },
     "履歴から再開": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume from history"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume from history"
+          }
+        }
+      }
     },
     "読み込んでいます…": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Loading…"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading…"
+          }
+        }
+      }
     },
     "履歴を読み込めませんでした": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't load history"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't load history"
+          }
+        }
+      }
     },
     "選んだ会話を、新しい worktree を作って再開します": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume the selected conversation in a new worktree"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume the selected conversation in a new worktree"
+          }
+        }
+      }
     },
     "選んだ会話を、今の作業場所（既存ディレクトリ）で再開します": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resume the selected conversation in the current directory"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume the selected conversation in the current directory"
+          }
+        }
+      }
     },
     "元の worktree には戻らず、既存ディレクトリで再開します": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "This resumes in the current directory, not the original worktree"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This resumes in the current directory, not the original worktree"
+          }
+        }
+      }
     },
     "worktree": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Worktree"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worktree"
+          }
+        }
+      }
     },
     "worktree（削除済み）": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Worktree (deleted)"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worktree (deleted)"
+          }
+        }
+      }
     },
     "会話を再開しています": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Resuming conversation"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resuming conversation"
+          }
+        }
+      }
     },
     "会話を再開しました": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Conversation resumed"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversation resumed"
+          }
+        }
+      }
     },
     "会話を再開できませんでした": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Couldn't resume conversation"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't resume conversation"
+          }
+        }
+      }
     },
     "選択した履歴が見つかりません。履歴を読み直してください。": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "The selected history was not found. Reload the history list."}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected history was not found. Reload the history list."
+          }
+        }
+      }
     },
     "コードレビュー": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Code review"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code review"
+          }
+        }
+      }
     },
     "バグ修正": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Fix a bug"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fix a bug"
+          }
+        }
+      }
     },
     "テスト追加": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Add tests"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add tests"
+          }
+        }
+      }
     },
     "コードの説明": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Explain this code"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explain this code"
+          }
+        }
+      }
     },
     "リファクタ": {
       "extractionState": "manual",
-      "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Refactor"}}}
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refactor"
+          }
+        }
+      }
     },
     "画像送信を準備しています。準備が終わってから再送してください": {
       "extractionState": "manual",
@@ -909,6 +2913,12 @@
             "state": "translated",
             "value": "Retry"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試行"
+          }
         }
       }
     },
@@ -919,6 +2929,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Delete"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "削除"
           }
         }
       }
@@ -970,6 +2986,12 @@
     "名前を変更": {
       "extractionState": "manual",
       "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前を変更"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
@@ -985,6 +3007,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Change"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更"
           }
         }
       }
@@ -1184,6 +3212,12 @@
             "state": "translated",
             "value": "Add"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加"
+          }
         }
       }
     },
@@ -1326,13 +3360,13 @@
         }
       }
     },
-    "⌘J 次の対応待ちへ　↑↓ 移動　↩ 開く　⌥⌘↩ 許可": {
+    "⇧⌘J 次の対応待ちへ　↑↓ 移動　↩ 開く　⌥⌘↩ 許可": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "⌘J next  ↑↓ move  ↩ open  ⌥⌘↩ allow"
+            "value": "⇧⌘J next  ↑↓ move  ↩ open  ⌥⌘↩ allow"
           }
         }
       }
@@ -1356,12 +3390,24 @@
             "state": "translated",
             "value": "Inspector"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インスペクタ"
+          }
         }
       }
     },
     "インスペクタ（⌃⌘I）": {
       "extractionState": "manual",
       "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インスペクタ（⌃⌘I）"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
@@ -1461,6 +3507,12 @@
     "ターミナル": {
       "extractionState": "manual",
       "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ターミナル"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
@@ -1934,6 +3986,12 @@
     "未保存の変更": {
       "extractionState": "manual",
       "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未保存の変更"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
@@ -1945,6 +4003,12 @@
     "保存": {
       "extractionState": "manual",
       "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
@@ -2115,6 +4179,12 @@
             "state": "translated",
             "value": "Refresh"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
         }
       }
     },
@@ -2136,6 +4206,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No project selected"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロジェクトが選択されていません"
           }
         }
       }
@@ -2191,6 +4267,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Binary file"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バイナリファイル"
           }
         }
       }
@@ -2307,6 +4389,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diff"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分"
           }
         }
       }
@@ -2442,8 +4530,30 @@
         }
       }
     },
+    "フォルダ名": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダ名"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder name"
+          }
+        }
+      }
+    },
     "名前": {
       "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
@@ -2688,6 +4798,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Restart"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再起動"
           }
         }
       }
@@ -4934,13 +7050,13 @@
         }
       }
     },
-    "左のサイドバーでプロジェクトかセッションを選ぶと、ここに表示します。対応待ちがあれば ⌘J で移動できます。": {
+    "左のサイドバーでプロジェクトかセッションを選ぶと、ここに表示します。対応待ちがあれば ⇧⌘J で移動できます。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a project or session in the sidebar to show it here. Press ⌘J to jump to anything waiting for you."
+            "value": "Choose a project or session in the sidebar to show it here. Press ⇧⌘J to jump to anything waiting for you."
           }
         }
       }
@@ -4996,17 +7112,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Default: Chat"
-          }
-        }
-      }
-    },
-    "未検出": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not detected"
           }
         }
       }
@@ -5162,6 +7267,12 @@
             "state": "translated",
             "value": "Show in Finder"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder で表示"
+          }
         }
       }
     },
@@ -5268,6 +7379,12 @@
     "ゴミ箱に入れる": {
       "extractionState": "manual",
       "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱に入れる"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
@@ -6219,6 +8336,12 @@
             "state": "translated",
             "value": "Quit"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終了"
+          }
         }
       }
     },
@@ -6255,12 +8378,12 @@
       },
       "extractionState": "manual"
     },
-    "⌘J 次の対応待ちへ": {
+    "⇧⌘J 次の対応待ちへ": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "⌘J Next waiting"
+            "value": "⇧⌘J Next waiting"
           }
         }
       },
@@ -6713,6 +8836,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Loading…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み込み中…"
           }
         }
       }
@@ -7386,6 +9515,12 @@
             "state": "translated",
             "value": "Files"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル"
+          }
         }
       }
     },
@@ -7748,6 +9883,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Refresh changes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を更新"
           }
         }
       }
@@ -8375,6 +10516,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Restart Shell"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェルを再起動"
           }
         }
       }
@@ -10219,6 +12366,91 @@
           "stringUnit": {
             "state": "translated",
             "value": "The image exceeds the send limit at its original resolution. Crop to the area you need."
+          }
+        }
+      }
+    },
+    "[シェルを開始できませんでした]": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[シェルを開始できませんでした]"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Could not start the shell]"
+          }
+        }
+      }
+    },
+    "[ターミナル入力を送信できませんでした]": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[ターミナル入力を送信できませんでした]"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Could not send terminal input]"
+          }
+        }
+      }
+    },
+    "下部パネル、ターミナル、%@、%@、%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下部パネル、ターミナル、%@、%@、%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom panel, terminal, %@, %@, %@"
+          }
+        }
+      }
+    },
+    "入力中": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "入力中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepting keyboard input"
+          }
+        }
+      }
+    },
+    "キー入力なし": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キー入力なし"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not accepting keyboard input"
           }
         }
       }

@@ -69,18 +69,30 @@ Picker の AXLabel は画面外の同じ構成で手元確認し、追加ラベ�
 
 ## データフロー（エディタ）
 
+右サイドバーの Git タブも `EditorPanelCoordinator.viewModel` の一覧・取得状態・ブランチ・行数を参照する（ADR 0195）。一覧の読み直しは共有モデルだけが行い、更新中の要求はまとめて追従する。Git 側は選択パスと読み取り専用の差分を別に持ち、変更タブの選択・下書きを変更しない。Git のダブルクリック／Return／メニューは `AppRouter.openChildTab(.changes)` と既存の `select(_:)` に渡す。コミット欄は変更タブの既存欄を表示し、入力フォーカスを要求する。
+
+更新は Git タブ表示時、対象プロジェクトに属するセッションの `lastTurnCompletedAt` の変化、`.fileTreeFileSaved`（保存と作成・名前変更・削除）、`NSApplication.didBecomeActiveNotification`、手動更新を共有モデルへ渡す。保存・ツリー操作通知は共有モデル自身が購読し、DashboardView はツリーの更新だけを行う。対象外のプロジェクトのイベントは無視する。新着は直前の成功した一覧にないパスだけとし、初回と失敗後の再試行で全行を新着にしない。差分はハンク見出しを含め60行で切り、300pt以上で行番号を出す。未追跡テキストは追加行、バイナリは専用表示。失敗理由と管理外を区別する。
+
 1. `DashboardView.updateEditorPanel()` は `EditorPanelCoordinator.update(project:workspaces:)` に対象を渡す。
    `.task(id: editorPanel.target)` が `resolve(workspaces:)` を呼び、対象プロジェクトが変わったら
    `WorkingTreeService(repositoryRoot:)` を注入した新しい `EditorPanelViewModel` を作る（未選択時は `service: nil`）。
 2. `EditorPanelView` は表示幅（`GeometryReader`）を `EditorPanelLayout.mode(forWidth:)` に通し、
    `.split`（`HSplitView`）／`.stacked`（`VSplitView`）を切り替えて変更一覧と詳細ペインを配置する。
-3. Refresh ボタン → `viewModel.refresh()` → `WorkingTreeService.changes()`。ファイル選択 →
+一覧取得失敗・Git 管理外への変化でも、未保存下書きがある場合は、その選択と下書きを保持する。保存通知は通知元と共有 Git ルートが包含関係にある場合に更新するため、リポジトリ内の下位フォルダをプロジェクトとして開いた場合も対象にする。未追跡ファイルの行数は最大1MBまでの読み取りで求め、上限超過・読み取り不能・ルート外 symlink ではその行の行数だけ省く。追跡ファイルの行数とバイナリ判定は同じ numstat の結果を使う。Git の通常取得・再試行は同じ処理を通り、選択パス・取得世代・キャンセルを確認してから差分を反映する。本文中の `+++` / `---` はハンク開始後なら差分行として残す。
+
+3. Refresh ボタン → `viewModel.refresh()` → `WorkingTreeService.snapshot()`。ファイル選択 →
    `viewModel.select(_:)` → `WorkingTreeService.detail(for:)` + `fileContents(_:)`（追跡ファイルの
    場合、diff 表示と同時に本文を読み込んで `draft` へロードする）。
    編集可否は `WorkingTreeText.maximumEditableFileSize`（5 MB）、内容の閲覧可否は `maximumReadableFileSize`（20 MB）を共有する。BOM込みで判定し、5 MB超は保存・dirtyを止め、既存のファイルタブへ閲覧を渡す。20 MB超は変更プレビューのみ。差分の色付けと500行単位のプレビューは維持し、「内容」は1 MB超を本文色とする。外部変更は再選択で読み直す。
 4. 保存 → `viewModel.save()` → `WorkingTreeService.save(path:content:expectedDiskContent:)`。
    `.conflict` が返ると View がアラートを出し、ユーザーが選べば `viewModel.overwrite()` で
    `expectedDiskContent: nil` の無条件上書きを行う。
+
+### Git タブの更新接続と表示の補正
+
+保存通知の対象は `WorkingTreeService` が現在解決する Git ルートで判定する。管理外で開いた後に `git init` し、手動更新で復帰した場合も保存に追従する。ターン終了日時の収集と更新の接続は `GitTabPolicy` の小さな関数にまとめ、DashboardView の監視から呼ぶ。対象プロジェクトの日時が変わった場合だけ共有モデルを更新する。
+
+差分は `diff --git` ごとにハンク状態を戻し、次のファイルの `---`／`+++` を本文に含めない。Git 側の行背景は共有色トークンの不透明度を調整し、本文の左余白は既存の最小間隔を加える。管理外見出しは通常書体・副文字色、パスは `~` 表記、管理外と失敗の本文タイトルは主文字色。失敗説明の追加行間は `DSSpacing.xs` とする。既存の決定の変更はないため、新しい ADR は追加しない。
 
 ## テスト
 
@@ -93,6 +105,7 @@ Picker の AXLabel は画面外の同じ構成で手元確認し、追加ラベ�
 | `TerminalCoordinatorVisibleTextTests`（TerminalUI） | 行内の空セル・タブ移動は空白、全角文字の後続セルは除外し、VoiceOver の値にNULを含めない |
 | `TerminalPanelViewWhiteboxTests` | パネルの表示器が共有コントローラを保持し、入出力を `TerminalCoordinator` へ接続すること |
 | `EditorPanelVMTests` | VM の一覧/選択/編集/保存/競合フロー |
+| `GitInspectorTests` / `GitInspectorServiceTests` | 複数ファイル差分のヘッダー除外・管理外から Git 管理へ復帰した後のファイルタブ保存による共有一覧更新（ルートと子フォルダ）・実際のターン終了日時から共有一覧更新への接続・別プロジェクトと同じ日時の更新抑止 |
 | `PanelIntegrationWhiteboxTests` | 左右分割/縦積みの切替幅・変更種別ごとの SF Symbol |
 | `PosixSpawnCloexecTests`（PTYKit） | spawn した子が無関係な fd を継承しないこと |
 | `PTYTerminalModeTests`（PTYKit） | ユーザー用の echo・icanon・制御文字、従来のエージェント用 raw 設定、実 bash の stty と Return 前の入力エコー |

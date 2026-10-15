@@ -2,6 +2,7 @@ import DesignSystem
 import Foundation
 import Observation
 import AgentDomain
+import Combine
 
 @MainActor
 @Observable
@@ -52,6 +53,52 @@ public final class EditorPanelViewModel {
     }
     public private(set) var isDirty = false
     public private(set) var isRefreshing = false
+    private(set) var branchLabel = ""
+    private(set) var lineCounts: [String: WorkingTreeLineCount] = [:]
+    private(set) var freshPaths: Set<String> = []
+    private(set) var newChangeCount = 0
+    private(set) var refreshRevision = 0
+    private var previousPaths: Set<String>?
+    private var refreshPending = false
+    var commitFocusToken = 0
+
+    func requestCommitFocus() { commitFocusToken &+= 1 }
+    func takeCommitFocusRequest() -> Bool {
+        guard commitFocusToken > 0 else { return false }
+        commitFocusToken = 0
+        return true
+    }
+    func markGitPathSeen(_ path: String) { freshPaths.remove(path) }
+
+    func gitDetail(for path: String) async throws -> WorkingTreeDetail {
+        guard let service else { throw WorkingTreeServiceError.notRepository }
+        return try await service.detail(for: path)
+    }
+
+    func acceptSnapshot(_ snapshot: WorkingTreeSnapshot) {
+        let sorted = snapshot.changes.sorted { $0.path < $1.path }
+        freshPaths = GitTabPolicy.newPaths(previous: previousPaths, changes: sorted)
+        newChangeCount = freshPaths.count
+        previousPaths = Set(sorted.map(\.path))
+        changes = sorted
+        branchLabel = snapshot.branch
+        lineCounts = snapshot.lineCounts
+        listState = .ready
+        listErrorMessage = nil
+        refreshRevision &+= 1
+    }
+
+    func setSnapshotNotRepository() {
+        listState = .notARepository
+        listErrorMessage = nil
+        changes = []
+        branchLabel = ""
+        lineCounts = [:]
+        freshPaths = []
+        newChangeCount = 0
+        if !isDirty { clearSelection() }
+        clearWorkflowStateForMissingRepository()
+    }
 
     // MARK: - git write workflow（ADR 0169）
 
@@ -72,6 +119,7 @@ public final class EditorPanelViewModel {
     private let injectedWorkflowService: GitWorkflowService?
 
     private let service: WorkingTreeService?
+    private var fileChangeSubscription: AnyCancellable?
     /// 選択時に読んだ内容。競合検出の基準であり、draft そのものではない。
     private var loadedDiskContent: String?
     private var selectionGeneration = 0
@@ -100,11 +148,24 @@ public final class EditorPanelViewModel {
     public init(
         service: WorkingTreeService?,
         changeScope: SessionChangeScope = .unavailable,
-        workflowService: GitWorkflowService? = nil
+        workflowService: GitWorkflowService? = nil,
+        notificationCenter: NotificationCenter = .default
     ) {
         self.service = service
         self.changeScope = changeScope
         self.injectedWorkflowService = workflowService
+        if service != nil {
+            fileChangeSubscription = notificationCenter.publisher(for: .fileTreeFileSaved).sink { [weak self] notification in
+                guard let root = notification.userInfo?["root"] as? String,
+                      notification.userInfo?["path"] is String else { return }
+                Task { @MainActor [weak self] in
+                    guard let self, let service = self.service else { return }
+                    let repositoryRoot = await service.resolvedRepositoryRootPath()
+                    guard GitTabPolicy.shouldRefresh(.fileChanged(root: root), projectRoot: repositoryRoot) else { return }
+                    await self.refresh()
+                }
+            }
+        }
     }
 
     /// 共有相手の増減など、表示対象の変更を伴わない帰属範囲の変化だけを反映する。
@@ -113,8 +174,16 @@ public final class EditorPanelViewModel {
     }
 
     public func refresh() async {
+        if isRefreshing { refreshPending = true; return }
         isRefreshing = true
         defer { isRefreshing = false }
+        repeat {
+            refreshPending = false
+            await refreshOnce()
+        } while refreshPending && !Task.isCancelled
+    }
+
+    private func refreshOnce() async {
         guard let service else {
             listState = .noProject
             listErrorMessage = nil
@@ -124,26 +193,28 @@ public final class EditorPanelViewModel {
             return
         }
 
-        guard await service.isGitRepository() else {
-            listState = .notARepository
-            listErrorMessage = nil
-            changes = []
-            clearSelection()
-            clearWorkflowStateForMissingRepository()
-            return
-        }
-
         do {
-            changes = try await service.changes()
-            listState = .ready
-            listErrorMessage = nil
+            let snapshot = try await service.snapshot()
+            guard !Task.isCancelled else { return }
+            acceptSnapshot(snapshot)
             pruneCommitSelection()
+            if let selectedPath, !isDirty {
+                if changes.contains(where: { $0.path == selectedPath }) { await select(selectedPath) }
+                else { clearSelection() }
+            }
             await refreshWorkflowCapabilities()
+        } catch WorkingTreeServiceError.notRepository {
+            setSnapshotNotRepository()
         } catch {
             changes = []
-            clearSelection()
+            if !isDirty { clearSelection() }
             listState = .ready
-            listErrorMessage = "変更を読み込めませんでした。更新を試してください。"
+            lineCounts = [:]
+            freshPaths = []
+            newChangeCount = 0
+            if case WorkingTreeServiceError.gitCommandFailed(let arguments, let output) = error {
+                listErrorMessage = "git " + arguments.joined(separator: " ") + "\n" + output.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else { listErrorMessage = error.localizedDescription }
             pathsSelectedForCommit = []
         }
     }

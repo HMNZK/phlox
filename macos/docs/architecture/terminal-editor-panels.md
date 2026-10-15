@@ -9,6 +9,8 @@ last-verified: 2026-10-15
 
 ## コンポーネント
 
+表示エンジンは SwiftTerm だけを使う。Ghostty は見送り、試作コードは dev に入れない（[ADR 0211](../adr/0211-decline-ghostty-user-terminal-engine.md)）。
+
 ### ユーザー用シェルの選択（ADR 0193）
 
 `UserShellSettings`（DashboardFeature/UserTerminal）が `/etc/shells` を読み、コメント・空行・重複・実行不可の項目を除く。任意パスは絶対パスの実行可能なファイルであることを保存前に検証する。保存先は `.phloxDefaults()` の `terminal.shellPath`（空文字はシステムの既定）。設定の「一般 › ターミナル › シェル」は既存の設定行を使う。

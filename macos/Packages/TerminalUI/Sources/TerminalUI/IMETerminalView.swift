@@ -6,6 +6,36 @@ import SwiftTerm
 /// 未確定文字をオーバーレイ表示する。
 @MainActor
 final class IMETerminalView: SwiftTerm.TerminalView {
+    var onFocusChange: ((Bool) -> Void)?
+
+    override func isAccessibilityElement() -> Bool { true }
+
+    override func accessibilityRole() -> NSAccessibility.Role? { .textArea }
+
+    /// 表示位置に従い、可視行だけを読む。履歴の量に比例する処理はしない。
+    override func accessibilityValue() -> Any? {
+        let terminal = getTerminal()
+        return (0..<terminal.rows).compactMap { row in
+            terminal.getLine(row: row)?.translateToString(
+                trimRight: true, endCol: terminal.cols, skipNullCellsFollowingWide: true,
+                characterProvider: { TerminalDump.displayCharacter(terminal.getCharacter(for: $0)) })
+        }.joined(separator: "\n")
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted {
+            onFocusChange?(true)
+        }
+        return accepted
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let accepted = super.resignFirstResponder()
+        if accepted { onFocusChange?(false) }
+        return accepted
+    }
+
     private let markedTextOverlay = MarkedTextOverlayView(frame: .zero)
     private var imeMarkedText: String?
     private var imeMarkedSelectedRange = NSRange(location: 0, length: 0)

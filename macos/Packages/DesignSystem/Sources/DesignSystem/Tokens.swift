@@ -79,6 +79,13 @@ public enum DSFont {
 /// レイアウト寸法のトークン。8pt グリッドに乗らない固有寸法（進捗バー高）を
 /// マジックナンバー直書きから引き上げて一元管理する。
 public enum DSLayout {
+    // 下部パネル（13 Bottom Panel Files Git）。
+    public static let bottomPanelHeaderHeight: CGFloat = 36
+    public static let bottomPanelDefaultHeight: CGFloat = 280
+    public static let bottomPanelMinimumHeight: CGFloat = 120
+    public static let bottomPanelContentMinimumHeight: CGFloat = 200
+    public static let bottomPanelMaximumFraction: CGFloat = 0.7
+    public static let bottomPanelButtonWidth: CGFloat = 26
     /// 進捗バー高。Compact（旧 4）と本体（5）の値ドリフトを 5 に統一。
     public static let progressBarHeight: CGFloat = 5
 
@@ -340,6 +347,11 @@ public enum DSColor {
     public static var simulatorScreenEdge: Color { isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.18) }
     public static var tabBarBackground: Color { palette.tabBar.color }
     public static var terminalBackground: Color { palette.terminal.color }
+    /// 下部パネルの終了案内は、ライトでも暗い端末面の内側（13 BottomPanel）。
+    public static var terminalStatusText: Color { RGB(0xAB, 0xAB, 0xB1).color }
+    public static var terminalControlBackground: Color { RGB(0x3A, 0x3A, 0x3E).color }
+    public static var terminalControlForeground: Color { DesignPalette.phloxDark.accent.color }
+    public static var terminalControlBorder: Color { terminalControlForeground.opacity(0.12) }
 
     /// accent の面（主ボタン・送信）。上の文字・記号は `accentOnFill`。
     public static var accentFill: Color { palette.accentFill.color }

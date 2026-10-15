@@ -13,13 +13,14 @@ struct SessionTabsContainer<Conversation: View>: View {
     let simulatorHub: SimulatorHub?
     let editorPanel: EditorPanelCoordinator
     let files: FileTabDocuments
+    var bottomPanel: BottomPanelState? = nil
     @ViewBuilder let conversation: (ProjectTab?) -> Conversation
 
     var body: some View {
         VStack(spacing: 0) {
             SessionTabBar(viewModel: viewModel, router: router)
             if router.viewMode == .grid {
-                conversation(nil)
+                bottomContent { conversation(nil) }
             } else if let projectID = tabProjectID, let project = viewModel.projects.first(where: { $0.id == projectID }) {
                 let layout = router.tabs.layout(for: projectID)
                 let chats = viewModel.chatTabs(in: projectID)
@@ -27,18 +28,29 @@ struct SessionTabsContainer<Conversation: View>: View {
                     router: router, viewModel: viewModel, project: project, layout: layout, chats: chats,
                     changeCount: editorPanel.viewModel.changes.count, files: files, simulatorHub: simulatorHub
                 )
-                if router.showsNewChat {
-                    pane(.newChat, project: project)
-                } else {
-                    ChildTabPanes(
-                        router: router, projectID: projectID, layout: layout, chats: chats,
-                        content: { tab in pane(tab, project: project) }
-                    )
+                bottomContent {
+                    if router.showsNewChat {
+                        pane(.newChat, project: project)
+                    } else {
+                        ChildTabPanes(
+                            router: router, projectID: projectID, layout: layout, chats: chats,
+                            content: { tab in pane(tab, project: project) }
+                        )
+                    }
                 }
             } else {
-                conversation(nil)
+                bottomContent { conversation(nil) }
             }
         }
+    }
+
+    @ViewBuilder
+    private func bottomContent<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if let bottomPanel {
+            let target = BottomPanelState.targetProjectID(mode: router.viewMode, selectedProjectID: router.selectedProjectID,
+                selectedTileProjectID: router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID })
+            BottomPanelContainer(state: bottomPanel, project: viewModel.projects.first { $0.id == target }, terminals: terminals, content: content)
+        } else { content() }
     }
 
     /// 上段に並べるプロジェクト：選択中セッションのプロジェクト、無ければ選択中のプロジェクト。

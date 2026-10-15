@@ -6,6 +6,7 @@ import SwiftTerm
 @MainActor
 public final class TerminalMountCoordinator {
     public var current: TerminalCoordinator
+    var onFocusChange: ((Bool) -> Void)?
     public var hostingView: NSView { current.hostingView }
     private weak var container: TerminalMountContainer?
     private var releaseObserver: NSObjectProtocol?
@@ -41,9 +42,17 @@ public final class TerminalMountCoordinator {
                 guard let self, let container = self.container, container.window != nil,
                       !TerminalMount.hasOwner(self.hostingView),
                       TerminalMount.attach(self.hostingView, to: container) else { return }
+                self.bindFocus(to: container)
                 self.current.scrollToBottom()
             }
         }
+    }
+
+    func bindFocus(to container: NSView) {
+        guard hostingView.superview === container else { return }
+        current.onFocusChange?(false)
+        current.onFocusChange = onFocusChange
+        onFocusChange?(current.terminalView.window?.firstResponder === current.terminalView)
     }
 
     func stopObservingRelease() {
@@ -68,9 +77,11 @@ final class TerminalMountContainer: NSView {
 @MainActor
 public struct TerminalView: NSViewRepresentable {
     public let coordinator: TerminalCoordinator
+    private let onFocusChange: ((Bool) -> Void)?
 
-    public init(coordinator: TerminalCoordinator) {
+    public init(coordinator: TerminalCoordinator, onFocusChange: ((Bool) -> Void)? = nil) {
         self.coordinator = coordinator
+        self.onFocusChange = onFocusChange
     }
 
     /// mount 寿命で同じ TerminalMountCoordinator を返す。struct 再評価のたびに所有者を新規発行しない。
@@ -95,11 +106,22 @@ public struct TerminalView: NSViewRepresentable {
         // 最後に有効な接続を要求したコンテナだけが所有する。window == nil や
         // frame 0 では拒否しない（新しい単一コンテナも接続時点でこの状態になる）。
         context.coordinator.current = coordinator
+        context.coordinator.onFocusChange = onFocusChange
+        let alreadyOwned = coordinator.hostingView.superview === nsView
         TerminalMount.attachAndScheduleScrollToBottom(coordinator, to: nsView)
+        if alreadyOwned {
+            coordinator.onFocusChange = onFocusChange
+        } else {
+            context.coordinator.bindFocus(to: nsView)
+        }
     }
 
     public static func dismantleNSView(_ nsView: NSView, coordinator: TerminalMountCoordinator) {
         coordinator.stopObservingRelease()
+        if coordinator.hostingView.superview === nsView {
+            coordinator.current.onFocusChange?(false)
+            coordinator.current.onFocusChange = nil
+        }
         _ = TerminalMount.detach(coordinator.hostingView, from: nsView)
     }
 }

@@ -1,4 +1,4 @@
-// 01 E1・B1: 対応待ち（承認待ち・質問待ち・エラー・無応答）と ⌘J の巡回順。
+// 01 E1・B1: 対応待ち（承認待ち・質問待ち・エラー・無応答）と ⇧⌘J の巡回順。
 
 import Foundation
 import AgentDomain
@@ -37,7 +37,7 @@ struct AttentionQueueTests {
         #expect(entries.map(\.id) == [c, d, a, b])
     }
 
-    @Test("⌘J は待ち時間順に次へ進み、末尾の次は先頭へ戻る")
+    @Test("⇧⌘J は待ち時間順に次へ進み、末尾の次は先頭へ戻る")
     func nextCyclesInListOrder() {
         let entries = AttentionQueue.ordered([
             (id: a, state: .approval, since: t0),

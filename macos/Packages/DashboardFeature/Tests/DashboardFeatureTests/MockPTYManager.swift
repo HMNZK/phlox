@@ -78,6 +78,11 @@ final class MockPTYManager: PTYManagerProtocol, Sendable {
         continuation?.finish()
     }
 
+    /// 実PTYと同じく、終了を知らせる前に末尾出力の配信を終える。
+    func finishOutput(for id: SessionID) {
+        state.withLock { $0.outputContinuations[id] }?.finish()
+    }
+
     /// テストから PTY 出力を発火させる。購読前なら `outputStream` 接続時にフラッシュする。
     func emitOutput(for id: SessionID, data: Data) {
         state.withLock { state in

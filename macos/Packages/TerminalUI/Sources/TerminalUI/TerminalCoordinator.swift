@@ -57,7 +57,7 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
 
     public var onInput: (Data) -> Void = { _ in }
     public var onResize: (UInt16, UInt16) -> Void = { _, _ in }
-
+    public var onFocusChange: ((Bool) -> Void)?
     /// init 直後の SwiftTerm のグリッドサイズ。spawn 時に PTY を同じサイズで開くために使う。
     public var initialCols: UInt16 {
         UInt16(clamping: terminalView.getTerminal().cols)
@@ -115,6 +115,7 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         self.hostingView = TerminalHostingView(terminalView: view)
         Self.applyHostBackground(palette, to: hostingView)
         super.init()
+        view.onFocusChange = { [weak self] focused in self?.onFocusChange?(focused) }
         self.terminalView.terminalDelegate = self
         Self.liveCoordinators.add(self)
     }
@@ -201,11 +202,9 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         lines.reserveCapacity(rows)
 
         for row in 0..<rows {
-            var line = ""
-            line.reserveCapacity(cols)
-            for col in 0..<cols {
-                line.append(TerminalDump.displayCharacter(terminal.getCharacter(col: col, row: row)))
-            }
+            let line = terminal.getLine(row: row)?.translateToString(
+                endCol: cols, skipNullCellsFollowingWide: true,
+                characterProvider: { TerminalDump.displayCharacter(terminal.getCharacter(for: $0)) }) ?? ""
             let isContinuation = joinWrappedRows && row > 0 && !lines.isEmpty
                 && terminal.getLine(row: row)?.isWrapped == true
             if isContinuation {

@@ -1,16 +1,38 @@
 import Foundation
 import AgentDomain
+import Observation
 
 /// プロジェクトのターミナルタブごとのシェル。
 /// タブを切り替えても・セッションを切り替えても残し、タブを閉じたときとアプリ終了時にだけ止める。
-/// 表示の途中で作ってよいよう、観測対象にはしない（中身の表示は各 `TerminalPanelSession` が持つ）。
+/// 子タブの置き場は観測対象外。下部の置き場だけを観測し、初回表示の task で作る。
 @MainActor
+@Observable
 public final class ProjectTerminalStore {
     /// 作業ディレクトリを受け取ってシェルを作る。PTY・シェル・環境変数は App が決める。
     public typealias Factory = @MainActor (_ workingDirectory: String) -> TerminalPanelSession
 
-    private var terminals: [TerminalTabID: (session: TerminalPanelSession, projectID: ProjectID, workingDirectory: String)] = [:]
-    private let factory: Factory
+    @ObservationIgnored private var terminals: [TerminalTabID: (session: TerminalPanelSession, projectID: ProjectID, workingDirectory: String)] = [:]
+    @ObservationIgnored private let factory: Factory
+    private var bottomTerminals: [ProjectID: (session: TerminalPanelSession, workingDirectory: String)] = [:]
+    public func bottomTerminal(for projectID: ProjectID, workingDirectory: String) -> TerminalPanelSession {
+        if let existing = bottomTerminals[projectID] {
+            if existing.workingDirectory == workingDirectory { return existing.session }
+            bottomTerminals.removeValue(forKey: projectID)
+            Task { await existing.session.controller.shutdown() }
+        }
+        let session = factory(workingDirectory)
+        bottomTerminals[projectID] = (session, workingDirectory)
+        return session
+    }
+
+    public func existingBottomTerminal(for projectID: ProjectID) -> TerminalPanelSession? {
+        bottomTerminals[projectID]?.session
+    }
+
+    public func canRestartBottomTerminal(for projectID: ProjectID?) -> Bool {
+        guard let projectID else { return false }
+        return bottomTerminals[projectID]?.session.controller.hasStarted == true
+    }
 
     public init(factory: @escaping Factory) {
         self.factory = factory
@@ -52,15 +74,18 @@ public final class ProjectTerminalStore {
     }
 
     public func closeProject(_ projectID: ProjectID) async {
+        let bottom = bottomTerminals.removeValue(forKey: projectID)?.session
         let ids = terminals.filter { $0.value.projectID == projectID }.map(\.key)
         let tasks = ids.compactMap { close($0) }
         for task in tasks { await task.value }
+        await bottom?.controller.shutdown()
     }
 
     /// アプリ終了時。
     public func shutdownAll() async {
-        let all = terminals.values.map(\.session)
+        let all = terminals.values.map(\.session) + bottomTerminals.values.map(\.session)
         terminals.removeAll()
+        bottomTerminals.removeAll()
         for terminal in all {
             await terminal.controller.shutdown()
         }

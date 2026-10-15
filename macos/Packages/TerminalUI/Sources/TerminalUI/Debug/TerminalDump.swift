@@ -132,8 +132,7 @@ public enum TerminalDump {
     }
 
     /// NUL 文字・全ゼロスカラーを空白に正規化する。
-    /// TerminalCoordinator.visibleText() と dump の出力を一致させるため、実装はここに一本化する
-    /// （食い違うと dump と画面の突合による描画バグの切り分けを誤らせる）。
+    /// visibleText() も同じ正規化を使う。dump はセル単位、本文抽出は全角文字の後続セルを除く。
     static func displayCharacter(_ character: Character?) -> Character {
         guard let character else { return " " }
         if character == "\0" {

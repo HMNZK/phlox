@@ -20,9 +20,11 @@ enum ToolbarDensity: Equatable {
 }
 /// 信号と同じ標準タイトルバーに置く操作。縦位置はシステムが揃える。
 struct DashboardToolbar: ToolbarContent {
+    @Environment(\.localizationBundle) private var localizationBundle
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
     let changeCount: Int
+    let bottomPanel: BottomPanelState
     var body: some ToolbarContent {
         if #available(macOS 26.0, *) {
             items.sharedBackgroundVisibility(.hidden)
@@ -42,10 +44,13 @@ struct DashboardToolbar: ToolbarContent {
         }
         ToolbarItem(placement: .automatic) { Spacer() }
         ToolbarItem(id: "dashboard-display", placement: .primaryAction) {
-            HStack(spacing: DSSpacing.s) {
-                ViewModeToggle(mode: $router.viewMode)
-                inspectorToggleButton
-            }
+            ViewModeToggle(mode: $router.viewMode)
+        }
+        ToolbarItem(id: "dashboard-bottom-panel", placement: .primaryAction) {
+            bottomPanelToggleButton
+        }
+        ToolbarItem(id: "dashboard-inspector", placement: .primaryAction) {
+            inspectorToggleButton
         }
     }
 
@@ -65,9 +70,53 @@ struct DashboardToolbar: ToolbarContent {
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoverableIconButtonStyle())
-        .help("インスペクタ（⌃⌘I）")
-        .accessibilityLabel(Text("インスペクタ（⌃⌘I）"))
-        .accessibilityAddTraits(router.inspectorVisible ? .isSelected : [])
+        .help(Text("インスペクタ（⌃⌘I）", bundle: localizationBundle))
+        .accessibilityLabel(Text("インスペクタ（⌃⌘I）", bundle: localizationBundle))
+        .accessibilityRepresentation {
+            Toggle(isOn: Binding(get: { router.inspectorVisible }, set: { value in
+                if value != router.inspectorVisible { router.toggleInspector() }
+            })) { Text("インスペクタ（⌃⌘I）", bundle: localizationBundle) }
+                .toggleStyle(.checkbox)
+                .accessibilityIdentifier("inspector-toggle")
+        }
+        .accessibilityIdentifier("inspector-toggle")
+    }
+
+    private var bottomPanelToggleButton: some View {
+        BottomPanelToggleButton(state: bottomPanel, projectID: BottomPanelState.targetProjectID(
+            mode: router.viewMode, selectedProjectID: router.selectedProjectID,
+            selectedTileProjectID: router.selectedSession.flatMap { viewModel.sessionNode(id: $0)?.projectID }))
+    }
+}
+
+private struct BottomPanelToggleButton: View {
+    @Environment(\.localizationBundle) private var localizationBundle
+    let state: BottomPanelState
+    let projectID: ProjectID?
+
+    var body: some View {
+        Button { state.toggle(projectID: projectID) } label: {
+            Image(systemName: "rectangle.bottomthird.inset.filled")
+                .font(.system(size: DSIconSize.l, weight: .medium))
+                .foregroundStyle(state.isVisible ? DSColor.textPrimary : DSColor.textSecondary)
+                .frame(width: DSLayout.toolbarIconButtonSize, height: DSLayout.toolbarIconButtonSize)
+                .background(state.isVisible ? DSColor.fillSelected : Color.clear,
+                            in: RoundedRectangle(cornerRadius: DSRadius.row))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoverableIconButtonStyle())
+        .disabled(projectID == nil)
+        .help(Text(LocalizedStringKey(state.isVisible ? "下部パネルを隠す（⌘J）" : "下部パネルを表示（⌘J）"), bundle: localizationBundle))
+        .accessibilityLabel(Text("下部パネル（⌘J）", bundle: localizationBundle))
+        .accessibilityRepresentation {
+            Toggle(isOn: Binding(get: { state.isVisible }, set: { value in
+                if value != state.isVisible { state.toggle(projectID: projectID) }
+            })) { Text("下部パネル（⌘J）", bundle: localizationBundle) }
+                .toggleStyle(.checkbox)
+                .disabled(projectID == nil)
+                .accessibilityIdentifier("bottom-panel-toggle")
+        }
+        .accessibilityIdentifier("bottom-panel-toggle")
     }
 }
 

@@ -33,8 +33,112 @@ private final class Stage8SnapshotClients: @unchecked Sendable {
 /// 実画面を表示せず、比較用の部品画像を明示指定時だけ書き出す。
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
+    @Test func bottomPanelSnapshots() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1",
+              ["all", "bottom-panel"].contains(ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all") else { return }
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        var worktree = URL(fileURLWithPath: #filePath)
+        for _ in 0..<6 { worktree.deleteLastPathComponent() }
+        let output = worktree.appendingPathComponent(".build/design-snapshots")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
+        if FileManager.default.fileExists(atPath: cachedStrings.path) { try FileManager.default.removeItem(at: cachedStrings) }
+        let preferences = UserDefaults.standard
+        let arguments = preferences.volatileDomain(forName: UserDefaults.argumentDomain)
+        let appearance = NSApp.appearance
+        let terminalPalette = TerminalCoordinator.activePalette
+        defer {
+            preferences.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+            NSApp.appearance = appearance
+            TerminalCoordinator.activePalette = terminalPalette
+        }
+        for english in [false, true] {
+            for light in [false, true] {
+                var themeArguments = arguments
+                themeArguments[ThemeStore.themeKey] = light ? AppTheme.phloxLight.id : AppTheme.phlox.id
+                themeArguments[TerminalFontSettings.fontSizeKey] = 13.0
+                preferences.setVolatileDomain(themeArguments, forName: UserDefaults.argumentDomain)
+                NSApp.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
+                TerminalCoordinator.activePalette = DashboardViewModel.makeTerminalPalette(from: light ? .phloxLight : .phlox)
+                for variant in ["open", "focused", "exited", "shell-warning"] {
+                    let strings = try localizationBundle(fixtures: output)
+                    let locale = Locale(identifier: english ? "en" : "ja")
+                    let pty = MockPTYManager()
+                    let panel = TerminalPanelSession(controller: UserTerminalController(
+                        pty: pty, shellPath: "/bin/zsh", workingDirectory: "/Users/ryosuke/Projects/Phlox-oss", environment: [:],
+                        resolveShell: { UserShellResolution(path: "/bin/zsh", unavailablePath: variant == "shell-warning" ? "/opt/homebrew/bin/fish" : nil) },
+                        shellWarning: { path in String(format: AppLocalizedString.string(
+                            "設定のシェル（%@）が見つからないため、システムの既定で起動しました", locale: locale, bundle: strings), path) }))
+                    try await panel.controller.ensureStarted()
+                    if variant == "shell-warning" {
+                        try await waitUntil { panel.terminalCoordinator.visibleText().contains("/opt/homebrew/bin/fish") }
+                    }
+                    panel.terminalCoordinator.feed(Data("Last login: Wed Oct 14 09:12:03 on ttys004\r\nryosuke@mac Phlox-oss % pwd\r\n/Users/ryosuke/Projects/Phlox-oss\r\nryosuke@mac Phlox-oss % ".utf8))
+                    if variant == "exited", let id = panel.controller.sessionID {
+                        pty.finishOutput(for: id)
+                        pty.emitExit(for: id, code: 0)
+                        try await waitUntil { !panel.controller.isRunning }
+                    }
+                    let state = BottomPanelState()
+                    state.open(window: nil)
+                    let id = "13-bp-\(variant)-\(light ? "light" : "dark")-\(english ? "en" : "ja")"
+                    let frame = Frame(id: id, name: "下部パネル", width: 900, height: 300, light: light, language: english ? "en" : "ja")
+                    do {
+                        try await capture(BottomPanelView(panel: panel, state: state), frame: frame, output: output, prepare: { _, window in
+                            #expect(panel.terminalCoordinator.terminalView.font.pointSize == 13)
+                            if variant != "open" { window.makeFirstResponder(panel.terminalCoordinator.terminalView) }
+                            else { window.makeFirstResponder(nil) }
+                            try await waitUntil { state.isTerminalFocused == (variant != "open") }
+                        })
+                    } catch { await panel.controller.shutdown(); throw error }
+                    await panel.controller.shutdown()
+                    #expect(FileManager.default.fileExists(atPath: destination(frame, output).path))
+                }
+                for variant in ["open", "closed", "grid", "split", "overlay", "no-project"] {
+                    let id = "13-bp-window-\(variant)-\(light ? "light" : "dark")-\(english ? "en" : "ja")"
+                    let frame = Frame(id: id, name: "下部パネルの配置", width: variant == "overlay" ? 1000 : 1600, height: 1000, light: light, language: english ? "en" : "ja")
+                    let scene = try await makeStage8Scene(frame, fixtures: output.appendingPathComponent("bottom-panel-fixtures"), sessionCount: 4)
+                    let bottomPanel = BottomPanelState()
+                    scene.router.inspectorVisible = true
+                    scene.router.inspectorTab = .files
+                    scene.router.selectedSession = scene.sessionIDs.first
+                    if variant == "grid" { scene.router.viewMode = .grid }
+                    if variant == "split", let first = scene.sessionIDs.first, let second = scene.sessionIDs.dropFirst().first {
+                        scene.router.tabs.updateLayout(for: scene.project.id) {
+                            $0.select(.chat(first))
+                            $0.splitRight(.chat(second), chats: scene.sessionIDs.map { .chat($0) })
+                        }
+                        #expect(scene.router.tabs.layout(for: scene.project.id).right == .chat(second))
+                    }
+                    if variant == "no-project" {
+                        scene.router.selectedProjectID = nil
+                        scene.router.selectedSession = nil
+                    } else if variant != "closed" { bottomPanel.open(window: nil) }
+                    let store = ProjectTerminalStore { directory in
+                        let panel = TerminalPanelSession(controller: UserTerminalController(pty: MockPTYManager(), shellPath: "/bin/zsh", workingDirectory: directory, environment: [:]))
+                        panel.terminalCoordinator.feed(Data("ryosuke@mac Phlox-oss % pwd\r\n\(directory)\r\nryosuke@mac Phlox-oss % ".utf8))
+                        return panel
+                    }
+                    do {
+                        try await capture(DashboardView(viewModel: scene.dashboard, router: scene.router, usageMonitor: scene.usageMonitor,
+                            newChatDraftStore: scene.draftStore, sessionTerminals: store, initiallyExpandedProjectIDs: [scene.project.id], bottomPanel: bottomPanel), frame: frame, output: output)
+                    } catch {
+                        await store.shutdownAll()
+                        for session in scene.dashboard.sessions { await session.kill() }
+                        throw error
+                    }
+                    await store.shutdownAll()
+                    for session in scene.dashboard.sessions { await session.kill() }
+                    #expect(FileManager.default.fileExists(atPath: destination(frame, output).path))
+                }
+            }
+        }
+    }
+
     @Test func commandDescriptionSnapshots() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
         let worktree = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -78,6 +182,7 @@ struct DesignSnapshotRenderTests {
 
     @Test func attachmentSnapshots() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
         let worktree = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -388,6 +493,7 @@ struct DesignSnapshotRenderTests {
 
     @Test func 比較用画像を書き出す() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
@@ -682,7 +788,7 @@ struct DesignSnapshotRenderTests {
     [design]: docs/architecture/overview.md
     """
 
-    private func localizationBundle(fixtures: URL) throws -> Bundle {
+    func localizationBundle(fixtures: URL) throws -> Bundle {
         let url = fixtures.appendingPathComponent("FileLocalization.bundle")
         if !FileManager.default.fileExists(atPath: url.path) {
             let resources = url.appendingPathComponent("en.lproj")
@@ -1411,24 +1517,35 @@ struct DesignSnapshotRenderTests {
         return output.appendingPathComponent(name)
     }
 
+    func makeSnapshotWindow<V: View>(_ content: V, id: String, width: CGFloat, height: CGFloat, light: Bool = false) -> NSWindow {
+        let includesTitlebar = id.hasPrefix("13-bp-window-")
+        let controller = includesTitlebar ? NSHostingController(rootView: content) : nil
+        let host: NSView = controller?.view ?? NSHostingView(rootView: content)
+        host.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: height),
+                              styleMask: includesTitlebar ? [.titled, .closable, .miniaturizable, .resizable] : [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
+        if let controller { window.contentViewController = controller }
+        else { window.contentView = host }
+        return window
+    }
+
     private func capture<V: View>(_ content: V, frame: Frame, output: URL,
                                  foreground: AnyView? = nil, foregroundOrigin: CGPoint = .zero,
                                  afterMount: (() -> Void)? = nil, selectsParagraph: Bool = false,
                                  prepare: ((NSView, NSWindow) async throws -> Void)? = nil) async throws {
         let strings = try localizationBundle(fixtures: output)
-        let host = NSHostingView(rootView: content
+        let includesTitlebar = frame.id.hasPrefix("13-bp-window-")
+        let rootView = content
             .environment(\.localizationBundle, strings)
             .frame(width: frame.width, height: frame.height)
             .background(DSColor.background)
             .environment(\.locale, Locale(identifier: frame.english ? "en" : "ja"))
-            .environment(\.colorScheme, frame.light ? .light : .dark))
-        host.frame = NSRect(x: 0, y: 0, width: frame.width, height: frame.height)
-        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: frame.width, height: frame.height),
-                              styleMask: [.borderless], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.appearance = NSAppearance(named: frame.light ? .aqua : .darkAqua)
-        window.contentView = host
-        defer { window.contentView = nil; window.close() }
+            .environment(\.colorScheme, frame.light ? .light : .dark)
+        let window = makeSnapshotWindow(rootView, id: frame.id, width: frame.width, height: frame.height, light: frame.light)
+        let host = try #require(window.contentView)
+        defer { window.contentViewController = nil; window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(100))
         if frame.id.hasPrefix("syntax-") { try await Task.sleep(for: .milliseconds(200)) }
         afterMount?()
@@ -1480,7 +1597,12 @@ struct DesignSnapshotRenderTests {
             let image = try #require(renderer.nsImage)
             foregrounds.append((image, NSRect(origin: foregroundOrigin, size: image.size)))
         }
-        try saveBitmap(host, bounds: host.bounds, to: destination(frame, output), snapshots: snapshots, foregrounds: foregrounds)
+        let drawingView = includesTitlebar ? try #require(window.contentView?.superview) : host
+        if includesTitlebar {
+            #expect(window.toolbar != nil)
+            #expect(drawingView.bounds.height > host.bounds.height)
+        }
+        try saveBitmap(drawingView, bounds: drawingView.bounds, to: destination(frame, output), snapshots: snapshots, foregrounds: foregrounds)
         #expect(!window.isVisible)
     }
 

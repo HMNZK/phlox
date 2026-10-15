@@ -41,6 +41,7 @@ public struct DashboardView: View {
     @AppStorage(TerminalFontSettings.fontSizeKey) private var terminalFontSize = Double(NSFont.systemFontSize)
     @State private var gridSessionPickerPresented = false
     @State private var editorPanel = EditorPanelCoordinator()
+    @State private var bottomPanel: BottomPanelState
     @State private var fileTabs = FileTabDocuments()
     @State private var fileTreeModels: [String: FileTreeModel] = [:]
     /// 閉じる前に確認が要る子タブ（動いているシェル・未保存のファイル）。
@@ -62,7 +63,8 @@ public struct DashboardView: View {
         sessionTerminals: ProjectTerminalStore? = nil,
         simulatorHub: SimulatorHub? = nil,
         initialSidebarWidth: CGFloat? = nil,
-        initiallyExpandedProjectIDs: Set<ProjectID> = []
+        initiallyExpandedProjectIDs: Set<ProjectID> = [],
+        bottomPanel: BottomPanelState? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
@@ -70,6 +72,7 @@ public struct DashboardView: View {
         _newChatDraftStore = Bindable(wrappedValue: newChatDraftStore)
         self.agentConsoleWindowID = agentConsoleWindowID
         self.sessionTerminals = sessionTerminals
+        _bottomPanel = State(initialValue: bottomPanel ?? BottomPanelState())
         self.simulatorHub = simulatorHub
         self.initialSidebarWidth = initialSidebarWidth
         _expandedProjectIDs = State(initialValue: initiallyExpandedProjectIDs)
@@ -117,9 +120,14 @@ public struct DashboardView: View {
         )
     }
 
-    public var body: some View {
+    private var windowContent: some View {
         shellWithTabDialogs
-            .toolbar { DashboardToolbar(viewModel: viewModel, router: router, changeCount: editorPanel.viewModel.changes.count) }
+            .toolbar { DashboardToolbar(viewModel: viewModel, router: router, changeCount: editorPanel.viewModel.changes.count, bottomPanel: bottomPanel) }
+            .focusedSceneValue(\.bottomPanelState, bottomPanel)
+    }
+
+    public var body: some View {
+        windowContent
             .toolbarBackground(DSColor.toolbarBackground, for: .windowToolbar)
             .toolbarBackground(.visible, for: .windowToolbar)
             .environment(\.adjustTerminalFontSize) { [viewModel] delta in
@@ -690,7 +698,8 @@ public struct DashboardView: View {
             terminals: sessionTerminals,
             simulatorHub: simulatorHub,
             editorPanel: editorPanel,
-            files: fileTabs
+            files: fileTabs,
+            bottomPanel: bottomPanel
         ) { tab in
             if router.viewMode == .grid, !viewModel.projects.isEmpty, gridScopeSummary.isEmpty {
                 gridScopeEmptyState
@@ -699,6 +708,7 @@ public struct DashboardView: View {
             }
         }
     }
+
 
     private var detailView: some View { detailView(displayTab: nil) }
 

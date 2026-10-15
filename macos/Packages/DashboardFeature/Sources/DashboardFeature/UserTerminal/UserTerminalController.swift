@@ -2,10 +2,15 @@ import AgentDomain
 import Darwin
 import Foundation
 import PTYKit
+import Observation
 
 /// パネルから独立して動作するユーザー用シェルのライフサイクルを管理する。
 @MainActor
+@Observable
 public final class UserTerminalController {
+    public private(set) var hasStarted = false
+    public private(set) var exitCode: Int32?
+    public private(set) var startError: String?
     public private(set) var isRunning = false
     public private(set) var sessionID: SessionID?
 
@@ -25,7 +30,7 @@ public final class UserTerminalController {
     // 購読者はセッション再起動をまたいで保持し、明示的な shutdown でのみ finish する。
     private var outputSubscribers: [UUID: AsyncStream<Data>.Continuation] = [:]
     private var exitTask: Task<Void, Never>?
-    private var startInProgress = false
+    public private(set) var startInProgress = false
     private var startWaiters: [CheckedContinuation<StartOutcome, Error>] = []
     /// 起動の終わりを待っている数（テストで競合の順序を作るため）。
     var pendingStartWaiterCount: Int { startWaiters.count }
@@ -80,6 +85,7 @@ public final class UserTerminalController {
             }
 
             startInProgress = true
+            startError = nil
             do {
                 var outcome = try await startSession()
 
@@ -100,6 +106,7 @@ public final class UserTerminalController {
                 }
                 return
             } catch {
+                startError = error.localizedDescription
                 startInProgress = false
                 shutdownRequested = false
                 resumeStartWaiters(with: .failure(error))
@@ -240,6 +247,8 @@ public final class UserTerminalController {
         shellPath = resolution.path
         shellResolution = resolution
         isRunning = true
+        hasStarted = true
+        exitCode = nil
         if let path = resolution.unavailablePath, let warning = shellWarning?(path) {
             let lineStart = generation > 1 ? "\r\n" : ""
             broadcastOutput(Data((lineStart + warning + "\r\n").utf8))
@@ -289,13 +298,14 @@ public final class UserTerminalController {
         exitTask?.cancel()
         exitTask = Task { @MainActor [weak self] in
             var receivedExitCode = false
-            for await _ in stream {
+            for await code in stream {
                 guard let self,
                       self.spawnGeneration == generation,
                       self.sessionID == sessionID else {
                     return
                 }
                 receivedExitCode = true
+                self.exitCode = code
                 self.markCurrentSessionExited()
                 return
             }

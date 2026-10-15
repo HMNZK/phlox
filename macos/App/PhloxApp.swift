@@ -548,7 +548,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         [.banner, .list, .sound]
     }
 
-    /// 通知のクリックと「開く」で、Phlox を前面に出してそのセッションを選ぶ（⌘J と同じ選び方）。
+    /// 通知のクリックと「開く」で、Phlox を前面に出してそのセッションを選ぶ（⇧⌘J と同じ選び方）。
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
@@ -783,6 +783,7 @@ private struct UpdateCommands: Commands {
 
 /// 01 F「表示」。表示モード・分割 ｜ 領域とタブ ｜ 文字の大きさ。
 private struct ViewCommands: Commands {
+    @FocusedValue(\.bottomPanelState) private var bottomPanelState
     var dashboard: DashboardViewModel?
     var router: AppRouter?
     var sessionTerminals: ProjectTerminalStore?
@@ -841,6 +842,20 @@ private struct ViewCommands: Commands {
             .keyboardShortcut("i", modifiers: [.command, .control])
             .disabled(router == nil)
 
+            Button(LocalizedStringKey(bottomPanelState?.isVisible == true ? "下部パネルを隠す" : "下部パネルを表示")) {
+                bottomPanelState?.toggle(projectID: bottomPanelProjectID)
+            }
+            .keyboardShortcut("j", modifiers: .command)
+            .disabled(bottomPanelProjectID == nil)
+
+            Button("下部パネルのシェルを再起動") {
+                guard let id = bottomPanelProjectID,
+                      let panel = sessionTerminals?.existingBottomTerminal(for: id) else { return }
+                bottomPanelState?.open()
+                Task { await panel.restart() }
+            }
+            .disabled(sessionTerminals?.canRestartBottomTerminal(for: bottomPanelProjectID) != true)
+
             Button("ファイルツリー") {
                 router?.showFilesInInspector()
             }
@@ -880,19 +895,19 @@ private struct ViewCommands: Commands {
 
             Button("文字を大きく") {
                 // 前面がブラウザならページの倍率を変える（ブラウザ FR-9）。
-                if router?.zoomFrontBrowser(by: 1) != true { dashboard?.adjustFontSize(by: 1, target: fontTarget) }
+                if bottomPanelState?.isTerminalFocused == true || router?.zoomFrontBrowser(by: 1) != true { dashboard?.adjustFontSize(by: 1, target: fontTarget) }
             }
             .keyboardShortcut("+", modifiers: .command)
             .disabled(dashboard == nil)
 
             Button("文字を小さく") {
-                if router?.zoomFrontBrowser(by: -1) != true { dashboard?.adjustFontSize(by: -1, target: fontTarget) }
+                if bottomPanelState?.isTerminalFocused == true || router?.zoomFrontBrowser(by: -1) != true { dashboard?.adjustFontSize(by: -1, target: fontTarget) }
             }
             .keyboardShortcut("-", modifiers: .command)
             .disabled(dashboard == nil)
 
             Button("実寸") {
-                if router?.zoomFrontBrowser(by: nil) != true { dashboard?.resetFontSize(target: fontTarget) }
+                if bottomPanelState?.isTerminalFocused == true || router?.zoomFrontBrowser(by: nil) != true { dashboard?.resetFontSize(target: fontTarget) }
             }
             .keyboardShortcut("0", modifiers: .command)
             .disabled(dashboard == nil)
@@ -924,11 +939,19 @@ private struct ViewCommands: Commands {
 
     /// フォーカス中の領域（会話かターミナル）。
     private var fontTarget: DashboardViewModel.FontSizeTarget {
+        if bottomPanelState?.isTerminalFocused == true { return .terminal }
         let id = router?.selectedSession
         return DashboardViewModel.fontSizeTarget(
             node: id.flatMap { dashboard?.sessionNode(id: $0) },
             selectedChildTab: router?.selectedProjectID.flatMap { router?.tabs.layout(for: $0).selected }
         )
+    }
+
+    private var bottomPanelProjectID: ProjectID? {
+        guard bottomPanelState != nil else { return nil }
+        guard let router else { return nil }
+        return BottomPanelState.targetProjectID(mode: router.viewMode, selectedProjectID: router.selectedProjectID,
+            selectedTileProjectID: router.selectedSession.flatMap { dashboard?.sessionNode(id: $0)?.projectID })
     }
 }
 
@@ -960,7 +983,7 @@ private struct SessionCommands: Commands {
                 NSApp.mainWindow?.makeFirstResponder(nil)
                 router.selectedSession = nextID
             }
-            .keyboardShortcut("j", modifiers: .command)
+            .keyboardShortcut("j", modifiers: [.shift, .command])
             .disabled(!(dashboard?.hasAttention ?? false))
 
             Button("次のセッション") { selectAdjacentSession(forward: true) }

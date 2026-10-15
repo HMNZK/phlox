@@ -12,9 +12,11 @@ public final class TerminalPanelSession {
     public let terminalCoordinator: TerminalCoordinator
 
     private var outputTask: Task<Void, Never>?
+    private let localizationBundle: Bundle
 
-    public init(controller: UserTerminalController) {
+    public init(controller: UserTerminalController, localizationBundle: Bundle = .main) {
         self.controller = controller
+        self.localizationBundle = localizationBundle
         let coordinator = TerminalCoordinator()
         coordinator.applyFontSize(TerminalFontSettings.currentSize())
         self.terminalCoordinator = coordinator
@@ -26,7 +28,7 @@ public final class TerminalPanelSession {
                 do {
                     try await controller.send(input)
                 } catch {
-                    coordinator?.feed(Data("\r\n[ターミナル入力を送信できませんでした]\r\n".utf8))
+                    coordinator?.feed(Data("\r\n\(AppLocalizedString.string("[ターミナル入力を送信できませんでした]", locale: Self.displayLocale, bundle: localizationBundle))\r\n".utf8))
                 }
             }
         }
@@ -38,7 +40,7 @@ public final class TerminalPanelSession {
                     try await controller.resize(cols: cols, rows: rows)
                 } catch {
                     // 07 D7: 赤（#FF8A8D）の 1 行。端末は常に暗い面なので色は固定。
-                    let message = String(format: AppLocalizedString.string("[Phlox] シェルのサイズ変更に失敗しました（%@）。", locale: TerminalPanelSession.displayLocale), error.localizedDescription)
+                    let message = String(format: AppLocalizedString.string("[Phlox] シェルのサイズ変更に失敗しました（%@）。", locale: TerminalPanelSession.displayLocale, bundle: localizationBundle), error.localizedDescription)
                     coordinator?.feed(Data("\r\n\u{1B}[38;2;255;138;141m\(message)\u{1B}[0m\r\n".utf8))
                 }
             }
@@ -47,9 +49,9 @@ public final class TerminalPanelSession {
         // 表示容器が閉じていても購読を続ける。Coordinator が SwiftTerm のバッファを
         // 保持するため、再アタッチ時に過去の画面が空白にならない。シェルの起動は
         // 初めて表示器が現れたときまで遅延し、使われない常駐シェルを作らない。
-        outputTask = Task { [weak controller, weak coordinator] in
-            guard let controller, let coordinator else { return }
-            let output = controller.makeOutputStream()
+        let output = controller.makeOutputStream()
+        outputTask = Task { [weak coordinator] in
+            guard let coordinator else { return }
             for await data in output {
                 guard !Task.isCancelled else { return }
                 coordinator.feed(data)
@@ -68,8 +70,15 @@ public final class TerminalPanelSession {
         do {
             try await controller.ensureStarted()
         } catch {
-            terminalCoordinator.feed(Data("\r\n[シェルを開始できませんでした]\r\n".utf8))
+            terminalCoordinator.feed(Data("\r\n\(AppLocalizedString.string("[シェルを開始できませんでした]", locale: Self.displayLocale, bundle: localizationBundle))\r\n".utf8))
         }
+    }
+
+    /// 見出しの「再起動」。
+    /// 下部パネルは初回のみ自動起動する。自然終了後の再表示では明示再起動を待つ。
+    public func ensureBottomStarted() async {
+        guard !controller.hasStarted else { return }
+        await ensureStarted()
     }
 
     /// 見出しの「再起動」。
@@ -77,7 +86,7 @@ public final class TerminalPanelSession {
         do {
             try await controller.restart()
         } catch {
-            terminalCoordinator.feed(Data("\r\n[シェルを開始できませんでした]\r\n".utf8))
+            terminalCoordinator.feed(Data("\r\n\(AppLocalizedString.string("[シェルを開始できませんでした]", locale: Self.displayLocale, bundle: localizationBundle))\r\n".utf8))
         }
     }
 
@@ -101,16 +110,20 @@ public struct TerminalPanelView: View {
     let showsFontSizeHUD: Bool
     /// グリッドのタイルの子タブ。端末の文字をグリッドの大きさ（06: 単体の 11/11.5）で描く。
     let isInGridTile: Bool
+    private let startsAutomatically: Bool
+    private let onFocusChange: ((Bool) -> Void)?
 
     @AppStorage(TerminalFontSettings.fontSizeKey) private var fontSize = Double(NSFont.systemFontSize)
     @Environment(\.adjustTerminalFontSize) private var adjustFontSize
     @State private var hudVisibleUntil: Date?
 
-    public init(panel: TerminalPanelSession, showsHeader: Bool = true, showsFontSizeHUD: Bool = true, isInGridTile: Bool = false) {
+    public init(panel: TerminalPanelSession, showsHeader: Bool = true, showsFontSizeHUD: Bool = true, isInGridTile: Bool = false, startsAutomatically: Bool = true, onFocusChange: ((Bool) -> Void)? = nil) {
         self.panel = panel
         self.showsHeader = showsHeader
         self.showsFontSizeHUD = showsFontSizeHUD
         self.isInGridTile = isInGridTile
+        self.startsAutomatically = startsAutomatically
+        self.onFocusChange = onFocusChange
     }
 
     /// 同じ端末が単体とグリッドの両方に出るので、出るたびにその場の大きさへ当て直す。
@@ -123,7 +136,7 @@ public struct TerminalPanelView: View {
             if showsHeader {
                 header
             }
-            TerminalView(coordinator: panel.terminalCoordinator)
+            TerminalView(coordinator: panel.terminalCoordinator, onFocusChange: onFocusChange)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 .overlay { fontSizeHUD }
@@ -133,7 +146,7 @@ public struct TerminalPanelView: View {
         .accessibilityLabel("ターミナル")
         .accessibilityIdentifier("user-terminal-panel")
         .task {
-            await panel.ensureStarted()
+            if startsAutomatically { await panel.ensureStarted() }
         }
         .onAppear { applyFontSize(CGFloat(fontSize)) }
         .onChange(of: fontSize) { _, newValue in

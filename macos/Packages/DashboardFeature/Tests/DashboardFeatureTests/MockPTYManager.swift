@@ -34,6 +34,7 @@ final class MockPTYManager: PTYManagerProtocol, Sendable {
         /// 届く挙動を再現するために使う。
         var exitContinuationHistory: [SessionID: [AsyncStream<Int32>.Continuation]] = [:]
         var spawnCalls: [SpawnCall] = []
+        var spawnErrors: [PTYError] = []
         var writtenCalls: [(Data, SessionID)] = []
         var killedIDs: [SessionID] = []
         var resizeCalls: [ResizeCall] = []
@@ -44,6 +45,10 @@ final class MockPTYManager: PTYManagerProtocol, Sendable {
     /// 以降の write を指定エラーで失敗させる。nil で解除。
     func setWriteError(_ error: PTYError?) {
         state.withLock { $0.writeError = error }
+    }
+
+    func setSpawnErrors(_ errors: [PTYError]) {
+        state.withLock { $0.spawnErrors = errors }
     }
 
     func setSpawnSessionID(_ id: SessionID) {
@@ -113,6 +118,12 @@ final class MockPTYManager: PTYManagerProtocol, Sendable {
             initialSize: initialSize,
             workingDirectory: workingDirectory
         )
+        try state.withLock { state in
+            if !state.spawnErrors.isEmpty {
+                state.spawnCalls.append(call)
+                throw state.spawnErrors.removeFirst()
+            }
+        }
         // 実 PTYManager に合わせ、output/exit stream は spawn 内で登録する。これにより
         // 直後の outputStream(for:)/exitStream(for:) が登録済み stream を返し、
         // spawnCalls 観測時点で exit continuation が必ず存在する（取りこぼし防止）。

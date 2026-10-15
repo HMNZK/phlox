@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-10-13
+last-verified: 2026-10-15
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,7 @@ last-verified: 2026-10-13
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0193 | [ユーザー用ターミナルのシェルを設定から解決する](0193-user-terminal-shell-selection.md) | accepted |
 | 0192 | [インスペクタの「使用量」と「セッション」のタブを廃止し、ファイルだけにする](0192-inspector-files-only.md) | accepted |
 | 0191 | [新規チャットの見出しにドット書体 DotGothic16 を同梱する](0191-bundled-dot-font-for-new-chat-heading.md) | accepted |
 | 0190 | [選択肢のポップアップの見た目を 1 つの部品にまとめる](0190-shared-popup-menu-look.md) | accepted |

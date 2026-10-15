@@ -207,25 +207,23 @@ struct PhloxApp: App {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return TerminalPanelSession(
             controller: UserTerminalController(
-                pty: environment.pty,
-                shellPath: loginShellPath(),
+                pty: PTYManager(terminalMode: .interactive),
+                shellPath: UserShellSettings.loginShellPath(),
                 workingDirectory: workingDirectory,
                 environment: [
                     "HOME": home,
                     "PATH": environment.pathEnvironment,
                     "TERM": "xterm-256color",
-                ]
+                ],
+                resolveShell: { UserShellSettings.resolve() },
+                shellWarning: { path in
+                    String(format: AppLocalizedString.string(
+                        "設定のシェル（%@）が見つからないため、システムの既定で起動しました",
+                        locale: (AppLanguage(rawValue: UserDefaults.standard.string(forKey: LanguageSettings.languageKey) ?? "system") ?? .system).locale
+                    ), path)
+                }
             )
         )
-    }
-
-    /// GUI 起動では `SHELL` が注入されないことがあるため、ログイン設定の shell を使う。
-    private func loginShellPath() -> String {
-        guard let shell = getpwuid(getuid())?.pointee.pw_shell else {
-            return "/bin/zsh"
-        }
-        let path = String(cString: shell)
-        return path.isEmpty ? "/bin/zsh" : path
     }
 
     private func initialize() async {

@@ -1,4 +1,5 @@
 import AgentDomain
+import Darwin
 import Foundation
 import PTYKit
 
@@ -13,7 +14,10 @@ public final class UserTerminalController {
     private static let outputBufferLimit = 2048
 
     private let pty: any PTYManagerProtocol
-    let shellPath: String
+    var shellPath: String
+    public private(set) var shellResolution: UserShellResolution?
+    private let resolveShell: (@MainActor () -> UserShellResolution)?
+    private let shellWarning: (@MainActor (String) -> String)?
     let workingDirectory: String
     private let environment: [String: String]
 
@@ -46,12 +50,16 @@ public final class UserTerminalController {
         pty: any PTYManagerProtocol,
         shellPath: String,
         workingDirectory: String,
-        environment: [String: String]
+        environment: [String: String],
+        resolveShell: (@MainActor () -> UserShellResolution)? = nil,
+        shellWarning: (@MainActor (String) -> String)? = nil
     ) {
         self.pty = pty
         self.shellPath = shellPath
         self.workingDirectory = workingDirectory
         self.environment = environment
+        self.resolveShell = resolveShell
+        self.shellWarning = shellWarning
     }
 
     public func ensureStarted() async throws {
@@ -188,14 +196,27 @@ public final class UserTerminalController {
         }
 
         let initialSize = requestedSize
-        let id = try await pty.spawn(
-            command: shellPath,
-            args: [],
-            env: environment,
-            id: nil,
-            initialSize: initialSize,
-            workingDirectory: workingDirectory
-        )
+        var resolution = resolveShell?() ?? UserShellResolution(path: shellPath)
+        var launchEnvironment = environment
+        launchEnvironment["SHELL"] = resolution.path
+        let id: SessionID
+        do {
+            id = try await pty.spawn(
+                command: resolution.path, args: [], env: launchEnvironment,
+                id: nil, initialSize: initialSize, workingDirectory: workingDirectory
+            )
+        } catch {
+            // ENOENT は cwd やインタープリタの不在でも起きるため、設定シェル自体を再確認する。
+            guard error as? PTYError == .spawnFailed(errno: ENOENT),
+                  let fallback = resolution.fallbackPath,
+                  !FileManager.default.fileExists(atPath: resolution.path) else { throw error }
+            resolution = UserShellResolution(path: fallback, unavailablePath: resolution.path)
+            launchEnvironment["SHELL"] = resolution.path
+            id = try await pty.spawn(
+                command: resolution.path, args: [], env: launchEnvironment,
+                id: nil, initialSize: initialSize, workingDirectory: workingDirectory
+            )
+        }
 
         // spawn の await 中に新しいサイズが来た場合、fd が有効になってから最新値を
         // 反映する。起動前に使った initialSize と同じ値なら resize は不要である。
@@ -216,7 +237,13 @@ public final class UserTerminalController {
         spawnGeneration &+= 1
         let generation = spawnGeneration
         self.sessionID = id
+        shellPath = resolution.path
+        shellResolution = resolution
         isRunning = true
+        if let path = resolution.unavailablePath, let warning = shellWarning?(path) {
+            let lineStart = generation > 1 ? "\r\n" : ""
+            broadcastOutput(Data((lineStart + warning + "\r\n").utf8))
+        }
         startOutputObservation(
             stream: outputStream,
             generation: generation

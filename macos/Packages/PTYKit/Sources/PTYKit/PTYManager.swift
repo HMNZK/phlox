@@ -5,6 +5,7 @@ import Foundation
 import os
 
 public actor PTYManager: PTYManagerProtocol {
+    private let terminalMode: PTYTerminalMode
     private var sessions: [SessionID: ChildProcess] = [:]
     /// 起動直後の実行ファイル。`exec` で置き換わったら「コマンドが動いている」とみなす。
     private var spawnedImages: [SessionID: String] = [:]
@@ -25,7 +26,7 @@ public actor PTYManager: PTYManagerProtocol {
     // 停止/未接続のときの天井」としてのみ効く（超過時は最古の要素から破棄する）。
     static let outputBufferLimit = 2048
 
-    public init() {}
+    public init(terminalMode: PTYTerminalMode = .raw) { self.terminalMode = terminalMode }
 
     /// 子プロセスを spawn して SessionID を返す。
     ///
@@ -53,6 +54,7 @@ public actor PTYManager: PTYManagerProtocol {
             args: args,
             env: env,
             initialSize: initialSize,
+            terminalMode: terminalMode,
             workingDirectory: workingDirectory
         )
 
@@ -133,13 +135,14 @@ public actor PTYManager: PTYManagerProtocol {
         args: [String],
         env: [String: String],
         initialSize: PTYInitialSize?,
+        terminalMode: PTYTerminalMode,
         workingDirectory: String?
     ) throws -> (masterFD: Int32, pid: pid_t) {
         let (masterFD, slaveFD): (Int32, Int32)
         if let size = initialSize {
-            (masterFD, slaveFD) = try Posix.openPTY(cols: size.cols, rows: size.rows)
+            (masterFD, slaveFD) = try Posix.openPTY(cols: size.cols, rows: size.rows, terminalMode: terminalMode)
         } else {
-            (masterFD, slaveFD) = try Posix.openPTY()
+            (masterFD, slaveFD) = try Posix.openPTY(terminalMode: terminalMode)
         }
 
         let pid: pid_t

@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-12
+last-verified: 2026-10-15
 ---
 
 # ターミナル／エディタパネルの現行構成
@@ -25,6 +25,14 @@ last-verified: 2026-10-12
 
 ## コンポーネント
 
+### ユーザー用シェルの選択（ADR 0193）
+
+`UserShellSettings`（DashboardFeature/UserTerminal）が `/etc/shells` を読み、コメント・空行・重複・実行不可の項目を除く。任意パスは絶対パスの実行可能なファイルであることを保存前に検証する。保存先は `.phloxDefaults()` の `terminal.shellPath`（空文字はシステムの既定）。設定の「一般 › ターミナル › シェル」は既存の設定行を使う。
+
+`PhloxApp.makeTerminalPanelSession` は解決関数をコントローラへ渡す。`UserTerminalController.startSession` は起動のたびに解決して `shellResolution`（実際のパス・代替した設定パス）を保持し、`SHELL` を実際のパスにする。代替時の注意を出力ストリームの先頭に流してから PTY 出力を購読する。新規起動・再起動だけに反映し、実行中のシェルやエージェントの起動には触れない。下部パネルも同じ解決関数・結果を利用し、代替したパスの注意を見出しに次の再起動まで出す。
+
+解決結果には、有効な設定シェルを選んだ場合の代替先も保持する。存在確認後に設定シェルが消えた場合は、PTY 起動の ENOENT とそのパスの不存在を確認して代替先で一度だけ再試行する。他のエラーと代替先の失敗は伝播する。初回の注意は最初の行に出し、再起動では注意の前にも CRLF を入れ、既存の出力を消さず独立した行にする。注意のテストは有限時間の出力収集と、失敗時にも走る終了処理を使う。
+
 | 層 | 型 / 関数（パッケージ・ファイル） | 役割 |
 |---|---|---|
 | ルーティング | `AppRouter.terminalPanelVisible` / `.editorPanelVisible` / `toggleTerminalPanel()` / `toggleEditorPanel()`（DashboardFeature/Router） | パネルの表示状態と開閉トグル |
@@ -41,7 +49,7 @@ last-verified: 2026-10-12
 | ドロワー統合 | `DashboardView`（DashboardFeature/Dashboard） | 本文 `HStack` の一部としてドロワーを配置（レイアウトフロー内）。両パネル可視時は `VSplitView` で縦積み。分割線ハンドルは overlay チェーンの最後に配置し、ドラッグ中はゴースト線のみ更新（`onEnded` で `storedDrawerWidth`（`@AppStorage`）を確定）。`updateEditorPanelProject()` がセッション選択の変化に応じて `EditorPanelViewModel` を作り直す |
 | トップバー | `DashboardTopBarControls` / `TrailingTopBarLayout`（DashboardFeature/Dashboard） | `usageAvailableWidth` はウィンドウ全幅（`geometry.size.width`）基準で、ドロワー幅を差し引かない |
 | ホットキー配線 | `TerminalPanelCommands` / `EditorPanelCommands`（App/PhloxApp.swift） | ⌘⌥T / ⌘⌥E の `CommandGroup(after: .sidebar)`。`router.toggleTerminalPanel()` / `toggleEditorPanel()` を呼ぶ |
-| PTY spawn 起動 | `makeTerminalPanelSession(environment:workingDirectory:)`（App/PhloxApp.swift） | `UserTerminalController` をプロジェクトのフォルダ・ログインシェル（`loginShellPath()`）で構築する（`HOME` はホーム）。`ProjectTerminalStore` の factory として渡し、`AppDelegate.sessionUserTerminals` へも同じ置き場を渡す |
+| PTY spawn 起動 | `makeTerminalPanelSession(environment:workingDirectory:)`（App/PhloxApp.swift） | `UserTerminalController` にプロジェクトのフォルダと `UserShellSettings.resolve` を渡す（`HOME` はホーム）。`ProjectTerminalStore` の factory として渡し、`AppDelegate.sessionUserTerminals` へも同じ置き場を渡す |
 | 終了処理 | `AppDelegate`（App/AppDelegate.swift、extension） | `applicationShouldTerminate` から `shutdownUserTerminal()`（`ProjectTerminalStore.shutdownAll()`）→ `PTYManager.terminateAllAndWait` を待つ Task と、全チャットセッションの `flushTranscriptNow()` を待つ Task を並行実行し、両方の完了後に reply する（[ADR 0110](../adr/0110-midturn-flush-and-termination-race.md)・[ADR 0149](../adr/0149-user-terminal-lifecycle.md)） |
 | fd 衛生 | `Posix.spawn`（PTYKit/Sources/PTYKit/Posix.swift） | `posix_spawnattr_setflags` に `POSIX_SPAWN_CLOEXEC_DEFAULT` を含め、`file_actions` で明示 dup2 されていない fd を子へ継承しない（[ADR 0151](../adr/0151-pty-spawn-fd-hygiene.md)） |
 
@@ -73,6 +81,7 @@ last-verified: 2026-10-12
 | ファイル | 固定している性質 |
 |---|---|
 | `AcceptancePanelRouterTests` | `AppRouter` のパネルフラグ・トグル |
+| `UserShellSettingsTests` | `/etc/shells` の読み取り・候補の整理・実行可能性・無効パスの保存拒否・システム既定への代替・存在確認後の消失・再試行回数とエラー伝播・再起動時の反映・注意の出力順と旧プロンプトとの分離・出力待機の期限と失敗時の終了処理・実際の bash の `$0` と `$SHELL` |
 | `AcceptanceUserTerminalTests` / `UserTerminalControllerWhiteboxTests` | PTY 起動の冪等性・入出力・自然終了→再起動・世代分離・drain 待ち・shutdown 冪等 |
 | `AcceptanceWorkingTreeTests` / `WorkingTreeServiceWhiteboxTests` | 変更一覧・diff・保存・競合検出・リネーム/非 ASCII パス・巨大 stderr 耐性 |
 | `TerminalPanelViewWhiteboxTests` | パネルの表示器が共有コントローラを保持し、入出力を `TerminalCoordinator` へ接続すること |
@@ -80,3 +89,4 @@ last-verified: 2026-10-12
 | `PanelIntegrationWhiteboxTests` | 左右分割/縦積みの切替幅・変更種別ごとの SF Symbol |
 | `PosixSpawnCloexecTests`（PTYKit） | spawn した子が無関係な fd を継承しないこと |
 | `PanelUITests`（XCUITest） | ⌘⌥T/⌘⌥E の実出現・消滅（accessibilityIdentifier） |
+| `PTYTerminalModeTests`（PTYKit） | ユーザー用の echo・icanon・制御文字、従来のエージェント用 raw 設定、実 bash の stty と Return 前の入力エコー |

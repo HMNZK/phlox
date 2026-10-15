@@ -10,6 +10,10 @@
 static pthread_mutex_t cpty_open_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int cpty_open(int *amaster, int *aslave, const struct pty_winsize *winp) {
+    return cpty_open_mode(amaster, aslave, winp, 1);
+}
+
+int cpty_open_mode(int *amaster, int *aslave, const struct pty_winsize *winp, int raw_mode) {
     struct winsize ws;
     struct winsize *wsp = NULL;
     if (winp != NULL) {
@@ -35,7 +39,8 @@ int cpty_open(int *amaster, int *aslave, const struct pty_winsize *winp) {
         return -1;
     }
 
-    int result = openpty(amaster, aslave, NULL, &term, wsp);
+    // NULL は OS 標準の echo・icanon・制御文字を含む設定で開く。
+    int result = openpty(amaster, aslave, NULL, raw_mode ? &term : NULL, wsp);
     int saved_errno = errno;
     pthread_mutex_unlock(&cpty_open_mutex);
     errno = saved_errno;

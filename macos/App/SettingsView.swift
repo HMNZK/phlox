@@ -40,6 +40,12 @@ struct SettingsView: View {
     @State private var selectedGroupID = "general"
     /// ターミナルの文字サイズの入力中の値。範囲外なら保存せず、欄から離れても戻さない（10 Settings T6b）。
     @State private var terminalFontDraft: String?
+    @AppStorage(UserShellSettings.pathKey, store: .phloxDefaults()) private var shellPath = ""
+    @State private var customShell = false
+    @State private var shellDraft = ""
+    @State private var shellError: String?
+    @State private var availableShells: [String] = []
+    @State private var shellListError: String?
 
     private var appLanguageBinding: Binding<AppLanguage> {
         Binding(
@@ -130,6 +136,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var generalForm: some View {
+        terminalShellSection
         SettingsGroupBox("言語") {
             SettingsRow {
                 SettingsLabel(title: Text("表示言語"))
@@ -186,6 +193,67 @@ struct SettingsView: View {
                 .pointingHandCursor()
             }
         }
+    }
+
+    private var terminalShellSection: some View {
+        SettingsGroupBox("ターミナル", footer: Text("これから起動するシェルに反映されます。")) {
+            SettingsRow(error: shellListError.map { Text(verbatim: $0) }) {
+                SettingsLabel(title: Text("シェル"))
+                Picker("シェル", selection: Binding(
+                    get: { customShell ? "other" : shellPath },
+                    set: { value in
+                        shellError = nil
+                        if value == "other" {
+                            customShell = true
+                            shellDraft = shellPath
+                        } else {
+                            customShell = false
+                            if UserShellSettings.save(value) { shellPath = value }
+                            else { shellError = AppLocalizedString.string("実行できるファイルの絶対パスを入力してください。保存していません。", locale: locale) }
+                        }
+                    }
+                )) {
+                    Text(String(format: AppLocalizedString.string("システムの既定（%@）", locale: locale), UserShellSettings.loginShellPath())).tag("")
+                    ForEach(availableShells, id: \.self) { Text(verbatim: $0).tag($0) }
+                    if !shellPath.isEmpty, !availableShells.contains(shellPath) {
+                        Text(verbatim: shellPath).tag(shellPath)
+                    }
+                    Text("その他…").tag("other")
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("settings-terminal-shell")
+            }
+            if customShell || shellError != nil {
+                SettingsDivider()
+                SettingsRow(error: shellError.map { Text(verbatim: $0) }) {
+                    SettingsLabel(title: Text("シェルのパス"))
+                    TextField("シェルのパス", text: $shellDraft)
+                        .settingsField(width: DSSpacing.xxl * 6, isInvalid: shellError != nil)
+                        .accessibilityIdentifier("settings-terminal-shell-path")
+                        .accessibilityLabel(Text("シェルのパス"))
+                        .onSubmit(saveCustomShell)
+                    Button("保存", action: saveCustomShell)
+                        .buttonStyle(.ds(.secondary))
+                        .accessibilityIdentifier("settings-terminal-shell-save")
+                        .accessibilityLabel(Text("シェルのパスを保存"))
+                }
+            }
+        }
+        .onAppear {
+            do { availableShells = try UserShellSettings.availableShells(); shellListError = nil }
+            catch { shellListError = AppLocalizedString.string("/etc/shells を読み取れません。", locale: locale) + " " + error.localizedDescription }
+        }
+    }
+
+    private func saveCustomShell() {
+        guard !shellDraft.isEmpty, UserShellSettings.save(shellDraft) else {
+            shellError = AppLocalizedString.string("実行できるファイルの絶対パスを入力してください。保存していません。", locale: locale)
+            return
+        }
+        shellPath = shellDraft
+        shellError = nil
+        customShell = false
     }
 
     // MARK: - 外観

@@ -44,7 +44,8 @@ struct UserTerminalControllerWhiteboxTests {
         let spawn = try #require(pty.spawnCalls.first)
         #expect(spawn.command == "/bin/sh")
         #expect(spawn.args.isEmpty)
-        #expect(spawn.env == ["PATH": "/usr/bin:/bin", "HOME": "/tmp/phlox-user-terminal", "TERM": "dumb"])
+        // BS-6: 起動したシェルのパスを子プロセスにも伝える。
+        #expect(spawn.env == ["PATH": "/usr/bin:/bin", "HOME": "/tmp/phlox-user-terminal", "TERM": "dumb", "SHELL": "/bin/sh"])
         #expect(spawn.id == nil)
         #expect(spawn.initialSize == nil)
         #expect(spawn.workingDirectory == "/tmp/phlox-user-terminal")

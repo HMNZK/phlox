@@ -2,11 +2,17 @@ import CPTYHelpers
 import Darwin
 import Foundation
 
+public enum PTYTerminalMode: Sendable {
+    case raw
+    case interactive
+}
+
 public enum Posix {
     public static let defaultRows: UInt16 = 24
     public static let defaultCols: UInt16 = 80
 
-    public static func openPTY(cols: UInt16 = defaultCols, rows: UInt16 = defaultRows) throws -> (master: Int32, slave: Int32) {
+    public static func openPTY(cols: UInt16 = defaultCols, rows: UInt16 = defaultRows,
+                               terminalMode: PTYTerminalMode = .raw) throws -> (master: Int32, slave: Int32) {
         var master: Int32 = -1
         var slave: Int32 = -1
         var win = pty_winsize(
@@ -15,7 +21,7 @@ public enum Posix {
             ws_xpixel: 0,
             ws_ypixel: 0
         )
-        let result = cpty_open(&master, &slave, &win)
+        let result = cpty_open_mode(&master, &slave, &win, terminalMode == .raw ? 1 : 0)
         guard result == 0 else {
             throw PTYError.openPTYFailed(errno: errno)
         }

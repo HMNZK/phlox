@@ -12,6 +12,7 @@ struct pty_winsize {
 
 /// Creates a pseudo-terminal pair. Returns 0 on success, -1 on failure (errno set).
 int cpty_open(int *amaster, int *aslave, const struct pty_winsize *winp);
+int cpty_open_mode(int *amaster, int *aslave, const struct pty_winsize *winp, int raw_mode);
 
 /// Sets the window size on an open PTY master fd via TIOCSWINSZ. Returns 0 on success, -1 on failure (errno set).
 int cpty_set_winsize(int fd, unsigned short cols, unsigned short rows);

@@ -66,7 +66,7 @@ struct UsageBottomBarAcceptanceTests {
         )
         #expect(UsageDisplay.bottomBarBucketText(
             bucket, showsLabel: true, showsReset: true, now: now, locale: japanese
-        ) == "5時間 72%（2時間後）")
+        ) == "5時間 72%（02:00）")
         #expect(UsageDisplay.bottomBarBucketText(
             bucket, showsLabel: true, showsReset: false, now: now, locale: japanese
         ) == "5時間 72%")
@@ -83,12 +83,15 @@ struct UsageBottomBarAcceptanceTests {
         #expect(UsageDisplay.bottomBarStage(forWidth: 599) == .percentageOnly)
     }
 
-    @Test("週次のリセットは日本語と英語の残り日数で示す")
-    func formatsWeeklyResetForBottomBar() {
-        let bucket = UsageBucket(id: "weekly", label: "Weekly", usedPercent: 60,
-                                 resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60))
-        #expect(UsageDisplay.bottomBarResetText(for: bucket, now: now, locale: japanese) == "3日後")
-        #expect(UsageDisplay.bottomBarResetText(for: bucket, now: now, locale: Locale(identifier: "en")) == "in 3d")
+    @Test("5時間枠は残り時間を HH:MM、週次はリセット日時を MM/DD HH:MM で示す")
+    func formatsResetForBottomBar() throws {
+        let fiveHour = UsageBucket(id: "5h", label: "5時間", usedPercent: 28,
+                                   resetsAt: now.addingTimeInterval(4 * 3_600 + 5 * 60 + 59))
+        #expect(UsageDisplay.bottomBarResetText(for: fiveHour, now: now) == "04:05")
+        let reset = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 20, hour: 9, minute: 5)))
+        let weekly = UsageBucket(id: "weekly", label: "週次", usedPercent: 60, resetsAt: reset)
+        #expect(UsageDisplay.bottomBarResetText(for: weekly, now: reset.addingTimeInterval(-3 * 86_400)) == "10/20 09:05")
+        #expect(UsageDisplay.bottomBarResetSuffix(for: weekly, now: now, locale: Locale(identifier: "en")) == " (10/20 09:05)")
     }
 
     @Test("残り20%未満は読み上げに残りわずかを含める")

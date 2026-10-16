@@ -94,25 +94,18 @@ enum UsageDisplay {
         100 - max(0, min(100, usedPercent))
     }
 
-    /// 数値・横棒の後ろに付けるリセットまでの時間（「（2時間後）」）。
+    /// 数値・横棒の後ろに付けるリセット表示（「（03:12）」「（10/20 14:00）」）。
     static func bottomBarResetSuffix(for bucket: UsageBucket, now: Date, locale: Locale) -> String? {
-        guard let reset = bottomBarResetText(for: bucket, now: now, locale: locale) else { return nil }
+        guard let reset = bottomBarResetText(for: bucket, now: now) else { return nil }
         return locale.language.languageCode?.identifier == "en" ? " (\(reset))" : "（\(reset)）"
     }
 
-    static func bottomBarResetText(for bucket: UsageBucket, now: Date, locale: Locale) -> String? {
+    /// 5時間枠はリセットまでの残り時間を "HH:MM"、それ以外（週次）はリセット日時を "MM/dd HH:mm" で返す。
+    static func bottomBarResetText(for bucket: UsageBucket, now: Date) -> String? {
         guard let resetsAt = bucket.resetsAt else { return nil }
-        let isEnglish = locale.language.languageCode?.identifier == "en"
-        let minutes = max(1, Int(ceil(resetsAt.timeIntervalSince(now) / 60)))
-        if bucket.id == "weekly", minutes > 24 * 60 {
-            let days = Int(ceil(Double(minutes) / (24 * 60)))
-            return isEnglish ? "in \(days)d" : "\(days)日後"
-        }
-        if minutes >= 60 {
-            let hours = Int(ceil(Double(minutes) / 60))
-            return isEnglish ? "in \(hours)h" : "\(hours)時間後"
-        }
-        return isEnglish ? "in \(minutes)m" : "\(minutes)分後"
+        guard bucket.id == "5h" else { return absoluteResetText(resetsAt) }
+        let minutes = Int(max(0, resetsAt.timeIntervalSince(now)) / 60)
+        return String(format: "%02d:%02d", minutes / 60, minutes % 60)
     }
 
     static func bottomBarAccessibilityLabel(groups: [BottomBarGroup], now: Date, locale: Locale, bundle: Bundle = .main,

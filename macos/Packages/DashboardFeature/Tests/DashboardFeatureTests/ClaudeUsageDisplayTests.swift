@@ -28,7 +28,7 @@ struct ClaudeUsageDisplayTests {
         let stage = UsageDisplay.bottomBarStage(forWidth: width)
         for bucket in group.buckets ?? [] {
             let text = UsageDisplay.bottomBarBucketText(bucket, showsLabel: stage != .percentageOnly,
-                showsReset: stage == .full, now: now, locale: locale)
+                showsReset: stage != .percentageOnly, now: now, locale: locale)
             #expect(text.contains(bucket.id == "5h" ? "91%" : "61%"))
         }
         try await render(monitor, width: width, name: "expired\(expiredCount)")

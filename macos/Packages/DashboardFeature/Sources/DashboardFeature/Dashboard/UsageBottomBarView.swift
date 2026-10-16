@@ -54,7 +54,7 @@ struct UsageBottomBarView: View {
                                 bucketText(
                                     bucket,
                                     showsLabel: stage != .percentageOnly,
-                                    showsReset: stage == .full,
+                                    showsReset: stage != .percentageOnly,
                                     barWidth: stage == .full ? 64 : 36,
                                     now: now
                                 )

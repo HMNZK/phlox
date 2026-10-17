@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-27
+last-verified: 2026-10-17
 ---
 
 # ADR（アーキテクチャ決定記録）索引 — iOS (PhloxMobile)
@@ -14,16 +14,21 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
-| 0040 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0040-mobile-terminal-keeps-the-column-grid.md) | accepted |
+| 0043 | [Liquid Glass を採り、iOS 18 は同じ配置を不透明に描く](0043-liquid-glass-with-ios18-opaque-fallback.md) | accepted |
+| 0044 | [端末画面と出力カードをやめ、会話の形で読めないセッションは「表示できません」の 1 文にする](0044-remove-terminal-screen-and-unsupported-sessions.md) | accepted |
+| 0045 | [使用量タブをやめ、入力欄の下の残りのリングで見せる](0045-usage-ring-under-the-input-replaces-usage-tab.md) | accepted |
+| 0046 | [色・ロゴ・状態・一覧・新規チャット・入力欄・承認を Mac に揃える](0046-align-ios-with-mac.md) | accepted |
+| 0047 | [UI の確認を XCUITest から描画テストに移し、UI テストのターゲットを消す](0047-replace-xcuitest-with-render-tests.md) | accepted |
+| 0040 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0040-mobile-terminal-keeps-the-column-grid.md) | superseded（0044） |
 | 0041 | [チャット表示の純関数を ChatRenderKit へ 1 本化し、モバイルにも同じ表示規則を適用する](0041-chat-render-rules-shared-via-chatrenderkit.md) | accepted |
 | 0042 | [実行中の送信ボタンを入力開始で現し、転写のコピーを長押しへ集約する](0042-input-bar-send-reveal-and-transcript-long-press-copy.md) | accepted |
-| 0039 | [モバイルの端末画面は装飾付きテキストとして描く（端末エミュレータを使わない）](0039-mobile-terminal-is-styled-text-not-an-emulator.md) | accepted |
-| 0038 | [ツール実行カードは閉状態で行データもコピー文字列も作らず、展開時は行数を有界化する](0038-command-group-cost-bounding.md) | accepted |
+| 0039 | [モバイルの端末画面は装飾付きテキストとして描く（端末エミュレータを使わない）](0039-mobile-terminal-is-styled-text-not-an-emulator.md) | superseded（0044） |
+| 0038 | [ツール実行カードは閉状態で行データもコピー文字列も作らず、展開時は行数を有界化する](0038-command-group-cost-bounding.md) | accepted（50 行は 0046 で superseded） |
 | 0037 | [transcript の表示窓はブロック単位で数える](0037-transcript-window-counts-blocks.md) | accepted |
 | 0036 | [セッション一覧の大タイトルはシステムに任せず本文の先頭に自分で描く](0036-session-list-draws-its-own-large-title.md) | accepted |
-| 0035 | [モバイルのターミナルは画面幅に収め、トグルに畳まない](0035-mobile-terminal-fits-screen-width.md) | accepted（決定 2・3 は superseded） |
+| 0035 | [モバイルのターミナルは画面幅に収め、トグルに畳まない](0035-mobile-terminal-fits-screen-width.md) | superseded（0044） |
 | 0034 | [モバイルのターミナル出力は Mac と同じエンジン（SwiftTerm）で描く](0034-mobile-terminal-rendered-with-swiftterm.md) | superseded |
-| 0033 | [セッション詳細はシステムのナビゲーションバーを使う（自前 chrome と端スワイプは両立しない）](0033-session-detail-uses-system-navigation-bar.md) | accepted |
+| 0033 | [セッション詳細はシステムのナビゲーションバーを使う（自前 chrome と端スワイプは両立しない）](0033-session-detail-uses-system-navigation-bar.md) | accepted（戻るの扱いは 0046 で superseded） |
 | 0032 | [ナビゲーションバーを隠した画面の端スワイプは、ガード付きデリゲートへ差し替えて復活させる](0032-interactive-pop-gesture-on-hidden-navigation-bar.md) | superseded |
 | 0031 | [本文の折り返しはテーマで、表は幅を見積もって横スクロールで読ませる](0031-chat-body-readability-wrapping-and-table-scroll.md) | accepted |
 | 0030 | [ドラフトのモデル選択は表示用 ID 文字列ではなく `(kind, modelID?)` で保持する](0030-draft-model-selection-kind-and-id.md) | accepted |
@@ -38,7 +43,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 | 0019 | [到達性のオンデマンド再判定（refresh）で QR ペアリング直後の stale offline を解消する](0019-reachability-on-demand-refresh.md) | active |
 | 0018 | [入力欄からドラッグ閉じバーと音声入力ボタンを撤去し、送信/停止を右スロットに常設する](0018-input-bar-remove-drag-and-voice.md) | active |
 | 0017 | [起動時 Face ID ゲートを既定オフにする](0017-face-id-launch-gate-default-off.md) | active |
-| 0016 | [チャット入力欄をカード型からコンパクトなピル型へ再デザインし、送信/停止を同一スロットに統合する](0016-input-bar-compact-pill-redesign.md) | active |
+| 0016 | [チャット入力欄をカード型からコンパクトなピル型へ再デザインし、送信/停止を同一スロットに統合する](0016-input-bar-compact-pill-redesign.md) | superseded（0046） |
 | 0015 | [音声入力のクラッシュを、危険 API 呼び出し前のガードと nonisolated ブリッジで根絶する](0015-voice-input-crash-hardening.md) | active |
 | 0014 | [セッション一覧上部空白バグの修正として UINavigationBar appearance 再適用を冪等化する](0014-navigation-chrome-appearance-idempotent-install.md) | active |
 | 0013 | [セッション詳細の右上メニュー由来 presentation を .sheet/.alert の別 View 層分離＋enum 単一ソースにする](0013-session-detail-menu-presentation-single-source.md) | active |
@@ -47,7 +52,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 | 0010 | [入力欄内モデルセレクタチップを復活させ、右上メニューと併存させる](0010-restore-inline-model-selector-chip.md) | active |
 | 0009 | [ロック/ホーム画面ウィジェットは WidgetKit 拡張＋App Group 共有 UserDefaults で実装する](0009-widgetkit-app-group-session-status.md) | active |
 | 0008 | [新規タスク（spawn）画面を廃止し、セッション一覧からのドラフト compose フローに統合する](0008-spawn-screen-to-draft-compose.md) | active |
-| 0007 | [下部タブバーから「概要（overview）」タブを廃止し3タブ構成にする](0007-remove-overview-tab.md) | active |
+| 0007 | [下部タブバーから「概要（overview）」タブを廃止し3タブ構成にする](0007-remove-overview-tab.md) | active（3 タブは 0045 で superseded） |
 | 0006 | [下部タブバーは独自実装とし SwiftUI TabView を採用しない](0006-appshell-custom-tab-bar.md) | active |
 | 0005 | [モバイル wave-2 ワイヤ消費とアカウント使用量／ターン使用量の型分離](0005-mobile-wave2-wire-consumption.md) | active |
 | 0004 | [iOS 外観を rootContent の再マウントで即時反映する](0004-ios-appearance-live-switch-via-root-remount.md) | active |

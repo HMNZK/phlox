@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>レビュー 3 — 画面間の食い違いと直した版</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 2400px; height: 3500px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">レビュー 3 / 4 · 状態・エージェント種別・承認・使用量・接続状態</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">同じ概念の見た目と言葉の食い違い {{ count }} 件。すべて片方にそろえて直した</h2>
+<p style="margin: 0; max-width: 1600px; font-size: 15px; line-height: 1.6; color: #2A2A31">そろえる先は「機能一覧の事実に合うほう」を優先し、どちらも事実に合うときは後の回（新しい決定）に合わせた。機能一覧に無いデータを描いていたもの（応答時間・Live Activity の実行中・ウィジェットのエージェント名）は、描かないほうへそろえた。</p>
+<div style="max-width: 1600px; padding: 10px 14px; border-radius: 12px; background: #FFFFFF; border: 1px solid #DCDCE3; font-size: 14px; line-height: 1.6; color: #2A2A31"><b>この表はレビューの回の記録。</b>色・ロゴ・略号・使用量に関わる行は、そろえた先のあとに「→ 改訂 2026-10-17: …」として今の決定を書き足した。2 回目の修正で覆った行には「→ 2 回目: …」を書き足した。全体の変更前 → 変更後は盤面「改訂 2026-10-17」（1 回目・2 回目の節）を見てください。</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 130px 48px 600px 560px minmax(0, 1fr); background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">概念</div><div style="padding: 10px 6px">#</div><div style="padding: 10px 14px">食い違い（どこ と どこ）</div><div style="padding: 10px 14px">そろえた先</div><div style="padding: 10px 14px">直した盤面</div>
+</div>
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="26">
+<sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 14px; border-top: 1px solid #DCDCE3; background: #F6F6F8; font-size: 15px; font-weight: 700; color: {{r.fg}}">{{ r.g }}</div></sc-if>
+<sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: 130px 48px 600px 560px minmax(0, 1fr); border-top: 1px solid #E6E6EC">
+<div style="padding: 8px 14px; color: #5B5B66">{{ r.c }}</div>
+<div style="padding: 8px 6px; font-weight: 700">{{ r.i }}</div>
+<div style="padding: 8px 14px">{{ r.d }}</div>
+<div style="padding: 8px 14px">{{ r.f }}</div>
+<div style="padding: 8px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ r.b }}</div>
+</div>
+</sc-if>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; align-items: start">
+<div style="background: #FFFFFF; border: 2px solid #1D1D1F; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 20px; font-weight: 700">5. 直した版 — この回で変えた盤面</div>
+<div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); font-size: 13px; line-height: 1.55">
+<sc-for list="{{ changed }}" as="x" hint-placeholder-count="18">
+<div style="padding: 6px 8px; border-top: 1px solid #E6E6EC; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; font-weight: 600">{{ x.b }}</div>
+<div style="padding: 6px 8px; border-top: 1px solid #E6E6EC">{{ x.w }}</div>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">そろえ方の約束（今後の回にも使う）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>琥珀は「承認待ち」だけ。青は「質問あり」、赤は「エラー」と「Mac に届かない」。注意の色は使用量の「残りわずか」だけ。無応答は Mac と同じ紫（status.stalled）を、一覧の文字・会話の面・アプリ外の表示で共通に使う（2 回目の後の点検で統一）。ほかは無彩色（改訂 2026-10-17 で「上限」を外し、注意の色を足した）</li>
+<li>記号は 1 概念に 1 つ。三角＝エラー、盾＝承認待ち、吹き出し＝質問あり、砂時計＝無応答。使用量は記号を使わない（改訂 2026-10-17 でメーター・八角を外した）。2 回目 1/6 で、状態の記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけにした（アプリ内は文字だけ。例外は会話のエラーの面の三角）</li>
+<li>エージェントは実物のロゴと名前で示し、色と略号は使わない（後の回で変更）。データに種別が無い面（ウィジェット・Live Activity・通知）には出さない</li>
+<li>接続が切れた語は「Mac に届きません」。設定がまだ無い語は「未設定」（「未接続」は使わない）</li>
+<li>Mac が返す文字列（使用量の枠の名前・通知の本文・summary）は訳さずに出す</li>
+<li>機能一覧に無いデータ（応答時間など）は描かない。足したいときは候補として別に書く</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">残っているもの</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>DraftSpec の旧い語「ほかのモデル」は、改訂 2026-10-17 で「その他」に直した（済み）</li>
+<li>サブエージェント詳細の「以前のメッセージを読む（N件）」を本体の語にそろえるのは候補のまま（現行アプリ自体が 2 通り）</li>
+</ul>
+</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":3500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let n = 0;
+    const G = (g, fg) => ({ isGroup: true, isRow: false, g, fg, c: '', i: '', d: '', f: '', b: '' });
+    const R = (c, d, f, b) => { n += 1; return { isGroup: false, isRow: true, g: '', fg: '', c, i: String(n), d, f, b }; };
+    const rows = [
+      G('状態', '#18181B'),
+      R('状態', 'Live Activity・Dynamic Island に「実行中」を描いていた（Glance・カタログ）。Mac は実行中の Live Activity を送らない', '実行中を除き、6 つの状態コード＋未知の 7 状態', 'Glance / GlanceCatalog / GlanceSpec'),
+      R('状態', '「終了」を通知しないと書いていた（GlanceSpec）。通知は 6 種すべて＋未知', '6 種＋未知を通知。表に「終了」を足した', 'GlanceSpec / GlanceNotifs'),
+      R('状態', 'ウィジェットの状態語が英語（Waiting など）、アプリ本体は日本語', '本体と同じ日本語の語・記号', 'GlanceCatalog'),
+      R('状態', 'エラー（三角）と使用量の「上限間近」（三角）が同じ記号', '上限間近をメーターの記号に変える'+' → 改訂 2026-10-17: 使用量は記号を使わない。残り 20% 未満は注意の色の文字と棒（「上限間近」は廃止）'+' → 2 回目: 棒をやめリングに。残り 20% 未満はリングを注意の色（5/6）', 'DS / SetUse / UsageBar'),
+      R('状態', '出力の窓: DS は「残り N 行を表示」・12 行、会話は「残り N 件を表示」・50 行', '「残り N 件を表示」・50 行（ADR 0038）'+' → 2 回目: Mac と同じ 20 行・「さらに表示（残り n 行）」（4/6）', 'DS'),
+      G('エージェント種別', '#18181B'),
+      R('種別', 'DS のロゴ枠の色が独自の淡い色。現行のブランド色（CC #C46D42・Cx #10B981・Cu #6B7FE8）と別', '現行のブランド色をロゴ枠の線に使う'+' → 改訂 2026-10-17: 色・略号・ロゴ枠をやめ、実物のロゴ（Claude・Codex は副文字色の単色、Cursor は元の色）。VoiceOver は名前を読む', 'DS ほか全盤面'),
+      R('種別', 'Live Activity・ウィジェット・通知の小見出しにエージェント名。データに種別が無い', '出さない（「Phlox」だけ）', 'Glance / GlanceCatalog / GlanceSpec'),
+      R('種別', '新規作成のモデルシート: ReplyModelDraft は 3 種混在、Draft は種別ごと', '種別は本文の 3 択、シートは種別ごと（Draft の方式）'+' → 2 回目: 3 択と種別ごとのシートをやめ、3 エージェントの全モデルを 1 つのシートに。モデルを選ぶとエージェントも決まる（3/6）', 'Reply / ReplySpec'),
+      G('承認', '#A8430A'),
+      R('承認', '承認待ちの琥珀を、使用量の「上限間近」とエラー 429 にも使っていた', '琥珀は承認待ち専用。上限間近と 429 は無彩色'+' → 改訂 2026-10-17: 上限間近は廃止。使用量の注意は別の注意の色（#8A5300／#F4BD68）', 'SetUse / DS / Errors / SetUseSpec'),
+      R('承認', 'モデルシートの区分名が「使用中」「選択中」「ほかのモデル」の 3 通り', '「選択中」「その他」', 'Reply / Draft / ReplySpec'),
+      R('承認', 'エラー F8「一覧に戻る」を候補扱い。16.5 に既にある回復操作', '現行どおり（候補の印を外す）', 'Errors'),
+      G('使用量', '#18181B'),
+      R('使用量', '枠の名前: 設定と使用量の盤面は「5 時間枠／週の枠」、骨格は「5-hour／Weekly」。名前は Mac が返す文字列', '届いた文字列のまま（訳さない）', 'SetUse / SetUseSpec / Shell'),
+      R('使用量', 'リセット表記: 「18:00 にリセット · あと 1 時間 18 分」と「あと2時間」の 2 通り', '現行の 3 形式（リセット済み／あとN時間／リセット M/d HH:mm）'+' → 改訂 2026-10-17: 5時間「（03:12）」＝残り時間、週次「（10/20 14:00）」＝日時。3 形式はやめた'+' → 2 回目: 同じ形式を、行を押して出す吹き出しに移した（5/6）', 'UsageBar / UseBarLevels / SetUseSpec'),
+      R('使用量', '棒の色: 骨格はアクセント、使用量の盤面は無彩色', '無彩色（アクセントは操作だけ）'+' → 改訂 2026-10-17: 棒の長さ＝残り。副文字色'+' → 2 回目: 棒をやめ、枠ごとのリング（弧＝残り）。副文字色（5/6）', 'UsageBar'),
+      R('使用量', '上限間近の閾値を「要照合」としていた。現行に色・警告は無い', '候補と明記'+' → 改訂 2026-10-17: 残り 20% 未満で「残りわずか」に決定', 'DS / SetUseSpec'),
+      R('使用量', '「16:42 時点」の表示を現行の機能のように描いていた。現行は取得時刻を出さない', '候補と明記'+' → 改訂 2026-10-17: 取得に失敗したときだけ「16:12 時点の値」と出す（指示による）'+' → 2 回目: 行の右端に「16:12 時点」（5/6）', 'SetUseSpec'),
+      G('接続状態', '#B8241C'),
+      R('接続', '骨格の対応待ちバーは「Mac に到達できません」、ほかの盤面は「Mac に届きません」', '「Mac に届きません」', 'Shell'),
+      R('接続', '疎通テストの成功に応答時間（38 ms）。疎通テストは時間を返さない', '「接続できました · GET /sessions → 200 · 時刻」', 'Pair / PairSpec'),
+      R('接続', '401 の回復操作: 一覧の対応表は「接続設定を開く」、エラー文言カタログと一覧の盤面は「QR で再接続」', '「QR で再接続」（行き先は同じ）', 'ListSpec'),
+      R('接続', 'エラーの見出し: 一覧の対応表は現行の見出し、盤面とカタログは新しい見出し', 'カタログ F1〜F8 の見出し', 'ListSpec'),
+      R('接続', '設定の並びとロックの名前: 骨格は「接続→セキュリティ→通知→外観」「Face ID / Touch ID」、設定の盤面は「接続→通知→セキュリティ→外観→このアプリについて」「Face ID」', '設定の盤面の並びと名前', 'Shell'),
+      R('接続', '「最終取得 3分前」と「最終取得 3 分前」', '数字の前後を空ける', 'Shell'),
+      R('接続', '「未接続」が「設定がまだ無い」と「接続が切れた」の両方に使われていた（盤面名）', '設定が無い＝「未設定」、切れた＝「Mac に届かない」', 'canvas（SetDisc の名前）'),
+      R('全般', 'Dynamic Type 最大の盤面: 起動と接続・設定と使用量・ダイアログは AX3 前後、ほかは AX5', 'AX5 で描き直し', 'Pair / SetUse / Dialogs / DS')
+    ];
+    const changed = [
+      ['Shell', '設定の並び・通知の補助文・ロックの名前と注記・このアプリについて／使用量の棒とリセット表記／「Mac に届きません」'],
+      ['SetUse', '枠の名前を届いた文字列に／リセット表記を現行の 3 形式に／上限間近を無彩色＋メーター（改訂 2026-10-17 で使用量の表示は一覧の下端のバーへ移し、2 回目の修正 5/6 で入力欄の下のリングへ移した）'],
+      ['Chat（＋ChatFetchErr／Dark を新設）', '会話の取得失敗の状態／回答済みカードの「入力: …」'],
+      ['DS', '（改訂 2026-10-17 でロゴに置き換え）ブランド色／「残り N 件を表示」・50 行／上限間近の記号と色／終了の stale-date／DT の注記'],
+      ['Errors', '429 を無彩色に'],
+      ['Reply', 'モデルシートの区分名と新規の種別ごとシート'],
+      ['Draft', '「ほかのモデル」→「その他」'],
+      ['PairSpec', '起動ゲート・疎通テスト・パースエラー・保存・Mac 名・ピンチ・phlox://pair・OS ダイアログの行'],
+      ['SetUseSpec', '通知・About・枠の名前・リセット・上限間近・空の行（改訂 2026-10-17 で論点 A ごと書き直し）'],
+      ['ReplySpec', 'モデルシートの語と新規のモデルの行'],
+      ['ListSpec', 'エラーの見出しと 401 の回復操作'],
+      ['GlanceSpec', 'ギャラリーの見本と設定項目'],
+      ['前の手順で直したもの', 'Pair（ゲート・初回の疎通テスト・パース 6 種・Mac 名・AX5）／PairParseErr／Errors（P・F8・D 系）／SetUse（通知・About・注記・AX5）／Glance・GlanceCatalog・GlanceSpec（種別を外す・7 状態・通知 6 種）／Dialogs（AX5・本文スクロール）'],
+      ['レビュー盤面（新設）', 'ReviewMap・Review181・ReviewDiff・Review212']
+    ].map(a => ({ b: a[0], w: a[1] }));
+    return { rows, changed, count: String(n) };
+  }
+}
+</script>
+</body>
+</html>

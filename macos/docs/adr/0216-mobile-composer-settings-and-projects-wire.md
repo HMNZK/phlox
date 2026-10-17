@@ -61,3 +61,12 @@ iPhone の入力欄を Mac の新規チャットと揃える（iOS 再設計）�
    - 棄却案: Claude の許可を `/approvals` に統一する。承認 ID の形が違う（Codex は UUID、Claude は transcript の項目 ID）ことと、Mac の承認カードの「出てから 0.5 秒は受け付けない」守りの扱いを作り直す必要があり、配線だけでは済まない。
    - Cursor には対話的な承認が無いので対象外。Codex は従来どおり `/approvals` の `acceptForSession`。
 6. **`POST /sessions/{id}/model` の「Mac が変更を受け付けない状態」を 500 から 409 に変える。** §6 は凍結していたが、同じ状態を新しい PATCH は 409 で返すので、同じ API の中で意味が割れないよう揃える。本当の適用失敗は 500 のまま。iOS の `setModel` は 500 を特別扱いしていない（失敗を黙って現状維持にするだけ）ことを確かめたうえで変える。
+
+## 追記（2026-10-17）: 承認一覧に操作の種類を足す
+
+7. **`GET /approvals` の各要素に、省略可の `actionKind`（`command`・`fileChange`・`permissions`）を足す。** iPhone の承認カードの見出し「承認待ち · {操作の種類}」（iOS 再設計の D2）を Codex でも出すため。
+   - 出所は Mac の承認カードと同じ `ChatApprovalRequest.kind`（`ChatApprovalKind`）。写すのは中立型 `ControlApproval` を作る 1 か所だけにする。
+   - 既存の `kind` はエージェントの種類のまま変えない。名前が似ているが、意味を変えると古い iOS（`kind` を `AgentKind` として読む）が承認を捨てる。
+   - 表示名ではなく固定の語で返す。Mac の見出しの文言は翻訳を通るため、値として送ると iPhone で比較できない。
+   - 棄却案: `prompt` の文字列から推測する。Mac の文言の変更で壊れる。
+   - Claude Code の許可はこの一覧に載らない（追記 5 の質問カード）ので対象外。

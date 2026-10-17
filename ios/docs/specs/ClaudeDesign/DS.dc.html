@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Phlox デザインシステム</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&amp;family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.lg{display:inline-block;flex:none}
+.lg-claude,.lg-codex{background-color:currentColor;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.lg-claude{-webkit-mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7);mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7)}
+.lg-codex{-webkit-mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba);mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba)}
+.lg-cursor{background:url(/_blob/02f5e276fd254ff6f2137701b1097708) center/contain no-repeat}
+@keyframes dsspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.ds-spin{animation:none !important}}
+</style>
+</helmet>
+<div style="width: 3200px; height: 9600px; box-sizing: border-box; padding: 72px 80px; overflow: hidden; background: {{c.page}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; gap: 64px">
+
+<!-- ===== 見出し ===== -->
+<header style="display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 16px; font-weight: 600; color: {{c.text2}}; letter-spacing: 0.3px">Phlox iOS · デザインシステム · 15 章／17 章 · {{ themeLabel }}</div>
+<h1 style="margin: 0; font-size: 52px; line-height: 1.15; font-weight: 800">色は「対応待ち」のためにとっておく。形と文言で状態を伝え、ガラスは操作の層だけに使う</h1>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 8px">
+<sc-for list="{{ principles }}" as="p" hint-placeholder-count="4">
+<div style="padding: 18px 20px; border-radius: 18px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 6px"><div style="font-size: 13px; font-weight: 700; color: {{c.accent}}">{{ p.n }}</div><div style="font-size: 18px; font-weight: 700">{{ p.t }}</div><div style="font-size: 14px; line-height: 1.6; color: {{c.text2}}">{{ p.d }}</div></div>
+</sc-for>
+</div>
+</header>
+
+<!-- ===== 1. 色 ===== -->
+<section aria-label="色" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: baseline; gap: 16px; padding-top: 18px; border-top: 3px solid {{c.text}}"><span style="font-size: 15px; font-weight: 800; color: {{c.accent}}">01</span><h2 style="margin: 0; font-size: 34px; font-weight: 800">色</h2><span style="font-size: 15px; color: {{c.text2}}">値はライト／ダークの順。コントラストは本文を置く面（カード）に対する比</span></div>
+<div style="display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px; align-items: start">
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 20px; font-weight: 700">面の階層（下から上へ）</div>
+<div style="display: grid; grid-template-columns: 240px 1fr 120px 120px; border-radius: 16px; overflow: hidden; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 14px">
+<div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">トークン</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">使う場所</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">ライト</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">ダーク</div>
+<sc-for list="{{ surfaces }}" as="s" hint-placeholder-count="11">
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 2px"><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600">{{ s.k }}</span><span style="font-size: 12px; color: {{c.text3}}">{{ s.lv }}</span></div>
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; line-height: 1.5; color: {{c.text2}}">{{ s.use }}</div>
+<div style="padding: 8px 10px; border-top: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 4px"><span style="height: 30px; border-radius: 8px; background: {{s.lBg}}; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12)"></span><span style="font-family: ui-monospace, monospace; font-size: 10px; color: {{c.text3}}; overflow-wrap: anywhere">{{ s.l }}</span></div>
+<div style="padding: 8px 10px; border-top: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 4px"><span style="height: 30px; border-radius: 8px; background: {{s.dBg}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14)"></span><span style="font-family: ui-monospace, monospace; font-size: 10px; color: {{c.text3}}; overflow-wrap: anywhere">{{ s.d }}</span></div>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 20px; font-weight: 700">文字とアクセント</div>
+<div style="display: grid; grid-template-columns: 200px 1fr 150px 150px; border-radius: 16px; overflow: hidden; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 14px">
+<div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">トークン</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">使う場所</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">ライト</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">ダーク</div>
+<sc-for list="{{ texts }}" as="s" hint-placeholder-count="6">
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; font-weight: 600">{{ s.k }}</div>
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; line-height: 1.5; color: {{c.text2}}">{{ s.use }}</div>
+<div style="padding: 8px 10px; border-top: 1px solid {{c.sep}}; display: flex; align-items: center; gap: 8px"><span style="width: 30px; height: 30px; border-radius: 8px; background: {{s.l}}; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12)"></span><span style="display: flex; flex-direction: column"><span style="font-family: ui-monospace, monospace; font-size: 11px">{{ s.l }}</span><span style="font-size: 11px; color: {{c.text3}}">{{ s.lr }}</span></span></div>
+<div style="padding: 8px 10px; border-top: 1px solid {{c.sep}}; display: flex; align-items: center; gap: 8px"><span style="width: 30px; height: 30px; border-radius: 8px; background: {{s.d}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14)"></span><span style="display: flex; flex-direction: column"><span style="font-family: ui-monospace, monospace; font-size: 11px">{{ s.d }}</span><span style="font-size: 11px; color: {{c.text3}}">{{ s.dr }}</span></span></div>
+</sc-for>
+</div>
+
+<div style="font-size: 20px; font-weight: 700; margin-top: 14px">状態色（地と文字の組）</div>
+<div style="display: grid; grid-template-columns: 170px 1fr 190px 190px; border-radius: 16px; overflow: hidden; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 14px">
+<div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">トークン</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">意味</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">ライト（文字/地）</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">ダーク（文字/地）</div>
+<sc-for list="{{ statusColors }}" as="s" hint-placeholder-count="7">
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; font-weight: 600">{{ s.k }}</div>
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; line-height: 1.5; color: {{c.text2}}">{{ s.use }}</div>
+<div style="padding: 8px 10px; border-top: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 4px"><span style="align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: {{s.lbg}}; color: {{s.lfg}}; font-size: 13px; font-weight: 700; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06)">{{ s.word }}</span><span style="font-family: ui-monospace, monospace; font-size: 10px; color: {{c.text3}}">{{ s.lfg }} · {{ s.lr }}</span></div>
+<div style="padding: 8px 10px; border-top: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 4px; background: #1C1C1E"><span style="align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: {{s.dbg}}; color: {{s.dfg}}; font-size: 13px; font-weight: 700">{{ s.word }}</span><span style="font-family: ui-monospace, monospace; font-size: 10px; color: #9D9DA5">{{ s.dfg }} · {{ s.dr }}</span></div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 20px; font-weight: 700">エージェント種別</div>
+<div style="padding: 18px; border-radius: 16px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{ agents }}" as="a" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 12px"><span role="img" aria-label="{{ a.name }}" class="{{ a.lg }}" style="flex: none; width: 36px; height: 36px; color: {{c.text2}}"></span><span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 16px; font-weight: 700">{{ a.name }}</span><span style="font-family: ui-monospace, monospace; font-size: 11px; color: {{c.text3}}">{{ a.tok }} · {{ a.how }}</span></span></div>
+</sc-for>
+<div style="font-size: 13px; line-height: 1.6; color: {{c.text2}}; padding-top: 10px; border-top: 1px solid {{c.sep}}">種別は実物のロゴと名前で見分ける。エージェント別の色と略号は使わない（Mac 版と同じ）。Claude と Codex は形をマスクにして副文字色（text.secondary）で塗り、Cursor は元の色のまま。ライト・ダークとも同じ規則。ロゴだけの所も VoiceOver はエージェント名を読む（行のように親が名前を読むときは重ねて読まない）。「対応待ち」のカプセルの枠線も中立の色。ウィジェット・Live Activity・通知は種別を受け取らないので出さない（13章）</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 20px; font-weight: 700">差分・コード</div>
+<div style="padding: 16px; border-radius: 16px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 10px">
+<div style="border-radius: 10px; overflow: hidden; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.6">
+<div style="display: flex; gap: 8px; padding: 0 10px; background: {{c.addBg}}; color: {{c.addFg}}"><span>+</span><span style="color: {{c.text}}">public struct ProxyRouter {</span></div>
+<div style="display: flex; gap: 8px; padding: 0 10px; background: {{c.delBg}}; color: {{c.delFg}}"><span>−</span><span style="color: {{c.text}}">router.get("/sessions/*")</span></div>
+</div>
+<div style="padding: 10px; border-radius: 10px; background: {{c.codeBg}}; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.6"><span style="color: {{c.kw}}">let</span> router = <span style="color: {{c.type}}">ProxyRouter</span>(upstream: <span style="color: {{c.str}}">"100.64.0.1"</span>)</div>
+<div style="font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.6; color: {{c.text3}}">diff.add #1F7A3A/#6FD08C · diff.del #B4232A/#FF8A8D<br>code.kw #9B2393/#FF7AB2 · code.type #0B6E7A/#6BD9E6 · code.str #B4231A/#FF9A85<br>追加・削除は色だけでなく「+」「−」でも示す</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ===== 2. 文字 ===== -->
+<section aria-label="文字" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: baseline; gap: 16px; padding-top: 18px; border-top: 3px solid {{c.text}}"><span style="font-size: 15px; font-weight: 800; color: {{c.accent}}">02</span><h2 style="margin: 0; font-size: 34px; font-weight: 800">文字と Dynamic Type</h2><span style="font-size: 15px; color: {{c.text2}}">和文は Hiragino Sans（OS 標準）、欧文は SF Pro。等幅（SF Mono）はコマンド・差分・技術値だけ</span></div>
+<div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 28px; align-items: start">
+<div style="display: grid; grid-template-columns: 170px 1fr 70px 80px 80px 260px; border-radius: 16px; overflow: hidden; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 14px">
+<div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">スタイル</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">見本（既定の大きさ）</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">既定</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">xxxL</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">AX5</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">使う場所</div>
+<sc-for list="{{ type }}" as="t" hint-placeholder-count="13">
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600">{{ t.k }}</div>
+<div style="padding: 8px 14px; border-top: 1px solid {{c.sep}}; font-size: {{t.size}}px; font-weight: {{t.w}}; font-family: {{t.ff}}; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ t.sample }}</div>
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; font-variant-numeric: tabular-nums">{{ t.size }}</div>
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; font-variant-numeric: tabular-nums; color: {{c.text2}}">{{ t.xxl }}</div>
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; font-variant-numeric: tabular-nums; color: {{c.text2}}">{{ t.ax5 }}</div>
+<div style="padding: 10px 14px; border-top: 1px solid {{c.sep}}; line-height: 1.5; color: {{c.text2}}">{{ t.use }}</div>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="padding: 18px 20px; border-radius: 16px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.65; color: {{c.text2}}">
+<div style="font-size: 18px; font-weight: 700; color: {{c.text}}">大きな文字のときの決まり</div>
+<div>・AX1 以上では、横に並べていた情報（時刻・補足・%）を次の行へ回す。切り捨てるのは名前の末尾だけ</div>
+<div>・ボタンは文字に合わせて高くなる（最小 44pt）。アラートのボタンは縦に積む</div>
+<div>・タブバーの文字は OS に任せ、長押しで大きく表示（OS の機能）</div>
+<div>・コードブロックと差分は Footnote に合わせて伸ばし、横スクロールで読む（折り返さない）</div>
+<div style="color: {{c.cand}}">・注: 起動と接続・設定と使用量・ダイアログの DT 最大の盤面は、この表の AX5 の値で描き直した（レビュー回）</div>
+</div>
+<div style="padding: 18px 20px; border-radius: 16px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 18px; font-weight: 700">英語で長くなる文言</div>
+<div style="font-size: 14px; line-height: 1.6; color: {{c.text2}}">和文の 1.5〜2 倍の長さを見込む。ボタンは文字に合わせて伸ばし、行の中の状態は短い語（「承認待ち」→ Needs approval）。1 行に収まらなければ折り返し、状態の語は省略しない</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px"><span style="padding: 4px 10px; border-radius: 999px; background: {{c.apprBg}}; color: {{c.apprFg}}; font-size: 13px; font-weight: 700">承認待ち</span><span style="padding: 4px 10px; border-radius: 999px; background: {{c.apprBg}}; color: {{c.apprFg}}; font-size: 13px; font-weight: 700">Needs approval</span><span style="padding: 4px 10px; border-radius: 999px; background: {{c.qBg}}; color: {{c.qFg}}; font-size: 13px; font-weight: 700">Waiting for your answer</span></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ===== 3. 余白・角丸・影・動き ===== -->
+<section aria-label="余白・角丸・影・動き" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: baseline; gap: 16px; padding-top: 18px; border-top: 3px solid {{c.text}}"><span style="font-size: 15px; font-weight: 800; color: {{c.accent}}">03</span><h2 style="margin: 0; font-size: 34px; font-weight: 800">余白・角丸・影・動き</h2></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; align-items: start">
+
+<div style="padding: 20px; border-radius: 18px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 20px; font-weight: 700">余白（4pt 刻み）</div>
+<sc-for list="{{ spaces }}" as="s" hint-placeholder-count="8"><div style="display: flex; align-items: center; gap: 12px"><span style="width: 64px; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600">{{ s.k }}</span><span style="width: {{s.v}}px; height: 14px; border-radius: 3px; background: {{c.accent}}; opacity: 0.6"></span><span style="font-size: 12px; color: {{c.text2}}">{{ s.v }} · {{ s.use }}</span></div></sc-for>
+<div style="font-size: 13px; line-height: 1.6; color: {{c.text2}}; padding-top: 8px; border-top: 1px solid {{c.sep}}">押せる場所は最小 44×44pt。行の高さは 52〜60pt。画面の左右は 16pt（会話・一覧）、大見出しとまとまった設定の画面は 20pt</div>
+</div>
+
+<div style="padding: 20px; border-radius: 18px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 20px; font-weight: 700">角丸</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{ radii }}" as="r" hint-placeholder-count="10"><div style="display: flex; align-items: center; gap: 10px"><span style="flex: none; width: 46px; height: 34px; border-radius: {{r.v}}px; background: {{c.fill}}; border: 1.5px solid {{c.text3}}"></span><span style="display: flex; flex-direction: column"><span style="font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600">{{ r.k }} · {{ r.label }}</span><span style="font-size: 11px; color: {{c.text2}}">{{ r.use }}</span></span></div></sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: {{c.text2}}; padding-top: 8px; border-top: 1px solid {{c.sep}}">入れ子は「外の角丸 − 内側の余白 ＝ 内の角丸」で同心にそろえる（入力欄 26 の中のチップなど）</div>
+</div>
+
+<div style="padding: 20px; border-radius: 18px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 20px; font-weight: 700">影</div>
+<sc-for list="{{ shadows }}" as="s" hint-placeholder-count="4"><div style="display: flex; align-items: center; gap: 14px"><span style="flex: none; width: 78px; height: 48px; border-radius: 14px; background: {{c.card}}; box-shadow: {{s.v}}"></span><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600">{{ s.k }}</span><span style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">{{ s.use }}</span></span></div></sc-for>
+<div style="font-size: 13px; line-height: 1.6; color: {{c.text2}}; padding-top: 8px; border-top: 1px solid {{c.sep}}">カードと行には影を付けない（面の色の差で分ける）。影は「浮いている層」だけ</div>
+</div>
+
+<div style="padding: 20px; border-radius: 18px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 20px; font-weight: 700">動き</div>
+<div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; font-size: 13px; line-height: 1.5">
+<sc-for list="{{ motion }}" as="m" hint-placeholder-count="8"><span style="font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600">{{ m.k }}</span><span style="color: {{c.text2}}">{{ m.v }}</span></sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: {{c.text2}}; padding-top: 8px; border-top: 1px solid {{c.sep}}"><b style="color: {{c.text}}">視差効果を減らす</b>: 回転・シマー・スライドを止め、フェードと文言の切り替えだけにする。状態は動きが無くても文言で伝わる</div>
+</div>
+</div>
+</section>
+
+<!-- ===== 4. アイコン ===== -->
+<section aria-label="アイコン" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: baseline; gap: 16px; padding-top: 18px; border-top: 3px solid {{c.text}}"><span style="font-size: 15px; font-weight: 800; color: {{c.accent}}">04</span><h2 style="margin: 0; font-size: 34px; font-weight: 800">アイコン（SF Symbols）</h2><span style="font-size: 15px; color: {{c.text2}}">線の太さは本文に合わせる（Regular／Semibold）。状態の記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけで使い（単色表示と色覚の違いのため）、アプリ内では使わない。アプリ内のアイコンは操作と場所だけ</span></div>
+<div style="display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{ icons }}" as="i" hint-placeholder-count="36">
+<div style="padding: 14px 10px; border-radius: 14px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center">
+<svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="{{ i.fg }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ i.p }}" stroke-dasharray="{{ i.dash }}"></path></svg>
+<span style="font-size: 13px; font-weight: 700">{{ i.use }}</span>
+<span style="font-family: ui-monospace, monospace; font-size: 10px; line-height: 1.4; color: {{c.text3}}; overflow-wrap: anywhere">{{ i.sf }}</span>
+<span style="font-size: 11px; font-weight: 700; color: {{i.whereFg}}">{{ i.where }}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<!-- ===== 5. 状態表示の部品一式 ===== -->
+<section aria-label="状態表示" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: baseline; gap: 16px; padding-top: 18px; border-top: 3px solid {{c.text}}"><span style="font-size: 15px; font-weight: 800; color: {{c.accent}}">05</span><h2 style="margin: 0; font-size: 34px; font-weight: 800">状態表示の部品一式（15 章）</h2><span style="font-size: 15px; color: {{c.text2}}">アプリ内（一覧・セッション画面・設定など）は記号を付けず文字だけ（Mac と同じ）。色は文字に付け、地は付けない。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ（単色表示と色覚の違いのため）</span></div>
+<div style="display: grid; grid-template-columns: 240px 200px 260px 260px 1fr; border-radius: 16px; overflow: hidden; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 14px">
+<div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">区分 · 状態</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">アプリ内（文字だけ）</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">アプリ外の記号（SF Symbol）</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">アプリ外の見本</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">目立たせ方と出る場所</div>
+<sc-for list="{{ states }}" as="s" hint-placeholder-count="34">
+<sc-if value="{{ s.isGroup }}" hint-placeholder-val="{{ false }}"><div style="grid-column: 1 / -1; padding: 10px 14px; border-top: 1px solid {{c.sep}}; background: {{c.groupBg}}; font-size: 13px; font-weight: 800; color: {{c.text2}}">{{ s.group }}</div></sc-if>
+<sc-if value="{{ s.isRow }}" hint-placeholder-val="{{ true }}">
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; font-weight: 700">{{ s.name }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; font-size: 13px; font-weight: 600; color: {{s.tfg}}">{{ s.label }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; font-family: ui-monospace, monospace; font-size: 11px; color: {{c.text2}}; overflow-wrap: anywhere">{{ s.sf }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: {{s.tfg}}"><sc-if value="{{ s.out }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.p }}" stroke-dasharray="{{ s.dash }}"></path></svg>{{ s.label }}</sc-if><sc-if value="{{ s.inOnly }}" hint-placeholder-val="{{ false }}"><span style="font-weight: 400; color: {{c.text3}}">—</span></sc-if></div>
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; line-height: 1.5; color: {{c.text2}}">{{ s.note }}</div>
+</sc-if>
+</sc-for>
+</div>
+</section>
+
+<!-- ===== 6. 共通部品 ===== -->
+<section aria-label="共通部品" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: baseline; gap: 16px; padding-top: 18px; border-top: 3px solid {{c.text}}"><span style="font-size: 15px; font-weight: 800; color: {{c.accent}}">06</span><h2 style="margin: 0; font-size: 34px; font-weight: 800">共通部品</h2><span style="font-size: 15px; color: {{c.text2}}">実寸。{{ themeLabel }}で表示</span></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; align-items: start">
+
+<!-- 行 -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">行（セッション）</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 10px">
+<div style="border-radius: 16px; background: {{c.card}}; overflow: hidden">
+<div style="position: relative; display: flex; align-items: center; min-height: 48px; padding: 0 16px 0 16px; border-top: 0"><span style="flex: none; width: 20px; color: {{c.text2}}"></span><span style="flex: 1; min-width: 0; padding-left: 8px; font-size: 16px; font-weight: 600; color: {{c.text}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">add /approvals endpoint</span><span style="flex: none; font-size: 14px; font-weight: 600; color: {{c.apprFg}}">承認待ち</span></div>
+<div style="position: relative; display: flex; align-items: center; min-height: 48px; padding: 0 16px 0 16px; border-top: 1px solid {{c.sep}}"><span style="flex: none; width: 20px; color: {{c.text2}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6 L8 10.5 L12.5 6"></path></svg></span><span style="flex: 1; min-width: 0; padding-left: 8px; font-size: 16px; font-weight: 600; color: {{c.text}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">refactor: ControlServer proxy</span><span style="flex: none; font-size: 14px; font-weight: 500; color: {{c.text2}}">実行中</span></div>
+<div style="position: relative; display: flex; align-items: center; min-height: 48px; padding: 0 16px 0 38px; border-top: 1px solid {{c.sep}}"><span aria-hidden="true" style="position: absolute; left: 25px; top: 0; bottom: 0; width: 1.5px; background: {{c.sep}}"></span><span style="flex: none; width: 20px; color: {{c.text2}}"></span><span style="flex: 1; min-width: 0; padding-left: 8px; font-size: 16px; font-weight: 400; color: {{c.text2}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">ProxyRouter のテストを追加</span><span style="flex: none; font-size: 14px; font-weight: 400; color: {{c.text3}}">完了</span></div>
+<div style="position: relative; display: flex; align-items: center; min-height: 48px; padding: 0 16px 0 16px; border-top: 1px solid {{c.sep}}"><span style="flex: none; width: 20px; color: {{c.text2}}"></span><span style="flex: 1; min-width: 0; padding-left: 8px; font-size: 16px; font-weight: 400; color: {{c.text2}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">write unit tests</span><span style="flex: none; font-size: 14px; font-weight: 400; color: {{c.text3}}"></span></div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">Mac 版のサイドバーと同じ。名前と右端の状態の文字だけ（ロゴ・アイコン・記号なし）。待機は状態を出さない。承認待ち・質問あり・エラーは注意の色、無応答は紫（status.stalled）、実行中は副文字色、ほかは 3 段目の文字色。未読は名前を主文字色・semibold、既読は副文字色（未読の丸は使わない）。実行中は名前に光の帯が流れる（視差効果を減らすでは止める）。子セッションは 1 段字下げして案内線、閉じると「+3」</div>
+</div></div>
+
+<!-- カード -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">カード（知らせ・空・エラー）</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 10px">
+<div role="alert" style="padding: 16px; border-radius: 20px; background: {{c.card}}; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; gap: 12px"><div style="display: flex; flex-direction: column; gap: 3px"><span style="font-size: 16px; font-weight: 700">Mac に届きません</span><span style="font-size: 14px; line-height: 1.5">Mac がスリープしているか、Tailscale が切れています。</span><span style="font-size: 14px; line-height: 1.5; color: {{c.text2}}">Mac を起こすと自動でつなぎ直します。</span><span style="font-family: ui-monospace, monospace; font-size: 12px; color: {{c.text2}}">100.64.0.1:8765 · 無応答</span></div></div>
+<button type="button" style="min-height: 48px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font: inherit; font-size: 16px; font-weight: 600">再接続を試す</button>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">見出し → なぜ → 次に → 等幅の詳細 → ボタン、の順。記号は付けず、エラーは見出しを赤い文字に。角丸 20、影なし</div>
+</div></div>
+
+<!-- ツールのカード -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">ツールのカード・会話の末尾（Mac と同じ。2 回目の修正 4/6）</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 8px">
+<div style="border-radius: 8px; border: 1px solid {{c.cardBorder}}; background: {{c.card}}; overflow: hidden"><button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{c.text3}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4 L10 8 L6 12"></path></svg><span style="flex: none; font-size: 13px; font-weight: 600; color: {{c.text2}}">コマンド</span><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px">$ swift build</span><span style="flex: none; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; color: {{c.errFg}}">exit 1</span></button></div>
+<div style="border-radius: 8px; border: 1.5px solid {{c.cardBorderRun}}; background: {{c.card}}; overflow: hidden"><button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{c.text3}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4 L10 8 L6 12"></path></svg><span style="flex: none; font-size: 13px; font-weight: 600; color: {{c.text2}}">コマンド</span><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px">$ swift test</span><span style="flex: none; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; color: {{c.text2}}">実行中</span></button></div>
+<div style="border-radius: 8px; border: 1px solid {{c.cardBorder}}; background: {{c.card}}; overflow: hidden"><button type="button" aria-expanded="true" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{c.text3}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6 L8 10 L12 6"></path></svg><span style="flex: none; font-size: 13px; font-weight: 600; color: {{c.text2}}">ツール実行 ×5</span><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px">Read foo.swift ほか 4 件</span></button><div style="display: flex; border-top: 1px solid {{c.cardBorder}}"><button type="button" style="flex: 1; min-height: 44px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: 13px; font-weight: 600">さらに表示（残り 128 行）</button><button type="button" style="flex: 1; min-height: 44px; border: 0; border-left: 1px solid {{c.cardBorder}}; background: transparent; color: {{c.accent}}; font: inherit; font-size: 13px; font-weight: 600">セクションをコピー</button></div></div>
+<div style="border-radius: 8px; border: 1px solid {{c.cardBorder}}; background: {{c.card}}; overflow: hidden"><button type="button" aria-expanded="true" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{c.text3}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6 L8 10 L12 6"></path></svg><span style="flex: none; font-size: 13px; font-weight: 600; color: {{c.text2}}">編集</span><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px">Sources/ProxyRouter.swift</span><span style="flex: none; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px"><span style="color: {{c.addFg}}">+12</span> <span style="color: {{c.delFg}}">−3</span></span></button><div style="border-top: 1px solid {{c.cardBorder}}; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.6"><div style="display: flex; gap: 10px; padding: 0 12px; background: {{c.addBg}}"><span style="width: 22px; text-align: right; color: {{c.text3}}">14</span><span style="color: {{c.addFg}}">+ public struct ProxyRouter {</span></div><div style="display: flex; gap: 10px; padding: 0 12px; background: {{c.delBg}}"><span style="width: 22px; text-align: right; color: {{c.text3}}">15</span><span style="color: {{c.delFg}}">− router.get("/sessions/*")</span></div><div style="display: flex; gap: 10px; padding: 0 12px"><span style="width: 22px; text-align: right; color: {{c.text3}}">16</span><span style="color: {{c.text2}}">  return route</span></div></div></div>
+<div style="border-radius: 8px; border: 1px solid {{c.cardBorder}}; background: {{c.card}}; overflow: hidden"><button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{c.text3}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4 L10 8 L6 12"></path></svg><span style="flex: none; font-size: 13px; font-weight: 600; color: {{c.text2}}">思考</span><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px"></span></button></div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 12px; background: {{c.stallBg}}"><span style="flex: 1; font-size: 15px; font-weight: 600; color: {{c.stallFg}}">無応答 <span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace">03:12</span></span><button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font: inherit; font-size: 15px; font-weight: 600">中断</button></div>
+<div style="text-align: right; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: {{c.text3}}">$0.42 · 入力 18.2k · 出力 1.9k · コンテキスト 22%</div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">角丸 8・カードの地・1pt の枠（実行中は濃い 1.5pt）。見出し「› ラベル／等幅の要約／右端の印」が 44pt の開閉ボタン。出力は 20 行まで、その下に「さらに表示（残り n 行）」「セクションをコピー」。差分は行番号つき。無応答は Mac と同じ紫の面（status.stalled）、ターンの終わりは右寄せの 1 行</div>
+</div></div>
+
+<!-- 承認のカード -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">承認のカード（入力欄のすぐ上）</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 10px">
+<section aria-label="承認待ち · Bash" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 22px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}">
+<div style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; font-size: 13px; font-weight: 600; color: {{c.apprFg}}">承認待ち · Bash</span><span style="font-size: 13px; color: {{c.text3}}">2 分</span><span style="font-size: 15px; color: {{c.text2}}">‹ 1/2 ›</span></div>
+<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 15px; font-weight: 600">rm -rf .build</div>
+<div style="font-size: 15px; line-height: 1.45">ビルドの成果物を消します</div>
+<div style="display: flex; gap: 8px"><button type="button" style="flex: 1; min-height: 46px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font: inherit; font-size: 16px; font-weight: 600">許可</button><button type="button" style="flex: 1.55; min-height: 46px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font: inherit; font-size: 16px; font-weight: 500">このセッション中は許可</button></div>
+<div style="display: flex; gap: 8px"><button type="button" style="flex: 1; min-height: 46px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.errFg}}; font: inherit; font-size: 16px; font-weight: 600">拒否</button><button type="button" style="flex: 1; min-height: 46px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: 16px; font-weight: 600">キャンセル</button></div>
+</section>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">Claude Code と Codex で同じ 4 つ（Codex の 4 択シートは廃止）。Cursor には承認が無い。何を許可するかをボタンより上に。出た直後 0.6 秒は押せない。次の承認へは ‹ › で自分で送る。質問のカードも同じ形で、見出し「質問待ち · {見出し}」と「回答を送信」</div>
+</div></div>
+
+<!-- ボタン -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">ボタン</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 10px">
+<button type="button" style="min-height: 50px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font: inherit; font-size: 17px; font-weight: 600">主ボタン · 許可</button>
+<button type="button" style="min-height: 50px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font: inherit; font-size: 17px; font-weight: 500">副ボタン · キャンセル</button>
+<button type="button" style="min-height: 50px; border: 0; border-radius: 999px; background: {{c.errBg}}; color: {{c.errFg}}; font: inherit; font-size: 17px; font-weight: 600">取り返しがつかない · 3 件を削除</button>
+<button type="button" aria-disabled="true" style="min-height: 50px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; opacity: 0.4; font: inherit; font-size: 17px; font-weight: 600">押せない（0.6 秒の待ち・空欄）</button>
+<div style="display: flex; gap: 10px; align-items: center">
+<button type="button" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: 17px; font-weight: 600">文字ボタン</button>
+<button type="button" aria-label="送信" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: {{c.accent}}; color: {{c.accentOnFill}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13 V3.5 M3.8 7.5 L8 3.3 L12.2 7.5"></path></svg></button>
+<button type="button" aria-label="停止" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: {{c.stop}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"></rect></svg></button>
+<button type="button" aria-label="ホーム（セッション一覧に戻る）" style="width: 44px; height: 44px; border-radius: 50%; border: 1px solid {{c.glassBorder}}; background: {{c.glassBg}}; box-shadow: {{c.glassShadow}}; color: {{c.text}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.6 L8 3 L13.5 7.6 M4 6.4 V13.2 H6.8 V9.8 H9.2 V13.2 H12 V6.4"></path></svg></button>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">塗りのボタンは画面に 1 つまで。停止は赤い丸に■、送信はアクセントの丸に↑（形でも分ける）</div>
+</div></div>
+
+<!-- チップ -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">チップ・バッジ</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+<span style="color: {{c.qFg}}; font-size: 13px; font-weight: 600">質問あり</span>
+<span style="display: inline-flex; align-items: center; gap: 2px; height: 40px; padding: 0 10px; border-radius: 999px; background: {{c.fill}}; color: {{c.text2}}; font-size: 13px; font-weight: 600">Sonnet 5<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6 L8 10.5 L12.5 6"></path></svg></span>
+
+<span style="min-width: 20px; height: 20px; box-sizing: border-box; padding: 0 6px; border-radius: 999px; background: {{c.badge}}; color: #FFFFFF; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center">2</span>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 13px; font-weight: 600">Phlox<span style="color: {{c.text2}}">3</span><span style="color: {{c.errFg}}; font-size: 12px; font-weight: 600">エラー 1</span></span>
+<div style="width: 100%; font-size: 12px; line-height: 1.5; color: {{c.text2}}">状態の文字（記号も地も付けない。色は文字だけ）／モデルのチップ（{ロゴ} {モデル名} ⌄、押せる。高さ 34）／件数バッジ／閉じたグループの内訳（文字だけ）</div>
+</div></div>
+
+<!-- 入力欄 -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">入力欄（2 段）</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 6px 6px; border-radius: 26px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}"><div style="padding: 0 10px; font-size: 16px; line-height: 1.4"><span style="color: {{c.text3}}">やりたいことを入力</span></div><div style="display: flex; align-items: center; gap: 3px"><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: {{c.fill}}; display: inline-flex; align-items: center; justify-content: center; color: {{c.text}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5 V13.5 M2.5 8 H13.5"></path></svg></span><span style="display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 7px; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font-size: 13px; font-weight: 500; white-space: nowrap"><span aria-hidden="true" class="lg lg-claude" style="width: 15px; height: 15px; color: {{c.text2}}"></span><b style="font-weight: 600">Sonnet 5</b><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="{{c.text2}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.2 L8 10 L12 6.2"></path></svg></span><span style="display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 7px; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 11.5 A5.5 5.5 0 1 1 13.5 11.5 M8 11.5 L10.6 7.4"></path></svg>高</span><span style="display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 7px; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8 L13.2 3.8 V7.6 C13.2 10.9 10.9 13.3 8 14.3 C5.1 13.3 2.8 10.9 2.8 7.6 V3.8 Z"></path></svg>Manual</span><span style="flex: 1"></span><span style="display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 7px; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font-size: 13px; font-weight: 500; white-space: nowrap"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2 A1 1 0 0 1 2.8 3.2 H6.2 L7.6 4.8 H13.2 A1 1 0 0 1 14.2 5.8 V12 A1 1 0 0 1 13.2 13 H2.8 A1 1 0 0 1 1.8 12 Z"></path></svg>Phlox<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="{{c.text2}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.2 L8 10 L12 6.2"></path></svg></span><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: {{c.fill}}"></span></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 6px 6px; border-radius: 26px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}"><div style="padding: 0 10px; font-size: 16px; line-height: 1.4">落ちた 1 件だけ先に直して</div><div style="display: flex; align-items: center; gap: 3px"><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: {{c.fill}}; display: inline-flex; align-items: center; justify-content: center; color: {{c.text}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5 V13.5 M2.5 8 H13.5"></path></svg></span><span style="display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 7px; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font-size: 13px; font-weight: 500; white-space: nowrap"><span aria-hidden="true" class="lg lg-claude" style="width: 15px; height: 15px; color: {{c.text2}}"></span><b style="font-weight: 600">Sonnet 5</b><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="{{c.text2}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.2 L8 10 L12 6.2"></path></svg></span><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: {{c.fill}}; display: inline-flex; align-items: center; justify-content: center; color: {{c.text}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8 H3.6 M8 8 H8.1 M12.5 8 H12.6"></path></svg></span><span style="flex: 1"></span><span aria-label="停止" style="width: 34px; height: 34px; border-radius: 50%; background: {{c.stop}}; display: inline-flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="2" fill="#FFFFFF"></rect></svg></span><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: {{c.accent}}"></span></div></div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">1 段目は本文（「やりたいことを入力」、複数行で伸びる）。2 段目は ＋・モデル（ロゴ＋名前 ⌄）・思考の強さ（メーター）・権限（盾）、右寄せにプロジェクト（新規チャットだけ）と送信／停止。幅が足りないと思考の強さと権限を「…」にまとめる（下）。強い権限（Bypass Permissions・Full Access）は「…」に入れず赤いチップのまま。新規チャットとセッション画面で共通。送信と停止の分離（18.1）は守る</div>
+</div></div>
+
+<!-- 使用量の行 -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">使用量の行（入力欄の下・2 回目の修正 5/6）</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 4px">
+<div role="img" aria-label="使用量。Claude 5時間 残り 72%、週次 残り 40%。Codex 5時間 残り 99%、週次 残り 85%。Cursor Auto 残り 80%、API 残り 95%。" style="display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 12px; font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; color: {{c.text2}}; white-space: nowrap"><span style="display: inline-flex; align-items: center"><span aria-hidden="true" class="lg lg-claude" style="width: 15px; height: 15px; color: {{c.text2}}"></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="36.19 50.27" transform="rotate(-90 10 10)"></circle></svg><span style="color: {{c.text2}}; font-weight: 400">5h</span></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="20.11 50.27" transform="rotate(-90 10 10)"></circle></svg><span style="color: {{c.text2}}; font-weight: 400">7d</span></span></span><span style="display: inline-flex; align-items: center"><span aria-hidden="true" class="lg lg-codex" style="width: 15px; height: 15px; color: {{c.text2}}"></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="49.76 50.27" transform="rotate(-90 10 10)"></circle></svg></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="42.73 50.27" transform="rotate(-90 10 10)"></circle></svg></span></span><span style="display: inline-flex; align-items: center"><span aria-hidden="true" class="lg lg-cursor" style="width: 15px; height: 15px; color: {{c.text2}}"></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="40.21 50.27" transform="rotate(-90 10 10)"></circle></svg></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="47.75 50.27" transform="rotate(-90 10 10)"></circle></svg></span></span></div>
+<div role="img" aria-label="使用量。16時12分時点の値。更新できませんでした。Claude 5時間 残り 12%、残りわずか、週次 残り 40%。Codex 5時間 残り 99%、週次 値なし。Cursor 取得できません。" style="display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 12px; font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; color: {{c.text2}}; white-space: nowrap"><span style="display: inline-flex; align-items: center"><span aria-hidden="true" class="lg lg-claude" style="width: 15px; height: 15px; color: {{c.text2}}"></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useLowTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.caution}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="6.03 50.27" transform="rotate(-90 10 10)"></circle></svg><span style="color: {{c.caution}}; font-weight: 600">5h</span></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="20.11 50.27" transform="rotate(-90 10 10)"></circle></svg><span style="color: {{c.text2}}; font-weight: 400">7d</span></span></span><span style="display: inline-flex; align-items: center"><span aria-hidden="true" class="lg lg-codex" style="width: 15px; height: 15px; color: {{c.text2}}"></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useTrack}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="49.76 50.27" transform="rotate(-90 10 10)"></circle></svg></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useEmpty}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="butt" stroke-dasharray="0.00 50.27" transform="rotate(-90 10 10)"></circle></svg></span></span><span style="display: inline-flex; align-items: center"><span aria-hidden="true" class="lg lg-cursor" style="width: 15px; height: 15px; color: {{c.text2}}"></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useEmpty}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="butt" stroke-dasharray="0.00 50.27" transform="rotate(-90 10 10)"></circle></svg></span><span style="display: inline-flex; align-items: center; gap: 3px; margin-left: 6px"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{c.useEmpty}}" stroke-width="2.6"></circle><circle cx="10" cy="10" r="8" stroke="{{c.useArc}}" stroke-width="2.6" stroke-linecap="butt" stroke-dasharray="0.00 50.27" transform="rotate(-90 10 10)"></circle></svg></span></span><span style="margin-left: auto; color: {{c.text2}}">16:12 時点</span></div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">リング 18pt・線 2.6pt。弧＝残り（12 時から時計回り）、弧は副文字色。残り 20% 未満は弧と下地を注意の色（2 行目の Claude「5h」）。取得できない・値が届かない枠は灰色の空のリング（2 行目の Codex の週次・Cursor）。文字は Claude Code の「5h」「7d」と、古い値の「16:12 時点」だけ。行は 44pt の 1 つのボタンで、押すと枠／残り／リセットの吹き出し</div>
+</div></div>
+
+<!-- バナー -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">バナー（その場の知らせ）</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 10px">
+<div role="alert" style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 8px 12px 14px; border-radius: 16px; background: {{c.errBg}}"><div style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700; color: {{c.errFg}}">名前を変更できませんでした</span><span style="font-size: 14px">名前は元のままです。</span><span style="font-family: ui-monospace, monospace; font-size: 12px; color: {{c.text2}}">HTTP 503</span></div><span aria-label="閉じる" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: {{c.text2}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5"></path></svg></span></div>
+<div role="alert" style="align-self: flex-end; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 14px; background: {{c.errBg}}; color: {{c.errFg}}; font-size: 14px; font-weight: 600">送信できませんでした · 入力欄に戻しました</div>
+<div role="status" style="display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: {{c.okBg}}; color: {{c.okFg}}; font-size: 14px; font-weight: 600">「許可」を送信しました</div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">操作した場所に出す。画面の上から降ってくるトーストは使わない</div>
+</div></div>
+
+<!-- シート -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">シート</div>
+<div style="padding: 16px 8px 8px; border-radius: 20px; background: {{c.dimPreview}}; display: flex; flex-direction: column; gap: 10px; overflow: hidden">
+<div style="border-radius: 38px; background: {{c.sheetBg}}; backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); padding: 6px 0 16px; display: flex; flex-direction: column">
+<span aria-hidden="true" style="align-self: center; width: 36px; height: 5px; border-radius: 3px; background: {{c.slot}}"></span>
+<div style="display: flex; align-items: center; height: 48px; padding: 0 12px"><span style="height: 40px; padding: 0 14px; border-radius: 999px; background: {{c.fill}}; font-size: 15px; font-weight: 600; display: flex; align-items: center">閉じる</span><span style="flex: 1; text-align: center; font-size: 17px; font-weight: 700">モデル</span><span style="width: 76px"></span></div>
+<div style="margin: 0 16px; border-radius: 14px; background: {{c.card}}"><div style="display: flex; align-items: center; min-height: 48px; padding: 0 14px"><span style="flex: 1; font-size: 16px; font-weight: 600">Sonnet 5</span><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="{{ c.accent }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 L6.5 11.5 L12.5 4.5"></path></svg></div><div style="height: 1px; margin-left: 14px; background: {{c.sep}}"></div><div style="display: flex; align-items: center; min-height: 48px; padding: 0 14px"><span style="flex: 1; font-size: 16px">Opus 5.5</span></div></div>
+</div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">中・大の 2 段。左右と下を 8pt 浮かせ角丸 38（Liquid Glass 採用案）。つまみ＋「閉じる」（カプセル）。下へスワイプで閉じる。同時に開くのは 1 つ（ADR 0013）</div>
+</div>
+
+<!-- ダイアログ -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">ダイアログ</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.dimPreview}}; display: flex; flex-direction: column; gap: 12px; align-items: center">
+<div style="width: 300px; box-sizing: border-box; padding: 20px 18px 16px; border-radius: 30px; background: {{c.alertBg}}; display: flex; flex-direction: column; gap: 8px; text-align: center"><div style="font-size: 17px; font-weight: 700">名前を変更</div><div style="height: 40px; border: 2px solid {{c.accent}}; border-radius: 12px; background: {{c.card}}"></div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px"><span style="min-height: 44px; border-radius: 999px; background: {{c.fill}}; display: flex; align-items: center; justify-content: center; font-size: 16px">キャンセル</span><span style="min-height: 44px; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600">変更</span></div></div>
+<div style="width: 300px; box-sizing: border-box; padding: 20px 18px 16px; border-radius: 30px; background: {{c.alertBg}}; display: flex; flex-direction: column; gap: 8px; text-align: center"><div style="font-size: 17px; font-weight: 700">“Lotus” を削除しますか？</div><div style="font-size: 13px; color: {{c.text2}}">元に戻せません。</div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px"><span style="min-height: 44px; border-radius: 999px; background: {{c.fill}}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700">キャンセル</span><span style="min-height: 44px; border-radius: 999px; background: {{c.errBg}}; color: {{c.errFg}}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600">削除</span></div></div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">取り返しがつく: 実行を塗り、既定。つかない: 塗らず、既定はキャンセル（ダイアログの回）</div>
+</div>
+
+<!-- 読込表示 -->
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 18px; font-weight: 700">読込表示</div>
+<div style="padding: 16px; border-radius: 20px; background: {{c.bg}}; display: flex; flex-direction: column; gap: 12px">
+<div aria-hidden="true" style="border-radius: 16px; background: {{c.card}}; padding: 12px 14px; display: flex; gap: 12px; align-items: center"><span style="width: 36px; height: 36px; border-radius: 10px; background: {{c.skel}}"></span><span style="flex: 1; display: flex; flex-direction: column; gap: 8px"><span style="width: 62%; height: 12px; border-radius: 6px; background: {{c.skel}}"></span><span style="width: 38%; height: 10px; border-radius: 5px; background: {{c.skel}}"></span></span></div>
+<div role="status" style="display: flex; align-items: center; gap: 10px; font-size: 15px; color: {{c.text2}}"><svg class="ds-spin" width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" style="animation: dsspin 0.9s linear infinite"><circle cx="8" cy="8" r="6" stroke="{{ c.slot }}" opacity="0.5"></circle><path d="M8 2 A6 6 0 0 1 14 8" stroke="{{ c.text2 }}"></path></svg>会話を読み込んでいます…</div>
+<div role="status" style="display: flex; align-items: center; gap: 10px"><span aria-hidden="true" style="display: inline-flex; gap: 4px"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{c.accent}}"></span><span style="width: 7px; height: 7px; border-radius: 50%; background: {{c.accent}}; opacity: 0.6"></span><span style="width: 7px; height: 7px; border-radius: 50%; background: {{c.accent}}; opacity: 0.3"></span></span><span style="font-size: 15px; font-weight: 600">実行中…</span><span style="font-family: ui-monospace, monospace; font-size: 12px; color: {{c.text2}}">swift test を実行中</span></div>
+<div style="font-size: 12px; line-height: 1.5; color: {{c.text2}}">並ぶものが分かるならスケルトン（一覧）、分からないならスピナー＋文言（会話・接続）。使用量は取得前も灰色の空のリングで同じ場所に出す（高さを変えない）。思考中は光の帯＋6 種の文言。更新中は今の表示を消さない</div>
+</div></div>
+</div>
+</section>
+
+<!-- ===== 7. Liquid Glass ===== -->
+<section aria-label="Liquid Glass" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: baseline; gap: 16px; padding-top: 18px; border-top: 3px solid {{c.text}}"><span style="font-size: 15px; font-weight: 800; color: {{c.accent}}">07</span><h2 style="margin: 0; font-size: 34px; font-weight: 800">Liquid Glass と iOS 18 での代わり</h2><span style="font-size: 15px; color: {{c.text2}}">ガラスは「中身の上に浮いて操作する層」だけ。中身（行・カード・会話）はガラスにしない</span></div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start">
+<div style="display: grid; grid-template-columns: 220px 1fr 1fr; border-radius: 16px; overflow: hidden; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 14px">
+<div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">部品</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">iOS 26（採用）</div><div style="padding: 10px 14px; background: {{c.head}}; font-weight: 700">iOS 18 の代わり</div>
+<sc-for list="{{ glass }}" as="g" hint-placeholder-count="9">
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; font-weight: 700">{{ g.k }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; line-height: 1.5; color: {{c.text2}}">{{ g.a }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid {{c.sep}}; line-height: 1.5; color: {{c.text2}}">{{ g.b }}</div>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 15px; font-weight: 700">iOS 26 · ガラス</div>
+<div style="position: relative; height: 330px; border-radius: 22px; overflow: hidden; background: {{c.bg}}">
+<div aria-hidden="true" style="position: absolute; inset: 0; padding: 16px; display: flex; flex-direction: column; gap: 10px"><sc-for list="{{ ghostRows }}" as="gr" hint-placeholder-count="6"><div style="height: 40px; border-radius: 12px; background: {{c.card}}; display: flex; align-items: center; padding: 0 12px"><span style="width: {{gr.w}}%; height: 10px; border-radius: 5px; background: {{gr.bg}}"></span></div></sc-for></div>
+<div style="position: absolute; left: 14px; right: 14px; bottom: 82px; height: 50px; border-radius: 25px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 700">対応待ち 2</div>
+<div style="position: absolute; right: 14px; bottom: 14px; width: 60px; height: 60px; border-radius: 50%; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); display: flex; align-items: center; justify-content: center; color: {{c.accent}}"><svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-label="新規チャット"><path d="M11.2 2.3 L13.7 4.8 L7.6 10.9 L4.6 11.4 L5.1 8.4 Z M9.9 3.6 L12.4 6.1 M13 9 V13.5 H2.5 V3 H7"></path></svg></div>
+<div style="position: absolute; left: 14px; right: 82px; bottom: 14px; height: 60px; border-radius: 30px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); display: flex; align-items: center; justify-content: space-around; font-size: 11px; font-weight: 600"><span style="padding: 8px 14px; border-radius: 999px; background: {{c.fill}}; color: {{c.accent}}">セッション</span><span>設定</span></div>
+</div>
+<div style="font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; color: {{c.text3}}">glass: {{ c.glassBg }}<br>縁 1px · 上辺のハイライト · ぼかし 22 · 彩度 180%</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px"><div style="font-size: 15px; font-weight: 700">iOS 18 · 素材＋細い線</div>
+<div style="position: relative; height: 330px; border-radius: 22px; overflow: hidden; background: {{c.bg}}">
+<div aria-hidden="true" style="position: absolute; inset: 0; padding: 16px; display: flex; flex-direction: column; gap: 10px"><sc-for list="{{ ghostRows }}" as="gr" hint-placeholder-count="6"><div style="height: 40px; border-radius: 12px; background: {{c.card}}; display: flex; align-items: center; padding: 0 12px"><span style="width: {{gr.w}}%; height: 10px; border-radius: 5px; background: {{gr.bg}}"></span></div></sc-for></div>
+<div style="position: absolute; left: 0; right: 0; bottom: 70px; height: 52px; background: {{c.barBg}}; border-top: 1px solid {{c.sep}}; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display: flex; align-items: center; padding: 0 16px; font-size: 13px; font-weight: 700">対応待ち 2</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: {{c.barBg}}; border-top: 1px solid {{c.sep}}; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display: flex; align-items: flex-start; justify-content: space-around; padding-top: 10px; font-size: 11px; font-weight: 600"><span style="color: {{c.accent}}">セッション</span><span>設定</span></div>
+</div>
+<div style="font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; color: {{c.text3}}">bar: {{ c.barBg }}<br>端から端まで · 上に 1px の線 · 角丸なし</div>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":3200,"height":9600}}'>
+const LG = { claude: 'lg lg-claude', codex: 'lg lg-codex', cursor: 'lg lg-cursor' };
+class Component extends DCLogic {
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const LT = {
+      page: '#ECECF1', head: '#F2F2F6', groupBg: '#F6F6F9', bg: '#F2F2F7', card: '#FFFFFF', text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73',
+      sep: 'rgba(60,60,67,0.18)', slot: 'rgba(60,60,67,0.38)', accent: '#1D1D1F', accentOnFill: '#FFFFFF', fill: 'rgba(118,118,128,0.12)', skel: 'rgba(118,118,128,0.16)',
+      apprFg: '#A8430A', apprBg: '#FFEBD6', qFg: '#1555C0', qBg: '#E3EEFF', errFg: '#B8241C', errBg: '#FDE7E5', okFg: '#1F7A3A', okBg: '#E3F4E8',
+      neuFg: '#3A3A42', neuBg: 'rgba(118,118,128,0.14)', stop: '#D62F26', badge: '#D62F26',
+      addFg: '#1F7A3A', delFg: '#B4232A', addBg: 'rgba(31,122,58,0.12)', delBg: 'rgba(180,35,42,0.11)', codeBg: '#F7F6FA', kw: '#9B2393', type: '#0B6E7A', str: '#B4231A',
+      glassBg: 'rgba(255,255,255,0.62)', glassBorder: 'rgba(255,255,255,0.85)', glassShadow: '0 10px 30px rgba(20,20,40,0.14), 0 1px 3px rgba(20,20,40,0.08), inset 0 1px 0 rgba(255,255,255,0.95)',
+      barBg: 'rgba(249,249,251,0.94)', sheetBg: 'rgba(242,242,247,0.97)', alertBg: 'rgba(250,250,252,0.96)', dimPreview: 'rgba(0,0,0,0.28)', cand: '#8A4200', caution: '#8A5300', stallBg: '#F1ECFB', stallFg: '#5B3FA8', cardBorder: 'rgba(60,60,67,0.18)', cardBorderRun: 'rgba(60,60,67,0.55)', useArc: '#56565E', useTrack: 'rgba(118,118,128,0.22)', useLowTrack: 'rgba(138,83,0,0.20)', useEmpty: 'rgba(118,118,128,0.26)'
+    };
+    const DK = {
+      page: '#0B0B0D', head: '#232326', groupBg: '#18181B', bg: '#000000', card: '#1C1C1E', text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5',
+      sep: 'rgba(84,84,88,0.65)', slot: 'rgba(235,235,245,0.38)', accent: '#F2F2F4', accentOnFill: '#000000', fill: 'rgba(118,118,128,0.28)', skel: 'rgba(118,118,128,0.3)',
+      apprFg: '#FFB46E', apprBg: 'rgba(255,159,10,0.2)', qFg: '#8DB9FF', qBg: 'rgba(10,132,255,0.22)', errFg: '#FF8C82', errBg: 'rgba(255,69,58,0.18)', okFg: '#6FD08C', okBg: 'rgba(52,199,89,0.16)',
+      neuFg: '#D4D4DA', neuBg: 'rgba(118,118,128,0.3)', stop: '#E5483F', badge: '#E5483F',
+      addFg: '#6FD08C', delFg: '#FF8A8D', addBg: 'rgba(52,199,89,0.16)', delBg: 'rgba(255,69,58,0.16)', codeBg: '#141416', kw: '#FF7AB2', type: '#6BD9E6', str: '#FF9A85',
+      glassBg: 'rgba(38,38,42,0.6)', glassBorder: 'rgba(255,255,255,0.14)', glassShadow: '0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)',
+      barBg: 'rgba(22,22,24,0.94)', sheetBg: 'rgba(28,28,30,0.97)', alertBg: 'rgba(44,44,48,0.96)', dimPreview: 'rgba(0,0,0,0.5)', cand: '#FFB46E', caution: '#F4BD68', stallBg: 'rgba(150,120,230,0.20)', stallFg: '#C9B6FF', cardBorder: 'rgba(84,84,88,0.65)', cardBorderRun: 'rgba(235,235,245,0.55)', useArc: '#C7C7CE', useTrack: 'rgba(118,118,128,0.42)', useLowTrack: 'rgba(244,189,104,0.30)', useEmpty: 'rgba(118,118,128,0.42)'
+    };
+    const c = dark ? DK : LT;
+
+    // contrast helpers
+    const parse = (s) => {
+      if (s[0] === '#') { const h = s.slice(1); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 1]; }
+      const m = s.match(/rgba?\(([^)]+)\)/); const v = m[1].split(',').map(x => parseFloat(x)); return [v[0], v[1], v[2], v.length > 3 ? v[3] : 1];
+    };
+    const over = (top, base) => { const t = parse(top), b = parse(base); const a = t[3]; return [t[0] * a + b[0] * (1 - a), t[1] * a + b[1] * (1 - a), t[2] * a + b[2] * (1 - a)]; };
+    const lum = (rgb) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]); };
+    const ratio = (fg, bg, base) => { const b = over(bg, base); const f = over(fg, base); const l1 = lum(f), l2 = lum(b); const r = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); return r.toFixed(1) + ':1'; };
+
+    const principles = [
+      { n: '1', t: '色は対応待ちのため', d: '琥珀・青・赤の文字は、承認待ち・質問あり・エラーだけ。ほかの状態は無彩色の文字で伝える' },
+      { n: '2', t: '文言が先、色は後', d: 'アプリ内は記号を付けず文字だけ（Mac と同じ）。どの状態も文言だけで区別できる。単色になるロック画面・ウィジェット・Live Activity・Dynamic Island だけ、記号の形も添える' },
+      { n: '3', t: 'ガラスは操作の層だけ', d: 'タブバー・対応待ちバー・入力欄・承認と質問のカード・丸ボタン・メニューだけをガラスに。中身は不透明な面に置き、読みやすさを保つ' },
+      { n: '4', t: '技術値だけ等幅', d: 'コマンド・差分・接続先・エラーの詳細だけ SF Mono。文章や見出しは等幅にしない' }
+    ];
+    const S = (k, lv, use, l, d) => ({ k, lv, use, l, d, lBg: l, dBg: d });
+    const surfaces = [
+      S('bg.base', '0', '画面の地（一覧・会話・設定）', '#F2F2F7', '#000000'),
+      S('bg.card', '1', '行・カード・まとまった設定', '#FFFFFF', '#1C1C1E'),
+      S('bg.raised', '1', '自分の発言の吹き出し', '#E4E4EB', '#2C2C30'),
+      S('bg.code', '1', 'コードブロック・差分の中', '#F7F6FA', '#141416'),
+      S('fill', '2', '副ボタン・チップ・入力欄の地', 'rgba(118,118,128,0.12)', 'rgba(118,118,128,0.28)'),
+      S('separator', '—', '行の区切り・カードの縁', 'rgba(60,60,67,0.18)', 'rgba(84,84,88,0.65)'),
+      S('glass', '3', 'タブバー・対応待ちバー・入力欄・承認と質問のカード・丸ボタン', 'rgba(255,255,255,0.62)', 'rgba(38,38,42,0.6)'),
+      S('bar (iOS 18)', '3', 'ガラスの代わりの素材', 'rgba(249,249,251,0.94)', 'rgba(22,22,24,0.94)'),
+      S('sheet', '4', 'モデル選択', 'rgba(242,242,247,0.97)', 'rgba(28,28,30,0.97)'),
+      S('menu / alert', '5', '「…」メニュー・確認ダイアログ', 'rgba(250,250,252,0.94)', 'rgba(44,44,48,0.94)'),
+      S('dim', '—', 'シート・ダイアログの後ろの暗幕', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0.45)')
+    ];
+    const T = (k, use, l, d, onL, onD) => ({ k, use, l, d, lr: onL ? ratio(l, onL, '#FFFFFF') + ' / card' : '', dr: onD ? ratio(d, onD, '#1C1C1E') + ' / card' : '' });
+    const texts = [
+      T('text', '本文・見出し', '#1D1D1F', '#F2F2F4', '#FFFFFF', '#1C1C1E'),
+      T('text.secondary', '補足・説明・時刻', '#56565E', '#AFAFB6', '#FFFFFF', '#1C1C1E'),
+      T('text.tertiary', 'プレースホルダ・注記', '#6B6B73', '#9D9DA5', '#FFFFFF', '#1C1C1E'),
+      T('accent', '主ボタン・送信ボタンの面・選択中・フォーカス・リンク。主文字色と同じ白黒。装飾には使わない', '#1D1D1F', '#F2F2F4', '#FFFFFF', '#1C1C1E'),
+      T('accentOnFill', '主ボタン・送信ボタンの面の上の文字と記号。背景色と同じ（ダークで白い面に白を載せない）', '#FFFFFF', '#000000', '#1D1D1F', '#F2F2F4'),
+      T('link', 'リンク。色は文字と同じなので下線で区別する', '#1D1D1F', '#F2F2F4', '#FFFFFF', '#1C1C1E'),
+      T('stop / badge', '停止ボタン・件数バッジ（白い記号）', '#D62F26', '#E5483F', '', '')
+    ];
+    const SC = (k, word, use, lfg, lbg, dfg, dbg) => ({ k, word, use, lfg, lbg, dfg, dbg, lr: ratio(lfg, lbg, '#FFFFFF'), dr: ratio(dfg, dbg, '#1C1C1E') });
+    const statusColors = [
+      SC('status.approval', '承認待ち', '対応待ち（許可）だけに使う', '#A8430A', '#FFEBD6', '#FFB46E', 'rgba(255,159,10,0.2)'),
+      SC('status.question', '質問あり', '対応待ち（回答）', '#1555C0', '#E3EEFF', '#8DB9FF', 'rgba(10,132,255,0.22)'),
+      SC('status.error', 'エラー', '対応待ち（止まった）・失敗・取り返しがつかない操作', '#B8241C', '#FDE7E5', '#FF8C82', 'rgba(255,69,58,0.18)'),
+      SC('status.caution', '残りわずか', '使用量の残り 20% 未満のリング（弧と淡い下地）だけ。記号は付けない。Mac 版と同じ値', '#8A5300', 'rgba(255,255,255,0)', '#F4BD68', 'rgba(0,0,0,0)'),
+      SC('status.stalled', '無応答', '無応答だけに使う（一覧の文字・閉じたプロジェクトの内訳・小見出し・会話の紫の面・アプリ外の表示）。Mac 版と同じ紫', '#5B3FA8', '#F1ECFB', '#C9B6FF', 'rgba(150,120,230,0.20)'),
+      SC('status.success', '完了', '完了・成功・回答済み（地は付けず文字だけが基本）', '#1F7A3A', '#E3F4E8', '#6FD08C', 'rgba(52,199,89,0.16)'),
+      SC('status.neutral', '実行中', '実行中・待機・起動中・終了・圏外', '#3A3A42', 'rgba(118,118,128,0.14)', '#D4D4DA', 'rgba(118,118,128,0.3)'),
+      SC('status.unavailable', '状態不明', '期限切れ・状態不明（ウィジェット・Live Activity）。使用量の取得できないエージェント・値が届かない枠は灰色の空のリング（記号も文字も付けない）', '#56565E', 'rgba(118,118,128,0.12)', '#AFAFB6', 'rgba(118,118,128,0.24)')
+    ];
+    const agents = [
+      // 実物のロゴ（Claude・Codex は副文字色の単色、Cursor は元の色）。エージェント別の色・略号は使わない
+      { key: 'claude', lg: LG.claude, name: 'Claude Code', tok: 'logo.claude', how: '単色 · text.secondary' },
+      { key: 'codex', lg: LG.codex, name: 'Codex', tok: 'logo.codex', how: '単色 · text.secondary' },
+      { key: 'cursor', lg: LG.cursor, name: 'Cursor', tok: 'logo.cursor', how: '元の色のまま' }
+    ];
+
+    const TY = (k, size, xxl, ax5, w, use, sample, mono) => ({ k, size, xxl, ax5, w, use, sample, ff: mono === 'dot' ? "'DotGothic16', 'Hiragino Sans', sans-serif" : (mono ? "ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace" : 'inherit') });
+    const type = [
+      TY('display.dot', 28, 34, 44, 400, '新規チャットの中央の見出しだけ（DotGothic16。Mac と同じ）', '何から始めますか？', 'dot'),
+      TY('largeTitle', 34, 40, 60, 700, '一覧・設定の大見出し', 'セッション'),
+      TY('title2', 22, 28, 56, 700, '空・接続中・カメラ不可の見出し', 'Mac とつなぐ'),
+      TY('title3', 20, 26, 55, 700, '会話の中の見出し（Markdown）', '変更点'),
+      TY('headline', 17, 23, 53, 600, 'ナビのタイトル・行の名前・カードの見出し', 'refactor: ControlServer proxy'),
+      TY('body', 17, 23, 53, 400, '会話の本文・入力欄・設定の行', '転送処理を 1 か所にまとめます'),
+      TY('callout', 16, 22, 51, 400, 'カードの本文・ボタン', '再接続を試す'),
+      TY('subheadline', 15, 21, 49, 400, '説明・質問の選択肢・行の 2 行目', '承認待ち · phlox'),
+      TY('footnote', 13, 19, 44, 400, 'セクション見出し・注記・時刻', '最終取得 3 分前'),
+      TY('caption1', 12, 18, 43, 400, 'ターンの使用量行・チップの補足', '$0.0412 · コンテキスト 61%'),
+      TY('caption2', 11, 17, 40, 600, 'タブの名前', 'セッション'),
+      TY('mono.inline', 15, 21, 49, 400, '本文中のコード（body に合わせる）', 'ProxyRouter', true),
+      TY('mono.block', 13, 19, 44, 400, 'コードブロック・差分・コマンド・接続先（footnote に合わせる）', 'swift test --package-path …', true)
+    ];
+    const spaces = [['space.1', 4, '記号と文字の間'], ['space.2', 8, '行の中の要素'], ['space.3', 12, 'カードの中の段'], ['space.4', 16, '画面の左右・カードの内側'], ['space.5', 20, '大見出しの画面の左右'], ['space.6', 24, 'セクションの間'], ['space.8', 32, '大きな区切り'], ['tap', 44, '押せる場所の最小']].map(s => ({ k: s[0], v: s[1], use: s[2] }));
+    const radii = [['r.xs', 6, '6', 'コードの地・小さな印'], ['r.sm', 8, '8', '行のアイコン枠'], ['r.md', 12, '12', '入力欄・中の帯'], ['r.lg', 16, '16', '行・まとまった設定'], ['r.xl', 20, '20', 'カード・ウィジェット内'], ['r.2xl', 24, '24', 'ウィジェット・Live Activity'], ['r.bar', 28, '28', '対応待ちバー（入力欄は 26・承認と質問のカードは 22）'], ['r.alert', 30, '30', 'ダイアログ'], ['r.sheet', 34, '34', 'シートの上辺'], ['r.full', 999, '∞', 'ボタン・チップ・丸ボタン']].map(r => ({ k: r[0], v: Math.min(r[1], 17), label: r[2], use: r[3] }));
+    const shadows = [
+      { k: 'shadow.glass', v: c.glassShadow, use: 'ガラスの部品（上辺のハイライト込み）' },
+      { k: 'shadow.float', v: '0 16px 48px rgba(0,0,0,0.28)', use: '「…」メニュー・長押しメニュー' },
+      { k: 'shadow.alert', v: '0 20px 60px rgba(0,0,0,0.3)', use: 'ダイアログ・削除中の表示' },
+      { k: 'shadow.widget', v: '0 6px 18px rgba(0,0,0,0.12)', use: 'ウィジェット・Live Activity（OS 側）' }
+    ];
+    const motion = [
+      { k: 'tap', v: '0.1 秒で押した見た目、離して 0.2 秒で戻す' },
+      { k: 'expand', v: '折りたたみ 0.25 秒（ease-out）。高さだけ動かす' },
+      { k: 'sheet / push', v: 'OS 標準のばね。差し替えない（端スワイプを守る）' },
+      { k: 'follow', v: '最下部から 80pt 以内のときだけ新着へ 0.3 秒でスクロール' },
+      { k: 'guard', v: '承認カードが出て 0.6 秒は押せない。薄い→濃いで効くことを見せる' },
+      { k: 'spinner', v: '0.9 秒で 1 周。思考の点は 1.2 秒で巡回' },
+      { k: 'theme', v: '外観の切り替えは即時（ADR 0004）、0.2 秒のクロスフェード' },
+      { k: 'remove', v: '削除した行は 0.3 秒で詰める。視差効果を減らすではフェードだけ' }
+    ];
+
+    const P = {
+      run: 'M8 2.4 A5.6 5.6 0 1 1 2.4 8', start: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z',
+      idle: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M6.6 5.9 V10.1 M9.4 5.9 V10.1',
+      appr: 'M8 1.8 L13.2 3.8 V7.6 C13.2 10.9 10.9 13.3 8 14.3 C5.1 13.3 2.8 10.9 2.8 7.6 V3.8 Z M8 5.4 V8.6 M8 11 V11.1',
+      q: 'M3 2.8 H13 A1.2 1.2 0 0 1 14.2 4 V10 A1.2 1.2 0 0 1 13 11.2 H8 L5 13.8 V11.2 H3 A1.2 1.2 0 0 1 1.8 10 V4 A1.2 1.2 0 0 1 3 2.8 Z M6.6 5.6 A1.5 1.5 0 1 1 8.6 7 C8.2 7.2 8 7.5 8 8 M8 9.6 V9.7',
+      done: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M5.4 8.2 L7.2 10 L10.7 6.3',
+      err: 'M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7',
+      stall: 'M4.5 2 H11.5 M4.5 14 H11.5 M5.2 2 C5.2 5.5 10.8 5.5 10.8 8 C10.8 10.5 5.2 10.5 5.2 14 M10.8 2 C10.8 5.5 5.2 5.5 5.2 8 C5.2 10.5 10.8 10.5 10.8 14',
+      end: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M6 6 H10 V10 H6 Z',
+      net: 'M1.8 6.2 C5.2 3.2 10.8 3.2 14.2 6.2 M4 8.6 C6.3 6.8 9.7 6.8 12 8.6 M6.3 11 C7.3 10.3 8.7 10.3 9.7 11 M8 13.3 V13.4 M2.2 1.8 L13.8 14.2',
+      host: 'M3 4 H13 V10.5 H3 Z M1.5 12.5 H14.5 M2 1.8 L14 14.2', mac: 'M3 4 H13 V10.5 H3 Z M1.5 12.5 H14.5',
+      clock: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M8 4.8 V8 L10.2 9.4',
+      key: 'M5.5 7 A3 3 0 1 0 5.5 13 A3 3 0 1 0 5.5 7 Z M8 8.5 L14 2.5 M11.5 5 L13 6.5 M10 6.5 L11 7.5',
+      trash: 'M2.5 4 H13.5 M6 4 V2.5 H10 V4 M4 4 L4.8 14 H11.2 L12 4 M6.6 6.5 V11.5 M9.4 6.5 V11.5',
+      pen: 'M10.8 2.4 L13.6 5.2 L5.6 13.2 L2.4 13.6 L2.8 10.4 Z',
+      cpu: 'M4 4 H12 V12 H4 Z M6 1.8 V4 M10 1.8 V4 M6 12 V14.2 M10 12 V14.2 M1.8 6 H4 M1.8 10 H4 M12 6 H14.2 M12 10 H14.2 M6.5 6.5 H9.5 V9.5 H6.5 Z',
+      qr: 'M2.5 2.5 H6.5 V6.5 H2.5 Z M9.5 2.5 H13.5 V6.5 H9.5 Z M2.5 9.5 H6.5 V13.5 H2.5 Z M9.5 9.5 H11 V11 H9.5 Z M12 12 H13.5 V13.5 H12 Z',
+      photo: 'M2 3 H14 V13 H2 Z M2 11 L6 7.5 L9 10 L11 8.5 L14 11 M10.5 5.5 V5.6',
+      face: 'M2.5 5.5 V3.8 A1.3 1.3 0 0 1 3.8 2.5 H5.5 M10.5 2.5 H12.2 A1.3 1.3 0 0 1 13.5 3.8 V5.5 M13.5 10.5 V12.2 A1.3 1.3 0 0 1 12.2 13.5 H10.5 M5.5 13.5 H3.8 A1.3 1.3 0 0 1 2.5 12.2 V10.5 M5.8 6 V7 M10.2 6 V7 M8 6 V8.8 H7.3 M5.8 10.4 C7 11.4 9 11.4 10.2 10.4',
+      bell: 'M4 11.5 V7.5 A4 4 0 0 1 12 7.5 V11.5 L13 12.5 H3 Z M6.6 14 A1.5 1.5 0 0 0 9.4 14',
+      gauge: 'M2.5 11.5 A5.5 5.5 0 0 1 13.5 11.5 M8 11.5 L10.6 7.4',
+      gear: 'M8 5.8 A2.2 2.2 0 1 0 8 10.2 A2.2 2.2 0 1 0 8 5.8 Z M8 1.8 V3.6 M8 12.4 V14.2 M1.8 8 H3.6 M12.4 8 H14.2 M3.6 3.6 L4.9 4.9 M11.1 11.1 L12.4 12.4 M3.6 12.4 L4.9 11.1 M11.1 4.9 L12.4 3.6',
+      list: 'M3.3 5.3 H8.7 A1.3 1.3 0 0 1 10 6.6 V10 A1.3 1.3 0 0 1 8.7 11.3 H5.7 L3.7 13.2 V11.3 H3.3 A1.3 1.3 0 0 1 2 10 V6.6 A1.3 1.3 0 0 1 3.3 5.3 Z M6 5.3 V4 A1.3 1.3 0 0 1 7.3 2.7 H12.7 A1.3 1.3 0 0 1 14 4 V7.3 A1.3 1.3 0 0 1 12.7 8.7 H12.3 V10.3 L10.7 8.7 H10',
+      plus: 'M8 2.5 V13.5 M2.5 8 H13.5', up: 'M8 13 V3.5 M3.8 7.5 L8 3.3 L12.2 7.5', stopP: 'M4 4 H12 V12 H4 Z',
+      chev: 'M6 3 L11 8 L6 13', more: 'M3.5 8 H3.6 M8 8 H8.1 M12.5 8 H12.6', back: 'M10 2.5 L4.5 8 L10 13.5', home: 'M2.5 7.6 L8 3 L13.5 7.6 M4 6.4 V13.2 H6.8 V9.8 H9.2 V13.2 H12 V6.4',
+      sub: 'M5.5 6 A2 2 0 1 0 5.5 2 A2 2 0 1 0 5.5 6 Z M10.5 9 A2 2 0 1 0 10.5 5 A2 2 0 1 0 10.5 9 Z M2 13 C2 10.5 4 9.5 5.5 9.5 M8 14 C8 12 9.2 11 10.5 11 C11.8 11 13 12 13 14',
+      off: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M4 12 L12 4',
+      expired: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M8 4.8 V8 L10.2 9.4 M2 2 L14 14',
+      warn: 'M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7',
+      octa: 'M5.2 1.8 H10.8 L14.2 5.2 V10.8 L10.8 14.2 H5.2 L1.8 10.8 V5.2 Z M5.5 8 H10.5',
+      unknown: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M6.4 6.3 A1.7 1.7 0 1 1 8.6 7.9 C8.2 8.1 8 8.4 8 8.9 M8 10.8 V10.9'
+    };
+    const I = (use, sf, p, fg, dash, out) => ({ use, sf, p, fg: fg || c.text, dash: dash || '', where: out ? 'アプリ外だけ' : 'アプリ内', whereFg: out ? c.text : c.text3 });
+    const icons = [
+      I('起動中', 'circle.dashed', P.start, c.neuFg, '1.4 2.2', true), I('実行中', 'progress（円弧）', P.run, c.neuFg, '', true), I('待機', 'pause.circle', P.idle, c.neuFg, '', true),
+      I('承認待ち', 'exclamationmark.shield', P.appr, c.apprFg, '', true), I('質問あり', 'questionmark.bubble', P.q, c.qFg, '', true), I('完了', 'checkmark.circle', P.done, c.okFg, '', true),
+      I('エラー', 'exclamationmark.triangle', P.err, c.errFg, '', true), I('無応答', 'hourglass', P.stall, c.stallFg, '', true), I('終了', 'stop.circle', P.end, c.neuFg, '', true),
+      I('状態不明', 'questionmark.circle', P.unknown, c.neuFg, '', true),
+      I('サブエージェント', 'person.2', P.sub), I('セッション（タブ）', 'bubble.left.and.bubble.right', P.list), I('思考の強さ（入力欄）', 'gauge.with.needle', P.gauge), I('設定（タブ）', 'gearshape', P.gear),
+      I('送信', 'arrow.up', P.up, c.accent), I('停止', 'stop.fill', P.stopP, c.stop), I('添付', 'plus', P.plus),
+      I('モデル', 'cpu', P.cpu), I('名前変更', 'pencil', P.pen), I('削除', 'trash', P.trash, c.errFg),
+      I('QR', 'qrcode.viewfinder', P.qr), I('写真', 'photo', P.photo), I('通知', 'bell', P.bell),
+      I('認証', 'key', P.key), I('Face ID', 'faceid', P.face), I('メニュー', 'ellipsis', P.more), I('ホーム（セッション画面・新規チャット）', 'house', P.home), I('戻る（QR スキャンだけ）', 'chevron.backward', P.back), I('開く', 'chevron.forward', P.chev)
+    ];
+
+    const G = (group) => ({ isGroup: true, isRow: false, group, name: '', sf: '', label: '', p: '', dash: '', fg: '', bg: '', tfg: '', note: '', spin: false, still: false, out: false, inOnly: false });
+    const R = (name, sf, label, p, kind, note, o) => {
+      o = o || {};
+      const m = { appr: [c.apprFg, c.apprBg], q: [c.qFg, c.qBg], err: [c.errFg, c.errBg], ok: [c.okFg, 'transparent'], okBg: [c.okFg, c.okBg], neu: [c.neuFg, c.neuBg], dim: [c.text2, c.fill], acc: [c.accent, c.fill], caut: [c.caution, 'transparent'], stall: [c.stallFg, c.stallBg] }[kind];
+      const out = !!o.out;
+      return { isGroup: false, isRow: true, group: '', name, sf: out ? sf : (o.sfIn || '使わない'), label, p, dash: o.dash || '', fg: m[0], bg: m[1], tfg: m[0], note, spin: !!o.spin, still: !o.spin, out, inOnly: !out };
+    };
+    const states = [
+      G('15.1 セッションの状態（アプリ内: 一覧の行・詳細の小見出し・対応待ちバー／アプリ外: ウィジェットなど）'),
+      R('起動中', 'circle.dashed', '起動中', P.start, 'neu', '無彩色の文字。アプリ外では点線の丸で「まだ始まっていない」', { dash: '1.4 2.2', out: true }),
+      R('待機', 'pause.circle', '待機', P.idle, 'dim', '一覧の行では状態を出さない（名前だけ）。小見出しなどでは補助色', { out: true }),
+      R('実行中', 'progress（回る円弧）', '実行中', P.run, 'neu', '無彩色の文字。アプリ外の円弧は回す（視差効果を減らすでは止める）', { out: true }),
+      R('承認待ち', 'exclamationmark.shield', '承認待ち', P.appr, 'appr', '対応待ち。琥珀の文字。一覧の先頭・対応待ちバー', { out: true }),
+      R('質問あり', 'questionmark.bubble', '質問あり', P.q, 'q', '対応待ち。青の文字', { out: true }),
+      R('完了', 'checkmark.circle', '完了', P.done, 'ok', '緑の文字。名前は補助色', { out: true }),
+      R('エラー', 'exclamationmark.triangle', 'エラー', P.err, 'err', '赤の文字。閉じたグループでも見出しに出す', { out: true }),
+      G('15.2 接続の状態（一覧の本文カード・全タブ下端。アプリ内だけ）'),
+      R('接続中', '—', '（表示なし）', P.mac, 'dim', '問題がないときは何も出さない'),
+      R('確認中', 'clock', '接続を確かめています', P.clock, 'neu', '判定まではオフライン扱いにしない（ADR 0027）'),
+      R('圏外', 'wifi.slash', 'インターネットにつながっていません', P.net, 'neu', 'iPhone 側の理由なので無彩色'),
+      R('Mac に届かない', 'laptopcomputer.slash', 'Mac に届きません', P.host, 'err', '赤の文字＋等幅の詳細＋最終取得'),
+      G('15.4 思考中の表示（会話の末尾。光の帯が流れる言葉＋「swift build を実行中 · 38 秒」の要約。色は変えず文言で区別。2 回目 4/6）'),
+      R('考え中', '光の帯', '考え中…', P.more, 'acc', '直近が思考、または開始直後', { sfIn: '光の帯（動き。状態の記号ではない。視差効果を減らすでは止める）' }),
+      R('検索中', '光の帯', '検索中…', P.more, 'acc', '直近が読み取り系のコマンド', { sfIn: '光の帯（動き。状態の記号ではない。視差効果を減らすでは止める）' }),
+      R('実行中', '光の帯', '実行中…', P.more, 'acc', '直近がその他のコマンド', { sfIn: '光の帯（動き。状態の記号ではない。視差効果を減らすでは止める）' }),
+      R('編集中', '光の帯', '編集中…', P.more, 'acc', '直近がファイル変更', { sfIn: '光の帯（動き。状態の記号ではない。視差効果を減らすでは止める）' }),
+      R('書き込み中', '光の帯', '書き込み中…', P.more, 'acc', '直近がエージェントの発言', { sfIn: '光の帯（動き。状態の記号ではない。視差効果を減らすでは止める）' }),
+      R('待機中', '光の帯', '待機中…', P.more, 'acc', '承認・質問あり。入力欄の上にカードが出ている', { sfIn: '光の帯（動き。状態の記号ではない。視差効果を減らすでは止める）' }),
+      G('15.5 質問カード'),
+      R('未回答', 'questionmark.bubble', '質問', P.q, 'q', '入力欄の上の質問のカード「質問待ち · …」にだけ出す'),
+      R('回答済み', 'checkmark.circle', '回答済み', P.done, 'ok', '会話の中の共通のカード（緑の縁はやめた。4/6）'),
+      R('期限切れ', 'clock.badge.xmark', '期限切れ', P.expired, 'dim', '会話の中。不透明度は下げない'),
+      G('15.6 サブエージェント'),
+      R('実行中', 'progress', '実行中', P.run, 'neu', '行と詳細の小見出し'),
+      R('完了', 'checkmark.circle', '完了', P.done, 'ok', ''),
+      R('状態不明', 'questionmark.circle', '状態不明', P.unknown, 'dim', '取得できないときも空にしない（21.2-19）'),
+      G('15.7 使用量'),
+      R('（記号なし）', '使わない', '—', P.gauge, 'dim', '移動元: 一覧の下端の使用量バー → 移動先: 入力欄の下の 1 行のリング（2 回目の修正 5/6）。状態は記号でなく、リングの弧の長さと色で示す（残り 20% 未満は注意の色、取得できない・値が届かない枠は灰色の空のリング）。押すと枠／残り／リセットの吹き出し'),
+      G('15.8 そのほかの状態（記号を付けるのはロック画面・ウィジェット・Live Activity・Dynamic Island だけ）'),
+      R('無応答', 'hourglass', '無応答', P.stall, 'stall', '一覧の文字・会話の面・アプリ外とも紫（status.stalled。Mac と同じ）。「待ち」と混同しない（21.2 の Wait を解消）', { out: true }),
+      R('終了', 'stop.circle', '終了', P.end, 'dim', '完了・終了は 60 秒、ほかは 15 分で古い表示扱い（stale-date。13章）', { out: true }),
+      R('ほか 7 つ', '15.1 と同じ', '起動中・待機・実行中・承認待ち・質問あり・完了・エラー', P.run, 'neu', '15.1 の記号と文言を使う。未知の状態は questionmark.circle と「状態不明」', { out: true })
+    ];
+
+    const glass = [
+      { k: 'タブバー', a: '標準の TabView。「セッション」「設定」の 2 つのガラスの帯。スクロールで縮む', b: '標準のタブバー（端から端、素材＋上の線）' },
+      { k: '新規チャット', a: 'タブバーの右に離した丸いガラスのボタン（62pt）。どのタブでも同じ位置', b: '一覧のナビの右上に「新規チャット」のボタン（44pt）' },
+      { k: '対応待ちバー', a: 'tabViewBottomAccessory。タブバーの上に浮くガラス', b: 'タブバーの直上に素材の帯（端から端）' },
+      { k: '入力欄', a: 'ガラスの 2 段の欄（角丸 26）。下の会話が透ける。メニューは OS 標準のガラス', b: '素材の欄＋細い線' },
+      { k: '承認・質問のカード', a: 'ガラスのカード（角丸 22）。入力欄のすぐ上', b: '不透明なカード（bg.card）＋上の線' },
+      { k: 'ナビの丸ボタン', a: 'ガラスの丸（44pt）。左上はホーム（家の形）、右上は「…」', b: '印だけのボタン（ホーム・…）。丸い地は付けない' },
+      { k: '使用量の行', a: 'ガラスにしない。入力欄の下の 1 行のリング。押すと OS のポップオーバー', b: '同じ' },
+      { k: '「…」メニュー・長押し', a: 'OS 標準のガラスのメニュー', b: 'OS 標準のメニュー（素材）' },
+      { k: 'シート', a: 'OS 標準（中段はガラス、大段で不透明）', b: 'OS 標準のシート（不透明）' },
+      { k: 'ガラスにしないもの', a: '行・カード・会話・ダイアログの中身', b: '同じ' }
+    ];
+    const ghostRows = [70, 52, 84, 46, 64, 58].map(w => ({ w, bg: c.skel }));
+
+    return { c, principles, surfaces, texts, statusColors, agents, type, spaces, radii, shadows, motion, icons, states, glass, ghostRows, ICON: P, themeLabel: dark ? 'ダーク' : 'ライト' };
+  }
+}
+</script>
+</body>
+</html>

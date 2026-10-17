@@ -1,9 +1,12 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0044-remove-terminal-screen-and-unsupported-sessions.md
 last-verified: 2026-07-27
 ---
 
 # ADR 0039: モバイルの端末画面は装飾付きテキストとして描く（端末エミュレータを使わない）
+
+> **superseded**: 端末画面は機能ごと廃止すると決めた（2026-10 の再設計。コードは段階 1 で消す）。（[ADR 0044](0044-remove-terminal-screen-and-unsupported-sessions.md)）
 
 > **このファイルの役割**: 端末エミュレータ（SwiftTerm）による描画をやめ、SGR を解釈した装飾付きテキストへ替えた決定と、その理由。
 > **書かないもの**: 幅の詰め方（→ [ADR 0035](0035-mobile-terminal-fits-screen-width.md)。決定 1・2・4・5 はそのまま生きている）、Mac が色つき画面を配信する仕組み（→ [macos/docs/adr/0126](../../../macos/docs/adr/0126-output-endpoint-serves-ansi-screen.md)）、履歴（スクロールバック）を配信範囲へ含める決定（→ [macos/docs/adr/0134](../../../macos/docs/adr/0134-ansi-output-includes-scrollback.md)）。

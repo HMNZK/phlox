@@ -11,6 +11,7 @@
 #   make run           — シミュレーターでデモ起動（モックデータ・一覧画面）
 #   make run-live      — シミュレーターで本番フロー起動
 #   make run-ui-test   — XCUITest（UI E2E）をシミュレーターで実行
+#   make snapshot      — 単体テストで一覧・会話の PNG を書き出す
 #   make test          — swift test on Packages/PhloxKit
 #   make lint          — raw-value literal lint
 #   make all           — generate → build → test → lint
@@ -23,8 +24,10 @@ RUN_SCRIPT    := scripts/run-simulator.sh
 SIMULATOR_ID  := $(shell xcrun simctl list devices available | sed -nE 's/^[[:space:]]*iPhone 16 \(([A-F0-9-]+)\).*/\1/p' | head -1)
 # 注: name= 指定は OS:latest に解決され、複数ランタイム共存環境で失敗する（既知）。UDID で固定する。
 DESTINATION   := platform=iOS Simulator,id=$(SIMULATOR_ID)
+SNAPSHOT_SIMULATOR_ID ?= $(shell xcrun simctl list devices available | sed -nE 's/^[[:space:]]*iPhone[^()]*\(([A-F0-9-]+)\).*/\1/p' | head -1)
+SNAPSHOT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)/.verification/ios-redesign
 
-.PHONY: all generate build run run-live run-ui-test test lint
+.PHONY: all generate build run run-live run-ui-test snapshot test lint
 
 all: generate build test lint
 
@@ -49,6 +52,16 @@ run-ui-test: generate
 	  -scheme $(SCHEME) \
 	  -destination 'platform=iOS Simulator,id=$(SIMULATOR_ID)' \
 	  -only-testing:PhloxMobileUITests \
+	  CODE_SIGNING_ALLOWED=NO
+
+snapshot: generate
+	TEST_RUNNER_PHLOX_DESIGN_SNAPSHOTS=1 \
+	TEST_RUNNER_PHLOX_SNAPSHOT_DIR='$(SNAPSHOT_ROOT)/snapshots' \
+	xcodebuild test \
+	  -scheme PhloxMobileSnapshots \
+	  -only-testing:PhloxMobileSnapshotTests \
+	  -destination 'platform=iOS Simulator,id=$(SNAPSHOT_SIMULATOR_ID)' \
+	  -derivedDataPath '$(SNAPSHOT_ROOT)/build' \
 	  CODE_SIGNING_ALLOWED=NO
 
 test:

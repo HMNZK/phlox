@@ -5,6 +5,8 @@ last-verified: 2026-07-15
 
 # ADR 0007: 下部タブバーから「概要（overview）」タブを廃止し3タブ構成にする
 
+> **一部 superseded**: 「sessions/settings/usage の 3 タブ」は、使用量タブを廃止して「セッション」「設定」の 2 タブにした。overview の廃止は有効。（[ADR 0045](0045-usage-ring-under-the-input-replaces-usage-tab.md)）
+
 > **このファイルの役割**: wave-4 で `AppTab` から `.overview` を除去し、下部タブを sessions/settings/usage の3本にした判断を記録する。ADR-0006 の一部（4タブ構成・overview 再選択トグル）を差し替える。
 > **書かないもの**: 独自タブバー（`Button` 群）を採用した理由そのもの（→ [adr/0006](0006-appshell-custom-tab-bar.md)、そちらは有効のまま）。現行のタブ構成（→ [architecture/overview.md](../architecture/overview.md)）。
 

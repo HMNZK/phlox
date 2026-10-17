@@ -62,7 +62,8 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
                 id: approval.id.uuidString,
                 sessionID: approval.sessionID.rawValue.uuidString,
                 kind: approval.kind,
-                prompt: approval.prompt
+                prompt: approval.prompt,
+                actionKind: approval.actionKind
             )
         }
     }

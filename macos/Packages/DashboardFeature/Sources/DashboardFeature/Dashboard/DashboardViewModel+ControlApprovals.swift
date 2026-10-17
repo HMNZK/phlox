@@ -17,12 +17,14 @@ public struct ControlApproval: Sendable, Equatable {
     public let kind: String
     /// 承認要求の内容（ChatApprovalRequest.prompt）。
     public let prompt: String
+    public let actionKind: String?
 
-    public init(id: UUID, sessionID: SessionID, kind: String, prompt: String) {
+    public init(id: UUID, sessionID: SessionID, kind: String, prompt: String, actionKind: String? = nil) {
         self.id = id
         self.sessionID = sessionID
         self.kind = kind
         self.prompt = prompt
+        self.actionKind = actionKind
     }
 }
 
@@ -38,9 +40,18 @@ extension DashboardViewModel {
                     id: request.id,
                     sessionID: session.id,
                     kind: session.agentRef.id,
-                    prompt: request.prompt
+                    prompt: request.prompt,
+                    actionKind: controlApprovalActionKind(request.kind)
                 )
             }
+        }
+    }
+
+    static func controlApprovalActionKind(_ kind: ChatApprovalKind) -> String {
+        switch kind {
+        case .command: "command"
+        case .fileChange: "fileChange"
+        case .permissions: "permissions"
         }
     }
 

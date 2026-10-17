@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>レビュー 4 — 21.2 節の解消状況</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 2400px; height: 1800px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">レビュー 4 / 4 · 機能一覧 21.2 節（19 項目）</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">19 項目すべてに描き方を決めた。{{ fullCount }} 件は解消、残りは未確認のため分岐か、一部を候補にした</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px">
+<sc-for list="{{ legend }}" as="l" hint-placeholder-count="3"><span style="display: inline-flex; align-items: center; gap: 6px"><b style="padding: 2px 8px; border-radius: 999px; background: {{l.bg}}; color: {{l.fg}}">{{ l.t }}</b><span style="color: #45454F">{{ l.d }}</span></span></sc-for>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 56px 460px 170px minmax(0, 1fr) 420px; background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">#</div><div style="padding: 10px 14px">気になる点（21.2 節）</div><div style="padding: 10px 14px">解消したか</div><div style="padding: 10px 14px">どう解消したか</div><div style="padding: 10px 14px">盤面</div>
+</div>
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="19">
+<div style="display: grid; grid-template-columns: 56px 460px 170px minmax(0, 1fr) 420px; border-top: 1px solid #E6E6EC">
+<div style="padding: 9px 14px; font-weight: 700">{{ r.i }}</div>
+<div style="padding: 9px 14px">{{ r.p }}</div>
+<div style="padding: 9px 14px"><b style="padding: 1px 8px; border-radius: 999px; background: {{r.bg}}; color: {{r.fg}}; font-size: 12px">{{ r.t }}</b></div>
+<div style="padding: 9px 14px">{{ r.h }}</div>
+<div style="padding: 9px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ r.b }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">決めてほしいこと（21.2 節に関わる候補・分岐）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>5: Mac が「状態の変わった時刻」を返すか。返すなら一覧に相対時刻を出し、返さないなら出さない</li>
+<li>6: 子孫の件数を Mac から取れるか。取れれば実数、取れなければ数を出さずに「子孫も含めて削除されます」</li>
+<li>12: 使用量の上限の表示 → 使用量の回で「残り 20% 未満を注意の色」に決定（済み）</li>
+<li>14: 通知の許可を、起動直後ではなく初回の接続に成功した直後に出すか</li>
+<li>16: ウィジェット・Live Activity のタップで、該当セッションの詳細を開くか（現行は起動だけ）</li>
+</ul>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":1800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = {
+      fix: ['解消', '#1F6B3A', '#E3F4E8', '正しい振る舞いで描いた'],
+      br: ['分岐で解消', '#45454F', '#EEEEF2', 'データの有無が未確認。両方の描き方を用意'],
+      part: ['解消＋候補', '#8A4200', '#FFF0DC', '不具合は解消し、足りない機能の部分は候補にした']
+    };
+    const legend = Object.keys(T).map(k => ({ t: T[k][0], fg: T[k][1], bg: T[k][2], d: T[k][3] }));
+    const X = (i, p, t, h, b) => ({ i: String(i), p, h, b, t: T[t][0], fg: T[t][1], bg: T[t][2] });
+    const rows = [
+      X(1, '承認バーは詳細を開いたときの 1 回しか取得しない', 'fix', '詳細の更新ごとに承認を取り直し、入力欄の上の承認のカードを出し入れする。開いたまま承認待ちになっても入力欄の上に出る', 'Reply / FlowApprove / ReplySpec'),
+      X(2, '質問カードの送信失敗が何も表示されない', 'fix', 'カード内に赤い帯＋「もう一度送信」。選んだ内容は残し、未回答のまま', 'ReplyQuestionFail'),
+      X(3, '承認の結果に英語の識別子（accept）', 'fix', '「『許可』を送信しました」。4 つのボタンも日本語の語で返す', 'FlowNext / ReplyCodex'),
+      X(4, '質問あり・承認待ちの判定が補助文の文字列一致', 'fix', '状態の値（承認待ち・質問あり）で判定。回答画面への分岐を除き、どちらも詳細へ', 'List / ListMulti / ListSpec'),
+      X(5, '一覧の相対時刻が実質「今」に固定', 'br', 'Mac が状態の変わった時刻を返すなら行の右上に出す。返さないなら時刻を出さない（「今」に固定された値は出さない）', 'List / ListSpec'),
+      X(6, '削除の子孫件数が常に 0。作成前の削除・名前変更が効かない', 'br', '件数は実数か、数を出さない文のどちらか。作成前の「…」は「モデル変更」だけ', 'Dialogs D2・D3・N2 / ChatDelete'),
+      X(7, '「パスコードを使用」が認証の再実行でしかない', 'fix', '押すとパスコード入力を出す。ロック中にも失敗時にも置く', 'PairGate / PairGateFail / PairSpec'),
+      X(8, '一覧の「引っ張って更新」が即時反映しない', 'fix', '取得した結果をその場で反映する', 'ListPull'),
+      X(9, '空状態の案内が存在しない「+」を指す', 'fix', '「新規チャット」ボタンを指す文にし、ボタンと同じ語を使う', 'ListEmpty / ListEmptyDark'),
+      X(10, '詳細の本文が空のとき、空白で案内が無い', 'fix', '中央に「まだ会話はありません」＋説明', 'ChatEmpty'),
+      X(11, '実行中でないセッションで送信中に入力バーごと消える', 'fix', '入力欄を残し、送信ボタンだけスピナー。送った本文は会話に「送信中…」で仮表示', 'ReplySending'),
+      X(12, 'Usage が更新ごとにスピナーへ置き換わる／作りが違う／使用率で色が変わらない', 'part', '更新中も値を残す（入力欄の下の行で「更新中…」）。タブを廃止し、残り 20% 未満のリングを注意の色・読み上げ「残りわずか」で示す（5/6）', 'UsageRefresh / UsageStale / UsageLow / SetUseSpec'),
+      X(13, 'モデル一覧が無いと空のシートが開く。失敗が無表示', 'fix', '一覧が無いとき「モデル変更」を淡色で押せなくし理由を添え、チップを出さない。選択の失敗はシート内の赤い帯', 'Dialogs N3・M3 / ReplySpec'),
+      X(14, '通知の許可が起動直後に突然出る。トグルをオフにしても止まらない', 'part', 'トグルはオフにするとすぐ止まる（注記つき）。許可を初回の接続成功後に出すのは候補', 'SetUse / GlanceSpec'),
+      X(15, 'ウィジェットの「Waiting」が 3 状態を兼ねる。全削除後も古い表示。英語固定', 'fix', '日本語の 8 状態に分ける。0 件と確かめたら空表示（起動直後の空では上書きしない）', 'GlanceCatalog / GlanceHomeEmpty / GlanceSpec'),
+      X(16, 'Live Activity の「Wait」が 3 状態を兼ねる。タップで詳細へ行けない', 'part', '7 つの記号と語に分け、compact も語を分ける。タップで詳細を開くのは候補（未実装の遷移）', 'GlanceIsland / GlanceCatalog / GlanceSpec'),
+      X(17, '会話の「/approvals」だけを固定で強調', 'fix', '固定の強調をやめる。インラインコードは Markdown どおり', 'ChatSpec / ChatIdle'),
+      X(18, '通知タップで同じ詳細を重ねて push する', 'fix', 'スタックを「一覧 → 該当の詳細」に置き換え、同じ詳細を開いていれば重ねない。ロック中は解除後', 'GlanceSpec / Launch / Mapping'),
+      X(19, 'サブエージェントの状態が UI に出ない', 'fix', '行と詳細の小見出しに状態の文言（実行中・完了・状態不明。2 回目の修正で記号は外した）', 'Chat / ChatSub / DS')
+    ];
+    const fullCount = String(rows.filter(r => r.t === '解消').length);
+    return { legend, rows, fullCount };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>設定と使用量 — 論点・機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1600px; height: 3800px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">設定と使用量 · 11 章／12 章／15.7 節／16.4 節（12 章の「使用率 %・独立タブ」は使わない）· 2 回目の修正 5/6</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">使用量は入力欄の下の 1 行。枠ごとの「残り」をリングで示し、押すと吹き出しで詳細</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動・文言を変える</span>
+<span><b style="color: #8A4200">候補</b> 提案。採否を決めてほしい</span>
+<span><b style="color: #45454F">守る</b> 現行どおり</span>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 2px solid #1D1D1F; border-radius: 14px; padding: 18px 22px; font-size: 14px; line-height: 1.7; color: #2A2A31"><b style="color: #0B5E78">移動</b> <b>2 回目の修正 5/6 で改めた:</b> 移動元: セッション一覧の下端の使用量バー（前回の採用。2/6 で外した）→ 移動先: 新規チャットとセッション画面の、入力欄のさらに下の 1 行（枠ごとのリング）。行を押すと小さな吹き出しで、枠の名前・残り %・リセットを出す。「使用量」タブ・使用量だけの画面・設定の区画は作らない。前回のバーの盤面（Use* 24 枚と部品 UsageBar）は 2/6 で消してあり、今回この行の状態の盤面（Usage*）に作り直した。設定の盤面（SetUse・Set*）は設定タブの画面なので残し、使われていなかった「残りの表し方（棒／数値）」の値も部品から外した。</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px">
+<div style="font-size: 18px; font-weight: 700">論点 A: 使用量をどこに置くか（前回の採用を改める）</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px">
+<sc-for list="{{ opts }}" as="o" hint-placeholder-count="3">
+<div style="border-radius: 14px; border: {{o.border}}; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: {{o.bg}}">
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><span style="font-size: 17px; font-weight: 700">{{ o.name }}</span><span style="padding: 2px 8px; border-radius: 999px; background: {{o.badgeBg}}; color: {{o.badgeFg}}; border: {{o.badgeBorder}}; font-size: 12px; font-weight: 700">{{ o.badge }}</span></div>
+<div aria-hidden="true" style="align-self: center; width: 170px; height: 300px; border-radius: 26px; border: 2px solid #C9C9D2; background: #F2F2F7; position: relative; overflow: hidden">
+<sc-for list="{{ o.blocks }}" as="bk" hint-placeholder-count="4"><div style="position: absolute; left: {{bk.x}}px; top: {{bk.y}}px; width: {{bk.w}}px; height: {{bk.h}}px; border-radius: 8px; background: {{bk.bg}}; color: {{bk.fg}}; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2">{{ bk.t }}</div></sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: #2A2A31"><b>よい点</b> {{ o.pro }}</div>
+<div style="font-size: 13px; line-height: 1.6; color: #2A2A31"><b>気になる点</b> {{ o.con }}</div>
+</div>
+</sc-for>
+</div>
+<div style="font-size: 14px; line-height: 1.7; color: #2A2A31; padding-top: 10px; border-top: 1px solid #E6E6EC; display: flex; flex-direction: column; gap: 8px">
+<div><b>C を採用する。前回は B（一覧の下端のバー）を採用していたが、次の理由で改める。</b></div>
+<div>① <b>残りを見たいのは、指示を書いて送る瞬間。</b>エージェントやモデルを選び、どれだけ頼むかを決めるのは入力欄の前にいるとき。B では一覧に戻らないと見えず、詳細画面（いちばん長くいる画面）では見えなかった。入力欄の真下なら、送る前に必ず目に入る</div>
+<div>② <b>リングは「残り」を幅に頼らずに示せる。</b>横棒は長さを比べるのに横幅が要り、iPhone の幅ではリセットや枠の名前を省くしかなかった。リングは 18pt の正方形で、3 エージェント × 2 枠が 1 行に収まる（SE でも 1 行。Dynamic Type 最大は 2 行）。省いた情報は、押して出す吹き出しにまとめた</div>
+<div>③ <b>入力欄の主役を奪わない。</b>リングは副文字色で、文字は Claude Code の「5h」「7d」だけ。色が付くのは残り 20% 未満の枠（注意の色）だけで、記号は付けない。入力欄・承認のカードより常に一段弱い</div>
+<div>④ <b>ADR 0007「面にいつでも行ける」は形を変えて守る。</b>使用量は入力欄のある画面に常にあるので、行く操作そのものが要らない。タブは「セッション／設定」の 2 つのまま</div>
+<div><b>代わりに受け入れること</b>: 入力欄の下に 44pt の行が増え、会話の見える範囲がその分だけ減る（キーボード表示中も出すので、SE では会話がさらに狭くなる）。一覧の画面には使用量が出ない（引っ張って更新で取り直しはする）。リセットは吹き出しを開かないと見えない（VoiceOver も同じで、行をダブルタップして吹き出しで読む）。</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">設定の並べ方（探しやすくする）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>上から「困ったときに開く順」: 接続 → 通知 → セキュリティ → 外観 → このアプリについて（使用量の区画は 2/6 で外した）。接続が切れたときに設定を開く人が最初に見る場所に、接続の状態を置く</li>
+<li>接続は「状態の行」を先頭に: 「Mac と接続中」（緑の文字）／「Mac に届きません」（赤い文字）。記号は付けない（アプリ内は文字だけ。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ）＋接続先（等幅）＋最終取得。その下に「QR で再接続」「疎通テスト」</li>
+<li>設定に使用量の区画は置かない（2/6 で「残りの表し方」を外し、5/6 でリングだけの表し方にしたので、選ぶものが無い）</li>
+<li>行の頭に同じ形のアイコンをそろえ、見出しを読まなくても目で探せるようにする。色は中立の淡い灰色 1 色（状態の色とぶつけない）</li>
+<li>ロックの文言は端末に合わせて「Face ID でロック」または「Touch ID でロック」の片方だけを出す（現行は両方を併記）</li>
+<li>外観は 3 つの見本つきの選択。押した瞬間に画面全体が切り替わる（ADR 0004）</li>
+<li>About は「このアプリについて」に。バージョンは等幅（技術的な値）</li>
+<li>タブバーは Liquid Glass の浮いたカプセル（左右 20pt）、対応待ちバーはその上のガラスのカプセル（左右 16pt）。対応待ちバーの状態も文字だけ（「承認待ち」を琥珀の文字に）。タブは「セッション」「設定」の 2 つ。設定を開いていても、対応待ちバーは下端に出る（使用量は入力欄のある画面だけ）</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">使用量の行の決まり（盤面「使用量 · …」の 22 枚）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>置き場所: 新規チャットとセッション画面の、入力欄の下（画面の最下端の手前）に 1 行。キーボード表示中も、入力欄とキーボードの間に出す。一覧・設定・サブエージェント詳細（入力欄が無い画面）には出さない</li>
+<li>並び: Claude Code → Codex → Cursor。どの画面でも全エージェントを出す（そのセッションのエージェントだけに絞らない）</li>
+<li>Claude Code: ロゴ・「5h」のリング・「7d」のリング（5 時間枠と週次の枠）。リングの右に「5h」「7d」の文字（11pt・副文字色）</li>
+<li>Codex: ロゴとリング 2 つ（5 時間・週次）。Cursor: ロゴとリング 2 つ（Auto・API）。どちらも文字は出さない</li>
+<li>リング: 18pt（Dynamic Type 最大は 30pt）、線 2.6pt。弧の長さ＝<b>残り</b>（12 時の位置から時計回り）。弧は副文字色 #56565E（ダーク #C7C7CE）、下地は灰色</li>
+<li>残り 20% 未満: 弧を注意の色（#8A5300／ダーク #F4BD68）にし、下地も注意の色の淡い色にする（残り 0% でも灰色の空のリングと見分けられる）。「5h」「7d」の文字も注意の色。記号は付けない</li>
+<li>取得できないエージェント: ロゴはそのまま、リングは灰色の空のリング。期限が切れた枠は Mac から届かないので、その枠だけ灰色の空のリング（0% と描かない）</li>
+<li>古い値（取り直しに失敗）: 前の値のまま、行の右端に「16:12 時点」（副文字色）。取り直しの間は右端に「更新中…」。どちらも表示は消さない</li>
+<li>押すと: 行の上に小さな吹き出し（OS 標準のポップオーバー、矢印は Claude のロゴを指す）。見出し「枠／残り／リセット」、エージェントごとに枠の名前・「残り 72%」・リセット。5 時間枠は残り時間「03:12」、週次は日時「10/20 14:00」。Cursor はリセットを出さない。値が届いていない枠は「値なし」、取得できないエージェントは「取得できません」。古い値のときは先頭に「16:12 時点の値です。更新できませんでした。一覧を引っ張ると取り直します」。吹き出しの外を押すと閉じる</li>
+<li>行の押せる範囲: 高さ 44pt・入力欄と同じ幅（Dynamic Type 最大で 2 行になったら 88pt）</li>
+<li>取り直し: 一覧の「引っ張って更新」で使用量も取り直す。取り直しの間も表示を消さない。<b style="color: #8A4200">候補</b> 一覧を取得するとき（起動・復帰）にも一緒に取る</li>
+<li>VoiceOver: 行全体を 1 つのボタンとして読む。「使用量。Claude 5時間 残り 72%、週次 残り 40%。Codex 5時間 残り 99%、週次 残り 85%。Cursor Auto 残り 80%、API 残り 95%。」残り 20% 未満は「残り 12%、残りわずか」、届かない枠は「週次 値なし」、取得できないエージェントは「Cursor 取得できません」、古い値は先頭に「16時12分時点の値。更新できませんでした。」。ダブルタップで吹き出しを開く</li>
+</ul>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 240px 520px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+<sc-for list="{{ map }}" as="m" hint-placeholder-count="18">
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.f }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">{{ m.p }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><sc-if value="{{ m.hasTag }}" hint-placeholder-val="{{ true }}"><b style="color: {{m.tagFg}}; margin-right: 6px">{{ m.tag }}</b></sc-if>{{ m.r }}</div>
+</sc-for>
+</div>
+
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">移した機能: 使用量の表示（「使用量」タブ → 一覧の下端のバー（前回）→ 入力欄の下の 1 行のリング（今回））。リセットの表示（バーの中 → 押して出す吹き出し）。未配置の機能: なし。外した機能: 設定「使用量 › 残りの表し方」（2/6・5/6 の指示による。12 章の現行には無い、前回足した設定）。候補: 一覧を取得するときに使用量も一緒に取る／初回の取得前と、前の値が無いまま失敗したときは全部を灰色の空のリングにする／0 件のときも 3 エージェントを灰色で出す</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":3800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const K = (x, y, w, h, t, kind) => {
+      const s = { list: ['#FFFFFF', '#18181B'], use: ['#EDEDF0', '#1D1D1F'], attn: ['#FFEBD6', '#8A4200'], tab: ['#DCDCE3', '#18181B'], set: ['#FFFFFF', '#56565E'] }[kind];
+      return { x, y, w, h, t, bg: s[0], fg: s[1] };
+    };
+    const NO = { badge: '不採用', badgeBg: '#FFFFFF', badgeFg: '#45454F', badgeBorder: '1px solid #C9C9D2', border: '1px solid #DCDCE3', bg: '#FFFFFF' };
+    const opts = [
+      Object.assign({}, NO, { name: 'A. 独立したタブ（初めの推奨）', badge: '不採用',
+        blocks: [K(12, 20, 146, 18, '使用量', 'set'), K(12, 46, 146, 64, 'Claude Code', 'use'), K(12, 116, 146, 52, 'Codex', 'use'), K(12, 174, 146, 40, 'Cursor', 'use'), K(10, 262, 150, 28, 'セッション · 使用量 · 設定', 'tab')],
+        pro: 'カードを大きく取れる。リセットまで一度に読める',
+        con: 'タブを開かないと残りが見えない。いちばん要る、指示を書く瞬間に見えない' }),
+      Object.assign({}, NO, { name: 'B. 一覧の下端のバー（前回の採用）', badge: '前回の採用 → 不採用',
+        blocks: [K(12, 20, 146, 18, 'セッション', 'set'), K(12, 44, 146, 120, 'プロジェクト別の一覧', 'list'), K(10, 172, 150, 22, 'あなたの番', 'attn'), K(10, 200, 150, 30, '使用量バー（残り）', 'use'), K(10, 262, 150, 28, 'セッション · 設定', 'tab')],
+        pro: '一覧を見ている間は、いつでも残りが見える',
+        con: '詳細画面・新規チャットでは見えない。横棒は幅を取り、iPhone ではリセットや枠の名前を省くしかなかった' }),
+      { name: 'C. 入力欄の下のリング＋押して詳細', badge: '採用（5/6）', badgeBg: '#1D1D1F', badgeFg: '#FFFFFF', badgeBorder: '1px solid #1D1D1F', border: '2px solid #1D1D1F', bg: '#FAFAFB',
+        blocks: [K(12, 20, 146, 18, 'セッション名', 'set'), K(12, 44, 146, 132, '会話', 'list'), K(10, 184, 150, 56, '入力欄（2 段）', 'set'), K(10, 244, 150, 18, '◯◯ ◯◯ ◯◯（残り）', 'use'), K(16, 150, 120, 30, '押すと吹き出し', 'attn')],
+        pro: '指示を書く瞬間に必ず目に入る。新規チャットでも詳細でも同じ場所。リングは 1 行に収まり、リセットは吹き出しで省かずに読める',
+        con: '入力欄の下に 44pt の行が増える。一覧の画面には出ない。リセットは押さないと見えない' }
+    ];
+    const T = { chg: ['変更', '#1D1D1F'], cand: ['候補', '#8A4200'], keep: ['守る', '#45454F'] };
+    const M = (f, p, tag, r) => ({ f, p, r, hasTag: !!tag, tag: tag ? T[tag][0] : '', tagFg: tag ? T[tag][1] : '#45454F' });
+    const map = [
+      M('接続（11）', '設定の先頭。状態の行（色の付いた文言＋接続先＋最終取得）／QR で再接続／疎通テスト', 'chg', '状態を先頭に出し、未接続のときは理由と自動で戻ることを下に書く。状態の記号は外し、文字だけにした（Mac と同じ）'),
+      M('未接続の設定（11・15.2）', 'SetDisc。状態の行が赤い文字の「Mac に届きません」、下端の対応待ちバー（ガラスのカプセル）の位置に「再接続を試す」', 'keep', '下端の接続状態は骨格どおり全タブ共通'),
+      M('Face ID / Touch ID でロック（11）', '「セキュリティ」。端末に合わせてどちらか一方の名前とアイコン（SE は Touch ID）', 'chg', '併記をやめ、自分の端末の方式だけを読む'),
+      M('プッシュ通知（11）', '「通知」。「プッシュ通知を受け取る」＋補助「セッションの更新を通知します」のスイッチ 1 つ', 'chg', '並びを接続の次へ。オフですぐ止まる説明は 21.2-14 の正しい振る舞い'),
+      M('外観（11・ADR 0004）', '「外観」。システム／ライト／ダークの見本つき 3 択。押すとすぐ切り替わる', 'keep', '即時反映を守る'),
+      M('About（11）', '「このアプリについて」。アプリ「Phlox」／バージョン「0.1.0 (1)」（等幅）', 'keep', '項目は現行どおり 2 つ'),
+      M('タブ（2.2・ADR 0007）', '「セッション」「設定」の 2 つ', 'chg', '「使用量」タブを廃止。使用量は入力欄のある画面に常にあるので行く操作が要らない'),
+      M('使用量の面（12）', '移動元: 一覧の下端のバー（前回）→ 移動先: 新規チャットとセッション画面の、入力欄の下の 1 行（キーボード表示中も出す）', 'chg', '指示を書く瞬間に見えるように（5/6 の指示）'),
+      M('エージェントごとの使用量（12）', 'Claude Code → Codex → Cursor の順に、ロゴ＋枠ごとのリング。Claude Code だけリングの横に「5h」「7d」', 'chg', 'カードをやめ 1 行に。VoiceOver はエージェント名を読む'),
+      M('バケット名（12）', '吹き出しに届いた文字列のまま（例「5時間」「週次」「Auto」「API」）。行では Claude Code の「5h」「7d」だけ', 'keep', 'サーバ次第の値なので訳さない'),
+      M('%（12・16.4）', '使用率ではなく残り。行はリングの弧の長さ、吹き出しは「残り 72%」', 'chg', '「あとどれだけ使えるか」を直接示す。使用率 % の表示は使わない'),
+      M('リセット表記（12）', '吹き出しの「リセット」の列: 5 時間枠は残り時間「03:12」、週次は日時「10/20 14:00」。Cursor は出さない', 'chg', '移動元: バーの中（幅が足りないと省いていた）→ 移動先: 押して出す吹き出し（省かない）。前の 3 形式（リセット済み／あと1時間／リセット 10/9 09:00）はやめる'),
+      M('残りわずか（15.7）', '残り 20% 未満の枠のリングを注意の色（弧と淡い下地）。記号なし。吹き出しの % も注意の色。読み上げ「残りわずか」', 'chg', '「上限間近」「上限に達しました」の表示を置き換える'),
+      M('利用不可（12・15.7）', 'そのエージェントのリングを灰色の空のリングに。吹き出しは「取得できません」', 'chg', '文字「取得できません」を行から外し、形で示す（5/6 の指示）。ほかのエージェントの表示に影響させない'),
+      M('期限切れの枠', 'その枠だけ灰色の空のリング。吹き出しは「値なし」。0% と描かない', 'chg', 'Mac から届かない枠を 0% と誤読させない。残り 0% は注意の色の下地で見分ける'),
+      M('読み込み中（12）', '初回の取得前は灰色の空のリング。読み上げ「使用量を読み込んでいます」', 'cand', '高さを変えず、入力欄が跳ねないように。スケルトンの棒はやめる'),
+      M('引っ張って更新（12）', '一覧の引っ張って更新で使用量も取り直す。行は消さず右端に「更新中…」', 'chg', '使用量だけの更新操作は持たない。行を押すと開くのは吹き出し'),
+      M('取得失敗（12・16.5）', '前の値を残し、右端に「16:12 時点」。吹き出しの先頭に理由。読み上げ「更新できませんでした」', 'chg', '赤い帯・エラーのカードはやめ、文字で古いことを示す'),
+      M('初回から取得失敗・空（0 件）（12）', '前の値が無い失敗・0 件は、3 エージェントとも灰色の空のリング', 'cand', '前の値が無いときの描き方は指示に無いので候補として示す'),
+      M('残りの表し方（設定）', '外した（前回足した「棒／数値」の設定）', 'chg', 'リングだけにしたので選ぶものが無い。12 章の現行には無い設定なので、外しても機能は減らない')
+    ];
+    return { opts, map };
+  }
+}
+</script>
+</body>
+</html>

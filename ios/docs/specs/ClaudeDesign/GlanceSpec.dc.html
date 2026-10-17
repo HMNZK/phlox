@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>アプリ外の表示 — 通知・遷移・配色・機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1700px; height: 3500px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">アプリ外の表示 · 13 章／15.8 節／21.2 節</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">どこから入っても行き先は「そのセッション画面」。応答が要るなら入力欄の上に承認・質問のカードが出た状態で開く</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動・文言を変える</span>
+<span><b style="color: #8A4200">候補</b> 提案。採否を決めてほしい</span>
+<span><b style="color: #1F6B3A">解消</b> 21.2 節の不具合を正しい振る舞いで描いた</span>
+<span><b style="color: #45454F">要照合</b> 機能一覧の原文で確かめたい</span>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 18px; font-weight: 700">プッシュ通知 — 種類ごとの文言とタップ後の行き先</div>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">通知は Mac が APNs で送り、タイトル＝セッション名、本文＝Mac の表示言語の定型文（Live Activity の summary と同じ）。iOS 側に固定の文言は無い。ここでの提案は <b>Mac 側の本文</b>: 先頭に状態の語、続けて中身の 1 行（承認なら対象、質問なら質問文）。同じセッション・同じ種別は上書きされる（現行どおり）。前面でもバナーと音を出す（現行どおり）。通知のボタン（承認・却下）は足さない</div>
+<div style="display: grid; grid-template-columns: 120px 330px 160px 1fr 330px; border: 1px solid #E6E6EC; border-radius: 12px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">種類</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">タイトル／サブタイトル</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">本文の型</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">本文の例</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">タップ後</div>
+<sc-for list="{{ notifs }}" as="n" hint-placeholder-count="6">
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC; font-weight: 700; color: {{n.fg}}">{{ n.kind }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ n.title }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ n.rule }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ n.ex }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ n.dest }}</div>
+</sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">共通: 通知の種別にかかわらず sessionId の詳細へ（現行どおり）。ロック中にタップしたら、起動ゲートを通ってから開く（2.5 の推測された不具合を解消）。同じ詳細を開いていれば重ねない（21.2-18 を解消）。セッションが消えていれば一覧へ戻し、「このセッションは見つかりません」（エラー文言 F8）。未知の種別も受け取り、本文をそのまま出す（前方互換）</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">ウィジェット・Live Activity をタップしたとき（提案。現行は未実装）</div>
+<div style="display: grid; grid-template-columns: 200px 1fr; gap: 8px 14px; font-size: 13px; line-height: 1.55">
+<sc-for list="{{ taps }}" as="t" hint-placeholder-count="6"><div style="font-weight: 700">{{ t.k }}</div><div>{{ t.v }}</div></sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F; padding-top: 8px; border-top: 1px solid #E6E6EC">規則は通知と同じにそろえ、入口ごとに覚えることを増やさない。行き先は phlox://session/&lt;id&gt; のような URL で渡し、既存の URL の受け口（2.5 節）に載せる。<b style="color: #8A4200">候補</b> URL の形</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">アプリ本体の配色・外観設定との関係</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li><b>現行</b>: 固定の濃紺で、端末の外観にもアプリの外観設定にも追従しない</li>
+<li><b>提案</b>: ウィジェットと Live Activity は<b>端末の外観（ライト／ダーク）</b>に従う。ホーム画面とロック画面は OS が全体の明暗をそろえる場所なので、Phlox だけ別の明暗にすると浮く</li>
+<li>アプリ内の外観設定（システム／ライト／ダーク）は、アプリの中だけに効く。「ダーク」に固定している人でも、ライトのホーム画面ではライトのウィジェットになる（設定の注記に 1 行で書く。<b style="color: #8A4200">候補</b>）</li>
+<li>色の値はアプリと同じトークン: アクセント #1D1D1F／#F2F2F4、状態の色（琥珀・青・緑・赤・無彩色）。濃紺の地はやめる</li>
+<li>ロック画面のウィジェット、色付き・クリアのホーム画面（iOS 18／26）では OS が単色にする。状態は記号の形と文言だけで読めるようにしてあるので、色が消えても区別できる</li>
+<li>Dynamic Island の地は常に黒。状態の色はダーク用の値を使う</li>
+</ul>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">Live Activity の状態 — 「Wait」をやめて 7 つに分ける（21.2 節）</div>
+<div style="display: grid; grid-template-columns: 110px 130px 170px 1fr 1fr; border: 1px solid #E6E6EC; border-radius: 12px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">状態</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">記号</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">色・目立たせ方</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">2 行目（詳しく）</div>
+<div style="padding: 9px 12px; background: #EEEEF2; font-weight: 700">compact の右側</div>
+<sc-for list="{{ states }}" as="s" hint-placeholder-count="7">
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC; font-weight: 700; color: {{s.fg}}">{{ s.k }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ s.icon }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ s.color }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ s.detail }}</div>
+<div style="padding: 9px 12px; border-top: 1px solid #E6E6EC">{{ s.compact }}</div>
+</sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">現行の compact「Wait」は承認待ち・質問あり・無応答をまとめて表していた（21.2-16）。応答が要るもの（承認・質問）と、Mac 側を見に行くべきもの（無応答）は、することが違うので分ける。Live Activity はアプリが始めない（Mac の push で開始・更新・終了。1 セッションに 1 つ。ADR 0011）。期限は承認・質問・エラー・無応答が 15 分、完了・終了が 60 秒（Mac の stale-date）。期限切れの見た目は足さない。Live Activity のデータにエージェント種別は無いので、種別の印は出さない</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 240px 560px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+<sc-for list="{{ map }}" as="m" hint-placeholder-count="14">
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.f }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">{{ m.p }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><sc-if value="{{ m.hasTag }}" hint-placeholder-val="{{ true }}"><b style="color: {{m.tagFg}}; margin-right: 6px">{{ m.tag }}</b></sc-if>{{ m.r }}</div>
+</sc-for>
+</div>
+
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">未配置の機能: なし。追加した機能: なし（タップ後の行き先は、既存の通知と URL の規則をウィジェット・Live Activity にも当てる提案。Live Activity にボタンは足していない）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1700,"height":3500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const notifs = [
+      { kind: '承認待ち', fg: '#A8430A', title: 'refactor: ControlServer proxy', rule: '状態の語 — 何を許可するか', ex: '承認待ち — ControlServer.swift を削除して続行しますか？（現行: 承認待ち）', dest: '詳細。入力欄の上に承認のカードが出た状態（あと 1 タップで応答）' },
+      { kind: '質問あり', fg: '#1555C0', title: 'add /approvals endpoint', rule: '状態の語 — 質問の 1 文目', ex: '質問があります — 失敗している 3 件のテストはどう扱いますか？（現行: 質問があります）', dest: '詳細。入力欄の上に質問のカード' },
+      { kind: 'エラー', fg: '#B8241C', title: 'Tulip', rule: '状態の語 — 何で止まったか', ex: 'エラーで止まりました — swift build が終了コード 1（現行: エラーで止まりました）', dest: '詳細の末尾（エラーの行が見える位置）。入力欄はそのまま使える' },
+      { kind: '完了', fg: '#1F7A3A', title: 'Rose', rule: '状態の語だけ', ex: '作業が完了しました（現行どおり）', dest: '詳細の末尾（最後の返答とターンの終わりの使用量の 1 行）' },
+      { kind: '無応答', fg: '#5B3FA8', title: 'write unit tests', rule: '状態の語 — どのくらい止まっているか', ex: '応答がありません — 3 分間 Mac から更新がありません（現行: 応答がありません）', dest: '詳細（接続状態が分かる位置）' },
+      { kind: '終了', fg: '#56565E', title: 'Mint', rule: '状態の語 · 終了コード', ex: 'セッションが終了しました · exit 0（現行どおり）', dest: '詳細（読むだけ。入力欄は残る）' }
+    ];
+    const taps = [
+      { k: 'ホーム small', v: '表示中のセッションの詳細。承認待ち・質問ありなら入力欄の上に承認・質問のカードが出た状態' },
+      { k: 'ロック rectangular', v: '同じ。ロックを外して起動ゲートを通った後に開く' },
+      { k: 'セッションが無いとき', v: 'セッション一覧（空状態の「新規チャット」がある画面）' },
+      { k: 'Live Activity（ロック画面）', v: 'そのセッションの詳細（データの sessionId を使う）。応答が要る状態なら承認・質問のカードつき' },
+      { k: 'Dynamic Island compact／minimal', v: 'タップ: 詳細へ。長押し: expanded（OS の操作）' },
+      { k: 'Dynamic Island expanded', v: 'タップ: 詳細へ' },
+      { k: '終了した Live Activity', v: '詳細（読むだけ。入力欄は残る）。消えていれば一覧' }
+    ];
+    const states = [
+      { k: '完了', fg: '#1F7A3A', icon: '丸に ✓（session_completed）', color: '緑の文字。地は付けない', detail: '作業が完了しました', compact: '「完了」（現行 Done）' },
+      { k: '承認待ち', fg: '#A8430A', icon: '盾に！（approval_pending）', color: '琥珀の地。対応待ち', detail: '承認待ち', compact: '「承認待ち」（現行 Wait）' },
+      { k: '質問あり', fg: '#1555C0', icon: '吹き出しに？（question_pending）', color: '青の地。対応待ち', detail: '質問があります', compact: '「質問あり」（現行 Wait）' },
+      { k: 'エラー', fg: '#B8241C', icon: '三角に！（session_error）', color: '赤の地。対応待ち', detail: 'エラーで止まりました', compact: '「エラー」（現行 Error）' },
+      { k: '無応答', fg: '#5B3FA8', icon: '砂時計（session_stalled）', color: '紫（status.stalled。Mac と同じ）。記号で「待ち」と分ける', detail: '応答がありません', compact: '「無応答」（現行 Wait）' },
+      { k: '終了', fg: '#56565E', icon: '丸に ■（session_exited）', color: '無彩色・補助色の文字', detail: 'セッションが終了しました · exit N', compact: '「終了」（現行 End）' },
+      { k: '未知', fg: '#56565E', icon: '丸に？（それ以外）', color: '無彩色', detail: 'Mac が送った summary をそのまま', compact: '「状態不明」' }
+    ];
+    const T = { chg: ['変更', '#1D1D1F'], cand: ['候補', '#8A4200'], chk: ['要照合', '#45454F'], keep: ['守る', '#45454F'], fix: ['解消', '#1F6B3A'] };
+    const M = (f, p, tag, r) => ({ f, p, r, hasTag: !!tag, tag: tag ? T[tag][0] : '', tagFg: tag ? T[tag][1] : '#45454F' });
+    const map = [
+      M('ホーム small（13.1）', 'アプリの印・経過時間／状態（記号＋文言）／名前 2 行／補足（ワークスペース名）。「View ›」の飾りはやめる', 'chg', '状態を名前より先に置き、一目で「自分の番か」がわかるようにする。データに種別が無いのでロゴは出さない'),
+      M('ロック rectangular（13.1）', '状態（記号＋文言）と経過時間／名前／補足の 3 行。単色', 'chg', '色に頼らず記号の形と文言で読む'),
+      M('ウィジェットの状態（13.1・15.8）', '起動中・待機・実行中・承認待ち・質問あり・完了・完了（コード≠0）・エラー の 8 つ。英語固定をやめ日本語に', 'fix', '「Waiting」が待機・承認・質問を兼ねていたのを分ける（21.2-15）'),
+      M('セッションが無いとき（13.1・ADR 0009）', 'ホーム:「セッションはありません」＋「Phlox を開くと、最新の状態に更新されます」。ロック:「Phlox」＋「セッションはありません」', 'fix', '起動直後の一時的な空では上書きせず直近を保つ（ADR 0009）。0 件と確かめられたら空にする（21.2-15 の「削除後も古い表示」を解消）'),
+      M('ウィジェットの名前（13.1）', 'ギャラリーの表示名「セッションの状態」、説明「最新の Phlox セッションの状態を表示します」', 'cand', '現行は英語（Session Status）。本体の日本語とそろえる。ギャラリーの見本は固定のサンプル（完了の状態）のまま。ウィジェットの設定項目は無いまま'),
+      M('Live Activity ロック画面（13.2）', '状態の記号（大）＋状態の語・「Phlox」／名前／summary（Mac の文言、2 行まで）', 'chg', '状態を 1 番大きく。データに種別が無いので種別は出さない'),
+      M('Dynamic Island expanded（13.2）', '記号＋状態の語・「Phlox」／名前／summary', 'chg', 'ロック画面と同じ並び（現行は trailing なし）'),
+      M('Dynamic Island compact／minimal（13.2）', 'compact: 左に記号、右に状態の語（日本語）。minimal: 記号だけ', 'fix', '「Wait」が 3 状態を兼ねていたのを分ける（21.2-16）'),
+      M('Live Activity の状態（13.2・15.8・21.2）', '状態コード 6 種＋未知の 7 行。実行中の Live Activity は無い（Mac が送らない）', 'fix', '7 つの記号と語に分ける'),
+      M('プッシュ通知（13.3）', '種別 6 つ＋未知。タイトル＝セッション名、本文＝Mac の文言。先頭に状態の語（Mac 側の文言の提案）', 'cand', 'iOS に固定文言が無いので、文言の変更は Mac 側で行う'),
+      M('通知タップ後の遷移（2.5・13）', '詳細へ。応答が要るなら承認・質問のカードつき。ロック中は解除後', 'keep', '骨格の回の規則のまま'),
+      M('ウィジェット・Live Activity のタップ（13・21.2）', '上の表。通知と同じ規則', 'cand', '現行は未実装でアプリが開くだけ（21.2-16 の一部）。行き先の提案'),
+      M('配色・外観（13・21.2）', '端末の外観に従い、アプリと同じトークン。Dynamic Island は黒', 'fix', '固定の濃紺をやめ、ライト／ダークの壁紙で浮かないようにする'),
+      M('アプリ内の外観設定との関係（11）', 'アプリの中だけに効く。ウィジェットは端末に従う', 'cand', '設定の外観の下に 1 行の注記を足す'),
+      M('通知のまとめ方（13.3）', '同じセッション・同じ種別は上書き（現行どおり）', 'keep', '束ね方は変えない'),      M('通知の許可（13.3・21.2-14）', '初回の接続に成功した直後に OS の許可ダイアログ', 'cand', '起動直後に突然出るのをやめる'),
+      M('通知トグル（11・21.2-14）', 'オフにすると、この iPhone への通知をすぐに止める（設定の注記）', 'fix', '現行は次回起動の登録判定にしか効かない')
+    ];
+    return { notifs, taps, states, map };
+  }
+}
+</script>
+</body>
+</html>

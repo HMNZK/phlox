@@ -1,9 +1,12 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0044-remove-terminal-screen-and-unsupported-sessions.md
 last-verified: 2026-07-27
 ---
 
 # ADR 0035: モバイルのターミナルは画面幅に収め、トグルに畳まない
+
+> **superseded**: 端末画面は機能ごと廃止すると決めた（2026-10 の再設計。コードは段階 1 で消す）。（[ADR 0044](0044-remove-terminal-screen-and-unsupported-sessions.md)）
 
 > **このファイルの役割**: 端末画面を「横スクロールしない・折りたたまない」表示へ変えた決定と、幅の詰め方。
 > **書かないもの**: SwiftTerm で描くこと自体の決定（→ [ADR 0034](0034-mobile-terminal-rendered-with-swiftterm.md)）、Mac が色つき画面を配信する仕組み（→ [macos/docs/adr/0126](../../../macos/docs/adr/0126-output-endpoint-serves-ansi-screen.md)）。

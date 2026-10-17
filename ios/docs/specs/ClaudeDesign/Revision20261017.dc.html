@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>改訂 2026-10-17</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 2400px; height: 17200px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">改訂 2026-10-17 · 1 回目（色・ロゴ・状態の文言・使用量・画像添付・新規セッション）／2 回目（Liquid Glass・端末・状態の記号・一覧・下部のナビゲーション・新規チャット・入力欄・モデル選択・思考の強さと権限・セッション画面・使用量）</div>
+<h2 style="margin: 0; font-size: 34px; line-height: 1.25; font-weight: 700">3 度の改訂で変えたこと。変更前 → 変更後、移動元 → 移動先、消した盤面・足した盤面・直した盤面、残りの点検</h2>
+<div style="max-width: 1900px; padding: 12px 16px; border-radius: 12px; background: #FFFFFF; border: 2px solid #1D1D1F; font-size: 15px; line-height: 1.65; color: #2A2A31"><b>読み方</b>: 節 1〜5 が 1 回目、節 6〜10 が 2 回目（6 回に分けた修正 1/6〜6/6）、節 11〜13 が 3 回目（2 回目の点検の指摘の修正と、足りない盤面の追加）。1 回目の決定のうち 2 回目で覆したものには <span style="padding: 1px 8px; border-radius: 999px; background: #5B5B66; color: #FFFFFF; font-size: 12px; font-weight: 700">2 回目で覆した</span> を付け、今の決定を「→ 2 回目: …」で書き足した。2 回目の点検の誤りには「→ 3 回目: …」を書き足した。今の決まりは、新しい回の節を正とする。</div>
+<div style="max-width: 1900px; font-size: 15px; line-height: 1.65; color: #2A2A31">機能一覧のうち、§14・§15・§17.1・§19 の色・略号の記述、§12 の使用量の表示（使用率 %・独立タブ）、§8.4 の添付の上限（4MB など）は古いので使っていない。画面の構成・導線・状態の記号・状態の注意の色（承認待ち・質問あり・エラー）と差分の色は変えていない（1 回目の時点。画面の構成・導線・状態の記号は 2 回目で変えた）。</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px">
+<sc-for list="{{ legend }}" as="l" hint-placeholder-count="5"><span style="display: inline-flex; align-items: center; gap: 6px"><span style="padding: 2px 8px; border-radius: 999px; background: {{l.bg}}; color: {{l.fg}}; font-weight: 700">{{ l.t }}</span><span style="color: #45454F">{{ l.d }}</span></span></sc-for>
+</div>
+</div>
+
+<section aria-label="変更前と変更後" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">1. 項目ごとの変更前 → 変更後</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 250px 560px 40px 860px minmax(0, 1fr); background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">項目</div><div style="padding: 10px 14px">変更前</div><div></div><div style="padding: 10px 14px">変更後</div><div style="padding: 10px 14px">主な盤面</div>
+</div>
+<sc-for list="{{ changes }}" as="r" hint-placeholder-count="30">
+<sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 14px; border-top: 1px solid #DCDCE3; background: #F6F6F8; font-size: 16px; font-weight: 700">{{ r.g }}</div></sc-if>
+<sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: 250px 560px 40px 860px minmax(0, 1fr); border-top: 1px solid #E6E6EC">
+<div style="padding: 9px 14px; font-weight: 600; display: flex; flex-direction: column; gap: 4px; align-items: flex-start">{{ r.k }}<sc-if value="{{ r.hasTag }}" hint-placeholder-val="{{ false }}"><span style="padding: 1px 8px; border-radius: 999px; background: {{r.tagBg}}; color: {{r.tagFg}}; font-size: 12px; font-weight: 700">{{ r.tag }}</span></sc-if><sc-if value="{{ r.hasOv }}" hint-placeholder-val="{{ false }}"><span style="padding: 1px 8px; border-radius: 999px; background: #5B5B66; color: #FFFFFF; font-size: 12px; font-weight: 700">2 回目で覆した</span></sc-if></div>
+<div style="padding: 9px 14px; color: #45454F">{{ r.a }}</div>
+<div aria-hidden="true" style="padding: 9px 0; text-align: center; color: #6B6B73; font-weight: 700">→</div>
+<div style="padding: 9px 14px">{{ r.b }}<sc-if value="{{ r.hasOv }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #EEEEF2; font-size: 13px; line-height: 1.5; color: #2A2A31">→ 2 回目: {{ r.ov }}</div></sc-if></div>
+<div style="padding: 9px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ r.p }}</div>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start">
+<section aria-label="移動と廃止" style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 20px; font-weight: 700">2. 消えた・移った所（移動元 → 移動先）</div>
+<div style="display: grid; grid-template-columns: 200px minmax(0, 1fr) 30px minmax(0, 1fr); font-size: 14px; line-height: 1.55">
+<div style="padding: 6px 8px; font-weight: 700; color: #5B5B66">もの</div><div style="padding: 6px 8px; font-weight: 700; color: #5B5B66">移動元</div><div></div><div style="padding: 6px 8px; font-weight: 700; color: #5B5B66">移動先</div>
+<sc-for list="{{ moves }}" as="m" hint-placeholder-count="12">
+<div style="padding: 7px 8px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.k }}</div>
+<div style="padding: 7px 8px; border-top: 1px solid #E6E6EC; color: #45454F">{{ m.a }}</div>
+<div aria-hidden="true" style="padding: 7px 0; border-top: 1px solid #E6E6EC; text-align: center; color: #6B6B73; font-weight: 700">→</div>
+<div style="padding: 7px 8px; border-top: 1px solid #E6E6EC">{{ m.b }}<sc-if value="{{ m.hasOv }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #EEEEF2; font-size: 13px; line-height: 1.5; color: #2A2A31">→ 2 回目: {{ m.ov }}</div></sc-if></div>
+</sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F; padding-top: 8px; border-top: 1px solid #E6E6EC">消した盤面 9 枚: <span style="font-family: ui-monospace, monospace">UseEmpty・UseError・UseNear・UseMixed・UseNearDark・UseMixedDark・UseDT・UseSE・UseSEDark</span>。機能は消していない。使用量が 0 件のときと、前の値が無いまま取得に失敗したときの表示は、指示に無いので SetUseSpec に候補として残した</div>
+</section>
+
+<section aria-label="候補" style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 20px; font-weight: 700">3. 決めてほしい候補・仮の値</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{ cands }}" as="x" hint-placeholder-count="6"><li><b style="color: #8A4200">{{ x.t }}</b> {{ x.d }}<sc-if value="{{ x.hasOv }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #EEEEF2; font-size: 13px; line-height: 1.5; color: #2A2A31">→ 2 回目: {{ x.ov }}</div></sc-if></li></sc-for>
+</ul>
+</section>
+</div>
+
+<section aria-label="点検" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">4. 全盤面の点検 — 古い決まりが残っていないか</div>
+<div style="font-size: 14px; line-height: 1.6; color: #45454F">対象: 盤面のファイル {{ nFiles }} 枚と、キャンバスの盤面の名前・付箋。文字列で検索した（描画しての目視はしていない）。「残っている所」は、やめたことを説明する文や過去の記録など、意図して残した文だけ。</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 230px 130px 760px minmax(0, 1fr); background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">点検した項目</div><div style="padding: 10px 14px">画面の盤面</div><div style="padding: 10px 14px">今回直したもの</div><div style="padding: 10px 14px">意図して残した文</div>
+</div>
+<sc-for list="{{ audit }}" as="a" hint-placeholder-count="8">
+<div style="display: grid; grid-template-columns: 230px 130px 760px minmax(0, 1fr); border-top: 1px solid #E6E6EC">
+<div style="padding: 9px 14px; font-weight: 600">{{ a.k }}</div>
+<div style="padding: 9px 14px"><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #1F7A3A"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M5.4 8.2 L7.2 10 L10.7 6.3"></path></svg>残りなし</span></div>
+<div style="padding: 9px 14px">{{ a.fixed }}</div>
+<div style="padding: 9px 14px; color: #45454F">{{ a.kept }}<sc-if value="{{ a.hasOv }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #EEEEF2; font-size: 13px; line-height: 1.5; color: #2A2A31">→ 2 回目: {{ a.ov }}</div></sc-if></div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section aria-label="直した盤面の一覧" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">5. 直した盤面の一覧（{{ nBoards }} 枚。うち新しい盤面 {{ nNew }} 枚）</div>
+<div style="font-size: 14px; line-height: 1.6; color: #45454F">部品（List・Shell・Reply・Chat・Draft など）を直すと、それを使う版（ダーク・iPhone SE・Dynamic Type 最大など）にも反映される。ここには中身を書き換えたファイルだけを載せた。</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 20px; background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 10px 18px; font-size: 13px; line-height: 1.45">
+<sc-for list="{{ boards }}" as="b" hint-placeholder-count="40">
+<div style="display: flex; align-items: center; gap: 6px; min-height: 30px; border-bottom: 1px solid #EEEEF2; flex-wrap: wrap">
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; font-weight: 600">{{ b.n }}</span>
+<sc-if value="{{ b.isNew }}" hint-placeholder-val="{{ false }}"><span style="padding: 0 6px; border-radius: 6px; background: #1D1D1F; color: #FFFFFF; font-size: 11px; font-weight: 700">新</span></sc-if><sc-if value="{{ b.gone }}" hint-placeholder-val="{{ false }}"><span style="padding: 0 6px; border-radius: 6px; background: #5B5B66; color: #FFFFFF; font-size: 11px; font-weight: 700">2 回目で削除</span></sc-if>
+<sc-for list="{{ b.t }}" as="t" hint-placeholder-count="2"><span style="padding: 0 6px; border-radius: 6px; background: #EDEDF0; color: #2A2A31; font-size: 11px; font-weight: 600">{{ t.t }}</span></sc-for>
+</div>
+</sc-for>
+</div>
+</section>
+
+
+<div style="margin-top: 24px; padding: 22px 26px; border-radius: 16px; background: #1D1D1F; color: #FFFFFF; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #C7C7CE; letter-spacing: 0.4px">2 回目の修正 · 6 回に分けて（1/6 土台 → 2/6 一覧と下部のナビゲーション → 3/6 新規チャットと入力欄 → 4/6 セッション画面 → 5/6 使用量 → 6/6 まとめ）</div>
+<div style="font-size: 30px; line-height: 1.3; font-weight: 700">Liquid Glass に一本化し、Mac 版の見せ方にそろえた。消した盤面 {{ nDel2 }} 枚・新しい盤面 {{ nNew2 }} 枚・直した盤面 {{ nChg2 }} 枚</div>
+<div style="font-size: 15px; line-height: 1.65; color: #E5E5EA">1 回目で決めた色（白黒のアクセント）・実物のロゴ・状態の文言（質問あり・無応答）・画像添付の上限は保った。機能一覧（ui-feature-inventory.md）と食い違う所は、2 回目の指示を正とした。描画しての確認はしていない（文字列の点検と、部品の計算の確認だけ）。</div>
+</div>
+
+<section aria-label="2 回目の変更前と変更後" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">6. 項目ごとの変更前 → 変更後（2 回目）</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 70px 230px 600px 40px 820px minmax(0, 1fr); background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">回</div><div style="padding: 10px 14px">項目</div><div style="padding: 10px 14px">変更前</div><div></div><div style="padding: 10px 14px">変更後</div><div style="padding: 10px 14px">主な盤面</div>
+</div>
+<sc-for list="{{ changes2 }}" as="r" hint-placeholder-count="40">
+<sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 14px; border-top: 1px solid #DCDCE3; background: #F6F6F8; font-size: 16px; font-weight: 700">{{ r.g }}</div></sc-if>
+<sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: 70px 230px 600px 40px 820px minmax(0, 1fr); border-top: 1px solid #E6E6EC">
+<div style="padding: 9px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; font-weight: 700; color: #5B5B66">{{ r.part }}</div>
+<div style="padding: 9px 14px; font-weight: 600; display: flex; flex-direction: column; gap: 4px; align-items: flex-start">{{ r.k }}<sc-if value="{{ r.hasTag }}" hint-placeholder-val="{{ false }}"><span style="padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{r.tagBg}}; color: {{r.tagFg}}">{{ r.tag }}</span></sc-if></div>
+<div style="padding: 9px 14px; color: #45454F">{{ r.a }}</div>
+<div aria-hidden="true" style="padding: 9px 0; text-align: center; color: #6B6B73; font-weight: 700">→</div>
+<div style="padding: 9px 14px">{{ r.b }}</div>
+<div style="padding: 9px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ r.p }}</div>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 24px; align-items: start">
+<section aria-label="2 回目の移動と廃止" style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 20px; font-weight: 700">7. 消えた・移った所（移動元 → 移動先・2 回目）</div>
+<div style="display: grid; grid-template-columns: 50px 190px minmax(0, 1fr) 30px minmax(0, 1fr); font-size: 14px; line-height: 1.55">
+<div style="padding: 6px 8px; font-weight: 700; color: #5B5B66">回</div><div style="padding: 6px 8px; font-weight: 700; color: #5B5B66">もの</div><div style="padding: 6px 8px; font-weight: 700; color: #5B5B66">移動元</div><div></div><div style="padding: 6px 8px; font-weight: 700; color: #5B5B66">移動先</div>
+<sc-for list="{{ moves2 }}" as="m" hint-placeholder-count="20">
+<div style="padding: 7px 8px; border-top: 1px solid #E6E6EC; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #5B5B66">{{ m.part }}</div>
+<div style="padding: 7px 8px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.k }}</div>
+<div style="padding: 7px 8px; border-top: 1px solid #E6E6EC; color: #45454F">{{ m.a }}</div>
+<div aria-hidden="true" style="padding: 7px 0; border-top: 1px solid #E6E6EC; text-align: center; color: #6B6B73; font-weight: 700">→</div>
+<div style="padding: 7px 8px; border-top: 1px solid #E6E6EC">{{ m.b }}</div>
+</sc-for>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F; padding-top: 8px; border-top: 1px solid #E6E6EC">機能を消したのは、指示で廃止した端末画面・出力カード・不透明バーの案・Codex の 4 択シート・表し方の設定（棒／数値）だけ。ほかは置き場所を移した。</div>
+</section>
+
+<section aria-label="2 回目の解釈と候補" style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 20px; font-weight: 700">8. 例外・解釈・決めてほしい候補（2 回目）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{ notes2 }}" as="x" hint-placeholder-count="12"><li><b style="color: {{x.fg}}">{{ x.t }}</b> {{ x.d }}</li></sc-for>
+</ul>
+</section>
+</div>
+
+<section aria-label="2 回目の盤面" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">9. 消した盤面・新しい盤面・直した盤面（2 回目）</div>
+<div style="font-size: 14px; line-height: 1.6; color: #45454F">部品（List・Shell・Reply・Chat・Detail・Draft）を直すと、それを使うダーク・iPhone SE・Dynamic Type 最大の盤面にも反映される。「直した」には中身を書き換えたファイルだけを載せた（同じ盤面が複数の回に出ることがある）。</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ parts2 }}" as="p" hint-placeholder-count="6">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px 18px; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 8px 18px; font-size: 13px; line-height: 1.55">
+<div style="grid-row: span 3; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 18px; font-weight: 700">{{ p.part }}</span><span style="color: #45454F">{{ p.title }}</span><span style="color: #5B5B66">消した {{ p.nDel }} · 新しい {{ p.nNew }} · 直した {{ p.nChg }}</span></div>
+<div><b style="padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #FDE7E5; color: #8A2A22">消した</b> <span style="font-family: ui-monospace, monospace; font-size: 12px">{{ p.del }}</span></div>
+<div><b style="padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #1D1D1F; color: #FFFFFF">新しい</b> <span style="font-family: ui-monospace, monospace; font-size: 12px">{{ p.nw }}</span></div>
+<div><b style="padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #EDEDF0; color: #1D1D1F">直した</b> <span style="font-family: ui-monospace, monospace; font-size: 12px">{{ p.chg }}</span></div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section aria-label="2 回目の点検" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">10. 全盤面の点検（2 回目の最後）— 古い決まりが残っていないか</div>
+<div style="font-size: 14px; line-height: 1.6; color: #45454F">対象: 盤面のファイル {{ nFiles2 }} 枚と、キャンバスの盤面の名前・付箋。文字列と部品のコードで検索した（描画しての目視はしていない）。「画面の盤面」は、画面を描いた盤面に残っているか。「意図して残した文」は、やめたことの説明・移動元・過去の記録だけ。</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 250px 170px 820px minmax(0, 1fr); background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">点検した項目</div><div style="padding: 10px 14px">画面の盤面</div><div style="padding: 10px 14px">直したもの（6/6 で直したものを含む）</div><div style="padding: 10px 14px">意図して残した文・例外</div>
+</div>
+<sc-for list="{{ audit2 }}" as="a" hint-placeholder-count="15">
+<div style="display: grid; grid-template-columns: 250px 170px 820px minmax(0, 1fr); border-top: 1px solid #E6E6EC">
+<div style="padding: 9px 14px; font-weight: 600">{{ a.k }}</div>
+<div style="padding: 9px 14px"><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: {{a.fg}}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ a.icon }}"></path></svg>{{ a.res }}</span></div>
+<div style="padding: 9px 14px">{{ a.fixed }}</div>
+<div style="padding: 9px 14px; color: #45454F">{{ a.kept }}<sc-if value="{{ a.hasOv }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #FDE7E5; font-size: 13px; line-height: 1.5; color: #2A2A31">→ 3 回目: {{ a.ov }}</div></sc-if></div>
+</div>
+</sc-for>
+</div>
+</section>
+
+
+
+<div style="margin-top: 24px; padding: 22px 26px; border-radius: 16px; background: #1D1D1F; color: #FFFFFF; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #C7C7CE; letter-spacing: 0.4px">3 回目 · 2 回目の点検の指摘の修正（版 240）と、足りない盤面の追加（版 241）</div>
+<div style="font-size: 30px; line-height: 1.3; font-weight: 700">誤り・食い違いを直し、足りない状態の盤面を {{ nNew3 }} 枚足した。直した盤面 {{ nChg3 }} 枚（版 241）</div>
+<div style="font-size: 15px; line-height: 1.65; color: #E5E5EA">2 回目までの決定は保った。直したのは、2 回目の指示の誤り（Cursor の承認）、色の食い違い（無応答）、古い説明、足りない盤面だけ。描画しての確認はしていない（文字列の点検と、部品の計算の確認だけ）。</div>
+</div>
+
+<section aria-label="2 回目の後の点検" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">11. 3 回目 — 2 回目の点検の指摘で直したこと（版 240。2 回目までの決定は保ったまま）</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 260px minmax(0, 1fr) 560px; background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">項目</div><div style="padding: 10px 14px">直したこと</div><div style="padding: 10px 14px">盤面</div>
+</div>
+<sc-for list="{{ fixes3 }}" as="x" hint-placeholder-count="10">
+<div style="display: grid; grid-template-columns: 260px minmax(0, 1fr) 560px; border-top: 1px solid #E6E6EC">
+<div style="padding: 9px 14px; font-weight: 600">{{ x.k }}</div>
+<div style="padding: 9px 14px">{{ x.d }}</div>
+<div style="padding: 9px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ x.b }}</div>
+</div>
+</sc-for>
+</div>
+</section>
+
+
+<section aria-label="3 回目で足した盤面" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">12. 3 回目 — 足した盤面・直した盤面（版 241）</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ add3 }}" as="p" hint-placeholder-count="6">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px 18px; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 6px 18px; font-size: 13px; line-height: 1.55">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 700">{{ p.k }}</span><span style="color: #5B5B66">{{ p.n }}</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span>{{ p.d }}</span><span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ p.b }}</span></div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section aria-label="3 回目の点検" style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700">13. 3 回目の最後の点検 — 全盤面（{{ nFiles3 }} 枚）とキャンバスの名前・付箋</div>
+<div style="font-size: 14px; line-height: 1.6; color: #45454F">文字列と部品のコードで検索した（描画しての目視はしていない）。「意図して残した文」は、やめたことの説明・移動元・過去の記録・別の意味の語だけ。</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 250px 170px 820px minmax(0, 1fr); background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">点検した項目</div><div style="padding: 10px 14px">画面の盤面</div><div style="padding: 10px 14px">確かめたこと・直したもの</div><div style="padding: 10px 14px">意図して残した文</div>
+</div>
+<sc-for list="{{ audit3 }}" as="a" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: 250px 170px 820px minmax(0, 1fr); border-top: 1px solid #E6E6EC">
+<div style="padding: 9px 14px; font-weight: 600">{{ a.k }}</div>
+<div style="padding: 9px 14px"><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: {{a.fg}}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ a.icon }}"></path></svg>{{ a.res }}</span></div>
+<div style="padding: 9px 14px">{{ a.fixed }}</div>
+<div style="padding: 9px 14px; color: #45454F">{{ a.kept }}</div>
+</div>
+</sc-for>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":17200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TAG = { move: ['移動', '#0B5E78', '#DFF2F8'], chg: ['変更', '#1D1D1F', '#EDEDF0'], del: ['廃止', '#8A2A22', '#FDE7E5'], add: ['追加（指示）', '#1F6B3A', '#E3F4E8'], keep: ['変えない', '#45454F', '#EEEEF2'], cand: ['候補', '#8A4200', '#FFF0DC'] };
+    const legend = Object.keys(TAG).map(k => ({ t: TAG[k][0], fg: TAG[k][1], bg: TAG[k][2], d: { move: '別の場所へ移した', chg: '見せ方・値を変えた', del: '表示をやめた', add: '指示で足した', keep: '前のまま', cand: '提案・仮の値' }[k] }));
+    const G = (g) => ({ isGroup: true, isRow: false, g, k: '', a: '', b: '', p: '', hasTag: false, tag: '', tagFg: '', tagBg: '', hasOv: false, ov: '' });
+    const R = (k, a, b, p, tag, ov) => ({ isGroup: false, isRow: true, g: '', k, a, b, p, hasTag: !!tag, tag: tag ? TAG[tag][0] : '', tagFg: tag ? TAG[tag][1] : '', tagBg: tag ? TAG[tag][2] : '', hasOv: !!ov, ov: ov || '' });
+    const changes = [
+      G('色（v230）'),
+      R('アクセント', '紫 #5B3BE8（ダーク #A493FF）', '主文字色 #1D1D1F（ダーク #F2F2F4）。塗りの上の文字は #FFFFFF（ダークは地の色 #000000）', 'DS / 全部品', 'chg'),
+      R('選択中の行', 'アクセントの淡い紫の地', '中立の淡い灰色の地', 'List / Draft / Dialogs', 'chg'),
+      R('アクセントの使い道', '装飾（記号・点・バッジ）にも使っていた', '主な操作・選択・フォーカス・リンクだけ。リンクは下線で区別', 'DS / 全部品', 'chg'),
+      R('状態の注意の色・差分の色', '琥珀（承認待ち）・青（質問あり）・赤（エラー）、差分の緑と赤', '同じ', 'DS', 'keep'),
+      R('状態の記号', '状態ごとの記号＋文字（アプリ内もアプリ外も）', '同じ（1 回目では変えていない）', 'DS / List / Chat / Glance', 'keep', 'アプリ内は文字だけ（記号なし）。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ（1/6）。例外は会話のエラーの面の三角（4/6）'),
+      R('注意の色', '—', 'status.caution ライト #8A5300・ダーク #F4BD68。使用量の「残りわずか」だけに使う（Mac 版と同じ値）', 'DS / UsageBar', 'add', '使用量は 5/6 でリングの弧と下地に使う。無応答は注意の色ではなく Mac と同じ紫（status.stalled）に分けた（2 回目の後の点検）'),
+      G('ロゴ（v230）'),
+      R('エージェントの示し方', '破線の枠の中に略号 CC／Cx／Cu', '実物のロゴ。Claude・Codex は副文字色の単色、Cursor は元の色。VoiceOver は名前（Claude Code など）を読む', 'List / Chat / Detail / Reply / Draft / DS / Dialogs', 'chg', '一覧の行からはロゴも外した（2/6）。AI の返答のロゴのアバターも廃止（4/6）'),
+      R('エージェント別の色', 'CC #C46D42・Cx #10B981・Cu #6B7FE8', '使わない', 'DS', 'del'),
+      G('状態の文言（v230）'),
+      R('質問', '質問待ち', '質問あり', '全盤面', 'chg'),
+      R('止まって見える', '応答なし', '無応答', '全盤面', 'chg'),
+      G('使用量（v231）'),
+      R('置き場所', '「使用量」タブ（タブは セッション／使用量／設定 の 3 つ）', 'セッション一覧の下端、タブバーのすぐ上に常に出すバー。タブは セッション／設定 の 2 つ', 'List / Shell / UsageBar / SetUseSpec', 'move', '一覧の下端のバーを外し、新規チャットとセッション画面の入力欄の下の 1 行に（2/6 で外し、5/6 で描いた）'),
+      R('中身', 'エージェントごとのカード。使用率 %・棒・状態の印', 'Claude Code → Codex → Cursor の順にロゴと全部の枠の「残り」。既定は横棒（長さ＝残り）、設定で残り %', 'UsageBar / UseNormal / UseNum', 'chg', '横棒・% をやめ、枠ごとの「残り」のリング。文字は Claude Code の「5h」「7d」だけ（5/6）'),
+      R('枠の名前', 'Mac の文字列（例「5-hour」「Weekly」）', '同じく Mac の文字列のまま（例「5時間」「週次」「Auto」「API」）', 'UsageBar', 'keep'),
+      R('リセット', '「リセット済み」／「あと1時間」／「リセット 10/9 09:00」', '5時間は残り時間「（03:12）」、週次は日時「（10/20 14:00）」。期限切れの枠は出さない（0% と描かない）', 'UsageBar / UseBarLevels', 'chg', '同じ形式を、行を押して出す吹き出しの「リセット」の列に。期限切れの枠は灰色の空のリング（5/6）'),
+      R('上限の知らせ', '上限間近（メーターの記号）・上限に達しました（赤・八角）', '残り 20% 未満の枠の文字と棒を注意の色。記号なし。VoiceOver「残りわずか」', 'UseLow（ダーク・SE・DT）', 'chg', '残り 20% 未満の枠のリングの弧と下地を注意の色（5/6）'),
+      R('取得できない', '「利用不可」の印と説明', '「取得できません」', 'UseUnavail（ダーク・SE・DT）', 'chg', '文字をやめ、灰色の空のリング（5/6）'),
+      R('更新中・失敗', '上にインジケータと「更新しています…」／赤い帯／前の値が無ければエラーのカード', '表示を消さず末尾に「更新中…」。失敗は前の値を残し「16:12 時点の値」', 'UseRefresh / UseStale（各版）', 'chg', '行の右端に「更新中…」「16:12 時点」（5/6）'),
+      R('幅が足りないとき', '—', 'リセット → 枠の名前の順に省く。棒・数値は省かない。1〜2 行。iPhone の幅ではふつうリセットを省く', 'UseBarLevels', 'add', 'リングは 1 行に収まるので省かない。Dynamic Type 最大は 2 行（5/6）'),
+      R('押したとき・取り直し', 'タブを開く。タブの中で引っ張って更新', '押しても何も開かない。一覧の引っ張って更新で取り直す', 'List / SetUseSpec', 'chg', '押すと吹き出しで枠・残り・リセット。取り直しは一覧の引っ張って更新のまま（5/6）'),
+      R('表し方の設定', '—', '設定「使用量 › 残りの表し方」（棒／数値（%））', 'SetUse', 'add', '外した（2/6・5/6）'),
+      R('詳細画面', '—（タブで見る）', '出さない（入力欄を優先）', 'UseDetailCand', 'cand', '入力欄の下に全エージェントを出すので、この候補は不要になった（5/6）'),
+      G('画像添付（v232）'),
+      R('上限', '機能一覧 §8.4（4MB など）', '最大 4 枚・1 枚 20MB・合計 80MB・各辺 8000 ピクセル。送信前の縮小・形式の変換は自動で、画面に出さない', 'ReplySpec / Errors', 'chg'),
+      R('エラー文言', '「画像は最大4枚までです（追加した 2 枚は入れていません）」の 1 種', 'アプリの現行の文言 5 種をそのまま（枚数・1 枚のサイズ・合計・寸法・読み込み）', 'ReplyAttachErr ほか 6 枚 / Errors A1〜A5', 'chg'),
+      R('送信中', '送信ボタンがスピナー（入力に文字がある形にはスピナーが無かった）', '画像の準備中も含めスピナーで、押せない。文字がある形にもスピナーを入れた', 'Reply / ReplySending', 'chg'),
+      G('新規セッション（v232）'),
+      R('作業フォルダ', '記述なし', '注記: worktree を使う設定でも、iPhone から作るセッションは常にプロジェクトの既存のフォルダで始まる。ブランチ・作業フォルダ・履歴からの再開は指定できない。画面は足さない', 'DraftSpec', 'add'),
+      R('モデル名', '「Sonnet（既定）」「GPT-5-Codex（既定）」「Auto（既定）」', 'Mac から届く表示名のまま（例「Sonnet 5」「Opus 5.5」「Haiku 5.5」）。既定は「· 既定」と添える', 'Draft / Reply / Dialogs / Chat / DS', 'chg')
+    ];
+    const M = (k, a, b, ov) => ({ k, a, b, hasOv: !!ov, ov: ov || '' });
+    const moves = [
+      M('使用量の表示', '「使用量」タブ', 'セッション一覧の下端の使用量バー', '入力欄の下の 1 行のリング（5/6）'),
+      M('使用量の取り直し', '使用量タブの引っ張って更新', '一覧の引っ張って更新'),
+      M('見出し「Usageリミット」', '使用量タブの見出し', 'なし（タブごと廃止）'),
+      M('表し方の切り替え', '—', '設定 › 使用量 › 残りの表し方', '廃止'),
+      M('流れ ①', '使用量タブを見ていても対応待ちに気づく', '設定タブを見ていても対応待ちに気づく（FlowUsage）'),
+      M('流れ ②（長押し）', '使用量タブの上で', '設定タブの上で（FlowMenu）'),
+      M('上限間近・上限に達しました', '使用量のカードの印', '残りわずか（注意の色の文字と棒）', '残り 20% 未満のリングを注意の色（5/6）'),
+      M('リセット済み', '使用量のカードのリセット表記', '期限切れの枠を出さない', '期限切れの枠は灰色の空のリング（5/6）'),
+      M('前の値が無い取得失敗のカード', '使用量タブの本文', 'SetUseSpec の候補（全エージェント「取得できません」）', '候補: 全エージェントを灰色の空のリング（5/6）'),
+      M('空（使用量のデータがありません）', '使用量タブの本文', 'SetUseSpec の候補（バーを出さない）', '候補: 3 エージェントとも灰色の空のリング（5/6）'),
+      M('略号 CC／Cx／Cu と破線の枠', '各画面のエージェントの印', '実物のロゴ', '実物のロゴのまま。一覧の行からは外し、セッション画面の小見出しのエージェント名で示す（2/6）'),
+      M('「（追加した N 枚は入れていません）」', '添付エラーの文言の後ろ', 'なし（アプリの文言のまま）')
+    ];
+    const C = (t, d, ov) => ({ t, d, hasOv: !!ov, ov: ov || '' });
+    const cands = [
+      C('候補', '詳細画面に、その会話のエージェントの使用量だけを小さく出す（UseDetailCand）', '不要になった。入力欄の下に全エージェントのリングを出す（5/6。UseDetailCand は 2/6 で削除）'),
+      C('候補', '前の値が無いまま初回から取得に失敗したとき、全エージェントを「取得できません」にする', '候補のまま、灰色の空のリングで示す（5/6）'),
+      C('候補', '使用量が 0 件のとき、バーを出さない', '候補のまま、3 エージェントとも灰色の空のリング（5/6）'),
+      C('仮の値', 'モデル名の例「Sonnet 5」「Opus 5.5」は仮（指示の例は「Haiku 5.5」だけ）。実際の表示名が分かれば差し替える'),
+      C('解釈', '既定のモデルは名前に「（既定）」を付けず、「· 既定」と別に添えた（Mac の表示名に手を加えないため）')
+    ];
+    const A = (k, fixed, kept, ov) => ({ k, fixed, kept, hasOv: !!ov, ov: ov || '' });
+    const audit = [
+      A('紫のアクセント', 'DraftSpec の「変更」の文字色 8 か所（#3A22B0 → #1D1D1F）', 'TermSpec の端末 16 色の「紫（magenta）」の見本と、出力カードの地を「紫がかった面から中立に」変えたと書いた説明。端末の色であってアクセントではない', 'TermSpec は端末画面ごと削除した（1/6）。紫は会話の無応答の面だけ（Mac と同じ、4/6。アクセントではない）'),
+      A('エージェント別の色', 'DS のコードの注記「ブランド色は現行の値…」を「実物のロゴ。色・略号は使わない」に', 'ReviewDiff の当時の記録 1 行（「→ 改訂 2026-10-17」を書き足した）'),
+      A('略号 CC／Cx／Cu', 'なし（v230 で全部品をロゴに）', 'ReviewDiff の当時の記録 1 行（同上）'),
+      A('破線のロゴ枠', 'Dialogs の背景の行 5 か所 → 実物のロゴ。Glance の「セッションはありません」の破線の四角 → トレーの記号。Chat・List の空の状態の破線の四角 → 淡い灰色の面（ロゴ枠と紛れないように）。DraftSpec の「ロゴ枠」の語 → 「ロゴ」', '起動中の点線の丸（状態の記号 circle.dashed）と、注記の破線の枠（Chat の「表示を省略しました」、Dialogs・Glance の注記、骨格の盤面の注記の箱）。ロゴ枠ではない'),
+      A('使った % の表示', 'DS のアイコン表から「上限間近」「上限」「利用不可」を外し、状態の色「利用不可」を「状態不明」に。ReviewMap の「Usage の状態」を「使用量の状態」に', '「使用率ではなく残り」と書いた説明（SetUseSpec・UseBarLevels・ReviewMap）と、Review212 の 21.2 節の原文の引用', 'UseBarLevels は削除（2/6）。使用量はリングに（5/6）'),
+      A('「あと1時間」型のリセット', 'なし（v231 で 5時間「（03:12）」・週次「（10/20 14:00）」に）', '「やめた」と書いた説明（SetUseSpec・UseBarLevels・ReviewMap）と、ReviewDiff の当時の記録（改訂の注記つき）'),
+      A('4MB の上限', 'なし（v232 で最大 4 枚・1 枚 20MB・合計 80MB・各辺 8000 ピクセルに）', '「古いので使わない」と書いた説明 2 か所（ReplySpec・ReviewMap）'),
+      A('「質問待ち」「応答なし」', 'なし（v230 で「質問あり」「無応答」に）', 'なし。盤面の文字・盤面の名前・付箋のどこにも無い')
+    ];
+    const B = [["Chat", "", ["色", "ロゴ", "文言", "使用量", "新規", "点検"]], ["ChatSpec", "", ["色", "文言"]], ["DS", "", ["色", "ロゴ", "文言", "使用量", "新規", "点検"]], ["DSDark", "", ["使用量"]], ["Detail", "", ["色", "ロゴ", "文言"]], ["Dialogs", "", ["色", "新規", "点検"]], ["DialogsSpec", "", ["色"]], ["Draft", "", ["色", "ロゴ", "新規"]], ["DraftSpec", "", ["色", "新規", "点検"]], ["Errors", "", ["色", "文言", "添付"]], ["ErrorsDark", "", ["添付"]], ["FlowMenu", "", ["使用量"]], ["FlowUsage", "", ["使用量"]], ["Glance", "", ["色", "文言", "点検"]], ["GlanceCatalog", "", ["色", "文言"]], ["GlanceLockDark", "", ["文言"]], ["GlanceSpec", "", ["色", "文言"]], ["Launch", "", ["色", "使用量"]], ["Layers", "", ["色", "使用量"]], ["LiquidGlass", "", ["色"]], ["List", "", ["色", "ロゴ", "文言", "使用量", "点検"]], ["ListSpec", "", ["色", "文言"]], ["Main", "", ["色", "文言", "使用量"]], ["Mapping", "", ["色", "使用量"]], ["Pair", "", ["色", "文言", "使用量"]], ["PairSpec", "", ["色", "文言"]], ["Reply", "", ["色", "ロゴ", "文言", "添付", "新規"]], ["ReplyAttachErr", "", ["添付"]], ["ReplyAttachErrDim", "新", ["添付"]], ["ReplyAttachErrDimDark", "新", ["添付"]], ["ReplyAttachErrDimSE", "新", ["添付"]], ["ReplyAttachErrLoad", "新", ["添付"]], ["ReplyAttachErrSize", "新", ["添付"]], ["ReplyAttachErrTotal", "新", ["添付"]], ["ReplyQuestion", "", ["文言"]], ["ReplyQuestionDark", "", ["文言"]], ["ReplyQuestionPlain", "", ["文言"]], ["ReplySending", "", ["添付"]], ["ReplySpec", "", ["色", "文言", "添付"]], ["Review181", "", ["色", "使用量"]], ["Review212", "", ["文言", "使用量"]], ["ReviewDiff", "", ["色", "文言", "点検"]], ["ReviewMap", "", ["色", "使用量", "点検"]], ["SetUse", "", ["色", "ロゴ", "使用量"]], ["SetUseSpec", "", ["色", "使用量"]], ["Shell", "", ["色", "ロゴ", "文言", "使用量"]], ["Term", "", ["色"]], ["TermSpec", "", ["色"]], ["UsageBar", "新", ["使用量"]], ["UseBarLevels", "新", ["使用量"]], ["UseDetailCand", "新", ["使用量"]], ["UseLoading", "", ["使用量"]], ["UseLoadingDT", "新", ["使用量"]], ["UseLoadingDark", "", ["使用量"]], ["UseLoadingSE", "新", ["使用量"]], ["UseLow", "新", ["使用量"]], ["UseLowDT", "新", ["使用量"]], ["UseLowDark", "新", ["使用量"]], ["UseLowSE", "新", ["使用量"]], ["UseNormal", "", ["使用量"]], ["UseNormalDT", "新", ["使用量"]], ["UseNormalDark", "新", ["使用量"]], ["UseNormalSE", "新", ["使用量"]], ["UseNum", "新", ["使用量"]], ["UseNumDark", "新", ["使用量"]], ["UseRefresh", "", ["使用量"]], ["UseRefreshDT", "新", ["使用量"]], ["UseRefreshDark", "新", ["使用量"]], ["UseRefreshSE", "新", ["使用量"]], ["UseStale", "", ["使用量"]], ["UseStaleDT", "新", ["使用量"]], ["UseStaleDark", "新", ["使用量"]], ["UseStaleSE", "新", ["使用量"]], ["UseUnavail", "新", ["使用量"]], ["UseUnavailDT", "新", ["使用量"]], ["UseUnavailDark", "新", ["使用量"]], ["UseUnavailSE", "新", ["使用量"]], ["Revision20261017", "新", ["まとめ"]]];
+    const GONE = ["DetailSolid", "DraftNoModels", "DraftPicking", "LiquidGlass", "OutCollapsed", "OutDark", "OutError", "OutLong", "OutShort", "ReplyCodexSheet", "ReplyCodexSheetDark", "ReplyModelDraft", "ShellSolid", "Term", "Term80Dark", "TermColor", "TermDT", "TermSE", "TermShort", "TermSpec", "TermWide", "TermWideScrolled", "TermZoom", "UsageBar", "UseBarLevels", "UseDetailCand", "UseLoading", "UseLoadingDT", "UseLoadingDark", "UseLoadingSE", "UseLow", "UseLowDT", "UseLowDark", "UseLowSE", "UseNormal", "UseNormalDT", "UseNormalDark", "UseNormalSE", "UseNum", "UseNumDark", "UseRefresh", "UseRefreshDT", "UseRefreshDark", "UseRefreshSE", "UseStale", "UseStaleDT", "UseStaleDark", "UseStaleSE", "UseUnavail", "UseUnavailDT", "UseUnavailDark", "UseUnavailSE"];
+    const boards = B.map(r => ({ n: r[0], isNew: r[1] === '新', gone: GONE.indexOf(r[0]) >= 0, t: r[2].map(t => ({ t })) }));
+
+    const PT = { '1/6': '1/6', '2/6': '2/6', '3/6': '3/6', '4/6': '4/6', '5/6': '5/6', '6/6': '6/6' };
+    const G2 = (g) => ({ isGroup: true, isRow: false, g, part: '', k: '', a: '', b: '', p: '', hasTag: false, tag: '', tagFg: '', tagBg: '' });
+    const R2 = (part, k, a, b, p, tag) => ({ isGroup: false, isRow: true, g: '', part, k, a, b, p, hasTag: !!tag, tag: tag ? TAG[tag][0] : '', tagFg: tag ? TAG[tag][1] : '', tagBg: tag ? TAG[tag][2] : '' });
+    const changes2 = [
+      G2('Liquid Glass'),
+      R2('1/6', '画面の素材', 'Liquid Glass の採用案と、不透明なバーの案（ShellSolid・DetailSolid）、比べる盤面 LiquidGlass', 'Liquid Glass だけに一本化。iOS 18 での見え方（Shell18・Detail18）は残す', 'Shell / Detail / Shell18 / Detail18 / DS', 'del'),
+      G2('端末'),
+      R2('1/6', '端末画面・出力カード', '端末画面（Term 系 11 枚・TermSpec）と、会話の中の出力カード（Out 系 5 枚）', '機能ごと廃止。会話の形で読めない（Mac の端末型の）セッションは、本文の代わりに「このセッションは iPhone では表示できません。Mac で開いてください」だけ。上部はホーム・セッション名・「…」だけで、状態の文字・停止・入力欄・使用量の行は出さない（点検後）', 'ChatUnsupported / ChatUnsupportedDark / ChatSpec', 'del'),
+      G2('状態の記号'),
+      R2('1/6', 'アプリ内の状態', '一覧の行・詳細の小見出し・カード・対応待ちバーに、状態の記号＋文字', 'アプリ内は文字だけ（記号なし・色は文字だけ）。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ（DS の状態表を「アプリ内／アプリ外」に分けた）', 'DS / List / Chat / Shell / Glance', 'chg'),
+      R2('4/6', '例外', '—', '会話のエラーの面だけ三角の印（Mac と同じ）。VoiceOver は「エラー」と読む', 'ChatError / ChatSpec', 'add'),
+      G2('セッション一覧'),
+      R2('2/6', '並び', '「あなたの番」→ プロジェクト別のグループ（末尾に「＋ セッションを追加」の行）→ その他', 'Mac のサイドバーと同じ: 「対応待ち」→ プロジェクトの欄（見出し＝開閉の印・名前・常に出す「＋」44pt）→「その他」。閉じた欄は「承認待ち 1 / 未読 1」のように内訳。セッションが 1 つ以上あるプロジェクトだけ', 'List / ListCollapsed / ListManyTop / ListSpec', 'chg'),
+      R2('2/6', '行', 'エージェントのロゴ・名前・補足（ワークスペース名・相対時刻）・状態の記号と文字', '名前と右端の状態の文字だけ。待機は出さない／承認待ち・質問あり・エラーは注意の色、無応答は紫（status.stalled。点検後）／実行中は副文字色／ほかは 3 段目の文字色', 'List / ListSpec', 'chg'),
+      R2('2/6', '未読・実行中', '未読の丸、回る記号', '未読は名前を主文字色・semibold（丸はやめた）。実行中は名前に光の帯（視差効果を減らすでは止める）', 'List', 'chg'),
+      R2('2/6', '子セッション', '—', '1 段字下げ＋左の案内線。閉じると名前の後ろに「+3」', 'List / ListCollapsed', 'add'),
+      G2('下部のナビゲーション'),
+      R2('2/6', 'タブと新規作成', 'タブ「セッション」「設定」と、その上の使用量バー。新規作成は一覧の中の行', 'タブ 2 つ（ガラスのカプセル）＋右に 10pt 離した丸い「新規チャット」（62pt。どのタブでも同じ位置）。iOS 18 は一覧の大見出しの右。使用量バーは外した', 'Shell / List / SetUse / Pair / ListSpec', 'chg'),
+      G2('新規チャット'),
+      R2('3/6', '入口', '一覧の「＋ セッションを追加」の行・単独の行・空の状態のボタン', 'プロジェクトの見出しの「＋」（そのプロジェクト）／下部の「新規チャット」（入力欄のプロジェクトのチップで選ぶ。初期値は前回のプロジェクト）。未選択で送ると「プロジェクトを選んでください」', 'Draft / DraftFromProject / DraftEntryEmpty', 'move'),
+      R2('3/6', '画面', 'ナビの見出し「新規セッション／Phlox に作成」、本文で「どのエージェントで始めますか？」の 3 択 → モデルを選ぶ段階', '中央の見出し 1 つ（10 種から 1 つ・DotGothic16）。開いた時点でキーボードが上がっている。提案チップ 5 つ（コードレビュー／バグ修正／テスト追加／コードの説明／リファクタ。押すと定型文を追記）', 'Draft / DraftSuggest / DraftSpec', 'chg'),
+      R2('6/6', '戻り方', '左上の戻る（＜）', 'セッション画面と同じホームのボタン（家の形・一覧へ）。端スワイプも残す', 'Draft / DraftSpec', 'chg'),
+      G2('入力欄'),
+      R2('3/6', '形', '1 段の丸い入力バー（入力中だけ 2 段）。上にプロジェクト名と「$ · コンテキスト」の行', '2 段の入力欄（1 段目「やりたいことを入力」／2 段目 ＋・モデル・思考の強さ・権限、右にプロジェクト（新規だけ）と送信／停止）。新規チャットとセッション画面で共通', 'Draft / Reply / Chat / Detail / DS', 'chg'),
+      R2('3/6', '幅が足りないとき', '—', '① 思考の強さと権限を「…」にまとめる ② プロジェクトを印だけに ③ 2 段目を折り返す。モデル名と送信は省かない', 'ReplyMore / DraftSpec', 'add'),
+      G2('モデル選択'),
+      R2('3/6', '新規チャット', 'エージェントを先に選び（3 択・DraftPicking）、そのエージェントのモデルのシート（ReplyModelDraft）', '1 つのシートに 3 エージェントの全モデル（Claude Code → Codex → Cursor、ロゴと名前の見出しで区切る）。選ぶとエージェントも決まる', 'DraftModel / DraftModelDark / Dialogs', 'move'),
+      R2('3/6', 'セッション画面', 'そのエージェントのモデルのシート', '同じ（そのセッションのエージェントだけ）。チップは「{ロゴ} {モデル名} ⌄」。入口はチップと「…」', 'ReplyModel', 'keep'),
+      R2('3/6', 'モデル一覧が取れない', 'DraftNoModels（チップを出さない）', 'シートのその欄に「取得できません」の行（選べない）。ほかのエージェントは選べる', 'DraftModelNa', 'chg'),
+      G2('思考の強さと権限'),
+      R2('3/6', '思考の強さ', '—', 'チップ（メーターの印）＋メニュー「低／中／高／非常に高／最大」。Haiku は出さない。Codex・Cursor はモデルごとに届く段階だけ', 'ReplyEffort / DraftEffort / ReplyHaiku', 'add'),
+      R2('3/6', '権限', '—', 'チップ（盾の印）＋エージェントごとの選択肢。Bypass Permissions・Full Access は赤い文字と確認のダイアログ。変えられなければ入力欄の上に赤い文字 1 行', 'ReplyPerm / ReplyPermFail / DraftPerm / Dialogs P1〜P3', 'add'),
+      G2('セッション画面'),
+      R2('4/6', '上部のバー', '左上「＜ 戻る」・中央にセッション名・右上「…」', '左上はホームのボタン（家の形・押すと一覧へ）。画面の左端からの右スワイプで戻る操作は残す。中央にセッション名、右上の「…」は今の中身のまま', 'Chat / Detail / Reply / Dialogs', 'move'),
+      R2('4/6', '会話', 'AI の返答の左にロゴのアバター。利用者の吹き出し（角丸 20・最大 84%）の下に「画像 ×N」。長押しは「コピー」1 項目', 'アバターなし・全幅の Markdown、コードは枠の中。吹き出しはコードの地・角丸 14・最大 78%、添付は本文の上。長押しのメニュー（見出しに時刻、「コピー」「選択して部分コピー」）', 'Chat / ChatIdle / ChatCopy', 'chg'),
+      R2('4/6', 'ツールの表示', '電球つきの思考、見出し＝原文＋N 件のコマンドのまとまり（50 行）、「編集済み N 件のファイル」、人の記号のサブエージェント', '共通のカード（角丸 8・1pt の枠、実行中は濃い枠）「› ラベル／等幅の要約／右端の印」: コマンド（実行中／exit 1）、ツール実行 ×N（20 行・さらに表示・セクションをコピー）、ファイル変更（+N −N・行番号つきの差分）、思考', 'ChatExpandCmd / ChatExpandDiff / ChatThinking / ChatSub', 'chg'),
+      R2('4/6', '実行中・無応答・ターンの終わり', '回る点＋文言＋最大 3 行のプレビュー／無応答は一覧の文字だけ／入力欄の上の「$0.0412 · コンテキスト 61%」', '光の帯の言葉＋「swift build を実行中 · 38 秒」／紫の面「無応答 03:12」＋「中断」／各ターンの終わりに右寄せ「$0.42 · 入力 18.2k · 出力 1.9k · コンテキスト 22%」', 'Chat / ChatStall / ChatStallDark / ChatDone', 'chg'),
+      R2('4/6', 'エラー', '赤い地＋「エラー」の見出し', '赤い淡い面＋三角＋等幅の本文', 'ChatError', 'chg'),
+      R2('4/6', '承認', '下端の応答ゾーンの承認バー。Claude Code・Cursor は「却下」「承認」、Codex は 4 択シート', '入力欄のすぐ上の承認のカード「承認待ち · {操作の種類}」・経過時間・複数は ‹ ›。ボタンは Claude Code と Codex で同じ「許可」「このセッション中は許可」「拒否」「キャンセル」（Cursor には承認が無い）。差分は「› 差分を見る（N ファイル）」。誤って承認しない 4 つの工夫は保つ', 'Reply / ReplyCodex / ReplyApprovalDiff / FlowApprove / Detail', 'move'),
+      R2('4/6', '質問・並び', '応答ゾーンの「質問 · TEST」「回答する」。送信失敗は会話の末尾の帯', '入力欄のすぐ上の質問のカード「質問待ち · {見出し}」と「回答を送信」。上から 送信失敗の知らせ → 承認のカード → 質問のカード → 入力欄', 'ReplyQuestion / ChatSendFail / ReplySpec', 'move'),
+      G2('使用量'),
+      R2('5/6', '置き場所', '一覧の下端のバー（1 回目）', '新規チャットとセッション画面の、入力欄の下（画面の最下端の手前）に 1 行。キーボード表示中も出す', 'UsageNormal / UsageKeyboard / SetUseSpec', 'move'),
+      R2('5/6', '中身', 'ロゴ＋枠ごとの横棒（または %）・リセット（幅で省く）', 'Claude Code → Codex → Cursor に、ロゴ＋枠ごとの「残り」のリング。文字は Claude Code の「5h」「7d」だけ', 'UsageNormal（ダーク・SE・DT）', 'chg'),
+      R2('5/6', '残りわずか・取得できない', '文字と棒を注意の色／「取得できません」の文字／期限切れの枠は出さない', '残り 20% 未満はリングの弧と下地を注意の色（記号なし）／取得できない・値が届かない枠は灰色の空のリング（0% と描かない）', 'UsageLow / UsageNa（各版）', 'chg'),
+      R2('5/6', '押したとき', '押しても何も開かない', '小さな吹き出しで 枠・残り %・リセット（5 時間枠は「03:12」、週次は「10/20 14:00」、Cursor はなし）。VoiceOver は行全体を 1 つとして読む（20% 未満は「残りわずか」）', 'UsagePop（各版）', 'chg'),
+      R2('5/6', '古い値・取り直し', '末尾に「16:12 時点の値」「更新中…」', '行の右端に「16:12 時点」「更新中…」。一覧の引っ張って更新で取り直し、表示は消さない', 'UsageStale / UsageRefresh', 'keep'),
+      R2('5/6', '表し方の設定', '設定「使用量 › 残りの表し方」（棒／数値）', '外した（リングだけにしたので選ぶものが無い）', 'SetUse / SetUseSpec', 'del')
+    ];
+    const M2 = (part, k, a, b) => ({ part, k, a, b });
+    const moves2 = [
+      M2('1/6', '不透明バーの案', 'ShellSolid・DetailSolid・比べる盤面 LiquidGlass', '廃止（Liquid Glass に一本化）'),
+      M2('1/6', '端末画面・出力カード', '端末画面（Term 系）・会話の出力カード（Out 系）', '廃止。読めないセッションは 1 文（ChatUnsupported）'),
+      M2('1/6', '状態の記号', 'アプリ内の行・小見出し・カード', 'ロック画面・ウィジェット・Live Activity・Dynamic Island だけ'),
+      M2('2/6', '使用量の表示', '一覧の下端の使用量バー', '入力欄の下の 1 行のリング（5/6 で描いた）'),
+      M2('2/6', '新規作成の入口', '一覧の「＋ セッションを追加」の行・単独の行', 'プロジェクトの見出しの「＋」／下部の丸い「新規チャット」'),
+      M2('2/6', '行のロゴ・補足・相対時刻', '一覧の行', 'ロゴ → セッション画面の小見出しのエージェント名／ワークスペース名 → プロジェクトの欄の見出し／相対時刻 → 出さない'),
+      M2('3/6', 'エージェントを先に選ぶ段階', '新規の本文の 3 択（DraftPicking）', 'モデルのシート（選ぶとエージェントも決まる）'),
+      M2('3/6', 'プロジェクトの選び方', '新規の画面のナビ（Phlox に作成）', '入力欄のプロジェクトのチップ'),
+      M2('4/6', '「＜ 戻る」', 'セッション画面の左上', 'ホームのボタン（端スワイプは残す）。6/6 で新規チャットも同じに'),
+      M2('4/6', 'AI の返答のアバター', '返答の左', '廃止（エージェント名は上部のバーの小見出し）'),
+      M2('4/6', '添付の「画像 ×N」', '吹き出しの下', '吹き出しの中、本文の上'),
+      M2('4/6', 'コピー・時刻', '長押しの「コピー」1 項目（Mac はマウスを乗せると出る）', '長押しのメニュー（見出しに時刻）'),
+      M2('4/6', 'ターンの使用量「$ · コンテキスト」', '入力欄の上の行', '各ターンの終わりの右寄せの 1 行'),
+      M2('4/6', '承認・質問', '下端の応答ゾーン（承認バー・質問）', '入力欄のすぐ上の承認のカード・質問のカード'),
+      M2('4/6', 'Codex の 4 択シート', 'ReplyCodexSheet（「却下…」「承認…」→ シート）', '承認のカードの 4 つのボタン（Claude Code と Codex で共通）'),
+      M2('4/6', '送信失敗の知らせ', '会話の末尾の右寄せの帯', '入力欄の上の赤い文字 1 行'),
+      M2('4/6', '思考中のプレビュー', '会話の末尾の最大 3 行', '光の帯の言葉＋1 行の要約'),
+      M2('5/6', 'リセットの表示', '使用量バーの中（幅で省いていた）', '行を押して出す吹き出し（省かない）'),
+      M2('5/6', '表し方の切り替え', '設定 › 使用量 › 残りの表し方', '廃止')
+    ];
+    const N2 = (t, d) => ({ t, d, fg: { '例外': '#8A2A22', '解釈': '#1D1D1F', '分岐': '#45454F', '候補': '#8A4200' }[t] });
+    const notes2 = [
+      N2('例外', 'エラーの面だけ三角の印（4/6 の指示。「アプリ内は記号なし」の例外）。無応答の紫は例外ではなく、無応答用のトークン status.stalled として一覧・会話・アプリ外で共通に使う（点検後）。アクセントの色は白黒のまま'),
+      N2('解釈', '「質問待ち」は、Mac と同じ語として質問のカードの見出しだけに使う。一覧・小見出しの状態の語は「質問あり」のまま'),
+      N2('解釈', 'ADR 0033（戻るを差し替えない）は、ご指示を正としてホームのボタンに替えた。端スワイプで戻る操作は残す'),
+      N2('解釈', 'ADR 0038（出力 50 行ずつ）は、ご指示どおり Mac と同じ 20 行・「さらに表示（残り n 行）」に変えた'),
+      N2('解釈', '新規チャットはセッション画面の「未作成のとき」なので、6/6 で左上を同じホームのボタンにそろえた（QR スキャンの「‹」は設定へ戻る全面カメラなので残した）'),
+      N2('解釈', '状態の色（決定）: 承認待ち・質問あり・エラーはそれぞれの注意の色（琥珀・青・赤）、無応答は Mac と同じ紫（status.stalled）。承認待ちは Claude Code と Codex のセッションだけ（Cursor には承認が無い）'),
+      N2('分岐', '無応答とみなすまでの時間は Mac と同じ値を使う（iPhone 側で別の値を持たない）'),
+      N2('分岐', '提案チップの定型文と、権限の既定（Manual／Default／既定）は Mac の値に合わせる前提の仮の値'),
+      N2('候補', '使用量: 初回の取得前・前の値が無いままの失敗・0 件は、3 エージェントとも灰色の空のリング'),
+      N2('候補', '使用量: 一覧を取得するとき（起動・復帰）にも一緒に取る'),
+      N2('候補', '一覧: 子セッションの開閉の既定と、開閉の状態を覚えるか／エラー・無応答も対応待ちに入れるか')
+    ];
+    const OK = 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M5.4 8.2 L7.2 10 L10.7 6.3';
+    const EX = 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M5 8 H11';
+    const A2 = (k, res, fixed, kept, ov) => ({ k, res, fixed, kept, fg: res === '残りなし' ? '#1F7A3A' : (res.indexOf('誤り') >= 0 ? '#B8241C' : '#45454F'), icon: res === '残りなし' ? OK : EX, hasOv: !!ov, ov: ov || '' });
+    const audit2 = [
+      A2('紫のアクセント', '残りなし', 'なし（1 回目に直し済み）。6/6 で Detail に残っていた使われない不透明案の色（淡い紫 #F6F4FF）を消した', '無応答の紫（status.stalled。Mac と同じ。アクセントではない）。それを説明する文（ChatSpec・ReplySpec・ReviewMap）'),
+      A2('エージェント別の色', '残りなし', 'なし（1 回目に直し済み）', 'ReviewDiff の当時の記録 1 行。DS の「使わない」と書いた説明'),
+      A2('略号 CC／Cx／Cu', '残りなし', 'なし（1 回目に直し済み）', 'ReviewDiff の当時の記録 1 行'),
+      A2('破線のロゴ枠', '残りなし', 'なし（1 回目に直し済み）', 'ロゴ枠ではない破線: 起動中の点線の丸（circle.dashed）、注記の箱（Chat の「表示を省略しました」、Dialogs・Glance・Launch・Main の注記）'),
+      A2('AI の返答のアイコン', '残りなし', 'Chat・Detail・Reply（4/6）。6/6 で Dialogs の背景に描いたセッション画面の、返答のロゴ 2 か所を外した', '「アバターなし」と書いた説明'),
+      A2('一覧の行のロゴ・状態の記号', '残りなし', 'List（2/6）。6/6 で Dialogs の背景に描いた一覧（ロゴ・補足・「待機中」の 3 行）を今の行（名前と状態の文字だけ）に直した', '記号はアプリ外（Glance 系・DS の「アプリ外」の表）だけ'),
+      A2('不透明バーの案', '残りなし', '盤面 3 枚を削除（1/6）。6/6 で Shell・Detail に残っていた使われない不透明案のコード（分岐と色 8 つ）を消した', 'ReplySpec の「不透明バーの案は廃止」。iOS 18 の素材のバー（Shell18・Detail18）は OS 標準の見え方なので別'),
+      A2('端末画面', '残りなし', 'Term 系 11 枚・TermSpec・Out 系 5 枚を削除（1/6）', '廃止を説明する文（ChatSpec・ReviewMap・Review181）と ChatUnsupported の 1 文。ほかの「端末」は iPhone 本体の意味（外観・Face ID）'),
+      A2('使用量タブ', '誤り（3 回目で訂正）', 'なし（1 回目に廃止）', '「廃止」と書いた説明・移動元（ListSpec・Mapping・ReviewMap・SetUseSpec）', '「残りなし」は誤りだった。Main の設定の説明に「接続／通知／セキュリティ／使用量／外観…」と、使用量タブ・設定の区画の名残りが残っていた。3 回目で「使用量」を外した'),
+      A2('一覧の下端の使用量バー', '誤り（3 回目で訂正）', 'バーと Use 系 29 枚・部品 UsageBar を削除（2/6）。説明の盤面を「入力欄の下のリング」に（5/6）。6/6 で Chat に残っていた使われない候補（会話のエージェントの使用量、ucand）を消した', '移動元として書いた文（DS・ListSpec・Main・Mapping・ReplySpec・Review181・ReviewDiff・ReviewMap・SetUseSpec）と、SetUseSpec の不採用案 B の図', '「残りなし」は誤りだった。Mapping に「使用量は一覧に常にある」が 2 か所、DS に「スケルトン（一覧・使用量）」が残っていた。3 回目で入力欄の下のリング（灰色の空のリング）の決定に合わせて直した'),
+      A2('エージェントを先に選ぶ段階', '残りなし', 'DraftPicking・DraftNoModels・ReplyModelDraft を削除（3/6）', 'DraftSpec の「消した盤面」と移動元の行'),
+      A2('「＜ 戻る」', '例外 1 つ', 'セッション画面（4/6）。6/6 で新規チャット（Draft）・Dialogs の背景・DS の見本とアイコン表をホームのボタンに', '例外: QR スキャンの「‹」（設定へ戻る全面カメラ。セッション画面ではない）。移動元として書いた文（ChatSpec・ReplySpec・Review181・ReviewMap）'),
+      A2('4MB の上限', '残りなし', 'なし（1 回目に直し済み）', '「古いので使わない」と書いた説明 2 か所（ReplySpec・ReviewMap）'),
+      A2('状態の文言「質問待ち」「応答なし」', '例外 1 つ', '「応答なし」は無し。6/6 で盤面の名前 3 枚（ReplyQuestion・ReplyQuestionDark・ReplyQuestionPlain）を「質問のカード · …」に直した', '例外: 「質問待ち」は 4/6 の指示で、質問のカードの見出しだけ（Mac と同じ語）。状態の語は「質問あり」'),
+      A2('古い呼び名（応答ゾーン・入力バー・あなたの番）', '残りなし', '6/6 で Main・Layers・Launch・Mapping・ReviewMap・Review181・Review212・ReviewDiff・DS・Dialogs・Errors・GlanceSpec・GlanceCatalog・ListSpec・DraftSpec と付箋 2 枚を「承認・質問のカード」「入力欄」「対応待ち」に', '移動元として書いた文と、機能一覧の原文の名前（「あなたの番（5.2）」など）')
+    ];
+    const DIFF2 = [{"part": "1/6", "title": "土台（Liquid Glass・端末・状態の記号）", "del": ["DetailSolid", "LiquidGlass", "OutCollapsed", "OutDark", "OutError", "OutLong", "OutShort", "ShellSolid", "Term", "Term80Dark", "TermColor", "TermDT", "TermSE", "TermShort", "TermSpec", "TermWide", "TermWideScrolled", "TermZoom"], "nw": ["ChatUnsupported", "ChatUnsupportedDark"], "chg": ["Chat", "ChatSpec", "DS", "Detail", "Dialogs", "DialogsSpec", "Draft", "DraftSpec", "Errors", "List", "ListSpec", "Main", "Mapping", "Pair", "PairSpec", "Reply", "ReplySpec", "Review181", "Review212", "ReviewMap", "SetUse", "SetUseSpec", "Shell"]}, {"part": "2/6・3/6", "title": "一覧と下部のナビゲーション／新規チャットと入力欄", "del": ["DraftNoModels", "DraftPicking", "ReplyModelDraft", "UsageBar", "UseBarLevels", "UseDetailCand", "UseLoading", "UseLoadingDT", "UseLoadingDark", "UseLoadingSE", "UseLow", "UseLowDT", "UseLowDark", "UseLowSE", "UseNormal", "UseNormalDT", "UseNormalDark", "UseNormalSE", "UseNum", "UseNumDark", "UseRefresh", "UseRefreshDT", "UseRefreshDark", "UseRefreshSE", "UseStale", "UseStaleDT", "UseStaleDark", "UseStaleSE", "UseUnavail", "UseUnavailDT", "UseUnavailDark", "UseUnavailSE"], "nw": ["DraftEffort", "DraftFromProject", "DraftModel", "DraftModelDark", "DraftModelNa", "DraftPerm", "DraftSuggest", "ReplyEffort", "ReplyHaiku", "ReplyMore", "ReplyPerm", "ReplyPermFail"], "chg": ["Chat", "ChatSpec", "DS", "Detail", "Dialogs", "DialogsDark", "DialogsSpec", "Draft", "DraftCreated", "DraftCreating", "DraftCreatingDark", "DraftDT", "DraftDark", "DraftEntryEmpty", "DraftFailed", "DraftSE", "DraftSEDark", "DraftSpec", "Layers", "List", "ListAllAttention", "ListCollapsed", "ListManyScrolled", "ListManyTop", "ListSpec", "Main", "Mapping", "Pair", "Reply", "ReplyModel", "ReplySpec", "Review181", "ReviewMap", "SetUse", "SetUseSpec", "Shell", "Shell18"]}, {"part": "4/6", "title": "セッション画面", "del": ["ReplyCodexSheet", "ReplyCodexSheetDark"], "nw": ["ChatStall", "ChatStallDark", "ChatThinking", "ReplyApprovalDiff"], "chg": ["Chat", "ChatCopy", "ChatExpandCmd", "ChatExpandDiff", "ChatSpec", "DS", "Detail", "Detail18", "DetailDT", "DetailDark", "DetailSE", "DetailThumb", "FlowApprove", "FlowNext", "Layers", "ListTapDetail", "Main", "Mapping", "Reply", "ReplyApprovalFail", "ReplyCodex", "ReplyDT", "ReplyKeyboardAppr", "ReplyQuestion", "ReplyQuestionDark", "ReplyQuestionFail", "ReplyQuestionPlain", "ReplySpec", "Review181", "Review212", "ReviewMap"]}, {"part": "5/6", "title": "使用量", "del": [], "nw": ["UsageKeyboard", "UsageLow", "UsageLowDT", "UsageLowDark", "UsageLowSE", "UsageNa", "UsageNaDT", "UsageNaDark", "UsageNaSE", "UsageNormal", "UsageNormalDT", "UsageNormalDark", "UsageNormalSE", "UsagePop", "UsagePopDT", "UsagePopDark", "UsagePopSE", "UsageRefresh", "UsageStale", "UsageStaleDT", "UsageStaleDark", "UsageStaleSE"], "chg": ["Chat", "DS", "DSDark", "Detail", "Draft", "DraftSpec", "Errors", "ListSpec", "Main", "Mapping", "Reply", "ReplySpec", "Review181", "Review212", "ReviewDiff", "ReviewMap", "SetUse", "SetUseSpec"]}, {"part": "6/6", "title": "まとめ（説明の盤面と点検）", "del": [], "nw": [], "chg": ["Chat", "DS", "DSDark", "Detail", "Dialogs", "Draft", "DraftSpec", "Errors", "GlanceCatalog", "GlanceSpec", "Launch", "Layers", "ListSpec", "Main", "Mapping", "ReplyQuestion", "ReplyQuestionDark", "ReplyQuestionPlain", "Review181", "Review212", "ReviewDiff", "ReviewMap", "Revision20261017", "Shell"]}];
+    const parts2 = DIFF2.map(p => ({ part: p.part, title: p.title, nDel: String(p.del.length), nNew: String(p.nw.length), nChg: String(p.chg.length), del: p.del.length ? p.del.join('・') : 'なし', nw: p.nw.length ? p.nw.join('・') : 'なし', chg: p.chg.length ? p.chg.join('・') : 'なし' }));
+    const uniq = (k) => Array.from(new Set([].concat.apply([], DIFF2.map(p => p[k]))));
+    const allDel = uniq('del'), allNew = uniq('nw');
+    const allChg = uniq('chg').filter(n => allNew.indexOf(n) < 0 && allDel.indexOf(n) < 0);
+
+    const F3 = (k, d, b) => ({ k, d, b });
+    const fixes3 = [
+      F3('Cursor には承認が無い', '承認のカードと「承認待ち」は Claude Code と Codex だけ。「どのエージェントも同じ 4 つ」を「Claude Code と Codex で同じ 4 つのボタン。Cursor には承認が無い」に。ReplyCodex の盤面名を中身に合わせた（2 回目の指示の誤りの訂正）', 'ReplySpec / ChatSpec / DS / Mapping / ReviewMap / ReplyCodex / ListSpec'),
+      F3('無応答の色', '一覧の文字（前は琥珀 #8A5300）・閉じたプロジェクトの内訳・アプリ外の表示を、会話の面と同じ紫に統一。DS に無応答用のトークン status.stalled（#5B3FA8／ダーク #C9B6FF、地 #F1ECFB）を足し、status.neutral と status.caution から無応答を外した。ListSpec の分岐を決定に', 'List / Glance / GlanceCatalog / GlanceSpec / DS / DSDark / ListSpec / ReviewDiff / ReviewMap'),
+      F3('表示できないセッション', '上部はホーム・セッション名・「…」だけ。状態の文字「実行中」・エージェント名・停止・入力欄・使用量の行を出さない（送っても結果が見えないため）', 'Chat（ChatUnsupported・ChatUnsupportedDark）/ ChatSpec / ReviewMap'),
+      F3('モデル変更のシート', 'Dialogs M1〜M4 を新規チャットと同じシートに（ロゴつきのエージェントの見出し・絞り込み欄・✓・「既定」の印・Opus (1M context) などの表示名）。「選択中／その他」の区分と行の下のエージェント名をやめた', 'Dialogs / DialogsDark / DialogsSpec'),
+      F3('作成前のメニュー・一覧が取れない', 'N2: 新規チャット（作成前）は上部に「…」を出さない。N3: チップと「モデル変更」に Mac の既定のモデル名、シートの欄は「取得できません」。DraftSpec の決定にそろえた', 'Dialogs / DialogsSpec'),
+      F3('古い説明', 'Main の設定の区画から「使用量」を外した／Mapping の「使用量は一覧に常にある」2 か所を入力欄の下のリングに／DS の「スケルトン（使用量）」を灰色の空のリングに／Review181 の 0031 を「表は横スクロール」に／ReplySpec のモデルの行と入力欄の上の行／ListSpec・Main・ReviewMap の「新規チャット」のプロジェクトの初期値（前回使ったプロジェクト）', 'Main / Mapping / DS / Review181 / ReplySpec / ListSpec / ReviewMap'),
+      F3('セッションのタブのアイコン', '端末のプロンプト（>_）の形をやめ、会話を表す 2 つの吹き出し（bubble.left.and.bubble.right）に。DS のアイコン表も', 'Shell / List / SetUse / Pair / DS'),
+      F3('状態の語「待機」', 'Dialogs の背景の「待機中 · Claude Code」「待機中 · Codex」を「待機 · …」に。一覧の行には待機を出さない決まりを DialogsSpec に書いた。会話の末尾の「待機中…」は思考中の 6 つの言葉（6.5 節）なので残した', 'Dialogs / DialogsSpec'),
+      F3('表示されない古いデータ', 'Shell の旧い行データ・「待機」の LABEL・ロゴの CSS、Reply の状態の記号と dash・inp.hasUsage・inp.usage、SetUse の ICON.gauge、Pair の使用量タブのアイコンを消した', 'Shell / Reply / SetUse / Pair')
+    ];
+
+    const P3 = (k, n, d, b) => ({ k, n, d, b });
+    const add3 = [
+      P3('新規チャット — プロジェクトの選択', '新しい 3 枚', 'プロジェクトのチップを押したメニュー。一覧に出ているプロジェクト（Phlox・SimpleBudget・landing-page・dotfiles）、選択中に ✓、前回使ったものに「前回使った」', 'DraftProject / DraftProjectDark / DraftProjectSE'),
+      P3('新規チャット — 2 つの入口', '直した 2 枚＋List', 'List の「＋」を DraftFromProject（そのプロジェクト SimpleBudget で始まる）へ、下部の「新規チャット」を Draft（前回使った Phlox が選ばれている）へつないだ。盤面の名前と付箋で違いを書いた', 'Draft / DraftFromProject / List'),
+      P3('新規チャット — 「…」', '新しい 2 枚', '思考の強さと権限をまとめたメニューを開いた状態', 'DraftMoreSE / DraftMoreDT'),
+      P3('強い権限の赤いチップ', '新しい 3 枚', 'Bypass Permissions・Full Access を選んだ後。強い権限は「…」に入れず、赤いチップのまま見せる（「…」には思考の強さだけ）。入力欄の部品の決まりとして足した', 'DraftPermDanger / DraftPermDangerCodex / ReplyPermDanger'),
+      P3('Codex・Cursor の権限のメニュー', '新しい 2 枚', 'Codex: Read Only・Default・Full Access・Plan（Full Access は赤い文字＋「確認あり」）。Cursor: 既定・Ask・Plan', 'DraftPermCodex / DraftPermCursor'),
+      P3('ダークの版', '新しい 11 枚', '差分つきの承認・承認の送信失敗・キーボード表示中の承認・ファイル変更の展開・ツール実行の展開・長押しのメニュー・エラー・送信失敗・質問カード・考え中・サブエージェント詳細', 'ReplyApprovalDiffDark / ReplyApprovalFailDark / ReplyKeyboardApprDark / ChatExpandDiffDark / ChatExpandCmdDark / ChatCopyDark / ChatErrorDark / ChatSendFailDark / ChatQuestionDark / ChatThinkingDark / ChatSubDark'),
+      P3('iPhone SE・Dynamic Type 最大の版', '新しい 7 枚', 'SE: 差分つきの承認・質問・承認のダーク。DT 最大: 差分つきの承認・質問・無応答・ツール実行の展開', 'ReplyApprovalDiffSE / ReplyQuestionSE / ReplyApprovalSEDark / ReplyApprovalDiffDT / ReplyQuestionDT / ChatStallDT / ChatExpandCmdDT'),
+      P3('思考の強さと権限のメニュー', '新しい 6 枚', 'ダーク・SE・DT 最大。SE と DT 最大は入力欄が「…」にまとまるので、「…」から開いた状態', 'ReplyEffortDark / ReplyEffortSE / ReplyEffortDT / ReplyPermDark / ReplyPermSE / ReplyPermDT'),
+      P3('入力中はキーボードを出す', '直した 3 枚', '入力中の盤面と作成の失敗の盤面を、キーボードを出した状態に', 'ReplyTyping / ReplySEDark / DraftFailed'),
+      P3('直した盤面（版 241）', '13 枚', '部品（Draft・Reply・Chat・Detail は入力欄の共通部品を入れ直した）、説明の盤面（DraftSpec・ReplySpec・DS）、盤面の名前、この盤面', 'Chat / DS / Detail / Draft / DraftFailed / DraftFromProject / DraftSpec / List / Reply / ReplySEDark / ReplySpec / ReplyTyping / Revision20261017')
+    ];
+    const A3 = (k, res, fixed, kept) => ({ k, res, fixed, kept, fg: res === '残りなし' ? '#1F7A3A' : '#45454F', icon: res === '残りなし' ? OK : EX });
+    const audit3 = [
+      A3('Cursor の承認', '残りなし', '「どのエージェントも同じ 4 つ」「Claude Code・Cursor は即送信」などの記述は無い。承認のカード・「承認待ち」を描いた盤面は Claude Code（Reply・Detail など）と Codex（ReplyCodex）のセッションだけ。一覧・アプリ外の承認待ちはエージェントを出さない', '「Cursor には承認が無い」と書いた説明（ReplySpec・ChatSpec・DS・Mapping・ListSpec・ReviewMap）。ReviewMap の「機能一覧 7.1 の『Cursor は即送信』は誤り」'),
+      A3('無応答の色', '残りなし', '一覧の文字・閉じたプロジェクトの内訳・会話の小見出しと面・アプリ外（ウィジェット・Live Activity・Dynamic Island・通知の表）はすべて status.stalled の紫。注意の色・無彩色と組んだ記述は無い', 'なし'),
+      A3('表示できないセッションの上部', '残りなし', 'ChatUnsupported・ChatUnsupportedDark は上部がホーム・セッション名・「…」だけ（状態の文字・エージェント名・停止なし）。入力欄・使用量の行も出さない（部品のコードで確認）', 'なし'),
+      A3('使用量の古い説明', '残りなし', '「一覧に常にある」「スケルトン（使用量）」「設定の使用量の区画」は無い。使用量の盤面は Usage 系（入力欄の下のリング）だけ', '移動元として書いた文（DS・ListSpec・Main・Mapping・ReplySpec・ReviewMap・SetUseSpec）、SetUseSpec の不採用案 B の図、ReviewDiff・Review212 の当時の記録'),
+      A3('端末の記号・記述', '残りなし', 'セッションのタブのアイコン（>_）は 2 つの吹き出しに替えた（Shell・List・SetUse・Pair・DS）。端末画面・出力カードの盤面は無い', '廃止を説明する文（ChatSpec・ReviewMap・Review181）。ほかの「端末」は iPhone 本体の意味（外観・Face ID の方式）'),
+      A3('「待機中」の表記', '例外 1 つ', '状態の語はすべて「待機」。一覧の行には待機を出さない', '例外: 会話の末尾の「待機中…」は思考中の 6 つの言葉（機能一覧 6.5 節）で、状態の語ではない（Chat・ChatSpec・DS）')
+    ];
+    return { legend, changes, moves, cands, audit, boards, nBoards: String(boards.length), nNew: String(boards.filter(b => b.isNew).length), nFiles: '226', changes2, moves2, notes2, audit2, parts2, nDel2: String(allDel.length), nNew2: String(allNew.length), nChg2: String(allChg.length), fixes3, add3, audit3, nNew3: '34', nChg3: '13', nFiles3: '248', nFiles2: '214' };
+  }
+}
+</script>
+</body>
+</html>

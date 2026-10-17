@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>起動と接続 — 流れ・案内・機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1600px; height: 2950px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">アプリに入るまでと、Mac とつながるまで · 3 章／4 章／15.2 節／16.1 節／16.5 節</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">初回は「Mac で 3 つ準備 → QR を読む → 一覧が出る」の 1 本道。迷ったら同じ 3 つに戻れる</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動・文言を変える</span>
+<span><b style="color: #8A4200">候補</b> 提案。採否を決めてほしい</span>
+<span><b style="color: #45454F">要照合</b> 機能一覧の原文で確かめたい</span>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 18px; font-weight: 700">流れ（盤面の名前は Pair〜）</div>
+<sc-for list="{{ flows }}" as="fl" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; line-height: 1.4">
+<span style="width: 150px; flex: none; font-weight: 700; color: {{fl.fg}}">{{ fl.name }}</span>
+<sc-for list="{{ fl.steps }}" as="s" hint-placeholder-count="5">
+<sc-if value="{{ s.arrow }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="color: #8A8A93; font-size: 13px">{{ s.t }}</span></sc-if>
+<sc-if value="{{ s.box }}" hint-placeholder-val="{{ true }}"><span style="padding: 7px 12px; border-radius: 10px; background: {{s.bg}}; border: 1px solid {{s.bd}}; color: {{s.fg}}">{{ s.t }}</span></sc-if>
+</sc-for>
+</div>
+</sc-for>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F; padding-top: 8px; border-top: 1px solid #E6E6EC">起動ゲートは最も手前の層。前面に戻ったときは下の画面を保ったまま重ね、解除すると元の画面に戻る。ロック中に届いた通知・phlox://pair は解除後に適用する（骨格の回のまま）</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">論点: 初めての人が Mac の QR までたどり着くには</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>つまずく所は 3 つ。① Mac 側のアプリが動いていない ② Tailscale が片方でオフ ③ QR を出すメニューの場所がわからない。接続設定の本文を、この 3 つを順に並べた手順にする</li>
+<li>③ はメニューバーの小さな図で「どこを押すか」まで見せる。文字だけより、Mac の画面と見比べやすい</li>
+<li>主ボタン「QR を読み取る」は親指の位置。手順を読み終えた所で押せる。カメラを使えない人のために「写真から読み取る」を同じ場所に並べる</li>
+<li>カメラ画面にも「Mac で QR を出すには」を置き、同じ 3 つの手順を開ける（候補）。カメラを向けてから QR が無いと気づく人のため</li>
+<li>失敗表示（接続中に 20 秒・QR 後に届かない・疎通テスト）でも、確かめる項目は同じ 3 つの言い方にそろえる。どこで止まっても同じ言葉で戻れる</li>
+<li>Mac 側のメニュー名（「iPhone を接続…」など）は機能一覧の範囲外（Mac アプリは対象外）で未確認。Mac アプリの実際の表記に合わせる（分岐）</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">大きな変更の理由</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li><b>接続設定を「手順」に</b>: 現行の接続設定は接続先と QR ボタンが中心。未設定の人には接続先の欄は意味が無いので、準備の手順を主役にし、接続先は「未設定」の 1 行に下げる</li>
+<li><b>QR の結果をカードで</b>: 適用中・エラー・届かない・更新できたを、カメラの上の同じ場所のカードで出す。目線が動かず、ボタン「もう一度スキャン」も同じ位置</li>
+<li><b>20 秒の失敗に確かめる項目</b>: 「原因」を 3 つの確かめ方として並べる。再試行の前に Mac 側で何をすればよいかがわかる</li>
+<li><b>疎通テストの結果を行の直下に</b>: 押した行の下に結果を残す。成功は「GET /sessions → 200」と確かめた時刻、失敗は確かめ方と等幅の詳細（応答時間は取得していないので出さない）</li>
+<li><b>エラー文言の型</b>: 何が起きたか → なぜ → 次に、の 3 段に統一（エラー文言カタログ）</li>
+</ul>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 240px 520px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+<sc-for list="{{ map }}" as="m" hint-placeholder-count="18">
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.f }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">{{ m.p }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><sc-if value="{{ m.hasTag }}" hint-placeholder-val="{{ true }}"><b style="color: {{m.tagFg}}; margin-right: 6px">{{ m.tag }}</b></sc-if>{{ m.r }}</div>
+</sc-for>
+</div>
+
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">未配置の機能: なし。追加した機能: なし（「Mac で QR を出すには」「設定アプリでカメラを許可」「一覧に戻る」は既存の画面・OS 設定への入口を増やす候補として描いた）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":2950}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const K = {
+      n: { bg: '#F2F2F6', bd: '#DCDCE3', fg: '#18181B' },
+      a: { bg: '#EDEDF0', bd: '#E4E4EA', fg: '#1D1D1F' },
+      e: { bg: '#FDE7E5', bd: '#F5C2BD', fg: '#8E1A14' },
+      o: { bg: '#E3F4E8', bd: '#B9E2C6', fg: '#1F5C34' }
+    };
+    const B = (t, k) => { const s = K[k || 'n']; return { box: true, arrow: false, t, bg: s.bg, bd: s.bd, fg: s.fg }; };
+    const A = (t) => ({ box: false, arrow: true, t: t || '→' });
+    const flows = [
+      { name: '初回起動', fg: '#1D1D1F', steps: [B('起動'), A('ロック有効なら'), B('起動ゲート（Gate）', 'a'), A(), B('接続設定 · 手順（Pair）', 'a'), A('QR を読み取る'), B('QR スキャン（PairScan）', 'a'), A('読めた'), B('適用中（PairApplying）', 'a'), A(), B('接続中…（PairConnecting）', 'a'), A('一覧が読めた'), B('本体（一覧）', 'o')] },
+      { name: '初回のエラー', fg: '#A11F18', steps: [B('QR スキャン'), A('読めない'), B('読み取りエラー 5 種 → もう一度スキャン', 'e'), A('|'), B('届かない → もう一度スキャン', 'e'), A('|'), B('20 秒で読めない → 再試行／閉じる', 'e'), A('閉じる'), B('本体のオフライン表示', 'n')] },
+      { name: '設定から再ペアリング', fg: '#1D1D1F', steps: [B('設定タブ · 接続'), A('QR で再接続'), B('QR で再接続（PairRescan）', 'a'), A('読めた'), B('接続先を更新しました（留まる）', 'o'), A('戻る'), B('設定（接続中）', 'n')] },
+      { name: '疎通テスト', fg: '#1D1D1F', steps: [B('設定タブ · 疎通テスト'), A(), B('確かめています…', 'a'), A('成功'), B('接続できました · GET /sessions → 200', 'o'), A('失敗'), B('無応答＋確かめ方', 'e')] }
+    ];
+    const T = { chg: ['変更', '#1D1D1F'], cand: ['候補', '#8A4200'], chk: ['要照合', '#45454F'], keep: ['守る', '#45454F'] };
+    const M = (f, p, tag, r) => ({ f, p, r, hasTag: !!tag, tag: tag ? T[tag][0] : '', tagFg: tag ? T[tag][1] : '#45454F' });
+    const map = [
+      M('起動ゲート（3）', 'Gate。ロゴ・「Phlox」・タグライン「エージェントを止めないリモコン」・状態文・下端に「Face ID で解除」「パスコードを使用」・Keychain の補足', 'keep', '表示と同時に自動で認証を始める。条件（ロック有効時の起動と復帰）と層の位置は骨格のまま。押す場所を親指の位置へ'),
+      M('認証中（3）', 'GateAuth。状態文「Face ID で認証中…」＋OS の Face ID 表示。ボタンは淡色で押せない', 'keep', 'OS の表示に任せる'),
+      M('認証失敗（3）', 'GateFail。赤い帯「認証できませんでした」＋「もう一度 Face ID」「パスコードを使用」', 'chg', '現行「認証に失敗しました。もう一度お試しください。」を、次の 2 つの手が分かる文に。回数制限は OS のまま'),
+      M('パスコードを使用（3・21.2-7）', 'Gate の下端（ロック中・失敗の両方）', 'chg', '解消: 押すとパスコード入力を出す（現行は同じ認証を再実行するだけ）'),
+      M('接続設定（4・初回）', 'Pair。「Mac とつなぐ」＋Mac での準備 3 手順（図つき）＋現在の接続先「未設定」と疎通テスト（押せない理由つき）＋下端に「QR を読み取る」「写真から読み取る」', 'chg', '未設定の人に要るのは接続先の欄ではなく手順。手順を主役にし、接続先と疎通テストは小さく残す'),
+      M('現在の接続先（4）', '初回: 「未設定」の 1 行／設定タブ: 接続先（等幅）＋到達状態（色の付いた文言。記号なし）', 'chg', '到達状態を添え、接続先が生きているかを一目でわかるようにする'),
+      M('QR で接続／再接続（4）', '初回: 接続設定の主ボタン → QR スキャン／設定タブ:「QR で再接続」→ QR で再接続（タブバーを隠す）', 'keep', '入口は現行どおり。画面名を「QR を読み取る」「QR で再接続」に分け、どちらから来たかわかるようにする'),
+      M('疎通テストと結果（4）', '設定タブ「疎通テスト」の行の直下に結果（確かめています…／接続できました＋「GET /sessions → 200 · 時刻」／Mac に届きません＋確かめ方＋等幅の詳細）。接続先が無い間は押せず、理由を書く', 'chg', '結果を押した場所に残す。何度でも押し直せる'),
+      M('カメラ（4）', 'PairScan。全画面のカメラ、中央の枠、枠の下に案内と「遠いときはピンチで拡大できます」、下端に「写真から読み取る」', 'keep', 'カメラを全面に使う点は骨格どおり。ピンチで拡大は現行どおり'),
+      M('phlox://pair（2.5・4）', '本体なら設定 → QR で再接続、未設定なら接続設定 → QR。読み取りを飛ばして適用中から始まる', 'keep', '現行どおり（ロック中は解除後に適用）'),
+      M('カメラが使えない（4）', 'PairNoCam。「カメラを使えません」＋「写真から読み取る」（主）＋「設定アプリでカメラを許可」', 'cand', '「設定アプリで許可」は OS の設定を開くだけ（候補）'),
+      M('写真から読み取る（4）', '接続設定・カメラ画面・カメラ不可の 3 か所', 'keep', 'OS の写真ピッカーを開く'),
+      M('適用中（4）', 'PairApplying。枠が緑に変わり、下にカード「接続先を保存しています…」＋接続先（等幅）', 'chg', '読めたことを枠の色と文言の両方で示す'),
+      M('パースエラー 5 種＋写真（4）', 'PairParseErr（tweak: perr）。カメラを暗くし、下のカードに見出し・理由・次の手・等幅の詳細・「もう一度スキャン」。検証順の 5 種（QR でない／バージョン／ホスト／ポート／トークン）と「画像から QR コードを読み取れませんでした」', 'chg', '区分と順は現行どおり。各文言に「次にどうするか」を足す'),
+      M('到達不可（4・QR 後）', 'PairUnreach。同じカードで「Mac に届きません」＋「接続先は保存しました」＋確かめ方＋「もう一度スキャン」', 'keep', '疎通に失敗しても接続先とトークンは保存する（巻き戻さない）。そのことを文に書く'),
+      M('成功（4）', '初回: カード「接続しました（Ryosuke\'s Mac）」→ 自動で全画面「接続中…」へ／再ペアリング: 同じカードで留まる', 'keep', 'Mac 名が無ければ「接続しました」'),
+      M('もう一度スキャン（4）', 'エラー・到達不可のカードの主ボタン', 'keep', 'カードを閉じてカメラを再開する'),
+      M('再ペアリング成功後（4）', 'PairRescanDone。カード「接続先を更新しました」＋新しい接続先。画面に留まる', 'keep', '成功後も留まるのは現行どおり。戻るで設定へ'),
+      M('全画面「接続中…」（4・初回のみ）', 'PairConnecting。スピナー・接続先（等幅）・経過秒数・「20 秒たっても…」の予告', 'chg', '待つ長さの見通しを先に出す。タブバーごと覆う層は骨格どおり'),
+      M('約 20 秒で失敗（4）', 'PairConnectFail。見出し・保存済みであること・確かめる 3 項目・等幅の詳細・「再試行」「閉じる」', 'chg', '原因を確かめ方の形で並べる。閉じた後に何が起きるか（一覧で待つ）をボタンの下に書く。一覧の取得がエラーで終わったときは、見出し「接続できませんでした」＋そのエラーの文言（エラー文言カタログ F 系）に切り替える'),
+      M('到達不可 3 種（15.2・4）', '一覧の本文カード（一覧の回の盤面）＋全タブ下端の接続状態。文言はエラー文言カタログ U1〜U3', 'chg', '圏外は無彩色、Mac に届かないは赤＋等幅の詳細、確認中は無彩色＋時計。確認中は「再接続を試す」を出さない（候補）'),
+      M('再接続を試す（4・15.2）', '一覧のオフラインカード下端・全タブの接続状態。押すとボタン内がスピナーになり、到達性を即再判定', 'keep', '一覧の回のまま（ADR 0019）'),
+      M('エラー 8 種の文言（16.5）', 'エラー文言カタログ F1〜F8', 'chg', '何が起きたか → なぜ → 次に、の 3 段に統一。401 のボタンは「QR で再接続」へ（行き先は同じ）'),
+      M('状態の示し方', '起動ゲートの失敗の帯・QR 後のカード（パースエラー・到達不可・成功）・疎通テストの結果・約 20 秒の失敗・到達状態は、見出しの色と文字だけ（エラー＝赤・成功＝緑）。進行中はスピナー', 'chg', 'アプリ内は文字だけ。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ。カードの丸い記号・帯の三角・失敗の大きな記号を外した（Mac と同じ）。カメラ不可の図・メニューバーの図は図なので残す'),
+      M('OS のダイアログの文（3・4.2）', 'Face ID の利用目的「保存したセッション情報を保護するため、起動時に Face ID で本人確認します。」、認証の理由「Phlox のロックを解除」、カメラの利用目的「Mac とのペアリング用 QR コードを読み取るためにカメラを使用します。」は OS のダイアログに出る（盤面には描かない）', 'keep', '現行どおり'),
+      M('16.1 の文言', '起動ゲート・接続設定・QR・接続中の原文はすべて上の行のどこかに置いた（レビュー表 1 を参照）', 'keep', '言い換えたものは各行の「変更」に書いた')
+    ];
+    return { flows, map };
+  }
+}
+</script>
+</body>
+</html>

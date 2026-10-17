@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>新規チャット — 機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&amp;family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1500px; height: 3600px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">新規チャットと入力欄 · 8.1〜8.6 節／14 章／ADR 0008・0010・0030 · 2 回目の修正 3/6</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">Mac 版の新規チャットと同じ。見出し 1 つと、開いた時点で入力できる 2 段の入力欄</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動を変える</span>
+<span><b style="color: #0B5E78">移動</b> 移動元 → 移動先</span>
+<span><b style="color: #B8241C">廃止</b> 指示で無くした</span>
+<span><b style="color: #8A4200">候補</b> 提案</span>
+<span><b style="color: #45454F">分岐</b> 解釈が分かれる・未確認</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">画面の作り</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>入口は 2 つ。一覧のプロジェクトの「＋」から開くと、そのプロジェクトを選んだ状態で始まる（盤面 DraftFromProject: SimpleBudget の「＋」）。下部の「新規チャット」から開くと、前回使ったプロジェクトが選ばれている（盤面 Draft: Phlox）。どちらもプロジェクトのチップで変えられる</li>
+<li>プロジェクトのチップを押すと、メニューに一覧に出ているプロジェクト（セッションが 1 つ以上あるもの）を並べ、選択中に ✓、前回使ったものに「前回使った」と添える（DraftProject・ダーク・SE）</li>
+<li>開いた時点で入力欄にフォーカスが入り、キーボードが上がった状態で始める。ナビは左上のホームのボタン（家の形・押すと一覧へ）だけ。セッション画面と同じで、画面の左端からの右スワイプでも一覧へ戻れる（2 回目の修正 6/6 でそろえた）</li>
+<li>中央に見出しを 1 つ。キーボードと入力欄と提案チップを除いた残りの中央に置く。書体は DotGothic16（Mac と同じ。ロゴは付けない）。開くたびに下の 10 種から 1 つ</li>
+<li>入力欄の上に提案チップを 5 つ横に並べ、はみ出す分は横スクロール（右端を薄くぼかす）。押すと定型文が入力欄に追記される（送信はしない）</li>
+<li>プロジェクトが未選択のまま送ると、入力欄の上に赤い文字で「プロジェクトを選んでください」（送らない）</li>
+<li>送ると「作成 → 準備待ち → 送信」まで進み、そのセッション画面へ移る。進み具合は会話の中のカードに文字で出す（記号なし、待つ段だけスピナー）。失敗したら本文を入力欄に戻し、入力欄の上に赤い文字で理由</li>
+</ul>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; padding: 12px 14px; border-radius: 12px; background: #F2F2F5; font-family: 'DotGothic16', 'Hiragino Sans', sans-serif; font-size: 17px; line-height: 1.5">
+<sc-for list="{{ heads }}" as="h" hint-placeholder-count="10"><div><span style="font-family: ui-monospace, monospace; font-size: 12px; color: #6B6B73; margin-right: 6px">{{ h.i }}</span>{{ h.t }}</div></sc-for>
+</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">提案チップと定型文（押すと入力欄の末尾に追記）</div>
+<div style="display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 6px 14px; font-size: 14px; line-height: 1.55">
+<sc-for list="{{ sug }}" as="s" hint-placeholder-count="5"><div style="font-weight: 600">{{ s.t }}</div><div style="color: #2A2A31">{{ s.s }}</div></sc-for>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #45454F">定型文は Mac 版の文言に合わせる（盤面の文は仮。<b style="color: #45454F">分岐</b>）。追記のあとカーソルは末尾、キーボードは上がったまま</div>
+<div style="font-size: 18px; font-weight: 700; margin-top: 8px">注記: iPhone から作るセッションの作業フォルダ</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>iPhone から作るセッションは、プロジェクトで別の作業フォルダ（worktree）を使う設定になっていても、<b>常にプロジェクトの既存のフォルダで始まる</b></li>
+<li>iPhone からは、ブランチ・作業フォルダ・履歴からの再開を指定できない。選ぶ画面・項目は足さない</li>
+</ul>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">入力欄（新規チャットとセッション画面で共通）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li><b>1 段目</b>: 本文。プレースホルダ「やりたいことを入力」。複数行で伸びる（5 行まで、その先は欄の中でスクロール）。添付画像のサムネイルは 1 段目の上に並べる（「画像 n/4」）。添付の上限とエラー文言は前回の決まりのまま</li>
+<li><b>2 段目</b>: 左から「＋」（画像の添付）、モデルのチップ（{ロゴ} {モデルの表示名} ⌄）、思考の強さのチップ（メーターの印＋段階）、権限のチップ（盾の印＋権限の名前）。右寄せで、プロジェクトのチップ（新規チャットのときだけ。フォルダの印＋名前 ⌄）と、円形の送信ボタン「↑」（実行中は停止「■」）</li>
+<li><b>幅が足りないとき</b>は Mac と同じ順で省く: ① 思考の強さと権限を「…」1 つのメニューにまとめる ② プロジェクトのチップを印だけにする ③ それでも入らなければ 2 段目を折り返す。モデル名と送信ボタンは省かない。幅は文字の量から計算して決める（428pt の新規チャットは「Manual」なら ① の前、「Accept Edits」や長いプロジェクト名で ①。375pt と Dynamic Type 最大は ① 以降。「…」を開いた状態は DraftMoreSE・DraftMoreDT）。強い権限（Bypass Permissions・Full Access）を選んでいるときは、権限を「…」に入れず赤いチップのまま見せ、「…」には思考の強さだけを入れる（DraftPermDanger・DraftPermDangerCodex・ReplyPermDanger）</li>
+<li>入力欄の上の 1 行は、赤い文字の知らせに使う（プロジェクト未選択・権限や思考の強さを変えられなかった・添付エラー・作成の失敗）。記号は付けない</li>
+<li>送信と停止の出し分け・送信中も入力欄を消さない・完了やエラーの後も入力できる、は前の決まりのまま（ReplySpec の表）</li>
+<li><b>入力欄の下</b>（画面の最下端の手前）に使用量の 1 行: Claude Code → Codex → Cursor の、枠ごとの残りのリング。キーボード表示中も出す。押すと吹き出しで枠・残り・リセット（2 回目の修正 5/6。決まりは SetUseSpec、盤面は「使用量 · …」）</li>
+</ul>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">思考の強さ</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>メーターの印＋「低／中／高／非常に高／最大」。押すと段階のメニュー（選択中にチェック、既定に「既定」）</li>
+<li>Claude Code は 5 段階。Haiku は思考の強さが無いので、チップを出さない</li>
+<li>Codex と Cursor は、モデルごとに Mac から届く段階だけを出す（届かないモデルはチップを出さない）</li>
+<li>モデルを変えると、そのモデルの既定の強さに戻る（Claude は「高」）</li>
+<li>新規チャットでもセッション画面でも変えられる。実行中に変えたら次の指示から効く</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">権限</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>盾の印＋権限の名前。押すと権限のメニュー。選択肢はエージェントごとに違う:<br>Claude Code: Manual・Accept Edits・Auto・Bypass Permissions・Don't Ask・Plan<br>Codex: Read Only・Default・Full Access・Plan<br>Cursor: 既定・Ask・Plan</li>
+<li>確認なしで全部を許す権限（Bypass Permissions・Full Access）は、メニューで赤い文字＋「確認あり」。選ぶと確認のダイアログ（Dialogs P1・P2）。選んだ後はチップの文字も赤で、幅が足りなくても「…」に隠さない。Codex・Cursor の権限のメニューは DraftPermCodex・DraftPermCursor</li>
+<li>実行中に変えたら次の指示から効く。変えられなかったら入力欄の上に「権限を変更できませんでした」（元の権限のまま）</li>
+<li>既定は、Claude Code「Manual」・Codex「Default」・Cursor「既定」とした（<b style="color: #45454F">分岐</b> Mac の既定に合わせる）</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">モデルの選択</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>チップは「{エージェントのロゴ} {モデルの表示名} ⌄」。エージェント名の文字は出さない。VoiceOver は「モデル、Codex: gpt-6.1-sol」と読む</li>
+<li>新規チャット: 絞り込み欄つきのシートに、3 エージェントの全モデルを 1 つの一覧で。Claude Code → Codex → Cursor の順に、ロゴと名前の見出しで区切る。選択中にチェック、既定に「既定」。取れないエージェントは「取得できません」の行（選べない）</li>
+<li>モデルを選ぶと、エージェントもそのモデルのものに切り替わる（思考の強さはそのモデルの既定、権限はそのエージェントの既定に）</li>
+<li>セッション画面: そのセッションのエージェントのモデルだけ</li>
+<li>モデル名は Mac から届く表示名のまま（盤面の名前は例: Opus (1M context)・Sonnet 5・Haiku 5.5・gpt-6.1-sol ほか）</li>
+</ul>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 230px 470px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+<sc-for list="{{ map }}" as="m" hint-placeholder-count="20">
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.f }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">{{ m.p }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><sc-if value="{{ m.hasTag }}" hint-placeholder-val="{{ true }}"><b style="color: {{m.tagFg}}; margin-right: 6px">{{ m.tag }}</b></sc-if>{{ m.r }}</div>
+</sc-for>
+</div>
+
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">消した盤面: DraftPicking（モデルを選ぶ段階）・DraftNoModels（モデル一覧が取れない）・ReplyModelDraft（新規作成のモデルのシート）。未配置の機能: なし。追加した機能: 見出し・提案チップ・思考の強さ・権限・プロジェクトのチップ（いずれも今回の指示による）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1500,"height":3600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const H = ['何から始めますか？', '今日は何を進めますか？', 'さあ、始めましょう', '次は何を作りますか？', 'どこから手をつけますか？', 'アイデアを形にしましょう', '今日の課題を教えてください', 'どんな変更を加えますか？', '続きを進めましょう', '何をお手伝いしましょうか？'];
+    const heads = H.map((t, i) => ({ i: String(i + 1), t }));
+    const sug = [
+      { t: 'コードレビュー', s: 'この変更をレビューして、問題点と改善案を挙げてください。' },
+      { t: 'バグ修正', s: '次の不具合を調べて直してください: ' },
+      { t: 'テスト追加', s: 'この変更にテストを追加してください。' },
+      { t: 'コードの説明', s: 'このコードが何をしているか説明してください。' },
+      { t: 'リファクタ', s: '動きを変えずに、読みやすく整理してください。' }
+    ];
+    const T = { chg: ['変更', '#1D1D1F'], move: ['移動', '#0B5E78'], del: ['廃止', '#B8241C'], cand: ['候補', '#8A4200'], br: ['分岐', '#45454F'], keep: ['守る', '#45454F'], fix: ['解消', '#1F6B3A'] };
+    const M = (f, p, tag, r) => ({ f, p, r, hasTag: !!tag, tag: tag ? T[tag][0] : '', tagFg: tag ? T[tag][1] : '#45454F' });
+    const map = [
+      M('入口（8.6・ADR 0008）', '一覧のプロジェクトの「＋」（そのプロジェクト）／下部の「新規チャット」（入力欄のプロジェクトのチップで選ぶ。初期値は前回のプロジェクト）／空の一覧の「新規チャット」', 'chg', '一覧の回で入口を見出しの「＋」と下部の丸いボタンに移した。それに合わせ、プロジェクトの決め方を入力欄のチップにした'),
+      M('画面の見出し（8.6）', '中央の見出し 1 つ（10 種から 1 つ・DotGothic16）。ナビはホームのボタンだけ', 'chg', '前の「新規セッション／Phlox に作成」のナビの見出しをやめ、Mac と同じ中央の見出しに'),
+      M('種別の 3 択（8.6）', '移動元: 本文の「どのエージェントで始めますか？」の 3 択 → 移動先: モデルのチップのシート（3 エージェントの全モデルを 1 つの一覧）', 'move', 'モデルを選ぶとエージェントも決まる（Mac と同じ）。3 択と「モデルを選ぶ」段階は廃止'),
+      M('初期選択（ADR 0030）', 'Claude Code の既定のモデル（例: Sonnet 5）', 'keep', 'Claude Code → Cursor → 先頭の順は守る'),
+      M('モデル選択（8.5・ADR 0010）', '入力欄のモデルのチップ → 絞り込み欄つきのシート。新規は 3 エージェント、セッション画面はそのエージェントだけ（セッション画面では「…」の「モデル変更」からも開ける）', 'chg', 'セッション画面の入口が 2 つ（チップと「…」）なのは守る'),
+      M('モデル一覧が取れない（ADR 0005・0030）', 'シートのそのエージェントの欄に「取得できません」の行（選べない）。ほかのエージェントは選べる', 'chg', 'エラーにしない点は守る。前の「チップを出さない」は、1 つの一覧になったので、欄ごとの表示に変えた。全部取れないときはチップに Mac の既定のモデル名を出し、シートは 3 欄とも「取得できません」（分岐）'),
+      M('選んだモデルが消えた（ADR 0030）', '同じエージェントの既定 → 同じエージェントの任意、の順で選び直す', 'keep', ''),
+      M('思考の強さ（新）', '入力欄の 2 段目のチップ。段階のメニュー', 'chg', '今回の指示（Mac と同じ）'),
+      M('権限（新）', '入力欄の 2 段目のチップ。権限のメニュー。強い権限は確認（Dialogs P1・P2）', 'chg', '今回の指示（Mac と同じ）'),
+      M('プロジェクトのチップ（新）', '新規チャットの入力欄の右寄せ。未選択で送ると赤い文字「プロジェクトを選んでください」', 'chg', '今回の指示'),
+      M('提案チップ（新）', '入力欄の上に 5 つ。押すと定型文を追記（送信しない）', 'chg', '今回の指示'),
+      M('作業フォルダ・ブランチ・再開（8.6）', '置かない。常にプロジェクトの既存のフォルダで始まる', 'keep', '注記だけ。選ぶ画面は足さない'),
+      M('1 操作で作成・待機・送信（ADR 0008）', '送信 1 回。会話の中のカード（作成しました → 準備ができるのを待っています… → 指示を送る）。終わるとそのセッション画面', 'keep', '進み具合は文字で（記号なし）'),
+      M('作成前は停止なし（ADR 0008）', '作成が終わるまで送信ボタンはスピナー。停止は出さない', 'keep', ''),
+      M('作成失敗（8.6）', '本文を入力欄に戻し、入力欄の上に赤い文字で理由（Mac の理由を括弧で）', 'chg', '前の赤い帯を、入力欄の上の 1 行にそろえた'),
+      M('下書きのメニュー（10・21.2-6）', '作成前はナビに「…」を出さない（モデルはチップで変えられる）', 'br', 'Mac の新規チャットにそろえた。置くなら Dialogs N2（「モデル変更」だけ）のとおり。作成前の「削除」「名前変更」の不具合は起きない'),
+      M('キーボード（8.2）', '開いた時点で上がっている', 'chg', '前回の候補「入口直後は自動で出さない」を、指示どおり「すぐ入力できる」に改めた'),
+      M('Dynamic Type・SE', '見出しは 44pt で折り返す。提案チップは横スクロール。入力欄は「…」にまとめ、それでも入らなければ 2 段目を折り返す', 'chg', 'モデル名と送信ボタンは省かない'),
+      M('モデル名（8.5）', 'Mac から届く表示名のまま。既定は「既定」の印', 'keep', '')
+    ];
+    return { heads, sug, map };
+  }
+}
+</script>
+</body>
+</html>

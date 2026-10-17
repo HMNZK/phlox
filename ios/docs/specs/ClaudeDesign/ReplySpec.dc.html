@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>返答 — 機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1400px; height: 4300px; box-sizing: border-box; padding: 56px 64px; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">返答する部分 · 7 章／8.1〜8.5 節／14 章 · 2 回目の修正 4/6（Mac 版の会話の表示に揃える）</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">承認・質問・入力を、セッション画面の入力欄のすぐ上にまとめる</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動を変える</span>
+<span><b style="color: #9A4A00">候補</b> 提案。採否を決めてほしい</span>
+<span><b style="color: #1F6B3A">解消</b> 21.2 節などの不具合を正しい振る舞いで描いた</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">論点: 承認を素早く、かつ誤承認しにくく</div>
+<ol style="margin: 0; padding-left: 22px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 8px">
+<li><b>何を許可するかをボタンより上に置く。</b>見出し「承認待ち · Bash」→ 対象（コマンド・パスを等幅で太く）→ 説明（全文）→ 差分があれば「› 差分を見る（2 ファイル）」→ ボタン。目が上から下へ動くと、押す前に必ず対象を通る</li>
+<li><b>出た直後の 0.6 秒はボタンが反応しない。</b>カードが出た直後と、内容が別の承認に変わった直後に適用する。一覧や対応待ちバーの「開く」と同じ位置を続けて叩いても承認されない。ボタンは薄い状態から濃くなり、効くようになったことが見える</li>
+<li><b>承認したら次の承認へ自動で進まない。</b>同じセッションの承認が複数あっても「‹ 1/2 ›」で自分で送る。送信後は結果と「次の対応待ち」を出し、「次へ」を押して初めて次のセッションへ。押す癖で別の承認を許可しない</li>
+<li><b>キーボード表示中は承認カードを 1 行に畳む。</b>「承認待ち · Bash · 表示」の 1 行（ReplyKeyboardAppr）。文字入力中の指が承認ボタンに当たらない。「表示」でキーボードを閉じてカードを戻す</li>
+<li><b>4 つのボタンを 2 段に分け、許可と拒否を別の段に置く。</b>1 段目に「許可」（主ボタン・アクセントの塗り）と「このセッション中は許可」（副ボタン）、2 段目に「拒否」（副ボタン・赤い文字）と「キャンセル」（文字ボタン）。高さ 46 のカプセル、間は 8pt。Dynamic Type 最大では 1 列に積む（許可が上）。スワイプで承認、のような取り消せない近道は作らない</li>
+</ol>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F; padding-top: 6px; border-top: 1px solid #E6E6EC">速さのほうは、対応待ちバー → セッション画面（入力欄の上に承認のカードが出た状態）→ 許可 の 2 タップで保つ。確認ダイアログは足さない（毎回出ると読まずに押す癖がつくため）</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">提案: 質問への回答画面（7.4）はセッション画面に統合する</div>
+<p style="margin: 0; font-size: 14px; line-height: 1.65; color: #2A2A31">回答画面は独立画面として残さず、セッション画面の入力欄の上の質問のカードに統合する。実データでは到達しない経路で、会話の文脈も添付・停止も無い。セッション画面の中で答えれば、直前の会話を見ながら答えられる。</p>
+<div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 6px 12px; font-size: 13px; line-height: 1.55">
+<div style="font-weight: 700; color: #5B5B66">回答画面の機能</div><div style="font-weight: 700; color: #5B5B66">移動先</div>
+<div>質問文の表示</div><div>質問のカードの見出し「質問待ち · {見出し}」＋質問文</div>
+<div>「質問あり」チップ</div><div>上部のバーの小見出し（質問あり · エージェント名）</div>
+<div>回答の入力・送信</div><div>入力欄（プレースホルダ「回答を入力」）。送信は通常の送信と同じ</div>
+<div>回答のバブル・送信中</div><div>会話内の自分の発言（送信中は「送信中…」）</div>
+<div>送信失敗の赤い帯</div><div>カードの上の赤い文字 1 行</div>
+<div>選択肢のある質問</div><div>質問のカード（選択・自由入力・「回答を送信」）</div>
+</div>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F; padding-top: 6px; border-top: 1px solid #E6E6EC">入口の分岐（補助文が「回答待ち」で始まるか）は不要になる。質問ありの判定は状態の値だけで行う（21.2-4）</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 230px 440px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">状態の表し方（2 回目の修正）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">承認・質問の見出し、送信失敗の帯、キーボード中の 1 行に畳んだ承認、ナビの小見出し、添付エラーは文字と状態の色だけ（承認待ち＝琥珀・質問あり＝青・エラー＝赤）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 盾・吹き出し・三角・丸の記号を外した（アプリ内は文字だけ・Mac と同じ）。例外は会話のエラーの面の三角（Mac と同じ）。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ。スピナーは進み具合の表示なので残す</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">上部のバー（2 回目の修正 4/6）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">左にホームのボタン（家の形・44pt のガラスの丸。押すと一覧へ）。画面の左端から右へのスワイプでも一覧へ戻る（盤面には描かない）。中央にセッション名（17pt・1 行）と「状態の文字 · エージェント名」（13pt）。右に「…」（モデル変更・名前変更・削除。中身は今のまま）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 左上の「＜ 戻る」→ 移動先: ホームのボタン。地なし・区切り線なしで、上端は地の色のグラデーション</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">会話の表示（Mac と同じ・4/6）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">AI の返答のアバターなし。左右 16pt の全幅の Markdown（17pt・行間 1.55）、コードは codeBg の枠（角丸 8・等幅 13pt）。利用者の発言は右寄せの吹き出し（codeBg・角丸 14・最大幅 78%）、添付は吹き出しの中の本文の上（56pt）。ツールは共通のカード（角丸 8・1pt の枠、実行中は濃い 1.5pt）:「› ラベル／等幅の要約／右端の印」= コマンド「$ swift build」実行中・exit 1、ツール実行 ×5「Read foo.swift ほか 4 件」、編集「パス」+12 −3、思考。実行中は光の帯が流れる「実行中…」＋「swift build を実行中 · 38 秒」。無応答は紫の面「無応答 03:12」＋「中断」。ターンの終わりに右寄せ「$0.42 · 入力 18.2k · 出力 1.9k · コンテキスト 22%」。エラーは赤い淡い面に三角と等幅の本文</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Mac 版の会話の表示に揃えた。<b style="color: #0B5E78">移動</b> 移動元: 返答の左のロゴのアバター → 廃止（どのエージェントかは上部のバーの小見出し）。移動元: Mac のマウスを乗せて出すコピー・時刻 → 移動先: 長押しのメニュー（見出しに「10月17日 14:32」、「コピー」「選択して部分コピー」）。本文は Mac のように 80% に絞らない</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">バーとボタンの形（Liquid Glass 採用案）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">承認・質問のカードはガラス（角丸 22・内側 14pt 16pt）、入力欄はガラス（角丸 26）、ホーム・「…」は 44pt のガラスの丸、シートは左右下 8pt 浮かせ角丸 38。本文の中のボタンはカプセル（主＝アクセントの塗り、副＝淡い地）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Liquid Glass 採用案に一本化（不透明バーの案は廃止）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">承認のカード（7.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄のすぐ上（会話の中には出さない）。下端の積み重ねは上から 送信失敗の知らせ → 承認のカード → 質問のカード → 入力欄。見出し「承認待ち · Bash」（操作の種類。Claude Code は Bash・Edit など、Codex は Shell）＋経過時間「2 分」、複数あれば右端に「‹ 1/2 ›」（44pt）。対象（等幅 15pt 太字）と説明（全文）。差分があれば「› 差分を見る（2 ファイル）」、開くと行番号つきの差分（ReplyApprovalDiff）。ボタンは「許可」「このセッション中は許可」「拒否」「キャンセル」の 4 つ（Claude Code と Codex で同じ 4 つのボタン。Cursor には承認が無い）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 見出し「〜が許可を求めています」＋「対応待ち n/m」・却下／承認の 2 つ → 移動先: 「承認待ち · {操作の種類}」・「‹ n/m ›」・4 つのボタン（Mac と同じ）。<b style="color: #1F6B3A">解消</b> 開いたときの 1 回ではなく、セッション画面の更新ごとに出し入れする（21.2-1）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">承認の即時送信（7.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">4 つのボタンは押すとすぐ送る（確認なし。Claude Code と Codex。Cursor には操作ごとの承認が無いので、承認のカードも「承認待ち」の状態も出ない）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 確認の手順は足さず、出た直後 0.6 秒の誤タップ防止だけを足す</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">応答後・送信失敗（7.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">成功:「『許可』を送信しました」＋次の対応待ち（FlowNext。自動では進まない）。失敗: カードの上に赤い文字 1 行（記号なし）、カードは残る（ReplyApprovalFail）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: カード内の赤い帯 → 移動先: カードの上の赤い 1 行。<b style="color: #1F6B3A">解消</b> 英語の識別子（accept）を出さない（21.2-3）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">Codex の承認（7.2・14）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">承認のカード（ReplyCodex）。見出し「承認待ち · Shell」、ボタンは他のエージェントと同じ 4 つ（許可＝accept・このセッション中は許可＝acceptForSession・拒否＝decline・キャンセル＝cancel）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 「却下…」「承認…」→ 4 択シート（ReplyCodexSheet・ReplyCodexSheetDark は消した）→ 移動先: 承認のカードの 4 つのボタン。Codex も 1 タップで許可できる。何を許可するかはカードに出す（現行は ID だけ）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">質問カード（7.3）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄のすぐ上（承認のカードの下）。見出し「質問待ち · DEPLOY ほか 1 問」（Mac と同じ語。一覧などの状態の語は「質問あり」のまま）。質問ごとに見出し・「1 つ選ぶ／いくつでも」・選択肢（丸／四角）・自由入力。全問に答えるまで「回答を送信」は押せず、理由を下に 1 行。選択肢のない質問は同じカードで「質問待ち · {見出し}」＋質問文、回答は入力欄から（ReplyQuestionPlain）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 「〜からの質問 · 2 問」「回答する」→ 移動先: 「質問待ち · DEPLOY ほか 1 問」「回答を送信」。<b style="color: #1D1D1F">変更</b> 単一選択と複数選択の見た目を分ける（現行は同じ）。自由入力との排他を説明文で示す。タップだけでは送らない点は守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">質問の送信中・失敗（7.3）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">送信中はボタンがスピナー。失敗はカードの上の赤い文字 1 行（ReplyQuestionFail）、選んだ内容は残し、ボタンは「回答を送信」のまま</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 現行は失敗しても何も出ない（21.2-2）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">回答済み・期限切れ（7.3）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">会話内に残る（会話の回の「質問カード」「非常に長い」の盤面）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">質問への回答画面（7.4）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">セッション画面の質問のカードに統合（上の表）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更（統合）</b> 独立画面をなくす</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">入力欄（8.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">いつも 2 段。1 段目は本文（「やりたいことを入力」、複数行で伸びる）、2 段目は左から ＋・モデル（ロゴ＋名前 ⌄）・思考の強さ（メーター＋段階）・権限（盾＋名前）、右寄せに送信「↑」（実行中は停止「■」）。幅が足りないと思考の強さと権限を「…」にまとめる（ReplySE・ReplyMore）。強い権限を選んでいるときは権限を「…」に入れず、赤いチップのまま見せる（ReplyPermDanger）。思考の強さと権限のメニューはダーク・SE・Dynamic Type 最大も描いた（ReplyEffortDark／SE／DT・ReplyPermDark／SE／DT。SE と DT は「…」から開く）。新規チャットと共通（DraftSpec）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Mac 版の新規チャットの入力欄にそろえた（2 回目の修正 3/6）。入力がひとつの領域にまとまる点は守る（ADR 0016/0018）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">入力欄を出す条件（8.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">起動中だけ出さず、代わりに「セッションを起動しています…」の帯。完了・エラー後も同じ入力欄で入力できる</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 入力できない理由を表示する。ADR 0028 は守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">送信中（8.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄は残し、送信ボタンがスピナー。送った本文と画像は会話に「送信中…」で仮表示。画像を送る準備（縮小・変換）の間も同じで、スピナーは押せず、もう一度送信できない（ReplySending）。準備していることは画面に出さない</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 実行中でないとき入力欄ごと消える（21.2-11）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">プロジェクト名・使用量（8.2・6.7）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄のすぐ上の 1 行は赤い文字の知らせ（権限・思考の強さを変えられなかった・添付エラーなど。無いときは出さない。DraftSpec と同じ）。その上にプロジェクト名「⑂ Phlox」を小さく（3 段目の文字色）。ターンごとの使用量（$・入力・出力・コンテキスト）は会話の各ターンの終わりに右寄せ</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 入力欄の上の「$0.0412 · コンテキスト 61%」→ 移動先: ターンの終わり（4/6。Mac と同じ）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">プランの使用量（12）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄の下の 1 行。全エージェントの枠ごとの残りをリングで。押すと吹き出しで枠・残り・リセット。キーボード表示中も出す（盤面「使用量 · …」）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 一覧の下端の使用量バー → 移動先: 入力欄の下（2 回目の修正 5/6）。決まりは SetUseSpec</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">モデルのチップ（8.2・ADR 0010）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄の 2 段目。「{ロゴ} {モデルの表示名} ⌄」（エージェント名の文字は出さない。VoiceOver は「モデル、Claude Code: Sonnet 5」）。セッション画面のシートはそのエージェントのモデルだけ（ReplyModel）。一覧が取れないときは「取得できません」の行</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 空のシートが開く（21.2-13）。入口がチップとメニューの 2 つなのは守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">添付（8.4・ADR 0025）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄の 1 段目の上に 56pt のサムネイル（#N・✕）と「画像 n/4」。4 枚で＋が消える。本文のカーソル位置に [Image #N]。上限は最大 4 枚・1 枚 20MB・合計 80MB・各辺 8000 ピクセル。送信前の縮小・形式の変換は自動で行い、画面には出さない</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 枚数を見せる。✕ のタップ領域を 44pt 相当に広げる。<b style="color: #9A4A00">候補</b> [Image #N] を太字で示す。上限は今回の指示による（機能一覧 8.4 の 4MB などは古いので使わない）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">添付エラー（8.4）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄の上に赤い 1〜2 行（文字だけ。記号は付けない）。文言はアプリの現行のまま 5 種: 「画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。」／「画像は1枚あたり20MBまでです」／「画像は合計80MBまでです」／「画像は各辺8000ピクセルまでです。必要な部分を切り出してください」／「画像を読み込めませんでした」。盤面 ReplyAttachErr・Size・Total・Dim（ダーク・SE）・Load、エラー文言カタログ A1〜A5</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 前回足した「（追加した N 枚は入れていません）」はやめ、アプリの文言をそのまま出す。上限を超えた画像・読めない画像だけを入れず、入っている画像と本文はそのまま</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">キーボード（8.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">本文のスクロールで閉じる。Return は改行、送信はボタンだけ。「完了」ボタンは置かない</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし。<b style="color: #1D1D1F">変更</b> 承認待ちでキーボードを出すと、承認のカードを「承認待ち · Bash · 表示」の 1 行に畳む</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">モデル選択シート（8.5）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">中・大の 2 段。「閉じる」・見出し（「Claude Code のモデル」）・絞り込み欄・エージェントの見出し（ロゴ＋名前）・モデルの行（選択中にチェック、既定に「既定」）。新規チャットは 3 エージェントの全モデルを 1 つの一覧で（DraftModel）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Mac と同じ 1 つの一覧に（「選択中／その他」の区分はやめた）。選択に失敗したら入力欄の上の赤い文字で知らせる（現行は無表示）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">新規作成時のモデル（8.5・ADR 0030）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">新規チャットのモデルのチップ → 3 エージェントの全モデルの一覧。モデルを選ぶとエージェントも切り替わる。初期選択は Claude Code の既定</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 新規の画面の種別 3 択＋種別ごとのシート（ReplyModelDraft は消した）→ 移動先: 1 つの一覧のシート（DraftModel）。種別がすり替わらない点は守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">思考の強さ（新）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">メーター＋「低／中／高／非常に高／最大」。押すと段階のメニュー（ReplyEffort）。Haiku はチップを出さない（ReplyHaiku）。Codex・Cursor はモデルごとに Mac から届く段階だけ。モデルを変えると既定（Claude は「高」）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 今回の指示（Mac と同じ）。実行中に変えたら次の指示から効く</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">権限（新）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">盾＋権限の名前。押すと権限のメニュー（ReplyPerm）。Bypass Permissions・Full Access は確認のダイアログ（Dialogs P1・P2）。変えられなかったら入力欄の上に「権限を変更できませんでした」（ReplyPermFail）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 今回の指示（Mac と同じ）。実行中に変えたら次の指示から効く</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 16px; font-weight: 700">送信と停止の出し分け（8.3）</div>
+<div style="display: grid; grid-template-columns: 200px 1fr 1fr; gap: 6px 12px; font-size: 13px; line-height: 1.5">
+<div style="font-weight: 700; color: #5B5B66">状況</div><div style="font-weight: 700; color: #5B5B66">停止</div><div style="font-weight: 700; color: #5B5B66">送信</div>
+<div>実行中でない・空</div><div>なし</div><div>淡色で無効</div>
+<div>実行中でない・入力あり</div><div>なし</div><div>有効</div>
+<div>実行中・空</div><div>あり（単独）</div><div>なし</div>
+<div>実行中・入力あり</div><div>あり（左）</div><div>あり（右）</div>
+<div>送信中（画像の準備を含む）</div><div>実行中ならあり</div><div>スピナー（押せない・場所は保つ）</div>
+<div>下書きの最初の送信前</div><div>なし</div><div>常に置く</div>
+<div>停止が非対応と分かった後</div><div>出さない</div><div>規則どおり</div>
+</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 16px; font-weight: 700">エージェント種別による違い（14 章）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>承認: Claude Code と Codex で同じ 4 つのボタン、押すとすぐ送る。見出しの操作の種類だけが違う（Claude Code は Bash・Edit など、Codex は Shell）。Cursor には承認が無い（承認のカードも「承認待ち」も出ない）</li>
+<li>モデル: 既存セッションはそのエージェントのモデルだけ。新規チャットは 3 エージェントの全モデルを 1 つのシートに。一覧が取れないエージェントの欄は「取得できません」の行（選べない）。全部取れないときはチップに Mac の既定のモデル名</li>
+<li>添付・質問・入力欄の形に種別差は無い。思考の強さの段階と権限の選択肢はエージェント（とモデル）ごとに違う</li>
+<li>どのエージェントかは上部のバーの小見出し（「承認待ち · Codex」）で示す。会話にアバターは出さない</li>
+</ul>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":4300}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

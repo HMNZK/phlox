@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-06-10
+last-verified: 2026-10-17
 ---
 
 # specs/
@@ -22,3 +22,6 @@ last-verified: 2026-06-10
 
 ## 現在あるファイル
 - `specs/mobile-api-extensions-contract.md` … Phlox ⇔ Phlox-mobile の Control API 拡張契約（凍結版 v1）
+- `specs/redesign-2026-10.md` … iOS アプリ再設計（2026-10）の画面ごとの要件・受け入れ基準・見本の食い違いの決定・未決の論点（正本）
+- `specs/ui-feature-inventory.md` … 再設計前の UI 機能の棚卸し（superseded。見本が節番号で引く）
+- `specs/ClaudeDesign/` … 再設計の見本（Claude Design の盤面 248 枚。外枠の盤面は親を props で呼ぶ）

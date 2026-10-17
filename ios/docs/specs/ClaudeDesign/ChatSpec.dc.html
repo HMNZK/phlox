@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>会話 — 機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.phx-shim{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:260% 100%;background-repeat:no-repeat;animation:phx-shim 3.2s linear infinite}
+@keyframes phx-shim{from{background-position:120% 0}to{background-position:-160% 0}}
+@media (prefers-reduced-motion: reduce){.phx-shim{animation:none !important;-webkit-text-fill-color:currentColor !important;background-image:none !important}}
+</style>
+</helmet>
+<div style="width: 1400px; height: 4100px; box-sizing: border-box; padding: 56px 64px; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">セッション詳細（会話）· 6 章／10 章／14 章／15.4〜15.6 節</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">機能対応表 — 機能一覧の名前 → モック上の置き場所 → 変えた理由</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動を変える</span>
+<span><b style="color: #9A4A00">候補</b> 提案。採否を決めてほしい</span>
+<span><b style="color: #1F6B3A">解消</b> 21.2 節などの不具合を正しい振る舞いで描いた</span>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 16px; font-weight: 700">実行中の表示 — 光の帯が流れる 6 つの言葉（15.4・一覧と同じ光の帯）</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: #F2F2F7"><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px"><span class="phx-shim" style="font-size: 15px; font-weight: 600; color: #56565E; background-image: linear-gradient(100deg, #56565E 0%, #56565E 42%, #C9C9D0 50%, #56565E 58%, #56565E 100%); background-position: 30% 0">考え中…</span><span style="font-size: 13px; color: #56565E">12 秒</span></div><span style="font-size: 12px; color: #6B6B73">直近が思考、または開始直後</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: #F2F2F7"><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px"><span class="phx-shim" style="font-size: 15px; font-weight: 600; color: #56565E; background-image: linear-gradient(100deg, #56565E 0%, #56565E 42%, #C9C9D0 50%, #56565E 58%, #56565E 100%); background-position: 30% 0">検索中…</span><span style="font-size: 13px; color: #56565E">rg -n "forward" を実行中 · 3 秒</span></div><span style="font-size: 12px; color: #6B6B73">直近が読み取り系のコマンド</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: #F2F2F7"><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px"><span class="phx-shim" style="font-size: 15px; font-weight: 600; color: #56565E; background-image: linear-gradient(100deg, #56565E 0%, #56565E 42%, #C9C9D0 50%, #56565E 58%, #56565E 100%); background-position: 30% 0">実行中…</span><span style="font-size: 13px; color: #56565E">swift build を実行中 · 38 秒</span></div><span style="font-size: 12px; color: #6B6B73">直近がその他のコマンド</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: #F2F2F7"><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px"><span class="phx-shim" style="font-size: 15px; font-weight: 600; color: #56565E; background-image: linear-gradient(100deg, #56565E 0%, #56565E 42%, #C9C9D0 50%, #56565E 58%, #56565E 100%); background-position: 30% 0">編集中…</span><span style="font-size: 13px; color: #56565E">ProxyRouter.swift を編集中 · 2 秒</span></div><span style="font-size: 12px; color: #6B6B73">直近がファイル変更</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: #F2F2F7"><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px"><span class="phx-shim" style="font-size: 15px; font-weight: 600; color: #56565E; background-image: linear-gradient(100deg, #56565E 0%, #56565E 42%, #C9C9D0 50%, #56565E 58%, #56565E 100%); background-position: 30% 0">書き込み中…</span><span style="font-size: 13px; color: #56565E">6 秒</span></div><span style="font-size: 12px; color: #6B6B73">直近がエージェントの発言</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: #F2F2F7"><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px"><span class="phx-shim" style="font-size: 15px; font-weight: 600; color: #56565E; background-image: linear-gradient(100deg, #56565E 0%, #56565E 42%, #C9C9D0 50%, #56565E 58%, #56565E 100%); background-position: 30% 0">待機中…</span><span style="font-size: 13px; color: #56565E">質問への回答を待っています</span></div><span style="font-size: 12px; color: #6B6B73">承認・質問あり。入力欄の上にカードが出ている</span></div>
+</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #2A2A31">
+<li>出す条件は現行どおり: 会話があり、実行中または承認・質問ありのとき、会話の末尾に。iPhone では表示できないセッション（Mac の端末型）には出さない</li>
+<li>要約は実行開始から 5 秒後に出し、1 秒ごとに更新、1 行で末尾省略。状態の区別は言葉で行い、色は変えない。移動元: 回る点と最大 3 行のプレビュー → 移動先: 光の帯の言葉と 1 行の要約</li>
+<li>「視差効果を減らす」では光の帯を止め、言葉だけを切り替える。VoiceOver は状態が変わったときだけ読む</li>
+<li>無応答のあいだは、この表示の代わりに紫の面「無応答 03:12」と「中断」を出す（ChatStall）</li>
+<li><b style="color: #9A4A00">候補</b> 英語表示のときの文言（Thinking… など）を iOS 側にも用意する。現行は日本語のキーがそのまま出る（21 章）</li>
+</ul>
+</div>
+
+<div style="display: grid; grid-template-columns: 230px 440px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">上部のバー（6.1・ADR 0033）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">左: ホームのボタン（44pt のガラスの丸・家の形の印・aria「ホーム（セッション一覧に戻る）」）。押すと一覧へ。中央: セッション名（17pt semibold・1 行で末尾省略）、その下に 13pt で状態の文字（色付き・記号なし）· エージェント名。右: 「…」（44pt のガラスの丸）。地なし・区切り線なし・上端に地の色のグラデーション</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 左上の「＜ 戻る」の矢印をやめ、家の形のホームのボタンに（Mac 版に合わせた）。移動元: 左上の戻るボタン → 移動先: 同じ位置のホームのボタン。画面左端から右へのスワイプで一覧に戻る操作は残す（盤面には描かない）。サブエージェント詳細では、端のスワイプは親のセッションへ、ホームのボタンは一覧へ</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">画面の骨格（6.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">上: バー。中: 会話（左右 16pt の全幅）。下: 入力欄のすぐ上の積み重ね（上から 送信失敗の知らせ → 承認のカード → 質問のカード）→ 入力欄</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 入力欄の上の使用量行をやめ、ターンの終わりの 1 行へ移した。承認と質問は会話の中に出さず、入力欄のすぐ上に集めた（Mac と同じ）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">入力欄（8.1〜8.5）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">2 段の入力欄（本文／＋・モデル・思考の強さ・権限・送信）。新規チャットとセッション画面で共通。詳しくは ReplySpec と DraftSpec</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 1 段の丸い入力バーをやめ、Mac 版の新規チャットと同じ 2 段に。送信と停止の出し分け・送信中も入力欄を消さない・完了やエラー後も入力できる、は守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">状態の表し方（15.4〜15.6・2 回目の修正）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">アプリ内は文字だけ。状態の色は文字に残す（承認待ち＝琥珀・質問あり＝青・エラー＝赤、ほかは副文字色）。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 小見出し・サブエージェント・失敗の知らせ・期限切れから記号を外した（Mac と同じ）。例外はエラーの面の三角だけ（Mac に合わせる）。進行中のスピナーは初回読み込みだけに残し、思考中の点は光の帯に置き換えた</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">iPhone で表示できないセッション（9 章を置き換え）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">ChatUnsupported／ChatUnsupportedDark。本文の縦の中央に「このセッションは iPhone では表示できません。Mac で開いてください」だけ。上部はホーム・セッション名・「…」だけ（状態の文字・エージェント名・停止は出さない）。入力欄と使用量の行も出さない（送っても結果が見えないため）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 端末画面・出力カードは機能ごと廃止。移動元: 端末画面（9 章）→ 移動先: 本文の 1 文</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">「…」メニュー（10）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">モデル変更（現在のモデル名を添える）／名前変更／区切り／削除（赤）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 現在のモデル名を添える。破壊的な操作を区切って下に置く（HIG）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">名前変更（10）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">OS 標準のアラート＋入力欄（現在の名前で初期化）／キャンセル・変更</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 失敗したらアラートを閉じた後に赤い帯で知らせる（現行は何も出ない）。空・同名なら何もせず閉じるのは現行どおり</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">削除（10）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">OS 標準のアラート。説明に子孫の件数、ボタン「削除（N件）」。成功で一覧へ戻る</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消（分岐）</b> 子孫件数を実際の値で出す（21.2-6）。件数を取得できないなら「子孫も含めて削除されます」とし、数は出さない</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">ユーザー発言（6.2・ADR 0020）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">右寄せの吹き出し。地 codeBg（#E9E9EE／#1C1C1E）、角丸 14、最大幅 78%、内側 10pt 14pt、文字 17pt。添付画像は吹き出しの中、本文の上に 56pt のサムネイル（角丸 10・1 枚ずつ VoiceOver で読む）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Mac に合わせて地の色・角丸（20 → 14）・最大幅（84% → 78%）を変えた。移動元: 吹き出しの下の「画像 ×N」のバッジ → 移動先: 吹き出しの中、本文の上のサムネイル</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">エージェント発言（6.2・ADR 0031）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">アバターなし。左右 16pt の全幅の Markdown（本文 17pt・行間 1.55）: 段落・見出し・箇条書き・インラインコード・リンク・表（横スクロール・右端のフェード）。コードブロックは codeBg の地＋1pt の枠・角丸 8・等幅 13pt・横スクロール。言語名とコードのコピーボタンは残す</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> ロゴのアバター（26pt）を外し、本文を全幅に（Mac は 80% に絞るが iPhone は絞らない）。エージェント名はバーの小見出しに出ているので失われない。<b style="color: #1F6B3A">解消</b> 「/approvals」だけを強調する固定処理はやめる（21.2-17）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">長押しのメニュー（ADR 0042）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">発言を長押し → 発言が浮き上がり、OS 標準のガラスのメニュー。見出しに時刻「10月17日 14:32」、項目「コピー」「選択して部分コピー」。発言ごとの常設のコピー・時刻は置かない（ChatCopy）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Mac のマウスを乗せたときの時刻とコピーの代わり。移動元: Mac のホバーの時刻 → 移動先: メニューの見出し。「選択して部分コピー」を足した</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">ツールの共通カード（6.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">角丸 8、地 cardBg（#FFFFFF／#1C1C1E）、1pt の枠（実行中は濃い 1.5pt）。見出しの行（44pt 以上・押すと開閉）＝「›」（開くと下向き）・ラベル（13pt semibold 副文字色）・等幅の要約（13pt・1 行で末尾省略）・右端の印（13pt）。Dynamic Type 最大では要約を折り返す</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 思考・コマンド・ファイル変更・サブエージェント・回答済みの質問を、Mac と同じ 1 つの形にそろえた。電球・端末・ファイル・人の記号は外した</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">コマンド 1 つ（6.2・ADR 0026/0038）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">ラベル「コマンド」、要約「$ swift build …」、右端「実行中」（副文字色）／「exit 1」（赤・等幅）／「exit 0」（3 段目の色・等幅）。開くと「$ コマンド」と出力（等幅 12pt・横スクロール・20 行まで）、その下に「さらに表示（残り n 行）」「セクションをコピー」（文字ボタン 44pt）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 終了コードを右端に出す。出力は 50 行ずつ → 20 行ずつ（Mac と同じ）。移動元: 末尾の「残り N 件を表示」→ 移動先: 「さらに表示（残り n 行）」</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">複数のツール（6.2・ADR 0041）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">ラベル「ツール実行 ×3」、要約「Edit ProxyRouter.swift ほか 2 件」。開くとツールごとの行（ツール名＋等幅の要約＋右端の印）。行を開くと出力と「さらに表示」「セクションをコピー」（ChatExpandCmd）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 見出し＝最後のコマンド原文＋「N 件」をやめ、Mac と同じ「ツール実行 ×N」と先頭のツールの要約に。移動元: 見出しの右の「N 件」→ 移動先: ラベルの「×N」</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">ファイル変更（6.2・ADR 0041）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">1 ファイルに 1 枚。動詞のラベル（「編集」「作成」「削除」）、等幅のパス、右端に「+8」（緑）「−2」（赤）。開くと行番号つきの差分（等幅 12pt・追加は緑の淡い地、削除は赤の淡い地、+／− の記号も残す）（ChatExpandDiff）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 「編集済み N 件のファイル」の 1 枚をやめ、ファイルごとのカードに（Mac と同じ）。移動元: 開いた中のパスの行 → 移動先: 見出しの要約</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">思考（6.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">ラベル「思考」だけの閉じたカード（要約なし）。開くと副文字色の本文（ChatThinking）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 電球の記号・見出し・本文の先頭のプレビューを外した（Mac と同じ）。既定は閉は現行どおり</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">サブエージェント（6.2・15.6）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">ラベル「サブエージェント」、要約にタスク名、右端に状態の文字（実行中・完了・状態不明）。押すとサブエージェント詳細へ（ChatSub）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 人の記号つきの 2 行の行をやめ、共通カードに。<b style="color: #1F6B3A">解消</b> 取得済みの状態を出す（21.2-19）は守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">実行中（15.4）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">会話の末尾に、光の帯が流れる状態の言葉（上の 6 つ）と、その右に副文字色の要約「swift build を実行中 · 38 秒」</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 回る点＋文言＋最大 3 行のプレビューをやめ、一覧と同じ光の帯に。移動元: 3 行のプレビュー → 移動先: 1 行の要約</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">無応答（15.4）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">会話の末尾に紫の面（角丸 12）。「無応答 03:12」（紫の文字 600・等幅の時間）と、右に「中断」（カプセル・44pt）。中断は停止と同じ操作。バーの状態の文字も「無応答」（紫）（ChatStall／ChatStallDark）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Mac と同じ紫の面。無応答のあいだは光の帯の代わりにこの面を出す。<b style="color: #9A4A00">分岐</b> 無応答とみなすまでの時間は、Mac と同じ値を使う（iPhone 側で別の値を持たない）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">ターンの終わり（6.7）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">各ターンの最後の返答の下に、右寄せの 1 行（12pt・等幅・3 段目の色）「$0.42 · 入力 18.2k · 出力 1.9k · コンテキスト 22%」</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 移動元: 入力欄の上の使用量行「$0.0412 · コンテキスト 61%」→ 移動先: 会話の中、各ターンの終わり。入力・出力のトークン数を添えた（Mac と同じ）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">エラー（6.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">赤い淡い面（角丸 12）に、三角の印（面の文字色）と等幅 13pt の本文（ChatError）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 「エラー」の見出しの語をやめ、三角の印に（Mac と同じ）。1/6 の「アプリ内は記号なし」の例外はこの面だけ。VoiceOver は三角を「エラー」と読む</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">質問のカード（7.3・15.5）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄のすぐ上（承認のカードの下）。ガラス・角丸 22・内側 14pt 16pt。見出し「質問待ち · DEPLOY ほか 1 問」（青の文字 13pt 600）。問い・選択肢・自由入力は今のまま。2 問目以降は 1 行に畳む。主ボタン「回答を送信」は全部に答えるまで押せず、理由を 1 行で出す（ChatQuestion）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 移動元: 応答ゾーンの「質問 · TEST」「対応待ち 1/1」「回答する」→ 移動先: 「質問待ち · …」の見出しと「回答を送信」（Mac と同じ語。一覧などの状態の語は「質問あり」のまま）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">承認のカード（7.1〜7.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄のすぐ上、質問のカードの上。「承認待ち · Bash」・‹ › での送り・経過時間・許可／このセッション中は許可／拒否／キャンセル・「› 差分を見る」。詳しくは ReplySpec（同じ仕様の値）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 会話の中には出さない。Codex の 4 択シートは廃止し、4 つのボタンに置き換える（ReplySpec）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">回答済み・期限切れの質問（15.5）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">会話の中に共通カード: ラベル「質問」、要約に見出し（DEPLOY）、右端「回答済み」（緑の文字）／「期限切れ」（3 段目の色）。開くと問い・選んだ答え・自由入力（ChatLong）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 緑の枠のカードをやめ、共通カードに。期限切れの不透明度は下げない（コントラスト確保）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">送信失敗（6.6）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄の上の積み重ねの先頭に、赤い文字 1 行（記号なし）「送信に失敗しました · Mac に接続できません」。本文と添付は入力欄に戻り、送信ボタンで再送（ChatSendFail）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 移動元: 会話の末尾の右寄せの赤い帯 → 移動先: 入力欄の上の赤い文字 1 行（Mac と同じ）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">50 件の窓（6.3・ADR 0022/0037）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">先頭に全幅の「以前のメッセージを表示（残り k 件）」。押すたびに +50、位置は飛ばない</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">自動追従（6.4）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">最下部から 80pt 以内のときだけ、新着・展開で最下部へ</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし。<b style="color: #9A4A00">候補</b> 読み返し中に新着が来たときだけ出す「新着 ↓」ボタン（機能一覧に無いので描いていない）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">初回読み込み（ADR 0023）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">本文の中央に OS 標準のインジケータ＋「会話を読み込んでいます…」</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 96pt の接続アニメをやめる。「接続」と「読み込み」の表示を分ける。新規（未作成）には出さない点は守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">本文が空（6.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">中央に「まだ会話はありません」＋説明</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 空白のままにしない（21.2-10）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">サブエージェント詳細（10・ADR 0029）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">タイトル「サブエージェント」、小見出しに状態と名前（explore-map）。左はホームのボタン。入力欄とメニューは無い。50 件の窓。16KiB 超の本文は先頭と末尾を残し、中略の注記</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 状態を出す（21.2-19）。<b style="color: #9A4A00">候補</b> 「以前のメッセージを読む（N件）」→ 本体と同じ「以前のメッセージを表示（残り N 件）」。思考は本体と同じ折りたたみにそろえる（旧スタイルは 19 章で対象外）</div>
+
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 16px; font-weight: 700">エージェント種別による違い（14 章）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>会話画面に出る差は、バーの小見出しのエージェント名だけ（返答のロゴのアバターは廃止）</li>
+<li>承認のボタンは Claude Code と Codex で同じ 4 つのボタン。Cursor には承認が無い。Codex の 4 択シートは廃止（ReplySpec）</li>
+<li>会話の形で読めないセッション（Mac の端末型）は、本文の代わりに「このセッションは iPhone では表示できません。Mac で開いてください」だけを出す（ChatUnsupported）。上部はホーム・セッション名・「…」だけ（状態の文字・エージェント名・停止は出さない）。送っても結果が見えないので、入力欄と使用量の行も出さない。移動元: 端末画面（9 章）→ 移動先: この 1 文。端末画面は廃止</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 16px; font-weight: 700">この回で描いていないもの</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li><b style="color: #1D1D1F">変更</b> 入力欄は 2 段（本文／＋・モデル・思考の強さ・権限・送信）。新規チャットとセッション画面で共通。詳しくは ReplySpec と DraftSpec</li>
+<li>承認のカード: 会話の盤面には描かず、Reply の盤面で描く（同じ仕様の値・入力欄のすぐ上）</li>
+<li>画面左端からのスワイプで戻る操作: 盤面には描かない（仕様の文だけ）</li>
+<li>端末画面・出力カード（9 章）: 2 回目の修正で機能ごと廃止し、盤面も消した</li>
+</ul>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":4100}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

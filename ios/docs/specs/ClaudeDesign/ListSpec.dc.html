@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>一覧 — 構成・機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1400px; height: 3300px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">セッション一覧と下部のナビゲーション · 5 章／15.1〜15.3 節／16.2 節／21.2 節 · 2 回目の修正 2/6</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">Mac 版のサイドバーと同じ並び。行は名前と状態の文字だけ。下端はタブ 2 つと、離した「新規チャット」</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動を変える</span>
+<span><b style="color: #0B5E78">移動</b> 移動元 → 移動先</span>
+<span><b style="color: #8A4200">候補</b> 提案。採否を決めてほしい</span>
+<span><b style="color: #45454F">分岐</b> 解釈が分かれる・未確認</span>
+<span><b style="color: #1F6B3A">解消</b> 21.2 節の不具合を正しい振る舞いで描いた</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">一覧の構成（上から）</div>
+<ol style="margin: 0; padding-left: 22px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li><b>対応待ち</b>（前の「あなたの番」）: 承認待ち・質問ありのセッション。見出し＋件数。カードに中立の細い縁。開閉はしない</li>
+<li><b>プロジェクトごとの欄</b>: 見出しの行＝開閉の印・プロジェクト名、右端に「＋」（そのプロジェクトで新規チャット）。iPhone にはマウスを乗せる操作が無いので「＋」は常に出し、44pt のタップ領域を取る。見出しの残りの部分を押すと開閉</li>
+<li><b>閉じたプロジェクト</b>: 見出しの右に「エラー 1」「実行中 1」「未読 2」のような文字で内訳。状態の語は行と同じ色、未読は副文字色</li>
+<li><b>その他</b>（プロジェクト未割当）: 最後の欄。開閉できる。「＋」は付けない（プロジェクトを決めずに始めるときは下端の「新規チャット」）</li>
+<li>一覧に出るプロジェクトは、セッションが 1 つ以上あるものだけ（Mac から届く情報の都合）。空のプロジェクトの欄は作らない</li>
+</ol>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">セッションの行</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>セッション名と、右端の状態の文字だけ。エージェントのアイコン・ロゴ・状態の記号は出さない。高さ 48pt（Dynamic Type 最大で 64pt 以上、名前は折り返す）</li>
+<li>状態の文字: 待機は出さない／承認待ち・質問あり・エラーは注意の色、無応答は紫（status.stalled。いずれも semibold）／実行中は副文字色／完了・起動中・終了などは 3 段目の文字色</li>
+<li>未読は名前を主文字色・semibold、既読は副文字色・標準の太さ。未読の丸は使わない</li>
+<li>実行中は名前に光の帯がゆっくり流れる（3.2 秒で 1 回）。「視差効果を減らす」では止め、名前をふつうの色で出す。盤面では帯が名前の左寄りにある瞬間を描いた</li>
+<li>子セッションは 1 段（22pt）字下げし、左に案内線。子を持つ行は左端の開閉の印で開閉し、閉じると名前の後ろに「+3」（孫まで数える）</li>
+<li>VoiceOver:「refactor: ControlServer proxy、実行中、未読」／子は「…、1 段下の子セッション」／開閉の印は「… の子セッション 3 件、折りたたみ中」</li>
+</ul>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">下部のナビゲーション（Liquid Glass 採用案）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 6px">
+<li>タブバーは「セッション」「設定」の 2 つ（左 20pt・高さ 62・ガラスのカプセル）。右に 10pt 離して、丸いガラスの「新規チャット」ボタン（62pt、iOS 26 のタブから離した丸いボタンの形）。設定タブを見ているときも同じ位置にある</li>
+<li>「新規チャット」は新規チャットを開く。プロジェクトは入力欄のプロジェクトのチップで選び、初期値は前回使ったプロジェクト（DraftSpec の決定）。そのプロジェクトで始めるときは、その欄の見出しの「＋」</li>
+<li>対応待ちバーはタブバーの上（左右 16pt）。一覧をスクロールすると、タブバーは左の丸に縮み、対応待ちバーは丸と「新規チャット」の間に入る</li>
+<li>iOS 18: タブバーは OS 標準（端から端・素材・上の線）。「新規チャット」は一覧の大見出しの右（44pt）に置く</li>
+<li><b style="color: #0B5E78">移動</b> 使用量: 移動元 一覧の下端の使用量バー（前回の改訂で置いた）→ 移動先 新規チャットとセッション画面の、入力欄の下の 1 行のリング（押すと枠・残り・リセットの吹き出し。2 回目の修正 5/6、盤面「使用量 · …」）。一覧の引っ張って更新で使用量も取り直す（表示は消さない）。「使用量」タブは廃止のまま、使用量だけを見せる画面・タブ・設定の区画は作らない（設定の「使用量 › 残りの表し方」も外した）</li>
+</ul>
+</div>
+
+<div style="display: grid; grid-template-columns: 240px 470px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+<sc-for list="{{ map }}" as="m" hint-placeholder-count="24">
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.f }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">{{ m.p }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><sc-if value="{{ m.hasTag }}" hint-placeholder-val="{{ true }}"><b style="color: {{m.tagFg}}; margin-right: 6px">{{ m.tag }}</b></sc-if>{{ m.r }}</div>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">状態の文字（15.1）— 記号は使わない</div>
+<div style="display: grid; grid-template-columns: 110px 140px minmax(0, 1fr); gap: 6px 12px; font-size: 13px; line-height: 1.5">
+<div style="font-weight: 700; color: #5B5B66">状態</div><div style="font-weight: 700; color: #5B5B66">行の右端</div><div style="font-weight: 700; color: #5B5B66">色</div>
+<sc-for list="{{ states }}" as="s" hint-placeholder-count="9">
+<div>{{ s.k }}</div><div style="font-weight: {{s.w}}; color: {{s.fg}}">{{ s.t }}</div><div style="color: #45454F">{{ s.d }}</div>
+</sc-for>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #45454F; padding-top: 6px; border-top: 1px solid #E6E6EC">接続状態（15.2）: 判定中＝文言＋インジケータ／圏外＝無彩色の文字／Mac に届かない＝赤い文字＋等幅の詳細／接続中は表示なし</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">取得エラー（16.5）— 見出しと回復操作</div>
+<div style="display: grid; grid-template-columns: 90px minmax(0, 1fr) 200px; gap: 6px 12px; font-size: 13px; line-height: 1.5">
+<div style="font-weight: 700; color: #5B5B66">種別</div><div style="font-weight: 700; color: #5B5B66">見出し</div><div style="font-weight: 700; color: #5B5B66">ボタン</div>
+<div>401</div><div>Mac に接続を断られました</div><div>QR で再接続</div>
+<div>到達不可</div><div>Mac に届きません</div><div>再試行</div>
+<div>429</div><div>Mac が混み合っています</div><div>再試行（N 秒後に押せる）</div>
+<div>サーバ</div><div>Mac の Phlox でエラーが起きました</div><div>再試行</div>
+<div>形式不一致</div><div>Mac の応答を読めません</div><div>なし（更新を案内）</div>
+<div>通信</div><div>通信が途中で切れました</div><div>再試行</div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #45454F">見出しはエラー文言カタログ F1〜F8 と同じ。記号は付けず、見出しを赤い文字に</div>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">決めてほしい候補・分岐</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li><b style="color: #1D1D1F">決定</b> 状態の色: 承認待ち・質問あり・エラーはそれぞれの注意の色（琥珀・青・赤）、無応答は Mac と同じ紫（status.stalled: #5B3FA8／ダーク #C9B6FF）。行の文字・閉じたプロジェクトの内訳・セッション画面の小見出しと面・アプリ外の表示で同じ色。承認待ちは Claude Code と Codex のセッションだけ（Cursor には承認が無い）</li>
+<li><b style="color: #45454F">分岐</b> 対応待ちのセッションを、プロジェクトの欄にも重ねて出すか。モックは重ねていない（前の一覧と同じ）</li>
+<li><b style="color: #8A4200">候補</b> エラー・無応答のセッションも対応待ちに入れるか。モックは承認待ち・質問ありだけ（現行どおり）</li>
+<li><b style="color: #45454F">分岐</b> 子セッションの開閉の既定（開いているか閉じているか）と、開閉の状態を覚えるか。モックは親ごとに描き分けた</li>
+<li><b style="color: #8A4200">候補</b> 行の長押しメニュー・スワイプは足していない。足すなら詳細の「…」と同じ名前変更・削除の入口を増やす案になる</li>
+</ul>
+</div>
+
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">未配置の機能: なし。移した機能: 使用量（一覧の下端 → 入力欄の下の 1 行のリング、5/6）／行のエージェントのロゴと名前（行 → 詳細の小見出し）／行の補足のワークスペース名（行 → プロジェクトの欄の見出し）／相対時刻（行から外した。指示による）。追加した機能: なし（「新規チャット」の丸ボタンと見出しの「＋」は、既存の新規作成の入口の置き場所を変えたもの）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":3300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { chg: ['変更', '#1D1D1F'], move: ['移動', '#0B5E78'], cand: ['候補', '#8A4200'], br: ['分岐', '#45454F'], fix: ['解消', '#1F6B3A'], keep: ['守る', '#45454F'] };
+    const M = (f, p, tag, r) => ({ f, p, r, hasTag: !!tag, tag: tag ? T[tag][0] : '', tagFg: tag ? T[tag][1] : '#45454F' });
+    const map = [
+      M('見出し（5・ADR 0036）', '大見出し「セッション」。スクロールすると上の小見出しに縮む（OS 標準）。読込中・空・オフライン・エラーでも同じ位置', 'keep', '往復後に消えない点は守る'),
+      M('あなたの番（5.2）', '先頭の欄「対応待ち」。見出し＋件数、カードに中立の細い縁', 'chg', '名前を「対応待ち」に（Mac 版のサイドバーと同じ）。判定は状態の値で行う（21.2-4 の解消は維持）'),
+      M('プロジェクト別グループ（5.2）', '欄ごとに見出しの行（開閉の印・名前・右端の「＋」）とカード。既定は展開', 'chg', 'Mac 版のサイドバーと同じ並び。セッションが 1 つ以上あるプロジェクトだけが出る'),
+      M('閉じたグループの内訳（5.2）', '見出しの右に「エラー 1」「実行中 1」「未読 2」', 'chg', '件数の数字だけでなく、何が中にあるかを文字で出す'),
+      M('その他（5.2）', '最後の欄「その他」（プロジェクト未割当）。開閉できる。「＋」なし', 'keep', ''),
+      M('＋ セッションを追加（5.2・ADR 0008）', '移動元: 各グループの末尾の行 → 移動先: プロジェクトの見出しの右端の「＋」（常に表示・44pt）', 'move', '行を 1 つ減らし、どのプロジェクトに作るかを見出しで示す。押すとそのプロジェクトの新規チャット（下書きの詳細）'),
+      M('「新規チャット」からの新規作成（5.2）', '移動元: グループが無いときの単独の行・空の状態のボタン → 移動先: 下端の「新規チャット」の丸ボタン（どのタブでも）。空の状態にも同じボタン。プロジェクトの初期値は前回使ったプロジェクト', 'move', 'iOS 26 のタブから離した丸いボタンの形。iOS 18 では大見出しの右'),
+      M('セッション行（5.3）', '名前と右端の状態の文字だけ', 'chg', 'ロゴ・相対時刻・ワークスペース名を外した（指示）。エージェントは詳細の小見出しで読める'),
+      M('状態の色（5.3・15.1）', '待機は出さない／注意の色／無応答は紫／副文字色／3 段目の文字色（下の表）', 'chg', '目立たせたいものだけに色を付ける'),
+      M('未読（5.3）', '名前を主文字色・semibold。既読は副文字色。未読の丸は使わない', 'chg', '前回までの「完了・待機は名前を補助色」を、未読・既読の区別に置き換えた'),
+      M('実行中の目印（5.3）', '名前に光の帯が流れる。Reduce Motion では止める', 'chg', '記号を外した代わりに、動いていることを名前で示す'),
+      M('子セッション（5.3）', '1 段字下げ＋左の案内線。親の左端の印で開閉、閉じると「+3」', 'chg', 'Mac 版のサイドバーと同じ。孫も同じ規則で字下げ'),
+      M('行のタップ先（5.3）', 'どの行も詳細へ。承認待ち・質問ありは、入力欄の上に承認・質問のカードが出た状態で開く', 'keep', '回答画面（ChatAnswer）への分岐はなくしたまま'),
+      M('相対時刻（16.2・21.2-5）', '行には出さない', 'chg', '指示で行を名前と状態だけにした。21.2-5 の「今」に固定された値の問題は、出さないことで起きない'),
+      M('引っ張って更新（5.4）', 'OS 標準のインジケータ。取得結果をその場で反映', 'fix', '21.2-8'),
+      M('3 秒ごとの取得（5.4）', '見た目なし。前面にいる間だけ', 'keep', ''),
+      M('読み込み中（5.1）', '見出しとカードの形をしたスケルトン（1 行の行）。「視差効果を減らす」では静止', 'chg', '行が 1 行になったのに合わせた'),
+      M('接続可否の判定中（ADR 0027）', '「Mac に接続しています…」＋接続先（等幅）。対応待ちバーは出さない', 'keep', ''),
+      M('空（5.1・21.2-9）', '図・「セッションがありません」・説明・注記・主ボタン「新規チャット」', 'chg', 'プロジェクトはセッションがあるものだけ出る前提の文言に。「Mac でエージェントを動かすと…」「プロジェクトの欄は、セッションが 1 つ以上あるプロジェクトだけが出ます」'),
+      M('オフライン 3 種（4.4・5.1）', '本文にカード 1 枚。「再接続を試す」は下端の対応待ちバーの位置', 'keep', '記号なし。Mac に届かないときは見出しを赤い文字に'),
+      M('取得エラー（5.1・16.5）', 'カード: 見出し（赤い文字）＋本文＋回復操作のボタン', 'keep', ''),
+      M('対応待ちバー・タブのバッジ（骨格）', 'タブバーの上。件数＝対応待ちの件数。スクロールで丸に縮んだタブの横へ', 'keep', '0 件・読込中・判定中・空・エラーでは出さない'),
+      M('タブ（2.2）', '「セッション」「設定」の 2 つ＋離した「新規チャット」', 'chg', '「使用量」タブは廃止のまま'),
+      M('使用量（12）', '移動元: 一覧の下端の使用量バー → 移動先: 入力欄の下の 1 行のリング（Usage*）', 'move', '使用量だけの画面・タブ・設定の区画は作らない。一覧の引っ張って更新で使用量も取り直す')
+    ];
+    const S = (k, t, fg, w, d) => ({ k, t, fg, w, d });
+    const states = [
+      S('待機', '（出さない）', '#6B6B73', 400, '名前だけ'),
+      S('承認待ち', '承認待ち', '#A8430A', 600, '注意の色（琥珀）'),
+      S('質問あり', '質問あり', '#1555C0', 600, '注意の色（青）'),
+      S('エラー', 'エラー', '#B8241C', 600, '注意の色（赤）'),
+      S('無応答', '無応答', '#5B3FA8', 600, '紫（status.stalled。Mac と同じ）'),
+      S('実行中', '実行中', '#56565E', 500, '副文字色＋名前に光の帯'),
+      S('完了', '完了', '#6B6B73', 400, '3 段目の文字色'),
+      S('起動中', '起動中', '#6B6B73', 400, '3 段目の文字色'),
+      S('終了', '終了', '#6B6B73', 400, '3 段目の文字色')
+    ];
+    return { map, states };
+  }
+}
+</script>
+</body>
+</html>

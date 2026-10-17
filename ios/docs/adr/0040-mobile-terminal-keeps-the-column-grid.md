@@ -1,9 +1,12 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0044-remove-terminal-screen-and-unsupported-sessions.md
 last-verified: 2026-07-27
 ---
 
 # ADR 0040: モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）
+
+> **superseded**: 端末画面は機能ごと廃止すると決めた（2026-10 の再設計。コードは段階 1 で消す）。（[ADR 0044](0044-remove-terminal-screen-and-unsupported-sessions.md)）
 
 > **このファイルの役割**: 表・罫線がモバイルだけ崩れていた原因と、桁を守るために変えた 2 点（折り返しをやめる／文字ごとに字送りを足す）。
 > **書かないもの**: 端末エミュレータを使わず装飾付きテキストで描く決定そのもの（→ [ADR 0039](0039-mobile-terminal-is-styled-text-not-an-emulator.md)）、Mac が履歴ごと配信する決定（→ [macos/docs/adr/0134](../../../macos/docs/adr/0134-ansi-output-includes-scrollback.md)）。

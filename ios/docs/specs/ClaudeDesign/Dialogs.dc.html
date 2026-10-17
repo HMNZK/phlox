@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>操作と確認ダイアログ — カタログ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.lg{display:inline-block;flex:none}
+.lg-claude,.lg-codex{background-color:currentColor;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.lg-claude{-webkit-mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7);mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7)}
+.lg-codex{-webkit-mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba);mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba)}
+.lg-cursor{background:url(/_blob/02f5e276fd254ff6f2137701b1097708) center/contain no-repeat}
+@keyframes dlgspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.dlg-spin{animation:none !important}}
+</style>
+</helmet>
+<div style="width: 2400px; height: 6140px; box-sizing: border-box; padding: 64px; overflow: hidden; background: {{c.page}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; gap: 56px">
+
+<div style="height: 480px; flex: none; display: flex; flex-direction: column; gap: 22px; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 15px; font-weight: 600; color: {{c.text2}}; letter-spacing: 0.3px">セッションへの操作と確認ダイアログ · 10 章／16.3 節 · {{ themeLabel }}</div>
+<h2 style="margin: 0; font-size: 34px; line-height: 1.25; font-weight: 700">取り返しがつく操作は確認せずに進め、取り返しがつかない削除だけを止めて確かめる</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px; color: {{c.text2}}">
+<sc-for list="{{ legend }}" as="lg" hint-placeholder-count="6"><span style="display: inline-flex; align-items: center; gap: 6px"><span style="padding: 3px 9px; border-radius: 999px; background: {{lg.bg}}; color: {{lg.fg}}; font-size: 12px; font-weight: 700">{{ lg.chip }}</span>{{ lg.text }}</span></sc-for>
+</div>
+</div>
+
+<div role="table" aria-label="2 種類の操作の見た目の違い" style="display: grid; grid-template-columns: 170px 820px 820px; border-radius: 18px; overflow: hidden; background: {{c.card}}; border: 1px solid {{c.sep}}; font-size: 15px; line-height: 1.5">
+<div role="columnheader" style="padding: 12px 16px; background: {{c.head}}"></div>
+<div role="columnheader" style="padding: 12px 16px; background: {{c.head}}; display: flex; align-items: center; gap: 8px; font-weight: 700"><span style="padding: 3px 9px; border-radius: 999px; background: {{ann.revBg}}; color: {{ann.revFg}}; font-size: 12px">つく</span>取り返しがつく — 名前変更・モデル変更</div>
+<div role="columnheader" style="padding: 12px 16px; background: {{c.head}}; display: flex; align-items: center; gap: 8px; font-weight: 700"><span style="padding: 3px 9px; border-radius: 999px; background: {{ann.irrBg}}; color: {{ann.irrFg}}; font-size: 12px">つかない</span>取り返しがつかない — 削除</div>
+<sc-for list="{{ rules }}" as="r" hint-placeholder-count="6">
+<div role="rowheader" style="padding: 10px 16px; border-top: 1px solid {{c.sep}}; font-weight: 700; color: {{c.text2}}">{{ r.k }}</div>
+<div role="cell" style="padding: 10px 16px; border-top: 1px solid {{c.sep}}">{{ r.a }}</div>
+<div role="cell" style="padding: 10px 16px; border-top: 1px solid {{c.sep}}">{{ r.b }}</div>
+</sc-for>
+</div>
+</div>
+
+<sc-for list="{{ rows }}" as="row" hint-placeholder-count="6">
+<section aria-label="{{ row.title }}" style="flex: none; display: flex; flex-direction: column">
+<div style="height: 64px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border-top: 2px solid {{c.rule}}">
+<div style="font-size: 22px; font-weight: 700">{{ row.title }}</div>
+<div style="font-size: 15px; color: {{c.text2}}">{{ row.desc }}</div>
+</div>
+<div style="display: flex; gap: 32px; align-items: flex-start">
+<sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="4">
+<div style="width: {{cell.w}}px; flex: none; display: flex; flex-direction: column">
+<div style="height: 92px; box-sizing: border-box; padding: 14px 2px 10px; display: flex; flex-direction: column; gap: 5px; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap"><span style="font-size: 13px; font-weight: 700; color: {{c.text3}}; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace">{{ cell.id }}</span><span style="font-size: 16px; font-weight: 700">{{ cell.name }}</span><sc-for list="{{ cell.chips }}" as="ch" hint-placeholder-count="1"><span style="padding: 2px 8px; border-radius: 999px; background: {{ch.bg}}; color: {{ch.fg}}; font-size: 11px; font-weight: 700">{{ ch.t }}</span></sc-for></div>
+<div style="font-size: 13px; line-height: 1.45; color: {{c.text2}}">{{ cell.note }}</div>
+</div>
+
+<div style="position: relative; width: {{cell.w}}px; height: {{cell.h}}px; border-radius: 30px; overflow: hidden; background: {{c.bg}}; box-shadow: 0 0 0 1px {{c.sep}}">
+
+<sc-if value="{{ cell.detailBg }}" hint-placeholder-val="{{ true }}">
+<div aria-hidden="true" style="position: absolute; inset: 0">
+<div style="position: absolute; left: 16px; top: 10px; width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); display: flex; align-items: center; justify-content: center; color: {{c.text}}"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.6 L8 3 L13.5 7.6 M4 6.4 V13.2 H6.8 V9.8 H9.2 V13.2 H12 V6.4"></path></svg></div>
+<div style="position: absolute; left: 70px; right: 70px; top: 14px; display: flex; flex-direction: column; align-items: center; gap: 1px"><span style="max-width: 100%; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ cell.bgTitle }}</span><span style="font-size: 12px; font-weight: 600; color: {{c.text2}}">{{ cell.bgSub }}</span></div>
+<div style="position: absolute; right: 16px; top: 10px; width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); display: flex; align-items: center; justify-content: center; color: {{c.text}}; opacity: {{cell.menuBtnOp}}"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.4"></circle><circle cx="8" cy="8" r="1.4"></circle><circle cx="12.5" cy="8" r="1.4"></circle></svg></div>
+<div style="position: absolute; left: 16px; right: 16px; top: 76px; display: flex; flex-direction: column; gap: 12px">
+<div style="align-self: flex-end; width: 62%; height: 40px; border-radius: 14px; background: {{c.userBubble}}"></div>
+<div style="display: flex; flex-direction: column; gap: 7px"><div style="height: 11px; border-radius: 6px; background: {{c.ghost}}; width: 96%"></div><div style="height: 11px; border-radius: 6px; background: {{c.ghost}}; width: 84%"></div><div style="height: 11px; border-radius: 6px; background: {{c.ghost}}; width: 58%"></div></div>
+<div style="height: 44px; border-radius: 8px; border: 1px solid {{c.sep}}; background: {{c.card}}"></div>
+<div style="display: flex; flex-direction: column; gap: 7px"><div style="height: 11px; border-radius: 6px; background: {{c.ghost}}; width: 90%"></div><div style="height: 11px; border-radius: 6px; background: {{c.ghost}}; width: 44%"></div></div>
+</div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 40px; height: 88px; box-sizing: border-box; border-radius: 26px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); opacity: {{cell.inputOp}}"></div>
+<div style="position: absolute; left: 28px; bottom: 12px; display: flex; gap: 6px; opacity: {{cell.inputOp}}"><span style="width: 14px; height: 14px; border-radius: 50%; border: 2.2px solid {{c.ghost}}; box-sizing: border-box"></span><span style="width: 14px; height: 14px; border-radius: 50%; border: 2.2px solid {{c.ghost}}; box-sizing: border-box"></span><span style="width: 14px; height: 14px; margin-left: 10px; border-radius: 50%; border: 2.2px solid {{c.ghost}}; box-sizing: border-box"></span><span style="width: 14px; height: 14px; border-radius: 50%; border: 2.2px solid {{c.ghost}}; box-sizing: border-box"></span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ cell.isList }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; padding: 18px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 30px; font-weight: 700">セッション</div>
+<div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 32px; font-size: 13px; font-weight: 600; color: {{c.text2}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6 L8 10.5 L12.5 6"></path></svg><span style="flex: 1">Phlox</span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 2.5 V13.5 M2.5 8 H13.5"></path></svg></div>
+<div style="border-radius: 16px; background: {{c.card}}; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px"><span style="flex: 1; font-size: 16px; color: {{c.text2}}">Lotus</span></div>
+<div style="height: 1px; margin-left: 14px; background: {{c.sep}}"></div>
+<div style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px"><span style="flex: 1; font-size: 16px; color: {{c.text2}}">docs: ADR 0044</span><span style="font-size: 13px; color: {{c.text3}}">完了</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 14px; border-radius: 16px; border: 1.5px dashed {{ann.noteFg}}; color: {{ann.noteFg}}; font-size: 13px; line-height: 1.45"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13 V3.5 M3.8 7.5 L8 3.3 L12.2 7.5"></path></svg><span>注記: “refactor: ControlServer proxy” と子孫 2 件の行は、戻った時点で消えている。ほかの行が詰まる</span></div>
+<div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 32px; font-size: 13px; font-weight: 600; color: {{c.text2}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6 L8 10.5 L12.5 6"></path></svg><span style="flex: 1">その他</span></div>
+<div style="border-radius: 16px; background: {{c.card}}; overflow: hidden"><div style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px"><span style="flex: 1; font-size: 16px; color: {{c.text2}}">dotfiles の整理</span><span style="font-size: 13px; color: {{c.text3}}">完了</span></div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ cell.isMenu }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; inset: 0; background: {{c.dimLight}}"></div>
+<div role="menu" aria-label="セッションメニュー" style="position: absolute; right: 14px; top: 60px; width: 260px; border-radius: 18px; overflow: hidden; background: {{c.menuBg}}; box-shadow: 0 16px 48px rgba(0,0,0,0.28); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%)">
+<sc-for list="{{ cell.items }}" as="it" hint-placeholder-count="3">
+<sc-if value="{{ it.line }}" hint-placeholder-val="{{ false }}"><div style="height: 1px; background: {{c.sep}}"></div></sc-if>
+<sc-if value="{{ it.gap }}" hint-placeholder-val="{{ false }}"><div style="height: 8px; background: {{c.menuGap}}"></div></sc-if>
+<button type="button" role="menuitem" aria-disabled="{{ it.disabled }}" aria-label="{{ it.aria }}" style="display: flex; align-items: center; gap: 12px; width: 100%; min-height: {{it.h}}px; padding: 6px 16px; border: 0; background: transparent; color: {{it.fg}}; font: inherit; text-align: left; cursor: pointer; opacity: {{it.op}}"><span style="flex: 1; display: flex; flex-direction: column; gap: 1px"><span style="font-size: 17px">{{ it.label }}</span><sc-if value="{{ it.hasSub }}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; color: {{c.text2}}">{{ it.sub }}</span></sc-if></span><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ it.icon }}"></path></svg></button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ cell.isBanner }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="position: absolute; left: 12px; right: 12px; top: 64px; display: flex; gap: 10px; align-items: flex-start; padding: 12px 8px 12px 14px; border-radius: 16px; background: {{c.errBg}}; box-shadow: 0 8px 24px rgba(0,0,0,0.12)">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px"><div style="font-size: 15px; font-weight: 700; color: {{c.errFg}}">{{ cell.bTitle }}</div><div style="font-size: 14px; line-height: 1.45; color: {{c.text}}">{{ cell.bText }}</div><div style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.45; color: {{c.text2}}; overflow-wrap: anywhere">{{ cell.bMono }}</div></div>
+<button type="button" aria-label="知らせを閉じる" style="flex: none; width: 44px; height: 44px; margin: -10px -2px 0 0; border: 0; border-radius: 50%; background: transparent; color: {{c.text2}}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5"></path></svg></button>
+</div>
+</sc-if>
+
+<sc-if value="{{ cell.isHud }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; inset: 0; background: {{c.dim}}"></div>
+<div role="status" aria-live="polite" aria-label="3 件を削除しています" style="position: absolute; left: 50%; top: 50%; width: 220px; margin: -76px 0 0 -110px; box-sizing: border-box; padding: 22px 18px; border-radius: 26px; background: {{c.alertBg}}; box-shadow: 0 20px 60px rgba(0,0,0,0.3); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center">
+<svg class="dlg-spin" width="30" height="30" viewBox="0 0 16 16" fill="none" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="animation: dlgspin 0.9s linear infinite"><circle cx="8" cy="8" r="6" stroke="{{ c.slot }}" opacity="0.5"></circle><path d="M8 2 A6 6 0 0 1 14 8" stroke="{{ c.text }}"></path></svg>
+<div style="font-size: 17px; font-weight: 700">削除しています…</div>
+<div style="font-size: 14px; color: {{c.text2}}">このセッションと子孫 2 件</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ cell.isSheet }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; inset: 0; background: {{c.dim}}"></div>
+<div role="dialog" aria-label="Claude Code のモデル" style="position: absolute; left: 8px; right: 8px; bottom: 8px; height: 470px; box-sizing: border-box; border-radius: 38px; background: {{c.sheetBg}}; box-shadow: 0 -10px 40px rgba(0,0,0,0.2); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); display: flex; flex-direction: column; overflow: hidden">
+<div aria-hidden="true" style="align-self: center; margin-top: 8px; width: 36px; height: 5px; border-radius: 3px; background: {{c.slot}}"></div>
+<div style="display: flex; align-items: center; height: 52px; padding: 0 12px">
+<button type="button" style="min-width: 64px; height: 44px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font: inherit; font-size: 15px; font-weight: 600; padding: 0 14px; cursor: pointer">閉じる</button>
+<h2 style="flex: 1; margin: 0; text-align: center; font-size: 17px; font-weight: 700">Claude Code のモデル</h2>
+<span style="min-width: 64px"></span>
+</div>
+<div style="padding: 4px 16px 8px">
+<label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; background: {{c.fill}}; color: {{c.text2}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M7 2.5 A4.5 4.5 0 1 0 7 11.5 A4.5 4.5 0 1 0 7 2.5 Z M10.3 10.3 L13.5 13.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">モデルを絞り込む</span><input type="search" placeholder="絞り込み" value="{{ cell.q }}" style="flex: 1; min-width: 0; border: 0; background: transparent; color: {{c.text}}; font: inherit; font-size: 16px; outline: none"></label>
+</div>
+<sc-if value="{{ cell.sStatus }}" hint-placeholder-val="{{ false }}"><div role="status" style="padding: 2px 20px 0; font-size: 13px; color: {{c.text2}}">{{ cell.sStatusText }}</div></sc-if>
+<sc-if value="{{ cell.sFail }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="margin: 6px 16px 0; display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: {{c.errBg}}">
+<div style="display: flex; flex-direction: column; gap: 3px"><div style="font-size: 14px; font-weight: 700; color: {{c.errFg}}">Opus (1M context) に変更できませんでした</div><div style="font-size: 13px; color: {{c.text}}">Sonnet 5 のままです。</div><div style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: 12px; color: {{c.text2}}">model "opus" is not available on this Mac</div></div>
+</div>
+</sc-if>
+<sc-if value="{{ cell.sEmpty }}" hint-placeholder-val="{{ false }}">
+<div style="padding: 48px 32px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="{{ c.text3 }}" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M7 2.5 A4.5 4.5 0 1 0 7 11.5 A4.5 4.5 0 1 0 7 2.5 Z M10.3 10.3 L13.5 13.5"></path></svg><div style="font-size: 17px; font-weight: 600">“gpt” に一致するモデルはありません</div><div style="font-size: 14px; color: {{c.text2}}">このセッションでは Claude Code のモデルだけを選べます</div></div>
+</sc-if>
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 0 16px 16px; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ cell.sections }}" as="sec" hint-placeholder-count="1">
+<div style="display: flex; align-items: center; gap: 8px; margin: 12px 4px 6px; font-size: 13px; font-weight: 700; color: {{c.text2}}"><span aria-hidden="true" class="lg lg-claude" style="width: 16px; height: 16px; color: {{c.text2}}"></span>{{ sec.title }}</div>
+<div role="group" aria-label="{{ sec.title }}" style="border-radius: 16px; background: {{c.card}}; overflow: hidden">
+<sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="3">
+<button type="button" role="option" aria-selected="{{ r.selected }}" aria-busy="{{ r.busy }}" aria-label="{{ r.aria }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-top: {{r.bt}}; background: transparent; color: {{c.text}}; font: inherit; font-size: 17px; font-weight: {{r.w}}; text-align: left; cursor: pointer; opacity: {{r.op}}"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ r.name }}</span><sc-if value="{{ r.isDef }}" hint-placeholder-val="{{ false }}"><span style="flex: none; padding: 1px 8px; border-radius: 999px; background: {{c.fill}}; color: {{c.text2}}; font-size: 12px; font-weight: 600">既定</span></sc-if><span style="flex: none; width: 20px; display: inline-flex; align-items: center; justify-content: center; color: {{c.accent}}"><sc-if value="{{ r.isSel }}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 L6.5 11.5 L12.5 4.5"></path></svg></sc-if><sc-if value="{{ r.spin }}" hint-placeholder-val="{{ false }}"><svg class="dlg-spin" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="animation: dlgspin 0.9s linear infinite"><circle cx="8" cy="8" r="6" stroke="{{ c.slot }}" opacity="0.5"></circle><path d="M8 2 A6 6 0 0 1 14 8" stroke="{{ c.text2 }}"></path></svg></sc-if></span></button>
+</sc-for>
+</div>
+</sc-for>
+<sc-if value="{{ cell.sNote }}" hint-placeholder-val="{{ true }}"><div style="margin: 8px 4px 0; font-size: 12px; line-height: 1.5; color: {{c.text2}}">このセッションのエージェントのモデルだけを選べます</div></sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ cell.isAlert }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; inset: 0; background: {{c.dim}}"></div>
+<div style="position: absolute; inset: 0; display: flex; flex-direction: column">
+<div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 16px">
+<div role="alertdialog" aria-label="{{ cell.a.title }}" style="width: {{cell.a.w}}px; box-sizing: border-box; padding: {{cell.a.pad}}; border-radius: 30px; background: {{c.alertBg}}; box-shadow: 0 20px 60px rgba(0,0,0,0.3); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); display: flex; flex-direction: column; gap: {{cell.a.gap}}px; text-align: center; max-height: {{cell.a.maxH}}; min-height: 0">
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: {{cell.a.gap}}px; -webkit-mask-image: {{cell.a.mask}}; mask-image: {{cell.a.mask}}">
+<h2 style="margin: 0; font-size: {{cell.a.fTitle}}px; line-height: 1.3; font-weight: 700; overflow-wrap: anywhere">{{ cell.a.title }}</h2>
+<sc-for list="{{ cell.a.msgs }}" as="m" hint-placeholder-count="1"><p style="margin: 0; font-size: {{cell.a.fMsg}}px; line-height: 1.5; font-weight: {{m.w}}; color: {{m.fg}}">{{ m.t }}</p></sc-for>
+<sc-if value="{{ cell.a.hasMono }}" hint-placeholder-val="{{ false }}"><div style="padding: 8px 10px; border-radius: 10px; background: {{c.fill}}; text-align: left; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{cell.a.fMono}}px; line-height: 1.45; color: {{c.text2}}; overflow-wrap: anywhere">{{ cell.a.mono }}</div></sc-if>
+<sc-if value="{{ cell.a.hasField }}" hint-placeholder-val="{{ false }}">
+<div role="textbox" aria-label="セッション名" style="display: flex; align-items: center; gap: 6px; min-height: {{cell.a.fieldH}}px; box-sizing: border-box; padding: 0 6px 0 12px; border: 2px solid {{c.accent}}; border-radius: 12px; background: {{c.card}}; text-align: left; font-size: {{cell.a.fField}}px">
+<span style="flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis"><sc-if value="{{ cell.a.fieldEmpty }}" hint-placeholder-val="{{ false }}"><span style="color: {{c.text3}}">セッション名</span></sc-if><span style="background: {{cell.a.selBg}}; border-radius: 3px">{{ cell.a.fieldVal }}</span></span>
+<sc-if value="{{ cell.a.hasClear }}" hint-placeholder-val="{{ true }}"><span aria-label="消去" role="button" style="flex: none; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center"><span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 50%; background: {{c.text3}}; color: {{c.card}}; display: flex; align-items: center; justify-content: center"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5"></path></svg></span></span></sc-if>
+</div>
+</sc-if>
+</div>
+<div style="flex: none; display: grid; grid-template-columns: {{cell.a.cols}}; gap: 8px; margin-top: 6px">
+<sc-for list="{{ cell.a.buttons }}" as="b" hint-placeholder-count="2">
+<button type="button" aria-label="{{ b.aria }}" aria-disabled="{{ b.disabled }}" style="min-height: {{cell.a.btnH}}px; border: 0; border-radius: 999px; background: {{b.bg}}; color: {{b.fg}}; opacity: {{b.op}}; font: inherit; font-size: {{cell.a.fBtn}}px; font-weight: {{b.w}}; line-height: 1.25; padding: 6px 12px; cursor: pointer">{{ b.label }}</button>
+</sc-for>
+</div>
+</div>
+</div>
+<sc-if value="{{ cell.kb }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="flex: none; height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: repeating-linear-gradient(135deg, {{c.kb1}} 0 10px, {{c.kb2}} 10px 20px); color: {{c.text2}}; font-size: 14px; font-weight: 600">
+<span>キーボード（OS）</span>
+<span style="padding: 8px 16px; border-radius: 10px; background: {{cell.kbKeyBg}}; color: {{cell.kbKeyFg}}">return キー「完了」= {{ cell.kbKey }}</span>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+</div>
+</div>
+</sc-for>
+</div>
+</section>
+</sc-for>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":2400,"height":6140}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const c = dark ? {
+      page: '#0B0B0D', head: '#232326', rule: 'rgba(255,255,255,0.16)',
+      bg: '#000000', card: '#1C1C1E', text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5',
+      sep: 'rgba(84,84,88,0.65)', slot: 'rgba(235,235,245,0.38)', accent: '#F2F2F4', accentOnFill: '#000000',
+      fill: 'rgba(118,118,128,0.28)', userBubble: '#2C2C30', ghost: 'rgba(235,235,245,0.14)',
+      errFg: '#FF8C82', errBg: 'rgba(255,69,58,0.18)',
+      glassBg: 'rgba(38,38,42,0.6)', glassBorder: 'rgba(255,255,255,0.14)', glassShadow: '0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)', okFg: '#6FD08C',
+      menuBg: 'rgba(44,44,48,0.94)', menuGap: 'rgba(0,0,0,0.3)', alertBg: 'rgba(44,44,48,0.96)', sheetBg: 'rgba(28,28,30,0.97)',
+      dim: 'rgba(0,0,0,0.5)', dimLight: 'rgba(0,0,0,0.14)', kb1: '#1C1C1E', kb2: '#232326'
+    } : {
+      page: '#ECECF1', head: '#F2F2F6', rule: 'rgba(60,60,67,0.2)',
+      bg: '#F2F2F7', card: '#FFFFFF', text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73',
+      sep: 'rgba(60,60,67,0.18)', slot: 'rgba(60,60,67,0.38)', accent: '#1D1D1F', accentOnFill: '#FFFFFF',
+      fill: 'rgba(118,118,128,0.12)', userBubble: '#E4E4EB', ghost: 'rgba(60,60,67,0.12)',
+      errFg: '#B8241C', errBg: '#FDE7E5',
+      glassBg: 'rgba(255,255,255,0.62)', glassBorder: 'rgba(255,255,255,0.85)', glassShadow: '0 10px 30px rgba(20,20,40,0.14), 0 1px 3px rgba(20,20,40,0.08), inset 0 1px 0 rgba(255,255,255,0.95)', okFg: '#1F7A3A',
+      menuBg: 'rgba(250,250,252,0.94)', menuGap: 'rgba(60,60,67,0.08)', alertBg: 'rgba(250,250,252,0.96)', sheetBg: 'rgba(242,242,247,0.97)',
+      dim: 'rgba(0,0,0,0.28)', dimLight: 'rgba(0,0,0,0.05)', kb1: '#D9DADF', kb2: '#E3E4E8'
+    };
+    const ann = dark ? {
+      revBg: 'rgba(118,118,128,0.2)', revFg: '#E4E4EA', irrBg: 'rgba(255,69,58,0.2)', irrFg: '#FF9B92',
+      candBg: 'rgba(255,159,10,0.2)', candFg: '#FFB46E', fixBg: 'rgba(52,199,89,0.2)', fixFg: '#7ED99A',
+      chgBg: 'rgba(118,118,128,0.3)', chgFg: '#E4E4EA', brBg: 'transparent', brFg: '#C9C9D0', noteFg: '#E4E4EA'
+    } : {
+      revBg: '#EDEDF0', revFg: '#1D1D1F', irrBg: '#FDE7E5', irrFg: '#A11F18',
+      candBg: '#FFEBD6', candFg: '#8A4200', fixBg: '#E3F4E8', fixFg: '#1F6B3A',
+      chgBg: '#E6E6EC', chgFg: '#2A2A31', brBg: 'transparent', brFg: '#45454F', noteFg: '#1D1D1F'
+    };
+    const CH = {
+      rev: { t: 'つく', bg: ann.revBg, fg: ann.revFg },
+      irr: { t: 'つかない', bg: ann.irrBg, fg: ann.irrFg },
+      cand: { t: '候補', bg: ann.candBg, fg: ann.candFg },
+      fix: { t: '解消', bg: ann.fixBg, fg: ann.fixFg },
+      chg: { t: '変更', bg: ann.chgBg, fg: ann.chgFg },
+      br: { t: '分岐', bg: ann.brBg, fg: ann.brFg }
+    };
+    CH.br = { t: '分岐（未確認）', bg: dark ? 'rgba(118,118,128,0.18)' : '#FFFFFF', fg: ann.brFg };
+    CH.pw = { t: '強い権限', bg: ann.irrBg, fg: ann.irrFg };
+
+    const legend = [
+      { chip: 'つく', bg: ann.revBg, fg: ann.revFg, text: '取り返しがつく操作' },
+      { chip: 'つかない', bg: ann.irrBg, fg: ann.irrFg, text: '取り返しがつかない操作' },
+      { chip: '変更', bg: ann.chgBg, fg: ann.chgFg, text: '現行から配置・挙動を変える' },
+      { chip: '解消', bg: ann.fixBg, fg: ann.fixFg, text: '21.2 節の不具合を正しい振る舞いで描いた' },
+      { chip: '候補', bg: ann.candBg, fg: ann.candFg, text: '提案。採否を決めてほしい' },
+      { chip: '分岐（未確認）', bg: CH.br.bg, fg: CH.br.fg, text: '機能一覧で推測・未確認の振る舞い' }
+    ];
+
+    const rules = [
+      { k: '確認', a: '確認しない。名前変更は名前を入れるためのアラート、モデルはシートで選んだ時点で反映。違ったら、もう一度変えればよい', b: '必ず確認する。何が、何件消えるかと「元に戻せません」を本文に書く' },
+      { k: '見た目', a: '実行ボタン（変更）だけをアクセント色で塗る', b: '塗ったボタンを置かない。実行ボタンは赤い文字＋淡い赤の地で、文言に動詞と件数（「3 件を削除」）' },
+      { k: '既定ボタン', a: '実行（変更）。太字。return キー・ハードウェアの Return で実行、Esc でキャンセル', b: 'キャンセル。太字。Return も Esc もキャンセル。失敗のアラートでは「閉じる」が既定' },
+      { k: '並び', a: '左にキャンセル、右に実行（OS 標準）。文字が大きいときは縦に積み、実行が上', b: '同じ並び。縦に積むときも実行が上、キャンセルが下（OS 標準の位置。親指に近いのはキャンセル）' },
+      { k: '失敗の知らせ', a: 'アラート・シートを閉じずに済む場所で知らせる。名前は詳細の上の赤い帯、モデルはシートの中の赤い帯', b: '失敗のアラートで知らせる。何が残っているかを書き、再実行は赤いボタン' },
+      { k: '押し間違い', a: '—', b: 'メニューの「削除」とアラートの実行ボタンは位置が違うので、2 回続けて押しても削除まで進まない' }
+    ];
+
+    const ICON = {
+      model: 'M4 4 H12 V12 H4 Z M6 1.8 V4 M10 1.8 V4 M6 12 V14.2 M10 12 V14.2 M1.8 6 H4 M1.8 10 H4 M12 6 H14.2 M12 10 H14.2 M6.5 6.5 H9.5 V9.5 H6.5 Z',
+      pen: 'M10.8 2.4 L13.6 5.2 L5.6 13.2 L2.4 13.6 L2.8 10.4 Z',
+      trash: 'M2.5 4 H13.5 M6 4 V2.5 H10 V4 M4 4 L4.8 14 H11.2 L12 4 M6.6 6.5 V11.5 M9.4 6.5 V11.5'
+    };
+    const MI = (label, icon, o) => {
+      o = o || {};
+      return {
+        label, icon, sub: o.sub || '', hasSub: !!o.sub, h: o.sub ? 56 : 48,
+        fg: o.destr ? c.errFg : c.text, op: o.disabled ? 0.45 : 1, disabled: o.disabled ? 'true' : 'false',
+        line: o.before === 'line', gap: o.before === 'gap',
+        aria: label + (o.sub ? '、' + o.sub : '') + (o.disabled ? '、使用できません' : '')
+      };
+    };
+
+    const BTN = (label, kind, o) => {
+      o = o || {};
+      const s = {
+        act: { bg: c.accent, fg: c.accentOnFill, w: 600 },
+        cancel: { bg: c.fill, fg: c.text, w: 500 },
+        pref: { bg: c.fill, fg: c.text, w: 700 },
+        destr: { bg: c.errBg, fg: c.errFg, w: 600 }
+      }[kind];
+      return { label, bg: s.bg, fg: s.fg, w: s.w, op: o.disabled ? 0.4 : 1, disabled: o.disabled ? 'true' : 'false', aria: o.aria || label };
+    };
+    const ALERT = (o, dt) => {
+      const F = dt
+        ? { fTitle: 53, fMsg: 44, fMono: 40, fBtn: 53, btnH: 90, w: 396, pad: '30px 20px 20px', gap: 16, fField: 53, fieldH: 90, maxH: '880px', mask: 'linear-gradient(to bottom, #000 85%, transparent)' }
+        : { fTitle: 17, fMsg: 14, fMono: 12, fBtn: 17, btnH: 48, w: 300, pad: '22px 18px 16px', gap: 10, fField: 15, fieldH: 42, maxH: 'none', mask: 'none' };
+      const msgs = (o.msgs || []).map(m => typeof m === 'string' ? { t: m, w: 400, fg: c.text2 } : { t: m.b, w: 700, fg: c.text });
+      const hasField = o.field !== undefined;
+      return Object.assign({}, F, {
+        title: o.title, msgs,
+        hasMono: !!o.mono, mono: o.mono || '',
+        hasField, fieldVal: o.field || '', fieldEmpty: hasField && !o.field, hasClear: hasField && !!o.field,
+        selBg: o.sel ? (dark ? 'rgba(118,118,128,0.38)' : 'rgba(118,118,128,0.22)') : 'transparent',
+        buttons: o.buttons,
+        cols: (dt || o.buttons.length === 1) ? 'minmax(0, 1fr)' : 'repeat(' + o.buttons.length + ', minmax(0, 1fr))'
+      });
+    };
+    const base = (id, name, note, chips, w, h, extra) => Object.assign({
+      id, name, note, chips, w, h,
+      detailBg: true, bgTitle: 'refactor: ControlServer proxy', bgSub: '待機 · Claude Code', menuBtnOp: 1, inputOp: 1,
+      isAlert: false, isMenu: false, isSheet: false, isHud: false, isBanner: false, isList: false, kb: false, sNote: true,
+      a: null, items: [], sections: [], q: '', sStatus: false, sStatusText: '', sFail: false, sEmpty: false,
+      bTitle: '', bText: '', bMono: '', kbKey: '', kbKeyBg: 'transparent', kbKeyFg: c.text
+    }, extra);
+
+    const TITLE_MAIN = '“refactor: ControlServer proxy” を削除しますか？';
+    const renameA = (val, sel, dt, disabled) => ALERT({
+      title: '名前を変更', msgs: ['一覧と詳細に出る名前です。'], field: val, sel,
+      buttons: dt
+        ? [BTN('変更', 'act', { disabled, aria: '変更' + (disabled ? '、名前が空か変わっていないため使用できません' : '') }), BTN('キャンセル', 'cancel')]
+        : [BTN('キャンセル', 'cancel'), BTN('変更', 'act', { disabled, aria: '変更' + (disabled ? '、名前が空か変わっていないため使用できません' : '') })]
+    }, dt);
+    const del2A = (dt) => ALERT({
+      title: TITLE_MAIN,
+      msgs: ['子孫のセッション 2 件も一緒に削除されます。合わせて 3 件です。', { b: '元に戻せません。' }],
+      buttons: dt
+        ? [BTN('3 件を削除', 'destr', { aria: '3 件を削除。元に戻せません' }), BTN('キャンセル', 'pref')]
+        : [BTN('キャンセル', 'pref'), BTN('3 件を削除', 'destr', { aria: '3 件を削除。元に戻せません' })]
+    }, dt);
+    const failA = (dt) => ALERT({
+      title: '削除できませんでした',
+      msgs: ['セッションと子孫 2 件は、どれも消えずに残っています。'],
+      mono: 'delete failed: session 7c2e is attaching (EBUSY)',
+      buttons: dt
+        ? [BTN('もう一度削除', 'destr', { aria: 'もう一度削除。元に戻せません' }), BTN('閉じる', 'pref')]
+        : [BTN('閉じる', 'pref'), BTN('もう一度削除', 'destr', { aria: 'もう一度削除。元に戻せません' })]
+    }, dt);
+
+    const mrow = (name, o) => {
+      o = o || {};
+      return { name, isSel: !!o.sel, selected: o.sel ? 'true' : 'false', w: o.sel ? 600 : 400, bt: o.first ? '0' : '1px solid ' + c.sep, isDef: !!o.def, spin: !!o.spin, busy: o.spin ? 'true' : 'false', op: o.dim ? 0.45 : 1,
+        aria: 'Claude Code: ' + name + (o.def ? '、既定' : '') + (o.sel ? '、選択中' : '') + (o.spin ? '、切り替え中' : '') };
+    };
+    const SECTIONS = (spin) => [
+      { title: 'Claude Code', rows: [mrow('Opus (1M context)', { first: true, spin }), mrow('Sonnet 5', { def: true, sel: true, dim: spin }), mrow('Haiku 5.5', { dim: spin })] }
+    ];
+
+    const permA = (which, dt) => {
+      const P = which === 'bypass'
+        ? { name: 'Bypass Permissions', body: 'Bypass Permissions にすると、Claude Code はファイルの変更やコマンドの実行を、確認なしで行います。' }
+        : { name: 'Full Access', body: 'Full Access にすると、Codex はファイルの変更・コマンドの実行・ネットワークへの接続を、確認なしで行います。' };
+      const act = BTN(P.name + ' にする', 'destr', { aria: P.name + ' にする。確認なしで全部を許可します' });
+      return ALERT({
+        title: '確認なしで全部を許可しますか？',
+        msgs: [P.body, { b: 'iPhone から最も強い権限を与えることになります。' }],
+        buttons: dt ? [act, BTN('キャンセル', 'pref')] : [BTN('キャンセル', 'pref'), act]
+      }, dt);
+    };
+
+    const rows = [
+      {
+        title: '入口 — 詳細の「…」メニュー（10 章）',
+        desc: '操作の入口は詳細のナビにある「…」。削除だけ区切りを広く取り、赤い文字と記号で分ける。サブエージェント詳細にはメニューを出さない（10 章・現行どおり）',
+        cells: [
+          base('N1', '作成済みのセッション', 'モデル変更（現在のモデル）／名前変更／区切り／削除', [], 360, 400, { isMenu: true, items: [
+            MI('モデル変更', ICON.model, { sub: '現在: Sonnet 5' }), MI('名前変更', ICON.pen, { before: 'line' }), MI('削除', ICON.trash, { before: 'gap', destr: true })
+          ] }),
+          base('N2', '新規チャット（作成前）', '上部に「…」を出さない（DraftSpec の決定）。モデルは入力欄のモデルのチップで変える。作成前の名前変更・削除は入口が無いので起きない（21.2-6）', [CH.fix], 360, 400, { bgTitle: '新規チャット', bgSub: 'Phlox', menuBtnOp: 0 }),
+          base('N3', 'モデル一覧が取れない', 'エラーにはしない（ADR 0005）。2 行目とチップには Mac の既定のモデル名を出し、開いたシートのその欄は「取得できません」の行（選べない）。DraftSpec の決定と同じ', [], 360, 400, { isMenu: true, items: [
+            MI('モデル変更', ICON.model, { sub: '現在: Sonnet 5（Mac の既定・一覧は取得できません）' }), MI('名前変更', ICON.pen, { before: 'line' }), MI('削除', ICON.trash, { before: 'gap', destr: true })
+          ] })
+        ]
+      },
+      {
+        title: '取り返しがつく — 名前変更（10 章）',
+        desc: '名前を入れるためのアラート。確認ではないので、実行ボタンを塗って既定にする。現在の名前を全選択した状態で開き、そのまま打てば置き換わる',
+        cells: [
+          base('R1', '開いた直後', '既定: 変更（return キーでも実行）。現在の名前を全選択', [CH.rev], 360, 600, { isAlert: true, kb: true, kbKey: '変更', kbKeyBg: c.accent, kbKeyFg: c.accentOnFill, a: renameA('refactor: ControlServer proxy', true, false, false) }),
+          base('R2', '空欄・同じ名前', '「変更」を押せなくする（現行は押すと何もせず閉じる）', [CH.rev, CH.cand], 360, 600, { isAlert: true, kb: true, kbKey: '何もしない', kbKeyBg: c.fill, kbKeyFg: c.text2, a: renameA('', false, false, true) }),
+          base('R3', '失敗', 'アラートを閉じてから、詳細の上に赤い帯。名前は元のまま（現行は無表示）', [CH.rev, CH.chg], 428, 600, { isBanner: true, bTitle: '名前を変更できませんでした', bText: '名前は “refactor: ControlServer proxy” のままです。', bMono: 'HTTP 503 · control server is restarting' })
+        ]
+      },
+      {
+        title: '取り返しがつく — モデル変更（8.5 節・10 章）',
+        desc: '確認を挟まない。行を押した時点で反映し、終わったらシートを閉じる。シートは新規チャットと同じ形（ロゴつきのエージェントの見出し・絞り込み欄・✓・「既定」の印。モデル名は Mac から届く表示名）で、選べるのはこのセッションのエージェントのモデルだけ。「選択中／その他」の区分と、行の下のエージェント名はやめた（入口は「…」と入力欄のモデルのチップ、ADR 0010）',
+        cells: [
+          base('M1', '開いた直後', 'エージェントのロゴと名前の見出しの下に、そのエージェントのモデル。選択中に ✓、既定に「既定」。押せば反映', [CH.rev], 428, 600, { isSheet: true, sections: SECTIONS(false) }),
+          base('M2', '反映中', '押した行にスピナー、ほかは淡色。閉じても反映は続く', [CH.rev, CH.chg], 428, 600, { isSheet: true, sStatus: true, sStatusText: 'Opus (1M context) に切り替えています…', sections: SECTIONS(true) }),
+          base('M3', '失敗', 'シートの中に赤い帯。✓ は元のモデルのまま（現行は無表示）', [CH.rev, CH.chg], 428, 600, { isSheet: true, sFail: true, sections: SECTIONS(false) }),
+          base('M4', '絞り込みで 0 件', '一致しないことと、選べる範囲を本文で示す', [CH.rev], 428, 600, { isSheet: true, q: 'gpt', sEmpty: true, sNote: false, sections: [] })
+        ]
+      },
+      {
+        title: '取り返しがつかない — 削除の確認（10 章・16.3 節）',
+        desc: '移動元: 自前の全画面オーバーレイ → 移動先: OS 標準のアラート。塗ったボタンを置かず、既定はキャンセル。何件消えるかを本文とボタンの両方に書く',
+        cells: [
+          base('D1', '子孫なし', '既定: キャンセル（太字）。実行は赤い文字「削除」', [CH.irr], 360, 460, { isAlert: true, bgTitle: 'Lotus', a: ALERT({
+            title: '“Lotus” を削除しますか？', msgs: ['Mac 側のセッションと会話の記録が削除されます。', { b: '元に戻せません。' }],
+            buttons: [BTN('キャンセル', 'pref'), BTN('削除', 'destr', { aria: '削除。元に戻せません' })] }, false) }),
+          base('D2', '子孫 2 件', '子孫の件数を実数で書き、ボタンに合計件数（21.2-6）', [CH.irr, CH.fix], 360, 460, { isAlert: true, a: del2A(false) }),
+          base('D3', '件数が取れない', '数を出さず「あれば一緒に」と書く。ボタンは「削除」', [CH.irr, CH.br], 360, 460, { isAlert: true, a: ALERT({
+            title: TITLE_MAIN, msgs: ['子孫のセッションがあれば、それも一緒に削除されます。', { b: '元に戻せません。' }],
+            buttons: [BTN('キャンセル', 'pref'), BTN('削除', 'destr', { aria: '削除。子孫も含む。元に戻せません' })] }, false) }),
+          base('D4', '実行中のセッション', '止まることを書く。実行中に削除できるかは未確認', [CH.irr, CH.br], 360, 460, { isAlert: true, bgTitle: 'Lotus', bgSub: '実行中 · Claude Code', a: ALERT({
+            title: '“Lotus” を削除しますか？', msgs: ['実行中の作業は止まり、Mac 側のセッションと会話の記録が削除されます。', { b: '元に戻せません。' }],
+            buttons: [BTN('キャンセル', 'pref'), BTN('削除', 'destr', { aria: '削除。実行中の作業も止まる。元に戻せません' })] }, false) })
+        ]
+      },
+      {
+        title: '削除中・削除失敗・削除後',
+        desc: '確認で「3 件を削除」を押すと、結果が出るまで画面を覆う。途中で取り消せないので取り消しボタンは置かない。成功したら一覧へ戻る',
+        cells: [
+          base('E1', '削除中', '画面全体を覆う。アラートやシートと同じく、出ている間だけ戻るスワイプも効かない', [CH.irr, CH.chg], 428, 560, { isHud: true, menuBtnOp: 0.4, inputOp: 0.4 }),
+          base('E2', '削除できなかった', '既定: 閉じる。再実行は赤。何も消えていないことを書く', [CH.irr], 360, 560, { isAlert: true, a: failA(false) }),
+          base('E3', '一部だけ消えた', '子孫の一部が残る場合。起きうるかは未確認', [CH.irr, CH.br], 360, 560, { isAlert: true, a: ALERT({
+            title: '一部を削除できませんでした', msgs: ['3 件のうち 2 件を削除しました。残りの 1 件は一覧に残っています。'], mono: 'explore-map: permission denied',
+            buttons: [BTN('閉じる', 'pref'), BTN('残り 1 件を削除', 'destr', { aria: '残り 1 件を削除。元に戻せません' })] }, false) }),
+          base('E4', '通信が切れた', '結果が分からないので再実行を出さない。一覧で確かめてもらう', [CH.irr], 360, 560, { isAlert: true, a: ALERT({
+            title: 'Mac に接続できません', msgs: ['削除が終わったかどうか確かめられませんでした。接続が戻ったら、一覧で確かめてください。'],
+            buttons: [BTN('閉じる', 'pref')] }, false) }),
+          base('E5', '削除できた', '一覧へ戻り、消えた行のぶん詰まる（Reduce Motion ではフェードだけ）', [], 428, 560, { detailBg: false, isList: true })
+        ]
+      },
+      {
+        title: '強い権限の確認 — 入力欄の権限（Bypass Permissions・Full Access）',
+        desc: '権限のメニューで確認なしで全部を許す権限を選んだときだけ確認（ほかは即反映）。VoiceOver は実行を「… にする。確認なしで全部を許可します」と読む',
+        cells: [
+          base('P1', 'Claude Code · Bypass Permissions', '既定: キャンセル（太字）。キャンセルなら権限は元のまま、実行なら反映（実行中は次の指示から）', [CH.pw], 360, 500, { isAlert: true, bgSub: '実行中 · Claude Code', a: permA('bypass', false) }),
+          base('P2', 'Codex · Full Access', '同じ形。変えられなかったら入力欄の上に「権限を変更できませんでした」', [CH.pw], 360, 500, { isAlert: true, bgTitle: 'add /approvals endpoint', bgSub: '待機 · Codex', a: permA('full', false) })
+        ]
+      },
+      {
+        title: 'Dynamic Type 最大',
+        desc: 'ボタンを縦に積み、実行を上・キャンセルを下に置く。本文はアラートの中でスクロールする。並びが変わっても既定（太字）は変わらない',
+        cells: [
+          base('T1', '名前変更', '既定: 変更（上・塗り）。キーボードは省略して描いている', [CH.rev], 428, 926, { isAlert: true, a: renameA('refactor: ControlServer proxy', true, true, false) }),
+          base('T2', '削除の確認（子孫 2 件）', '既定: キャンセル（下・太字）。実行は赤い文字', [CH.irr], 428, 926, { isAlert: true, a: del2A(true) }),
+          base('T3', '削除できなかった', '既定: 閉じる（下・太字）。技術的な理由だけ等幅', [CH.irr], 428, 926, { isAlert: true, a: failA(true) }),
+          base('P3', '強い権限の確認', '既定: キャンセル（下・太字）。実行「Bypass Permissions にする」は上・赤い文字', [CH.pw], 428, 926, { isAlert: true, a: permA('bypass', true) })
+        ]
+      }
+    ];
+
+    return { c, ann, legend, rules, rows, themeLabel: dark ? 'ダーク' : 'ライト' };
+  }
+}
+</script>
+</body>
+</html>

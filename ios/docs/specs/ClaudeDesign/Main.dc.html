@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>骨格 — 画面マップ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1D1D1F;text-decoration:underline;text-underline-offset:2px}a:hover{color:#000000}
+</style>
+</helmet>
+<div style="width: 1600px; height: 1080px; box-sizing: border-box; padding: 56px 64px; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">PHLOX iOS · 骨格</div>
+<h1 style="margin: 0; font-size: 40px; line-height: 1.2; font-weight: 700">画面マップ — 2 つのタブと「新規チャット」、どこからでも届く「対応待ち」</h1>
+<p style="margin: 0; font-size: 17px; line-height: 1.6; color: #45454F; max-width: 1180px">主要面は標準のタブ（セッション／設定）で切り替え、右に離した丸いボタンで新規チャットを開きます。どのタブを見ていても、下端の「対応待ちバー」から 1 タップでセッション画面に入り、入力欄のすぐ上の承認・質問のカードで応答できます。セッション画面ではタブバーを隠し、カード・入力欄・使用量の行を親指の届く下端にまとめます。すべて Liquid Glass（2 回目の修正で一本化）。</p>
+</div>
+
+<div style="display: flex; gap: 32px; flex: 1; min-height: 0">
+
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; gap: 16px; align-items: stretch; background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 16px; padding: 16px 20px">
+<div style="flex: none; width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 4px">
+<div style="font-size: 13px; font-weight: 700; color: #5B5B66">下端の常設 UI</div>
+<div style="font-size: 13px; line-height: 1.5; color: #5B5B66">タブのルート画面で常に表示。下から タブバー（＋離した新規チャット）→ 対応待ちバー</div>
+</div>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 999px; background: #EDEDF0; border: 1px solid #D4D4DA">
+<span style="font-size: 12px; font-weight: 700; color: #FFFFFF; background: #1D1D1F; border-radius: 6px; padding: 2px 8px">新</span>
+<span style="font-size: 16px; font-weight: 600">対応待ちバー</span>
+<span style="font-size: 14px; color: #45454F">対応待ち N 件（承認待ち・質問あり）／接続が切れたら接続状態。タップ＝先頭の対応待ちの詳細へ、長押し＝選んで開く</span>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 16px; background: #F7F7F9; border: 1px solid #DCDCE3">
+<span style="font-size: 12px; font-weight: 700; color: #1D1D1F; background: #EDEDF0; border-radius: 6px; padding: 2px 8px">変更</span>
+<span style="font-size: 16px; font-weight: 600">新規チャット</span>
+<span style="font-size: 14px; color: #45454F">タブバーの右に離した丸いガラスのボタン。どのタブでも同じ位置。新規チャットを開く。プロジェクトの初期値は前回使ったプロジェクト（iOS 18 では一覧の大見出しの右）</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="padding: 10px 14px; border-radius: 999px; background: #F2F2F5; border: 1px solid #DCDCE3; font-size: 15px; font-weight: 600; text-align: center">セッション <span style="font-size: 12px; color: #FFFFFF; background: #D7263D; border-radius: 999px; padding: 1px 7px; margin-left: 4px">N</span></div>
+<div style="padding: 10px 14px; border-radius: 999px; background: #F2F2F5; border: 1px solid #DCDCE3; font-size: 15px; font-weight: 600; text-align: center">設定</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; flex: 1; min-height: 0">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 13px; font-weight: 700; color: #5B5B66">セッション タブ</div>
+<div style="background: #FFFFFF; border: 2px solid #18181B; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">セッション一覧</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">ルート。対応待ち／プロジェクトごとの欄（見出しに「＋」）／その他。Mac 版のサイドバーと同じ</div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #5B5B66; padding-left: 14px; border-left: 2px solid #C9C9D2; margin-left: 14px">push ↓　タブバーと対応待ちバーを隠す</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">セッション詳細</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">左上にホームのボタン（一覧へ）。会話は Mac と同じ（アバターなし・ツールは共通のカード）。下端に 承認・質問のカード → 入力欄（2 段）→ 使用量の行。次の対応待ちへは自分で進む</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">新規チャット（下書き）</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">セッション画面の未作成モード。中央の見出し・提案チップ・入力欄（プロジェクトのチップつき）。最初の送信で作成</div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #5B5B66; padding-left: 14px; border-left: 2px solid #C9C9D2; margin-left: 14px">push ↓</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">サブエージェント詳細</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">読み取り専用</div>
+</div>
+<div style="background: #F2F2F5; border: 1px dashed #B9B9C4; border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.6; color: #35353D">詳細の上に重なるもの<br>シート: モデル選択<br>アラート: 名前変更／削除確認／強い権限の確認<br>OS: 写真ピッカー・長押しのメニュー（時刻・コピー）</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 13px; font-weight: 700; color: #5B5B66">使用量（タブは廃止・面は作らない）</div>
+<div style="background: #F2F2F5; border: 1px dashed #B9B9C4; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">入力欄の下の 1 行のリング</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">移動元: 一覧の下端の使用量バー → 移動先: 新規チャットとセッション画面の、入力欄の下の 1 行。枠ごとの残りをリングで示し、押すと枠・残り・リセットの吹き出し（2 回目の修正 5/6）</div>
+</div>
+<div style="font-size: 12px; line-height: 1.6; color: #5B5B66; padding: 4px 2px">使用量だけの画面・タブ・設定の区画は作らない</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 13px; font-weight: 700; color: #5B5B66">設定 タブ</div>
+<div style="background: #FFFFFF; border: 2px solid #18181B; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">設定</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">ルート。接続／通知／セキュリティ／外観／このアプリについて</div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #5B5B66; padding-left: 14px; border-left: 2px solid #C9C9D2; margin-left: 14px">push ↓　タブバーを隠す（全面カメラ）</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">QR スキャン</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">再ペアリング。成功後もこの画面に留まる</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 13px; font-weight: 700; color: #5B5B66">タブの外（ルートの分岐）</div>
+<div style="background: #18181B; color: #FFFFFF; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">起動ゲート</div>
+<div style="font-size: 13px; line-height: 1.5; color: #D4D4DC">ロック有効時。すべての層より手前</div>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">接続設定（初回）</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">接続先が未設定のときの唯一の画面。タブなし</div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #5B5B66; padding-left: 14px; border-left: 2px solid #C9C9D2; margin-left: 14px">push ↓</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">QR スキャン</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">成功で自動的に次へ</div>
+</div>
+<div style="font-size: 12px; line-height: 1.5; color: #5B5B66; padding-left: 14px; border-left: 2px solid #C9C9D2; margin-left: 14px">全面に重ねる ↓</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 16px; font-weight: 700">接続中オーバーレイ</div>
+<div style="font-size: 13px; line-height: 1.5; color: #45454F">一覧が読めたら本体へ。約 20 秒で失敗表示</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div style="flex: none; width: 430px; background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<div style="font-size: 18px; font-weight: 700">骨格の決定</div>
+<ol style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 12px; font-size: 14px; line-height: 1.6; color: #2A2A31">
+<li><b>標準のタブ 2 本</b>（セッション・設定）。右に離して「新規チャット」の丸いボタン。使用量はタブにせず、入力欄の下の 1 行のリングにする（2 回目の修正 2/6 で一覧の下端のバーから外し、5/6 で描いた）。自前のタブバーをやめて OS 標準にする。タブを再タップするとルートに戻って先頭へ（iOS 標準の挙動）。</li>
+<li><b>対応待ちバー</b>を全タブ共通で下端に置く（iOS 26 の tabViewBottomAccessory）。一覧を開かなくても気づけて、1 タップで先頭の対応待ちへ直行できる。</li>
+<li><b>詳細ではタブバーを隠す</b>（現行と同じ）。代わりに下端に承認・質問のカード、入力欄、使用量の行を置く。一覧へは左上のホームのボタン（家の形）か端スワイプで戻る（2 回目の修正 4/6）。</li>
+<li><b>承認・質問は入力欄のすぐ上に固定</b>（上から 送信失敗の知らせ → 承認のカード → 質問のカード → 入力欄）。会話の先頭・会話の中（スクロールで画面外に出る位置）には置かない。</li>
+<li><b>削除確認</b>は自前の全画面オーバーレイから標準アラートに変える。</li>
+<li><b>通知タップ</b>は詳細を重ねず置き換える。ロック中は遷移先を保留し、解除してから開く。</li>
+</ol>
+<div style="margin-top: auto; font-size: 13px; line-height: 1.6; color: #5B5B66; border-top: 1px solid #E6E6EC; padding-top: 14px">起動の分岐と外部からの遷移・重なり順・機能対応表は右のボード。Liquid Glass 採用案に一本化（iOS 18 での見え方は下の段）。</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

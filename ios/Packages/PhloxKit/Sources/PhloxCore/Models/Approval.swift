@@ -9,16 +9,19 @@ public struct Approval: Identifiable, Sendable, Equatable {
     public let kind: AgentKind
     /// 「ControlServer.swift を削除し…承認しますか？」等の承認プロンプト本文。
     public let prompt: String
+    public let actionKind: String?
 
     public init(
         id: String,
         sessionID: String,
         kind: AgentKind,
-        prompt: String
+        prompt: String,
+        actionKind: String? = nil
     ) {
         self.id = id
         self.sessionID = sessionID
         self.kind = kind
         self.prompt = prompt
+        self.actionKind = actionKind
     }
 }

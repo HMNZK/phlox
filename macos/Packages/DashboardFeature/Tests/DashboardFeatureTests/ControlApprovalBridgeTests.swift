@@ -124,6 +124,15 @@ import CodexAppServerKit
 
     // MARK: - 列挙
 
+    @Test(arguments: [
+        (ChatApprovalKind.command, "command"),
+        (ChatApprovalKind.fileChange, "fileChange"),
+        (ChatApprovalKind.permissions, "permissions"),
+    ])
+    func controlApprovalActionKind_mapsWireValues(kind: ChatApprovalKind, expected: String) {
+        #expect(DashboardViewModel.controlApprovalActionKind(kind) == expected)
+    }
+
     @Test func listControlApprovals_mapsPendingApprovalsFromAppServerSessions() async throws {
         let (vm, transport, _) = try await makeStartedSession()
         driveCommandApproval(transport, id: 99, reason: "run pwd")
@@ -137,6 +146,7 @@ import CodexAppServerKit
         #expect(approval.sessionID == vm.id)
         #expect(approval.kind == "codex")
         #expect(approval.prompt == "run pwd")
+        #expect(approval.actionKind == "command")
     }
 
     @Test func listControlApprovals_flattensMultipleSessions() async throws {

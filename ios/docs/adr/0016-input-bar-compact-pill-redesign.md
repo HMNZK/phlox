@@ -1,9 +1,12 @@
 ---
-status: active
+status: superseded
+superseded-by: 0046-align-ios-with-mac.md
 last-verified: 2026-07-16
 ---
 
 # ADR 0016: チャット入力欄をカード型からコンパクトなピル型へ再デザインし、送信/停止を同一スロットに統合する
+
+> **superseded**: 入力欄は Mac と同じ 2 段に作り替える（2026-10 の再設計）。（[ADR 0046](0046-align-ios-with-mac.md)）
 
 > **このファイルの役割**: wave-6（task-1）で、wave-5 で導入したカード型入力欄（角丸コンテナ＋上部ドラッグハンドル＋フォーカス時オレンジ枠＋別置き停止ボタン）を、実機検証のフィードバックを受けてコンパクトなピル型（左に丸＋ボタン・中央プレースホルダ・右に丸マイク、実行中は送信と同じスロットに停止ボタン）へ再デザインした決定を記録する。
 > **書かないもの**: 音声入力のクラッシュ対処（→ [ADR 0015](0015-voice-input-crash-hardening.md)）。branch 表示のスコープ（→ [ADR 0012](0012-input-bar-branch-display-only.md)、本 wave でも無変更）。入力欄の現行の詳細構成（→ [architecture/overview.md](../architecture/overview.md)）。

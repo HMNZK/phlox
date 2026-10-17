@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>レビュー 1 — 機能の置き場所</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 3000px; height: 7300px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">レビュー 1 / 4 · 機能一覧 1〜16 章（19 章の対象外を除く）× ここまでの全盤面</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">全機能の置き場所。置き場所が無かった {{ revCount }} 件は、この回で置いた</h2>
+<p style="margin: 0; max-width: 1500px; font-size: 15px; line-height: 1.6; color: #2A2A31">盤面の名前はキャンバス上のファイル名（例: PairGate＝起動ゲート · ロック中）。「今回配置」は、前の回までどの盤面にも置いていなかったもの。機能一覧の原文と突き合わせて見つけ、レビュー版で置いた。19 章の対象外と、画面に出ない振る舞いは下の「置き場所を作らないもの」に分けた。2 回目の修正（1/6〜6/6）の決定を反映済み。行の注記の「1/6」〜「6/6」は、その回で変えたことを示す。全体の変更前 → 変更後は盤面「改訂 2026-10-17」の 2 回目の節。</p>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px">
+<sc-for list="{{ legend }}" as="l" hint-placeholder-count="8"><span style="display: inline-flex; align-items: center; gap: 6px"><b style="padding: 2px 8px; border-radius: 999px; background: {{l.bg}}; color: {{l.fg}}">{{ l.t }}</b><span style="color: #45454F">{{ l.d }}</span></span></sc-for>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; align-items: start">
+<sc-for list="{{ cols }}" as="col" hint-placeholder-count="2">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.5">
+<div style="display: grid; grid-template-columns: 250px 210px minmax(0, 1fr) 250px; background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 12px">機能（章）</div><div style="padding: 10px 12px">盤面</div><div style="padding: 10px 12px">画面のどこに</div><div style="padding: 10px 12px">扱い</div>
+</div>
+<sc-for list="{{ col.rows }}" as="r" hint-placeholder-count="40">
+<sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 12px; border-top: 1px solid #DCDCE3; background: #F6F6F8; font-size: 14px; font-weight: 700">{{ r.f }}</div></sc-if>
+<sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: 250px 210px minmax(0, 1fr) 250px; border-top: 1px solid #E6E6EC; background: {{r.rowBg}}">
+<div style="padding: 7px 12px; font-weight: 600">{{ r.f }}</div>
+<div style="padding: 7px 12px; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ r.b }}</div>
+<div style="padding: 7px 12px">{{ r.w }}</div>
+<div style="padding: 7px 12px; display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start"><sc-for list="{{ r.tags }}" as="t" hint-placeholder-count="1"><b style="padding: 1px 7px; border-radius: 999px; background: {{t.bg}}; color: {{t.fg}}; font-size: 12px">{{ t.t }}</b></sc-for><span style="color: #45454F; font-size: 12px">{{ r.n }}</span></div>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 28px; align-items: start">
+<div style="background: #FFFFFF; border: 2px solid #B8241C; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 20px; font-weight: 700">置き場所が無かった機能（レビュー前）→ 今の置き場所</div>
+<div style="display: grid; grid-template-columns: 40px 330px 360px minmax(0, 1fr); font-size: 13px; line-height: 1.5">
+<div style="padding: 6px 8px; background: #EEEEF2; font-weight: 700">#</div><div style="padding: 6px 8px; background: #EEEEF2; font-weight: 700">機能（章）</div><div style="padding: 6px 8px; background: #EEEEF2; font-weight: 700">置いた盤面</div><div style="padding: 6px 8px; background: #EEEEF2; font-weight: 700">置き方</div>
+<sc-for list="{{ rev }}" as="v" hint-placeholder-count="20">
+<div style="padding: 6px 8px; border-top: 1px solid #E6E6EC; font-weight: 700; color: #B8241C">{{ v.i }}</div>
+<div style="padding: 6px 8px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ v.f }}</div>
+<div style="padding: 6px 8px; border-top: 1px solid #E6E6EC; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px">{{ v.b }}</div>
+<div style="padding: 6px 8px; border-top: 1px solid #E6E6EC">{{ v.w }}</div>
+</sc-for>
+</div>
+<div style="font-size: 14px; font-weight: 700; color: #1F6B3A">今、置き場所が無い機能: 0 件（下の「置き場所を作らないもの」を除く）</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">置き場所を作らないもの ① 19 章の対象外（描かない）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ out19 }}" as="o" hint-placeholder-count="8"><li>{{ o }}</li></sc-for>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">置き場所を作らないもの ② 画面に出ない振る舞い（規則として守る）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ invisible }}" as="o" hint-placeholder-count="8"><li>{{ o }}</li></sc-for>
+</ul>
+</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3000,"height":7300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TG = {
+      keep: ['現行どおり', '#45454F', '#EEEEF2', '機能・振る舞いは現行のまま（見た目は新しい）'],
+      chg: ['変更', '#1D1D1F', '#EDEDF0', '配置・見せ方・文言を変えた'],
+      move: ['移動', '#0B5E78', '#DFF2F8', '別の場所へ移した（移動元 → 移動先を書く）'],
+      cand: ['候補', '#8A4200', '#FFF0DC', '提案。採否を決めてほしい'],
+      fix: ['解消', '#1F6B3A', '#E3F4E8', '21.2 節の不具合を正しい振る舞いで描いた'],
+      br: ['分岐', '#45454F', '#F2F2F6', '未確認・推測のため両方を用意'],
+      rev: ['今回配置', '#B8241C', '#FDE7E5', 'レビューで見つけ、この回で置いた'],
+      os: ['OS 標準', '#45454F', '#EEEEF2', 'OS の部品・ダイアログに任せる']
+    };
+    const legend = Object.keys(TG).map(k => ({ t: TG[k][0], fg: TG[k][1], bg: TG[k][2], d: TG[k][3] }));
+    const G = (f) => ({ isGroup: true, isRow: false, f, b: '', w: '', tags: [], n: '', rowBg: '#FFFFFF' });
+    const R = (f, b, w, tags, n) => {
+      const ts = (tags || []).map(k => ({ t: TG[k][0], fg: TG[k][1], bg: TG[k][2] }));
+      return { isGroup: false, isRow: true, f, b, w, tags: ts, n: n || '', rowBg: (tags || []).indexOf('rev') >= 0 ? '#FFF8F7' : '#FFFFFF' };
+    };
+
+    const left = [
+      G('1・2 章 画面マップと全体のナビゲーション'),
+      R('主要面（2.2・ADR 0007）', 'Shell / Shell18', '下端の標準タブ: セッション／設定', ['move', 'chg'], '自前のタブ → OS 標準のタブ。使用量の回で「使用量」タブを廃止し 2 面に'),
+      R('タブの再タップ（2.2）', 'Mapping', 'ルートへ戻り先頭へ', ['chg'], '現行は何も起きない'),
+      R('詳細中はタブバーを隠す（2.2）', 'Detail / Chat 系', '詳細・QR 画面はタブバー無し', ['keep']),
+      R('ルートの分岐（2.1）', 'Launch', 'ロック → 接続設定 → 本体 の分岐図', ['keep']),
+      R('各タブの独立スタック（2.3）', 'Main', '画面マップの列（セッション／設定／タブの外）', ['keep']),
+      R('シート・アラート・重なり（2.4）', 'Layers', '重なり順の図', ['chg'], '削除確認を OS のアラートへ'),
+      R('通知タップ（2.5）', 'Launch / GlanceSpec', '一覧 → 該当の詳細に置き換え。ロック中は解除後', ['fix'], '21.2-18'),
+      R('phlox://pair（2.5）', 'Launch / PairSpec', '本体なら設定 → QR、未設定なら接続設定 → QR', ['keep']),
+      R('ウィジェット・LA のタップ（2.5）', 'GlanceSpec', '詳細へ（通知と同じ規則）', ['cand'], '現行は起動のみ'),
+      R('外観の即時反映（2.6・ADR 0004）', 'SetUse / SetDark', '外観の 3 択＋「選ぶとすぐに切り替わります」', ['keep']),
+      R('一覧の見出し（2.6・ADR 0036）', 'List / ListLoading / ListEmpty', '大見出し「セッション」を全状態で同じ位置', ['cand'], '「Projects」→「セッション」'),
+
+      G('3 章 起動ゲート'),
+      R('ロゴ・「Phlox」・タグライン', 'PairGate', '画面中央', ['rev']),
+      R('表示と同時に自動で認証', 'PairGateAuth', '状態文「Face ID で認証中…」', ['rev']),
+      R('Face ID の再認証', 'PairGate / PairGateFail', '下端の主ボタン「Face ID で解除」', ['move'], '中央の Face ID 枠 → 下端のボタン'),
+      R('パスコードを使用', 'PairGate / PairGateFail', '下端の 2 つ目のボタン（ロック中も失敗時も）', ['rev', 'fix'], '21.2-7'),
+      R('Keychain の補足', 'PairGate', '下端のボタンの下', ['rev']),
+      R('認証失敗', 'PairGateFail / Errors G1', '赤い帯「認証できませんでした」', ['chg']),
+      R('Face ID・認証理由の OS 文', 'PairSpec', 'OS のダイアログ（描かない）', ['rev', 'os']),
+      R('ロックの有効化（既定オフ）', 'SetUse / SetSE', 'セキュリティ「Face ID でロック」＋注記', ['chg'], '端末の方式だけを出す'),
+
+      G('4 章 接続設定・QR・接続中・到達不可'),
+      R('初回の見出しと案内（4.1）', 'Pair', '「Mac とつなぐ」＋Mac での準備 3 手順', ['chg']),
+      R('現在の接続先（4.1）', 'Pair / SetUse', '初回は「未設定」の行、設定は接続先（等幅）＋到達状態', ['chg'], '「未接続」→「未設定」'),
+      R('QR で接続／再接続（4.1）', 'Pair / SetUse / PairRescan', '初回の主ボタン／設定の行', ['keep']),
+      R('疎通テスト（初回画面）', 'Pair', '接続先の下。押せない理由を添える', ['rev']),
+      R('疎通テストと結果（設定）', 'PairTesting / PairTestOk / PairTestFail', '押した行の直下に結果', ['chg']),
+      R('手入力が無い（4.1）', '—', '入力欄を描かない', ['keep']),
+      R('カメラ（4.2）', 'PairScan / PairScanSE', '全画面・中央の枠・案内', ['keep']),
+      R('ピンチで拡大（4.2）', 'PairScan', '枠の下の案内', ['rev']),
+      R('カメラ不可・写真から読み取る', 'PairNoCam / Errors K1', '主ボタン「写真から読み取る」', ['keep'], '「設定アプリで許可」は候補'),
+      R('適用中（4.2）', 'PairApplying', '枠が緑＋カード', ['chg']),
+      R('成功と Mac 名（4.2）', 'PairRescanDone', 'カード「接続しました（Mac 名）」', ['rev']),
+      R('接続不可・保存は成功（4.2）', 'PairUnreach / Errors Q1', 'カード「Mac に届きません」＋保存した旨', ['chg']),
+      R('パースエラー 5 種（4.2）', 'PairParseErr / Errors P1–P5', 'カメラの上のカード', ['chg'], '区分と順は現行どおり'),
+      R('写真に QR が無い（4.2）', 'PairParseErr（photo）/ Errors P6', '同じカード', ['rev']),
+      R('もう一度スキャン', 'PairParseErr / PairUnreach', 'カードの主ボタン', ['keep']),
+      R('初回は自動で戻る／再ペアは留まる', 'PairApplying → PairConnecting / PairRescanDone', '—', ['keep']),
+      R('全画面「接続中…」（4.3）', 'PairConnecting', 'スピナー・接続先・経過秒数', ['chg']),
+      R('約 20 秒の失敗（4.3）', 'PairConnectFail / Errors C1', '確かめる 3 項目＋再試行／閉じる', ['chg']),
+      R('一覧エラーでの失敗表示（4.3）', 'PairSpec / Errors F 系', '見出し「接続できませんでした」＋エラー文言', ['rev']),
+      R('到達不可 3 種（4.4）', 'ListOffNet / ListOffHost / ListOffUnknown', '本文のカード 1 枚', ['move'], '上の帯＋下のカード → 本文のカード'),
+      R('再接続を試す・実行中スピナー', 'ListOffHost / ShellOffline / SetDisc', '下端（対応待ちバーの位置）', ['move', 'rev'], 'スピナーは PairSpec に注記'),
+      R('判定中は接続中表示（ADR 0027）', 'ListJudging', '「Mac に接続しています…」', ['keep']),
+
+      G('5 章 セッション一覧'),
+      R('一覧の 5 状態（5.1）', 'List / ListLoading / ListEmpty / ListOff* / ListError', '—', ['chg'], '読み込みはスケルトン'),
+      R('あなたの番（5.2）', 'List / ListMulti / Shell', '先頭の欄「対応待ち」＋全タブの対応待ちバー', ['chg', 'fix'], '21.2-4。2/6 で名前を「対応待ち」に（Mac 版のサイドバーと同じ）'),
+      R('プロジェクト別グループ・開閉', 'List / ListCollapsed', '見出しで開閉、閉じても内訳', ['chg']),
+      R('「その他」', 'ListManyTop', '最後のグループ', ['keep']),
+      R('+ セッションを追加・単独行', 'List / ListAllAttention', 'プロジェクトの見出しの右端の「＋」（常に表示・44pt）／下端の「新規チャット」の丸いボタン（プロジェクトの初期値は前回使ったプロジェクト）', ['move'], '2/6: 移動元 各グループの末尾の行・単独行 → 移動先 見出しの「＋」と下端の丸いボタン'),
+      R('行の構成（5.3）', 'List', '名前と右端の状態の文字だけ。未読は主文字色・semibold、実行中は光の帯、子セッションは字下げ＋案内線', ['chg'], '2/6: ロゴ・時刻・補足を外した（エージェントは詳細の小見出し、ワークスペースは欄の見出し）'),
+      R('子セッション（5.3）', 'List / ListCollapsed', '1 段字下げ＋案内線。開閉、閉じると「+3」', ['chg']),
+      R('下部のナビゲーション（2.2）', 'List / Shell / SetUse / Pair', 'タブ 2 つ＋離した「新規チャット」の丸いボタン', ['chg'], '2/6'),
+      R('完了・待機を目立たせない', 'List', '待機は状態を出さない。完了・起動中・終了は 3 段目の文字色。名前は未読・既読で区別', ['chg'], '2/6'),
+      R('行のタップ先（5.3）', 'ListPressed / ListTapDetail', 'セッション画面（入力欄の上に承認・質問のカード）', ['chg'], '回答画面への分岐を除く'),
+      R('相対時刻（16.2）', 'List / ListSpec', '行には出さない', ['chg'], '2/6 の指示で行を名前と状態だけにした。21.2-5 の問題は出さないことで起きない'),
+      R('引っ張って更新（5.4）', 'ListPull', 'OS 標準。その場で反映', ['fix'], '21.2-8'),
+      R('空状態の案内（5.1）', 'ListEmpty', '「新規チャット」を指す文と同じボタン。プロジェクトはセッションがあるものだけ出ると注記', ['fix', 'chg'], '21.2-9'),
+      R('VoiceOver（5.3）', 'ListSpec', '読み上げ順の表', ['keep']),
+
+      G('6 章 セッション詳細 — 会話'),
+      R('骨格・戻る・端スワイプ（6.1・ADR 0033）', 'Chat / Detail', '左上にホームのボタン（家の形）・中央にセッション名・右上に「…」', ['move', 'chg'], '4/6: 移動元 左上の「＜ 戻る」→ 移動先 同じ位置のホームのボタン（一覧へ）。端スワイプで戻る操作は残す'),
+      R('状態とエージェント名', 'Chat', 'セッション名の下の小見出し', ['chg'], '現行は詳細に出ない'),
+      R('本文の取得エラー（6.1）', 'ChatFetchErr / Errors D1', '本文中央のエラーカード', ['rev']),
+      R('初回読み込み（ADR 0023）', 'ChatLoading', '中央に読み込み表示', ['chg']),
+      R('本文が空（6.1）', 'ChatEmpty', '中央に案内', ['fix'], '21.2-10'),
+      R('ユーザー発言・画像', 'Chat', '右寄せの吹き出し（コードの地・角丸 14・最大 78%）', ['move', 'chg'], '4/6: 移動元 吹き出しの下の「画像 ×N」→ 移動先 吹き出しの中、本文の上のサムネイル'),
+      R('エージェント発言・Markdown', 'ChatIdle', 'アバターなしの全幅（コードは枠の中）', ['chg'], '4/6: ロゴのアバターを外した（Mac と同じ）'),
+      R('「/approvals」の固定強調', 'ChatSpec', 'やめる', ['fix'], '21.2-17'),
+      R('思考（既定は閉）', 'ChatThinking', '「思考」だけの閉じたカード → 開くと副文字色の本文', ['chg'], '4/6: 電球と先頭のプレビューを外した'),
+      R('サブエージェント行', 'Chat / ChatSub', '共通のツールのカード（状態は文字）', ['fix', 'chg'], '21.2-19。記号なし'),
+      R('コマンドのまとまり', 'ChatExpandCmd', '「ツール実行 ×N」のカード・出力 20 行・「さらに表示（残り n 行）」「セクションをコピー」', ['chg'], '4/6: 50 行 → 20 行（Mac と同じ）。コマンド 1 つは「コマンド」＋「$ …」＋実行中／exit'),
+      R('ファイル変更', 'ChatExpandDiff', 'ファイルごとのカード（動詞・パス・+N −N）→ 行番号つきの差分', ['chg']),
+      R('エラー行', 'ChatError', '赤の淡い面＋三角＋等幅の本文', ['chg'], '1/6 の「記号なし」の例外（Mac に合わせる）'),
+      R('長押しでコピー', 'ChatCopy', '長押しのメニュー: 見出しに時刻、「コピー」「選択して部分コピー」', ['os', 'chg'], '4/6: Mac のホバーの時刻とコピーの代わり'),
+      R('50 ブロックの窓（6.3）', 'ChatLong', '先頭の「以前のメッセージを表示（残り N 件）」', ['keep']),
+      R('思考中 6 状態（6.5）', 'Chat / ChatSpec', '会話の末尾に光の帯の言葉＋「swift build を実行中 · 38 秒」', ['chg'], '4/6: 移動元 回る点と 3 行のプレビュー → 移動先 光の帯と 1 行の要約'),
+      R('無応答', 'ChatStall / ChatStallDark', '会話の末尾の紫の面「無応答 03:12」＋「中断」', ['chg'], '4/6: Mac と同じ紫（status.stalled。一覧・アプリ外の無応答も同じ紫）。中断＝停止'),
+      R('送信失敗（6.6）', 'ChatSendFail', '入力欄の上の赤い文字 1 行', ['move'], '4/6: 移動元 会話の末尾の右寄せの帯 → 移動先 入力欄の上'),
+      R('使用量行（6.7）', 'ChatIdle / ChatDone', '各ターンの終わりの右寄せの 1 行（$・入力・出力・コンテキスト）', ['move'], '4/6: 移動元 入力欄の上 → 移動先 ターンの終わり。プランの残りは別の、入力欄の下のリング（5/6）')
+    ];
+
+    const right = [
+      G('7 章 承認・質問・回答'),
+      R('承認バー（7.1）', 'Reply / FlowApprove', '入力欄のすぐ上の承認のカード「承認待ち · 操作の種類」・‹ 1/2 ›・経過時間', ['move', 'fix'], '本文の先頭 → 入力欄の上。21.2-1。差分があれば「› 差分を見る（N ファイル）」（ReplyApprovalDiff）'),
+      R('対象のファイル名の強調', 'Reply', '対象（等幅・太字）の枠', ['chg']),
+      R('承認の即送信（Claude Code・Codex）', 'Reply / ReplyCodex', '「許可」「このセッション中は許可」「拒否」「キャンセル」', ['keep', 'chg'], '4/6: Claude Code と Codex で同じ 4 つ。Cursor には承認が無い（機能一覧 7.1 の「Cursor は即送信」は誤り）。出た直後 0.6 秒だけ無効（変更）'),
+      R('Codex の 4 択（7.2）', 'ReplyCodex', '承認のカードの 4 つのボタン', ['move'], '4/6: 移動元 「却下…」「承認…」→ 4 択シート（ReplyCodexSheet は消した）→ 移動先 カードのボタン'),
+      R('応答後の表示', 'FlowNext', '「『許可』を送信しました」', ['fix'], '21.2-3'),
+      R('応答の送信失敗', 'ReplyApprovalFail / Errors D4', '承認のカードの上の赤い文字 1 行（カードは残る）', ['chg'], '4/6'),
+      R('承認情報の取得失敗（16.3）', 'Errors D3', '入力欄の上のカード', ['rev']),
+      R('質問カード 3 状態（7.3）', 'ReplyQuestion / ChatQuestion / ChatLong', '未回答は入力欄の上の質問のカード「質問待ち · …」、回答済み・期限切れは会話内の共通のカード', ['move']),
+      R('選択と自由入力の排他', 'ReplyQuestion', '説明文つき', ['keep']),
+      R('回答済みの「入力: …」', 'ChatLong', '回答済みカードの中', ['rev']),
+      R('質問の送信失敗', 'ReplyQuestionFail', '質問のカードの上の赤い文字 1 行。選んだ内容は残る', ['fix'], '21.2-2'),
+      R('回答画面（7.4）の機能', 'ReplyQuestionPlain', 'セッション画面の質問のカードに統合', ['move'], '独立画面は 19 章で対象外'),
+
+      G('8 章 入力・添付・モデル・新規'),
+      R('入力欄を出す条件（8.1）', 'ReplyStarting / ReplyDone / ReplyError', '起動中だけ帯', ['chg']),
+      R('入力欄の構成（8.2）', 'ReplyEmpty / ReplyTyping / Draft', '2 段（本文／＋・モデル・思考の強さ・権限・送信）。新規チャットと共通。幅が足りないと「…」にまとめる', ['chg'], '3/6: Mac 版の新規チャットにそろえた'),
+      R('プレースホルダ', 'ReplyEmpty / Draft', '「やりたいことを入力」', ['chg'], '3/6: Mac と同じ語'),
+      R('Return は改行・スクロールで閉じる', 'ReplyKeyboard', '—', ['keep']),
+      R('コンテキスト行（プロジェクト名）', 'ReplyEmpty', '入力欄の上の 1 行「⑂ Phlox」', ['chg']),
+      R('モデルのチップ', 'ReplyEmpty / Draft', '入力欄の 2 段目。{ロゴ} {モデル名} ⌄', ['chg'], '3/6: Mac 版の新規チャットにそろえた'),
+      R('思考の強さ・権限（新）', 'ReplyEffort / ReplyPerm / ReplyPermFail / ReplyHaiku / DraftEffort / DraftPerm / Dialogs P1・P2', '入力欄の 2 段目のチップとメニュー。強い権限は確認', ['chg'], '3/6 の指示'),
+      R('送信／停止の出し分け（8.3）', 'ReplyRunEmpty / ReplyRunText', '規則表どおり', ['keep']),
+      R('停止が非対応なら隠す（409）', 'ReplySpec', '規則表の最終行', ['keep']),
+      R('送信中', 'ReplySending', '入力欄を残しスピナー', ['fix'], '21.2-11'),
+      R('添付（8.4）', 'ReplyAttach', 'サムネイル＋「画像 n/4」＋[Image #N]。上限は最大 4 枚・1 枚 20MB・合計 80MB・各辺 8000 ピクセル', ['chg'], '8.4 の 4MB などは古いので使わない。縮小・変換は自動で画面に出さない'),
+      R('添付エラー（枚数・サイズ・合計・寸法・読み込み）', 'ReplyAttachErr / Size / Total / Dim / Load・Errors A1〜A5', 'サムネイルの上の赤い 1〜2 行。アプリの現行の文言のまま', ['chg']),
+      R('画像を送る準備中の再送信', 'ReplySending', '送信ボタンはスピナーのまま押せない', ['keep']),
+      R('モデル選択シート（8.5）', 'ReplyModel / Dialogs M1–M4', '「選択中」「その他」', ['chg', 'cand'], '日本語の語は候補'),
+      R('モデル一覧が無い', 'Dialogs N3 / DraftModelNa', 'シートの欄に「取得できません」（選べない）', ['fix', 'chg'], '21.2-13'),
+      R('新規のモデル（3 種）', 'DraftModel', '3 エージェントの全モデルを 1 つの一覧のシートで。選ぶとエージェントも切り替わる', ['move'], '3/6: 移動元 本文の種別 3 択＋種別ごとのシート → 移動先 1 つの一覧（Mac と同じ）'),
+      R('新規チャットの画面（8.6）', 'Draft / DraftFromProject / DraftSuggest / DraftEntryEmpty', '中央の見出し（10 種・DotGothic16）・提案チップ 5 つ・プロジェクトのチップ。開いた時点でキーボード', ['chg'], '3/6 の指示'),
+      R('新規の画面の名前と戻り方（8.6）', 'Draft / DraftEntryEmpty', 'ナビの見出し「新規セッション」をやめ、中央の見出し（10 種）。左上はホームのボタン', ['chg'], '3/6・6/6'),
+      R('作成 → 準備 → 送信', 'DraftCreating / DraftCreated', '進み具合のカード', ['chg']),
+      R('作成失敗', 'DraftFailed / Errors F7', '入力欄の上の赤い文字。指示を入力欄に戻す', ['chg']),
+      R('作成前のメニュー', 'Dialogs N2', '「モデル変更」だけ', ['fix'], '21.2-6'),
+      R('作業フォルダ・ブランチ・再開', 'DraftSpec', '置かない。常にプロジェクトの既存のフォルダで始まると注記', ['keep'], 'worktree を使う設定でも同じ'),
+      R('モデル名の表示', 'Draft / ReplyModel / Dialogs', 'Mac から届く表示名のまま（例「Sonnet 5」「Haiku 5.5」）＋「· 既定」', ['chg']),
+
+      G('9 章 端末・出力カード（2 回目の修正で機能ごと廃止）'),
+      R('端末画面・出力カード', 'ChatUnsupported / ChatUnsupportedDark', '会話の形で読めないセッションは、本文の代わりに「このセッションは iPhone では表示できません。Mac で開いてください」だけ', ['move'], '移動元: 端末画面（Term・Out の盤面 15 枚）→ 移動先: 会話画面の本文の 1 文。上部はホーム・セッション名・「…」だけ。入力欄・使用量の行・停止は出さない'),
+      R('出力の取得エラー', '—', '端末出力が無くなったので項目ごと外した（Errors D2 も削除）', ['chg']),
+
+      G('10 章 セッション操作'),
+      R('名前変更', 'ChatRename / Dialogs R1–R3', 'OS のアラート', ['chg'], '空・同名で押せないのは候補'),
+      R('モデル変更', 'ChatMenu / Dialogs M1', '「…」とチップ', ['keep']),
+      R('削除・子孫件数', 'ChatDelete / Dialogs D1–D4・E1–E5', 'OS のアラート', ['move', 'fix'], '自前の全画面 → OS のアラート。21.2-6'),
+      R('停止', 'ReplyRunEmpty', '入力欄の停止（無応答の「中断」も同じ操作）', ['keep']),
+      R('サブエージェント詳細', 'ChatSub', '読み取り専用、小見出しに状態', ['fix']),
+
+      G('11 章 設定'),
+      R('接続', 'SetUse / SetDisc', '先頭。状態の行＋QR＋疎通テスト', ['chg']),
+      R('セキュリティ', 'SetUse / SetSE', 'Face ID（SE は Touch ID）でロック', ['chg']),
+      R('通知（補助文）', 'SetUse / Shell', '「セッションの更新を通知します」', ['rev']),
+      R('通知のトグルの効き方', 'SetUse', '注記「オフにすると…すぐに止めます」', ['fix'], '21.2-14'),
+      R('外観', 'SetUse', '見本つき 3 択', ['keep']),
+      R('About（アプリ・バージョン）', 'SetUse / Shell', '「このアプリについて」', ['rev'], 'アプリ「Phlox」を足した'),
+
+      G('12 章 Usage'),
+      R('独立した面', 'UsageNormal / SetUseSpec', '「使用量」タブ → 一覧の下端の使用量バー（前回）→ 新規チャットとセッション画面の、入力欄の下の 1 行のリング（5/6）', ['move'], '見出し「Usageリミット」は無くなる。使用量だけの画面・タブ・設定の区画は作らない'),
+      R('エージェント別・枠・残り（12）', 'UsageNormal / UsageLow', 'Claude Code → Codex → Cursor。ロゴ＋枠ごとのリング（弧＝残り）。Claude Code だけ「5h」「7d」', ['chg'], '残り 20% 未満はリングを注意の色。記号なし'),
+      R('リセット（12）', 'UsagePop', '押して出す吹き出し: 5 時間枠「03:12」、週次「10/20 14:00」。Cursor は出さない', ['move'], '移動元 バーの中（省いていた）→ 移動先 吹き出し'),
+      R('取得できない・期限切れ（15.7）', 'UsageNa', '灰色の空のリング。0% と描かない', ['chg']),
+      R('取得失敗・更新（12）', 'UsageStale / UsageRefresh', '前の値のまま「16:12 時点」／「更新中…」。一覧の引っ張って更新で取り直す', ['chg']),
+      R('読み上げ（14）', 'SetUseSpec', '行全体を 1 つのボタンとして読む。残り 20% 未満は「残りわずか」', ['chg']),
+
+      G('13 章 ウィジェット・Live Activity・通知'),
+      R('ホーム small・ロック rectangular', 'GlanceHome / Glance', '状態 → 名前 → 補足', ['chg']),
+      R('ウィジェットの状態', 'GlanceCatalog W1–W8', '日本語の 8 状態', ['fix', 'rev'], '起動中・待機・終了コード≠0 を今回配置'),
+      R('空・直近の非空を保つ', 'GlanceHomeEmpty / GlanceCatalog W9', '「セッションはありません」', ['fix'], '21.2-15'),
+      R('ギャラリーの名前と見本', 'GlanceSpec', '「セッションの状態」', ['cand', 'rev']),
+      R('Live Activity ロック画面', 'Glance / GlanceLockDark', '記号＋状態の語・名前・summary', ['chg']),
+      R('Dynamic Island 3 形態', 'GlanceIsland / GlanceIslandExp / GlanceCatalog', 'compact も語を分ける', ['fix'], '21.2-16'),
+      R('Live Activity の未知の状態', 'GlanceCatalog', '丸に？＋「状態不明」', ['rev']),
+      R('stale-date・アプリは開始しない', 'GlanceSpec', '注記', ['keep']),
+      R('通知 6 種＋未知', 'GlanceNotifs（5 種）/ GlanceSpec（表）', 'タイトル＝名前、本文＝Mac の文言', ['rev'], '「終了」を今回配置'),
+      R('同一種別の上書き', 'GlanceSpec', '—', ['keep']),
+      R('前面でもバナー＋音・ボタン無し', 'GlanceSpec', '通知の説明文', ['keep']),
+      R('通知の許可', 'GlanceSpec', '初回の接続に成功した直後', ['cand']),
+
+      G('14〜16 章 横断'),
+      R('3 種の識別（14）', 'List / Chat / DS', '実物のロゴ＋名前（色・略号なし）', ['chg']),
+      R('状態 7 種（15.1）', 'DS / ListSpec', 'アプリ内は文言＋文字の色（記号なし）。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ', ['chg'], '2 回目の修正'),
+      R('到達性 4 種（15.2）', 'DS / ListOff*', '—', ['keep']),
+      R('質問・サブエージェント・使用量の状態', 'DS', '状態表', ['keep', 'chg'], '使用量は 5/6 でリングに（残りわずか＝注意の色・取得できない＝灰色の空のリング・古い値・更新中）'),
+      R('送信・削除・ペアリングの状態（15.8）', 'ReplySending / Dialogs E1–E5 / PairApplying', '—', ['keep']),
+      R('エラー 8 種（16.5）', 'Errors F1–F8 / ListError / ListError401', '見出し＋本文＋回復操作', ['chg']),
+      R('詳細のエラー文言（16.3）', 'Errors D1–D6 / ChatFetchErr', '—', ['rev']),
+      R('写真ピッカー・キーボード', 'PairNoCam / ReplyAttach / ReplyKeyboard', '—', ['os'])
+    ];
+
+    const rev = [
+      ['初回画面の疎通テスト（4.1）', 'Pair', '接続先「未設定」の下。押せない理由を添える'],
+      ['起動ゲートのロゴ・「Phlox」・タグライン（3）', 'PairGate', '画面中央'],
+      ['自動認証の状態文「Face ID で認証中…」（3）', 'PairGateAuth', '状態文'],
+      ['ロック中の「パスコードを使用」（3）', 'PairGate', '下端（失敗時だけでなく常に）'],
+      ['Keychain の補足（3）', 'PairGate', '下端のボタンの下'],
+      ['OS ダイアログの文（3・4.2）', 'PairSpec', '描かず、現行の文のまま使うと明記'],
+      ['QR のピンチで拡大（4.2）', 'PairScan', '枠の下の案内'],
+      ['成功時の Mac 名（4.2）', 'PairRescanDone', '「接続しました（Mac 名）」'],
+      ['写真に QR が無い（4.2）', 'PairParseErr（perr=photo）/ Errors P6', 'パースエラーと同じカード'],
+      ['接続中の失敗で一覧がエラー（4.3）', 'PairSpec / Errors F 系', '見出し「接続できませんでした」＋エラー文言'],
+      ['「再接続を試す」の実行中（4.4）', 'PairSpec', 'ボタン内のスピナーを注記'],
+      ['会話の取得失敗（6.1・16.3）', 'ChatFetchErr / ChatFetchErrDark', '新しい盤面。本文中央のカード'],
+      ['承認情報の取得失敗（16.3）', 'Errors D3', '入力欄の上のカード'],
+      ['応答・削除の失敗文言（16.3）', 'Errors D4・D6', '「何が起きたか＋次に」の形'],
+      ['回答済みの「入力: <内容>」（7.3）', 'ChatLong', '回答済みカードの中'],
+      ['通知の補助文（11）', 'SetUse / Shell', 'スイッチの 2 行目'],
+      ['About の「アプリ」（11）', 'SetUse / Shell', '「このアプリについて」の 1 行目'],
+      ['Usage の「リセット済み」（12）', '—', '使用量の回で廃止。期限切れの枠は灰色の空のリング（5/6）'],
+      ['ウィジェットの起動中・待機・終了コード≠0（13.1）', 'GlanceCatalog', 'W 行'],
+      ['Live Activity の未知の状態（13.2）', 'GlanceCatalog', '7 行目'],
+      ['「終了」の通知（13.3）', 'GlanceSpec', '通知の表（6 種）。以前は「通知しない」と誤って書いていた'],
+      ['ウィジェットのギャラリー名と見本（13.1）', 'GlanceSpec', '機能対応表']
+    ].map((a, i) => ({ i: String(i + 1), f: a[0], b: a[1], w: a[2] }));
+
+    const out19 = [
+      'SessionsOverview（俯瞰グリッド）・旧 Spawn 画面・音声入力（マイクと音声認識の権限文を含む）',
+      '質問への回答画面（ChatAnswer）の独立画面。機能はセッション画面の質問のカードに統合（ReplyQuestionPlain）',
+      'Route.settings・onSettings、一覧のサブタイトル「N 件 · host」',
+      '詳細ヘッダ（48pt バッジ・「<エージェント> · 開始 HH:mm」）。詳細の小見出しは別の情報（状態とエージェント名）で描いた',
+      '未使用の部品（DSFAB・DSTextField・DSConnectionIndicator・DSFixedBottomCTA・DSCampAgentBadge）、旧スタイルの Reasoning'
+    ];
+    const invisible = [
+      '3 秒ごとの取得、前面復帰で再開・背面で停止（5.4・6.1）。ListSpec に「見た目なし」と記載',
+      '取得済みのセッションで詳細を解決し続ける（5.4）、開閉状態の保持（6.2）、空のメッセージを描かない（6.2）',
+      '自動追従（6.4）。規則は ChatSpec に記載。「最下部へ戻る」ボタンは足していない',
+      '画像の形式変換（HEIC → JPEG）・送信時の楽観的な消去と復元（8.3・8.4）',
+      'Live Activity のトークン登録と重複の即終了（13.2）、3 種以外のエージェントの除外（14）',
+      'ADR 0003 のトークン送信条件（画面に出ない）'
+    ];
+
+    const revCount = String(rev.length);
+    return { legend, cols: [{ rows: left }, { rows: right }], rev, out19, invisible, revCount };
+  }
+}
+</script>
+</body>
+</html>

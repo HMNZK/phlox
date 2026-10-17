@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>エラー文言 — カタログ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 2400px; height: 4700px; box-sizing: border-box; padding: 64px; overflow: hidden; background: {{c.page}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; gap: 44px">
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="font-size: 15px; font-weight: 600; color: {{c.text2}}">エラー文言 · 4 章／8.4 節／15.2 節／16.1 節／16.5 節 · {{ themeLabel }}</div>
+<h2 style="margin: 0; font-size: 34px; line-height: 1.25; font-weight: 700">どのエラーも「何が起きたか」→「なぜ・今どうなっているか」→「次にどうするか」の順に書く</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<sc-for list="{{ rules }}" as="r" hint-placeholder-count="4">
+<div style="padding: 16px 18px; border-radius: 16px; background: {{c.card}}; border: 1px solid {{c.sep}}; display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 13px; font-weight: 700; color: {{c.accentText}}">{{ r.k }}</div>
+<div style="font-size: 16px; font-weight: 700">{{ r.t }}</div>
+<div style="font-size: 14px; line-height: 1.55; color: {{c.text2}}">{{ r.d }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<sc-for list="{{ sections }}" as="sec" hint-placeholder-count="4">
+<section aria-label="{{ sec.title }}" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 2px solid {{c.rule}}">
+<div style="font-size: 22px; font-weight: 700">{{ sec.title }}</div>
+<div style="font-size: 15px; color: {{c.text2}}">{{ sec.desc }}</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat({{sec.cols}}, minmax(0, 1fr)); gap: 20px; align-items: start">
+<sc-for list="{{ sec.items }}" as="e" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap"><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: {{c.text3}}">{{ e.id }}</span><span style="font-size: 16px; font-weight: 700">{{ e.name }}</span><sc-for list="{{ e.chips }}" as="ch" hint-placeholder-count="1"><span style="padding: 2px 8px; border-radius: 999px; background: {{ch.bg}}; color: {{ch.fg}}; font-size: 11px; font-weight: 700">{{ ch.t }}</span></sc-for></div>
+<div role="{{ e.role }}" style="padding: 18px; border-radius: 24px; background: {{c.card}}; box-shadow: 0 0 0 1px {{c.sep}}; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; gap: 12px; align-items: flex-start">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px">
+<div style="font-size: 17px; line-height: 1.35; font-weight: 700; color: {{e.headFg}}">{{ e.head }}</div>
+<sc-if value="{{ e.hasBody }}" hint-placeholder-val="{{ true }}"><div style="font-size: 15px; line-height: 1.55">{{ e.body }}</div></sc-if>
+<sc-if value="{{ e.hasNext }}" hint-placeholder-val="{{ true }}"><div style="font-size: 15px; line-height: 1.55; color: {{c.text2}}">{{ e.next }}</div></sc-if>
+<sc-if value="{{ e.hasMono }}" hint-placeholder-val="{{ true }}"><div style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.45; color: {{c.text2}}; overflow-wrap: anywhere">{{ e.mono }}</div></sc-if>
+</div>
+</div>
+<sc-if value="{{ e.hasBtn }}" hint-placeholder-val="{{ true }}"><button type="button" aria-disabled="{{ e.btnDis }}" style="min-height: 48px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; opacity: {{e.btnOp}}; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer">{{ e.btn }}</button></sc-if>
+<sc-if value="{{ e.hasBtn2 }}" hint-placeholder-val="{{ false }}"><button type="button" style="min-height: 44px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer">{{ e.btn2 }}</button></sc-if>
+<sc-if value="{{ e.noBtn }}" hint-placeholder-val="{{ false }}"><div style="font-size: 13px; color: {{c.text3}}">ボタンは置かない（{{ e.noBtnWhy }}）</div></sc-if>
+</div>
+<div style="font-size: 13px; line-height: 1.5; color: {{c.text2}}">{{ e.note }}</div>
+</div>
+</sc-for>
+</div>
+</section>
+</sc-for>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":2400,"height":4700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const c = dark ? {
+      page: '#0B0B0D', rule: 'rgba(255,255,255,0.16)', card: '#1C1C1E', text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5',
+      sep: 'rgba(84,84,88,0.65)', accent: '#F2F2F4', accentOnFill: '#000000', accentText: '#E4E4EA',
+      errFg: '#FF8C82', errBg: 'rgba(255,69,58,0.18)', neuFg: '#D4D4DA', neuBg: 'rgba(118,118,128,0.28)',
+      okFg: '#6FD08C', okBg: 'rgba(52,199,89,0.16)', warnFg: '#FFB46E', warnBg: 'rgba(255,159,10,0.18)'
+    } : {
+      page: '#ECECF1', rule: 'rgba(60,60,67,0.2)', card: '#FFFFFF', text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73',
+      sep: 'rgba(60,60,67,0.18)', accent: '#1D1D1F', accentOnFill: '#FFFFFF', accentText: '#1D1D1F',
+      errFg: '#B8241C', errBg: '#FDE7E5', neuFg: '#3A3A42', neuBg: 'rgba(118,118,128,0.14)',
+      okFg: '#1F7A3A', okBg: '#E3F4E8', warnFg: '#A8430A', warnBg: '#FFEBD6'
+    };
+    const CH = {
+      chg: { t: '変更', bg: dark ? 'rgba(118,118,128,0.3)' : '#E6E6EC', fg: dark ? '#E4E4EA' : '#2A2A31' },
+      app: { t: 'アプリの文言のまま', bg: dark ? 'rgba(118,118,128,0.3)' : '#E6E6EC', fg: dark ? '#E4E4EA' : '#2A2A31' },
+      cand: { t: '候補', bg: dark ? 'rgba(255,159,10,0.2)' : '#FFEBD6', fg: dark ? '#FFB46E' : '#8A4200' },
+      br: { t: '推測（要照合）', bg: dark ? 'rgba(118,118,128,0.18)' : '#FFFFFF', fg: dark ? '#C9C9D0' : '#45454F' }
+    };
+    const ICON = {
+      key: 'M5.5 7 A3 3 0 1 0 5.5 13 A3 3 0 1 0 5.5 7 Z M8 8.5 L14 2.5 M11.5 5 L13 6.5 M10 6.5 L11 7.5',
+      host: 'M3 4 H13 V10.5 H3 Z M1.5 12.5 H14.5 M2 1.8 L14 14.2',
+      clock: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M8 4.8 V8 L10.2 9.4',
+      err: 'M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7',
+      net: 'M1.8 6.2 C5.2 3.2 10.8 3.2 14.2 6.2 M4 8.6 C6.3 6.8 9.7 6.8 12 8.6 M6.3 11 C7.3 10.3 8.7 10.3 9.7 11 M8 13.3 V13.4 M2.2 1.8 L13.8 14.2',
+      doc: 'M4 2 H10 L12.5 4.5 V14 H4 Z M6 7 H10.5 M6 9.5 H10.5 M6 12 H8.5',
+      plus: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M5.5 5.5 L10.5 10.5 M10.5 5.5 L5.5 10.5',
+      find: 'M7 2.5 A4.5 4.5 0 1 0 7 11.5 A4.5 4.5 0 1 0 7 2.5 Z M10.3 10.3 L13.5 13.5',
+      face: 'M2.5 5.5 V3.8 A1.3 1.3 0 0 1 3.8 2.5 H5.5 M10.5 2.5 H12.2 A1.3 1.3 0 0 1 13.5 3.8 V5.5 M13.5 10.5 V12.2 A1.3 1.3 0 0 1 12.2 13.5 H10.5 M5.5 13.5 H3.8 A1.3 1.3 0 0 1 2.5 12.2 V10.5 M5.8 6 V7 M10.2 6 V7 M8 6 V8.8 H7.3 M5.8 10.4 C7 11.4 9 11.4 10.2 10.4',
+      cam: 'M2 5 H5 L6 3.5 H10 L11 5 H14 V13 H2 Z M8 7 A2.3 2.3 0 1 0 8 11.6 A2.3 2.3 0 1 0 8 7 Z M1.5 1.8 L14.5 14.5',
+      img: 'M2 3.5 H14 V12.5 H2 Z M2 10.5 L5.5 7.5 L8.5 10 L10.5 8.5 L14 11 M10.5 5.5 V5.6',
+      qr: 'M2.5 2.5 H6.5 V6.5 H2.5 Z M9.5 2.5 H13.5 V6.5 H9.5 Z M2.5 9.5 H6.5 V13.5 H2.5 Z M9.5 9.5 H11 V11 H9.5 Z M12 12 H13.5 V13.5 H12 Z'
+    };
+    const tone = { err: [c.errBg, c.errFg], neu: [c.neuBg, c.neuFg], warn: [c.warnBg, c.warnFg] };
+    const E = (id, name, chips, t, icon, head, body, next, mono, btn, o) => {
+      o = o || {};
+      return {
+        id, name, chips, icon, head, body, next, hasBody: !!body, hasNext: !!next, mono: mono || '', hasMono: !!mono,
+        iconBg: tone[t][0], iconFg: tone[t][1], headFg: t === 'err' ? c.errFg : c.text, role: t === 'neu' ? 'status' : 'alert',
+        btn: btn || '', hasBtn: !!btn, btnDis: o.dis ? 'true' : 'false', btnOp: o.dis ? 0.45 : 1,
+        btn2: o.btn2 || '', hasBtn2: !!o.btn2, noBtn: !btn, noBtnWhy: o.why || '',
+        note: o.note || ''
+      };
+    };
+
+    const rules = [
+      { k: '見出し', t: '何が起きたか', d: '主語は「Mac」「iPhone」「QR」。コード番号や英語の識別子を見出しにしない。20 文字前後（英語で 1.5 倍に伸びても 2 行）。記号は付けず、エラーは見出しを赤い文字にする（アプリ内は文字だけ。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ）' },
+      { k: '本文 1 文目', t: 'なぜ・今どうなっているか', d: '推測なら「〜の可能性があります」ではなく、確かめられる状態（スリープ・Tailscale・バージョン）を名指しする。何が残っているか・保存されたかも書く' },
+      { k: '本文 2 文目', t: '次にどうするか', d: 'ボタンで済む操作はボタンに、Mac 側でしかできないことは文で書く。自動で直るなら「自動でつなぎ直します」と書いて待てるようにする' },
+      { k: '補足', t: '技術的な値は等幅で最後に', d: 'HTTP コード・接続先・例外名は 1 行の等幅で、本文とは分ける。VoiceOver は見出し → 本文 → 次の操作の順に読み、等幅の行は最後' }
+    ];
+
+    const fetch8 = [
+      E('F1', '401 認証', [CH.chg], 'err', ICON.key, 'Mac に接続を断られました', 'この iPhone に保存した接続の鍵（トークン）が、Mac 側で使えなくなっています。', 'Mac で QR を表示し、読み取り直してください。', 'HTTP 401 Unauthorized', 'QR で再接続',
+        { note: '移動元:「接続設定を開く」→ 移動先:「QR で再接続」。設定タブを経由せず QR スキャンを直接開く（行き先は同じ画面）' }),
+      E('F2', '到達不可', [], 'err', ICON.host, 'Mac に届きません', 'Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。', 'Mac を起こし、Tailscale をオンにしてから再試行してください。', '100.64.0.1:8765 · 接続がタイムアウト', '再試行'),
+      E('F3', '429 混雑', [], 'neu', ICON.clock, 'Mac が混み合っています', '短い間に要求が集中したため、Mac が受け付けを止めています。', '12 秒後に再試行できます。', 'HTTP 429 · Retry-After: 12', '再試行（12 秒）',
+        { dis: true, note: '待ち時間はボタンに数えて出し、0 になったら押せる。待てば直るので赤にせず無彩色（琥珀は承認待ち専用）' }),
+      E('F4', 'サーバ (5xx)', [], 'err', ICON.err, 'Mac の Phlox でエラーが起きました', '要求を処理している途中で、Mac 側で問題が起きました。', '少し待って再試行してください。続くときは Mac の Phlox を再起動してください。', 'HTTP 500 Internal Server Error', '再試行'),
+      E('F5', '形式不一致', [], 'err', ICON.doc, 'Mac の応答を読めません', 'iPhone と Mac の Phlox のバージョンが合っていないと起きます。', 'App Store と Mac の両方で Phlox を最新にしてください。', 'decode: key "sessions" not found', '',
+        { why: '再試行しても直らないため' }),
+      E('F6', '通信', [], 'err', ICON.net, '通信が途中で切れました', '電波が弱いか、Wi‑Fi とモバイル通信が切り替わりました。', '通信が落ち着いたら再試行してください。', 'NSURLErrorNetworkConnectionLost (-1005)', '再試行'),
+      E('F7', '作成拒否', [], 'err', ICON.plus, 'セッションを作れませんでした', 'Mac がこの作成を受け付けませんでした。Mac にセッションは作られていません。', '理由を確かめてから、もう一度送信してください。指示は入力欄に戻してあります。', 'workspace "phlox" is locked by another spawn', '送信',
+        { note: '新規セッションの回の「作成失敗」と同じ。ボタンは入力欄の送信' }),
+      E('F8', '404', [], 'err', ICON.find, 'このセッションは見つかりません', 'Mac 側で削除されたか、終了して片付けられました。', '一覧に戻って、ほかのセッションを開いてください。', 'HTTP 404 · session 7c2e', '一覧に戻る',
+        { note: '回復操作「一覧に戻る」は 16.5 の定義どおり（現行は画面に出ていない）。一覧に無い ID を開いたとき（16.3「セッションが見つかりません」）も同じ' })
+    ];
+    const unreach3 = [
+      E('U1', '圏外', [], 'neu', ICON.net, 'インターネットにつながっていません', 'iPhone が圏外か、機内モードになっています。', '通信が戻ると自動でつなぎ直します。', '', '再接続を試す',
+        { note: '見出しは本文の色。iPhone 側の問題なので赤くしない（ADR 0019）' }),
+      E('U2', 'Mac に到達できない', [], 'err', ICON.host, 'Mac に届きません', 'Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。', 'Mac を起こすと自動でつなぎ直します。すぐ試すときはボタンを押してください。', '100.64.0.1:8765 · 最終取得 3 分前', '再接続を試す',
+        { note: '見出しを赤＋等幅の詳細。最終取得の時刻を添える' }),
+      E('U3', '確認中', [CH.cand], 'neu', ICON.clock, '接続を確かめています', 'Mac からの応答を待っています。最大 20 秒ほどかかります。', 'このままお待ちください。', '', '',
+        { why: '確かめている最中に押しても結果は同じため。候補', note: '判定が付くまでオフライン扱いにしない（ADR 0027）' })
+    ];
+    // 機能一覧 4.2: 検証順の 5 種＋写真から QR を見つけられないとき
+    const parse5 = [
+      E('P1', 'ペアリング用でない', [], 'err', ICON.qr, 'ペアリング用の QR ではありません', '読み取った QR は Phlox の接続用ではありません。', 'Mac の Phlox が表示したペアリング用の QR を読み取ってください。', 'https://example.com/menu', 'もう一度スキャン'),
+      E('P2', '未対応の版', [], 'err', ICON.qr, 'この QR の版には対応していません', 'QR の版（v）が無いか、このアプリが読めない版です。', 'iPhone と Mac の Phlox を両方とも最新にしてから、QR を表示し直してください。', 'phlox://pair?v=2&host=…', 'もう一度スキャン'),
+      E('P3', 'ホストが無い', [], 'err', ICON.qr, 'QR に接続先がありません', 'QR の中に Mac のアドレス（host）が入っていません。', 'Mac で QR を表示し直して、もう一度読み取ってください。', 'phlox://pair?v=1&port=8765&token=…', 'もう一度スキャン'),
+      E('P4', 'ポートが不正', [], 'err', ICON.qr, 'ポート番号が正しくありません', 'QR の中のポート番号が、使える範囲（1〜65535）にありません。', 'Mac の Phlox の設定でポートを確かめ、QR を表示し直してください。', 'port=99999', 'もう一度スキャン'),
+      E('P5', 'トークンが不正', [], 'err', ICON.qr, 'QR のトークンが正しくありません', 'QR の中の接続の鍵（トークン）の形が違います。', 'Mac で QR を表示し直して、もう一度読み取ってください。', 'token=…（64 桁の小文字 16 進ではない）', 'もう一度スキャン'),
+      E('P6', '写真に QR が無い', [], 'err', ICON.qr, '画像から QR を見つけられません', '選んだ画像の中に、読み取れる QR がありませんでした。', 'QR 全体がはっきり写ったスクリーンショットを選んでください。', '', '写真から読み取る')
+    ];
+    const others = [
+      E('Q1', 'QR は読めたが Mac に届かない', [], 'err', ICON.host, 'Mac に届きません', '接続先は保存しました。ただ、その接続先から応答がありません。', 'Mac と iPhone の Tailscale がオンかを確かめ、Mac 側で QR を表示し直してから、もう一度読み取ってください。', 'GET /sessions · 無応答', 'もう一度スキャン',
+        { note: '現行どおり接続先とトークンは保存し、巻き戻さない（4.2）' }),
+      E('C1', '初回の接続中に 20 秒で読めない', [CH.chg], 'err', ICON.host, 'Mac から一覧を読み込めませんでした', '接続先は保存しました。20 秒待っても Mac から応答がありません。', 'Mac がスリープしていないか、Phlox が起動しているか、Tailscale がオンかを確かめて再試行してください。', 'GET /sessions · 20 秒で無応答', '再試行',
+        { btn2: '閉じる', note: '閉じると一覧に進み、接続が戻るのを待つ（オフライン表示）。一覧がエラーで返ったときは見出し「接続できませんでした」＋エラーの本文（F1〜F8 の型）' }),
+      E('T1', '疎通テストの失敗', [], 'err', ICON.host, 'Mac に届きません', 'Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。', '確かめてから、もう一度テストしてください。', 'GET /sessions · 無応答', '',
+        { why: '「疎通テスト」の行をもう一度押せばよいため' }),
+      E('G1', 'Face ID の失敗', [], 'err', ICON.face, '認証できませんでした', 'Face ID で本人を確かめられませんでした。', 'もう一度 Face ID を試すか、パスコードで解除してください。', '', 'もう一度 Face ID',
+        { btn2: 'パスコードを使用', note: '失敗・キャンセル・エラーは同じ表示。回数の制限は OS に任せる' }),
+      E('K1', 'カメラが使えない', [CH.cand], 'neu', ICON.cam, 'カメラを使えません', 'カメラへのアクセスが許可されていません。', 'Mac の QR をスクリーンショットにして、写真から読み取れます。', '', '写真から読み取る',
+        { btn2: '設定アプリでカメラを許可', note: '「設定アプリで許可」は候補（OS の設定画面を開くだけ）' })
+    ];
+
+    const detail = [
+      E('D1', '会話の取得に失敗', [CH.chg], 'err', ICON.doc, '会話を読み込めませんでした', 'Mac から会話の内容を受け取れませんでした。', '3 秒ごとに読み込み直しています。続くときは一覧に戻って開き直してください。', 'メッセージの取得に失敗しました · HTTP 502', '',
+        { why: '自動で読み込み直すため', note: '詳細の本文（ChatFetchErr の盤面）。現行は赤い帯の本文だけ' }),
+      E('D3', '承認情報の取得に失敗', [CH.chg], 'err', ICON.err, '承認の内容を読み込めませんでした', '承認待ちですが、何を許可するかを Mac から受け取れませんでした。', '内容が読めるまで承認・却下は押せません。読み込み直しています。', '承認情報の取得に失敗しました', '',
+        { why: '内容を見ずに承認させないため', note: '入力欄のすぐ上の承認のカード。承認カードの代わりに出す' }),
+      E('D4', '承認の応答を送れない', [], 'err', ICON.err, '応答を送れませんでした', '「許可」は Mac に届いていません。', 'もう一度選んでください。', '応答の送信に失敗しました · Mac に接続できません', '',
+        { why: 'カードが残っているのでもう一度選ぶだけ', note: '返答の回の ReplyApprovalFail' }),
+      E('D5', '指示の送信に失敗', [], 'err', ICON.err, '送信できませんでした', '本文と添付は入力欄に戻しました。', '送信ボタンで送り直せます。', '送信に失敗しました · Mac に接続できません', '',
+        { why: '入力欄の送信で再送するため', note: '会話の回の ChatSendFail' }),
+      E('D6', '削除に失敗', [], 'err', ICON.err, '削除できませんでした', 'セッションと子孫 2 件は、どれも消えずに残っています。', '閉じるか、もう一度削除します。', '削除に失敗しました · EBUSY', 'もう一度削除',
+        { btn2: '閉じる', note: 'ダイアログの回の E2' })
+    ];
+    const attach5 = [
+      E('A1', '枚数（最大 4 枚）', [CH.app], 'err', ICON.img, '画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。', '', '', '', '',
+        { why: '入力欄の画像を減らすだけなので', note: 'ReplyAttachErr。4 枚あるときに足そうとした。入っている 4 枚と本文はそのまま' }),
+      E('A2', '1 枚のサイズ（20MB）', [CH.app], 'err', ICON.img, '画像は1枚あたり20MBまでです', '', '', '', '',
+        { why: '別の画像を選ぶだけなので', note: 'ReplyAttachErrSize。超えた画像だけ入れない。送信前の縮小・形式の変換は自動で、画面には出さない' }),
+      E('A3', '合計のサイズ（80MB）', [CH.app], 'err', ICON.img, '画像は合計80MBまでです', '', '', '', '',
+        { why: '入力欄の画像を減らすだけなので', note: 'ReplyAttachErrTotal。合計を超える画像を入れない' }),
+      E('A4', '寸法（各辺 8000 ピクセル）', [CH.app], 'err', ICON.img, '画像は各辺8000ピクセルまでです。必要な部分を切り出してください', '', '', '', '',
+        { why: '写真アプリで切り出してから選び直すため', note: 'ReplyAttachErrDim（ダーク・iPhone SE も）。入力欄では 2 行に折り返す' }),
+      E('A5', '読み込み失敗', [CH.app], 'err', ICON.img, '画像を読み込めませんでした', '', '', '', '',
+        { why: 'もう一度選び直すだけなので', note: 'ReplyAttachErrLoad。iCloud から取り出せない・壊れているなど。その画像だけ入れない' })
+    ];
+    const sections = [
+      { title: '取得エラー 8 種（16.5 節）', desc: '一覧・詳細・作成で出るエラー。現行は本文しか出さないので、16.5 に定義されている見出しと回復操作まで出す', cols: 4, items: fetch8 },
+      { title: '到達不可 3 種（15.2 節・4.4 節）', desc: '一覧の本文のカードと、全タブ下端の接続状態に出す文言。理由ごとに見出しの色を分ける（記号は付けない）', cols: 3, items: unreach3 },
+      { title: 'QR の読み取りエラー 5 種＋写真（4.2 節）', desc: '検証の順に 5 種。別に、写真から QR を見つけられないとき。ボタンは「もう一度スキャン」（写真のときは「写真から読み取る」）', cols: 6, items: parse5 },
+      { title: '接続の途中で出るその他の失敗（3 章・4 章・16.1 節）', desc: 'QR を読んだ後・初回の接続中・疎通テスト・起動ゲート・カメラ', cols: 5, items: others },
+      { title: '画像の添付（8.4 節の上限は古いので使わない）', desc: '上限は最大 4 枚・1 枚 20MB・合計 80MB・各辺 8000 ピクセル。文言はアプリの現行の文言をそのまま使い、3 段の型には当てはめない。入力欄の上に赤い 1〜2 行で出す', cols: 5, items: attach5 },
+      { title: '詳細で出る取得・送信の失敗（16.3 節）', desc: '会話・承認情報の取得、承認の応答・指示の送信・削除の失敗', cols: 5, items: detail }
+    ];
+    return { c, rules, sections, themeLabel: dark ? 'ダーク' : 'ライト' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>骨格 — 機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1320px; height: 1760px; box-sizing: border-box; padding: 56px 64px; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">機能対応表（骨格の範囲：1 章・2 章・18 章）</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">機能一覧の名前 → 新しい置き場所 → 変えた理由</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #45454F">
+<span><span style="font-weight: 700; color: #1D1D1F; background: #EDEDF0; border-radius: 5px; padding: 1px 6px">変更</span> 配置・挙動を変える</span>
+<span><span style="font-weight: 700; color: #9A4A00; background: #FFF1DE; border-radius: 5px; padding: 1px 6px">候補</span> 提案。採否を決めてほしい</span>
+<span><span style="font-weight: 700; color: #1F6B3A; background: #E3F5E9; border-radius: 5px; padding: 1px 6px">解消</span> 21.2 節などの不具合を正しい振る舞いで描いた</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 250px 420px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">下部タブ（2.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">標準のタブバー: セッション／設定の 2 面（使用量の回で「使用量」タブを廃止。使用量は 5/6 で入力欄の下の 1 行のリングにした）。iOS 26 ではガラスで、スクロールすると縮む</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 自前実装をやめて OS 標準にする。どの面へもいつでも行ける点（ADR 0007）は維持。使用量は新規チャットとセッション画面の入力欄の下に、残りのリング（円グラフ）として常にあり、押すと吹き出しで詳細が見えるので、行く操作が要らない</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">使用量の面「Usage」（12）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">移す前: 「Usage」タブ → 一覧の下端の使用量バー（前回）→ 移した先: 新規チャットとセッション画面の、入力欄の下の 1 行のリング（押すと吹き出し。2 回目の修正 5/6）。タブと見出しは無くなる</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 作業中にいつでも残りが見えるように（使用量の回の指示）。詳しくは盤面「設定と使用量 — 論点・機能対応表」</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">一覧の大見出し「Projects」（5）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">大見出し「セッション」。読み込み・空・オフライン・エラーでも同じ位置</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #9A4A00">候補</b> タブ名と一致させる。見出しが消えない（ADR 0036）点は守る</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">タブの再タップ（2.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">ルートへ戻り、先頭へスクロール</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> iOS 標準の挙動に合わせる（現行は何も起きない）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">詳細表示中のタブバー（2.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">隠す。一覧へは左上のホームのボタン（家の形）か端スワイプで戻る → タブ</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">維持。下端を承認・質問のカード・入力欄・使用量の行に使うため</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">対応待ち（5.2。前の「あなたの番」）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">一覧の先頭の「対応待ち」の欄（Mac のサイドバーと同じ名前）＋全タブ共通の対応待ちバー＋セッションタブのバッジ</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 一覧を開かずに気づける。タップで先頭の詳細へ、長押しで選んで開く。<b style="color: #1F6B3A">解消</b> 判定を補助文の文字列ではなく状態の値で行う（21.2-4）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">承認バー（7.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">セッション画面の入力欄のすぐ上の承認のカード「承認待ち · {操作の種類}」。複数は ‹ 1/2 › で送り、経過時間を出す（2 回目の修正 4/6）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 移動元は本文スクロールの先頭。最下部への自動追従で画面外に出ていた。<b style="color: #1F6B3A">解消</b> 詳細の更新のたびに出し入れする（21.2-1）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">Codex の 4 択（7.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">承認のカードの 4 つのボタン「許可」「このセッション中は許可」「拒否」「キャンセル」（Claude Code と Codex で同じ。Cursor には承認が無い）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #0B5E78">移動</b> 移動元: 4 択シート（ReplyCodexSheet は消した）→ 移動先: カードのボタン（2 回目の修正 4/6）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">質問カード（7.3）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">未回答のものは入力欄のすぐ上の質問のカード「質問待ち · {見出し}」と「回答を送信」。回答済み・期限切れは会話内の共通のカード（4/6）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 応答の置き場所を承認と揃える。カードの中身は詳細の回で描く</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">応答後の表示（7.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">承認のカードが「『許可』を送信しました」に変わる。次の対応待ちへは自分で進む（‹ › と対応待ちバー）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 英語の識別子（accept）を出さない（21.2-3）。次の対応待ちへの導線を足すのは配置の提案で、機能は増えない</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">詳細の見出し（6.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">左上にホームのボタン、タイトル＝セッション名、小見出し＝状態の文言（記号なし・文字の色だけ）とエージェント名、右上に「…」</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 現行は詳細に状態が出ない。取得済みの値を表示するだけ</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">到達不可（4.4・5.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">一覧内の表示（維持）＋対応待ちバーの位置に接続状態と「再接続を試す」（全タブ）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #9A4A00">候補</b> 一覧以外のタブでも接続切れに気づける。ボタンの動作は一覧と同じ</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">起動ゲート（3）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">最も手前の層。復帰時は下の画面を保ったまま重ねる</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">分岐の条件は現行どおり。画面の作りは起動・接続の回で描く</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">接続設定・QR・接続中（4）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">タブの外の分岐（初回）。設定タブからは QR スキャンへ push</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 設定から QR へ進むときもタブバーを隠す（カメラを全面に使う）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">サブエージェント詳細（10）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">詳細から push</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">モデル選択（8.5）・名前変更（10）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">シート／アラート。入口は入力欄のモデルのチップと「…」メニュー</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし。同時には開かない（ADR 0013）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">削除確認（10）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">OS 標準のアラート（destructive）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> 移動元は自前の全画面オーバーレイ。暗幕タップでは閉じなくなり「キャンセル」で閉じる。失敗時のエラーは閉じた後に詳細へ出す</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">通知タップ（2.5）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">スタックを「一覧 → 該当の詳細」に置き換える。ロック中は解除後に適用</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 詳細の多重 push（21.2-18）と、ロック中に遷移が失われる可能性（2.5 の推測）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">phlox://pair（2.5）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">本体なら設定 → QR、未設定なら接続設定 → QR</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし（ロック中は解除後に適用）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">ウィジェット・Live Activity のタップ（13）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">該当セッションの詳細へ（通知と同じ規則）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #9A4A00">候補</b> 未実装の遷移先。現行は起動のみ（21.2-16 の一部）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">入力欄のプレースホルダ（8.2）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">「やりたいことを入力」（選択肢のない質問に答えるときは「回答を入力」）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1D1D1F">変更</b> Mac の新規チャットと同じ語（2 回目の修正 3/6）。前回の候補「指示を入力…」は使わない</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">送信中の入力欄（8.1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">入力欄は常に残し、送信ボタンだけがスピナーになる</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 実行中でないとき入力欄ごと消える（21.2-11）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">引っ張って更新（5.4）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">一覧で OS 標準の更新</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><b style="color: #1F6B3A">解消</b> 一覧は取得結果をその場で反映する（21.2-8）</div>
+
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">OS 提供の UI（1）</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">写真ピッカー・Face ID・通知許可・カメラ許可・長押しのメニュー（時刻・コピー・選択して部分コピー）・使用量の吹き出し（ポップオーバー）・キーボード</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">変更なし。<b style="color: #9A4A00">候補</b> 通知許可は初回の接続成功後に出す（21.2-14 の一部）</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 16px; font-weight: 700">未配置</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>質問への回答画面（ChatAnswer）: 19 章で対象外。質問への回答は入力欄の上の質問のカードが担う</li>
+<li>Route.settings: 19 章で対象外</li>
+<li>画面の中の要素（行の構成、添付、使用量行など）: 各画面の回で対応表を付ける</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 16px; font-weight: 700">骨格で守った 18.1 節の振る舞い</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>0033: 2 回目の修正 4/6 の指示で、左上の戻るを家の形のホームのボタン（一覧へ）に差し替えた。端スワイプで戻る操作は残す（leading を差し替えても interactivePopGestureRecognizer を生かす作り）</li>
+<li>0007: 面にいつでも行ける（使用量の回でタブは 2 面に。使用量は入力欄の下のリングに常にあり、押すと詳細）／0004: 外観の即時反映／0014・0036: 見出しが消えない</li>
+<li>0021・0027: 接続中は判定がつくまで出し続ける／0028・0042: 完了・エラー後も入力でき、送信と停止を出し分ける</li>
+</ul>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1320,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

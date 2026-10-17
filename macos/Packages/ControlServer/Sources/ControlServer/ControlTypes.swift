@@ -229,12 +229,14 @@ public struct ApprovalDTO: Sendable, Codable, Equatable {
     public let sessionID: String
     public let kind: String
     public let prompt: String
+    public let actionKind: String?
 
-    public init(id: String, sessionID: String, kind: String, prompt: String) {
+    public init(id: String, sessionID: String, kind: String, prompt: String, actionKind: String? = nil) {
         self.id = id
         self.sessionID = sessionID
         self.kind = kind
         self.prompt = prompt
+        self.actionKind = actionKind
     }
 }
 

@@ -69,6 +69,30 @@ final class PhloxNetworkingTests: XCTestCase {
         XCTAssertEqual(approvals.first?.prompt, "削除しますか？")
     }
 
+    func testApprovalsActionKindDecodesAndMapsToDomain() async throws {
+        NetStubURLProtocol.outcomes = [.status(200, json("""
+        {"approvals":[
+          {"id":"a1","sessionID":"s1","kind":"codex","prompt":"Run?","actionKind":"command"},
+          {"id":"a2","sessionID":"s1","kind":"codex","prompt":"Write?","actionKind":"fileChange"},
+          {"id":"a3","sessionID":"s1","kind":"codex","prompt":"Allow?","actionKind":"permissions"}
+        ]}
+        """), [:])]
+        let approvals = try await makeClient().approvals()
+        XCTAssertEqual(approvals.map(\.actionKind), ["command", "fileChange", "permissions"])
+        XCTAssertEqual(approvals.map(\.kind), [.codex, .codex, .codex])
+    }
+
+    func testApprovalsActionKindMissingDecodesToNil() async throws {
+        NetStubURLProtocol.outcomes = [.status(200, json("""
+        {"approvals":[{"id":"a1","sessionID":"s1","kind":"codex","prompt":"Allow?"}]}
+        """), [:])]
+        let approvals = try await makeClient().approvals()
+        let approval = try XCTUnwrap(approvals.first)
+        XCTAssertEqual(approvals.count, 1)
+        XCTAssertEqual(approval.kind, .codex)
+        XCTAssertNil(approval.actionKind)
+    }
+
     func testSpawnSendsKindAndDecodesIDOnlyResponse() async throws {
         // 実 wire: Mac は POST /sessions に {id} のみ返し、body は `kind` キーを期待する（agent ではない）。
         // Session はレスポンス id とリクエストのエージェントから合成する。

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>設定 · 接続済み</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.lg{display:inline-block;flex:none}
+.lg-claude,.lg-codex{background-color:currentColor;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.lg-claude{-webkit-mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7);mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7)}
+.lg-codex{-webkit-mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba);mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba)}
+.lg-cursor{background:url(/_blob/02f5e276fd254ff6f2137701b1097708) center/contain no-repeat}
+@keyframes suspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.su-spin{animation:none !important}}
+</style>
+</helmet>
+<div style="position: relative; width: {{g.W}}px; height: {{g.H}}px; overflow: hidden; background: {{c.bg}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased">
+
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; overflow: hidden; box-sizing: border-box; padding: {{g.top}}px 20px {{g.padBottom}}px; display: flex; flex-direction: column; gap: 6px">
+
+<!-- ===== 設定 ===== -->
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ true }}">
+<h1 style="margin: 0 0 6px; font-size: {{f.large}}px; line-height: 1.2; font-weight: 700">設定</h1>
+
+<h2 style="margin: 8px 4px 2px; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">接続</h2>
+<div style="border-radius: 16px; background: {{c.card}}; overflow: hidden">
+<div role="status" style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: {{f.body}}px; line-height: 1.3; font-weight: 600; color: {{conn.titleFg}}">{{ conn.title }}</span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; color: {{c.text2}}; overflow-wrap: anywhere">100.64.0.1:8765</span>
+<span style="font-size: {{f.foot}}px; color: {{c.text2}}">{{ conn.sub }}</span>
+</div>
+</div>
+<div style="height: 1px; margin-left: 16px; background: {{c.sep}}"></div>
+<button type="button" style="display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 6px 16px; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left; cursor: pointer"><span aria-hidden="true" style="flex: none; width: 30px; height: 30px; border-radius: 8px; background: {{c.iconBg}}; color: {{c.iconFg}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="{{ ICON.qr }}"></path></svg></span><span style="flex: 1; font-size: {{f.body}}px">QR で再接続</span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="{{ c.text3 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3 L11 8 L6 13"></path></svg></button>
+<div style="height: 1px; margin-left: 58px; background: {{c.sep}}"></div>
+<button type="button" style="display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 6px 16px; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left; cursor: pointer"><span aria-hidden="true" style="flex: none; width: 30px; height: 30px; border-radius: 8px; background: {{c.iconBg}}; color: {{c.iconFg}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ ICON.pulse }}"></path></svg></span><span style="flex: 1; font-size: {{f.body}}px">疎通テスト</span></button>
+</div>
+<sc-if value="{{ disconnected }}" hint-placeholder-val="{{ false }}"><p style="margin: 4px 16px 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。Mac を起こすと自動でつなぎ直します。</p></sc-if>
+
+<h2 style="margin: 14px 4px 2px; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">通知</h2>
+<div style="display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 16px; box-sizing: border-box; border-radius: 16px; background: {{c.card}}"><span aria-hidden="true" style="flex: none; width: 30px; height: 30px; border-radius: 8px; background: {{c.iconBg}}; color: {{c.iconFg}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ ICON.bell }}"></path></svg></span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px"><span style="font-size: {{f.body}}px">プッシュ通知を受け取る</span><span style="font-size: {{f.foot}}px; color: {{c.text2}}">セッションの更新を通知します</span></span><span role="switch" aria-checked="true" aria-label="プッシュ通知を受け取る" style="flex: none; width: 51px; height: 31px; border-radius: 999px; background: {{c.on}}; position: relative"><span style="position: absolute; right: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.2)"></span></span></div>
+<p style="margin: 4px 16px 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">オフにすると、この iPhone への通知をすぐに止めます。</p>
+
+<h2 style="margin: 14px 4px 2px; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">セキュリティ</h2>
+<div style="display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 16px; box-sizing: border-box; border-radius: 16px; background: {{c.card}}"><span aria-hidden="true" style="flex: none; width: 30px; height: 30px; border-radius: 8px; background: {{c.iconBg}}; color: {{c.iconFg}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="{{ bioIcon }}"></path></svg></span><span style="flex: 1; font-size: {{f.body}}px">{{ bioLabel }}</span><span role="switch" aria-checked="true" aria-label="{{ bioLabel }}" style="flex: none; width: 51px; height: 31px; border-radius: 999px; background: {{c.on}}; position: relative"><span style="position: absolute; right: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.2)"></span></span></div>
+<p style="margin: 4px 16px 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">起動時とバックグラウンドからの復帰時に認証します。既定はオフで、オフにするとすぐに解除されます。</p>
+
+<h2 style="margin: 14px 4px 2px; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">外観</h2>
+<div role="radiogroup" aria-label="外観" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px; border-radius: 16px; background: {{c.card}}">
+<sc-for list="{{ appear }}" as="ap" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{ ap.checked }}" style="display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 44px; padding: 8px 4px; border: {{ap.border}}; border-radius: 12px; background: {{ap.bg}}; color: {{c.text}}; font: inherit; font-size: {{f.sub}}px; font-weight: {{ap.w}}; cursor: pointer">
+<span aria-hidden="true" style="width: 52px; height: 34px; border-radius: 7px; overflow: hidden; display: flex; box-shadow: 0 0 0 1px {{c.sep}}"><span style="flex: 1; background: {{ap.l}}"></span><span style="flex: 1; background: {{ap.r}}"></span></span>
+<span style="display: inline-flex; align-items: center; gap: 4px"><sc-if value="{{ ap.on }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="{{ c.accent }}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 L6.5 11.5 L12.5 4.5"></path></svg></sc-if>{{ ap.t }}</span>
+</button>
+</sc-for>
+</div>
+<p style="margin: 4px 16px 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">選ぶとすぐに切り替わります。</p>
+
+<h2 style="margin: 14px 4px 2px; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">このアプリについて</h2>
+<div style="border-radius: 16px; background: {{c.card}}; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 52px; padding: 6px 16px; box-sizing: border-box"><span style="font-size: {{f.body}}px">アプリ</span><span style="font-size: {{f.body}}px; color: {{c.text2}}">Phlox</span></div>
+<div style="height: 1px; margin-left: 16px; background: {{c.sep}}"></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 52px; padding: 6px 16px; box-sizing: border-box"><span style="font-size: {{f.body}}px">バージョン</span><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; color: {{c.text2}}">0.1.0 (1)</span></div>
+</div>
+</sc-if>
+
+
+</div>
+
+<div aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 0; height: {{g.top}}px; background: linear-gradient(to bottom, {{c.bg}} 55%, {{c.bg0}}); pointer-events: none"></div>
+<!-- 下端: 対応待ちバー（または接続状態）とタブバー -->
+<div aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 0; height: {{g.fadeH}}px; background: linear-gradient(to bottom, {{c.bg0}}, {{c.bg}} 60%); pointer-events: none"></div>
+<div style="position: absolute; left: {{g.accSide}}px; right: {{g.accSide}}px; bottom: {{g.accBottom}}px; height: 56px; box-sizing: border-box; border-radius: 28px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 10px">
+<sc-if value="{{ accOffline }}" hint-placeholder-val="{{ false }}">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-left: 6px"><span style="font-size: 15px; font-weight: 700; color: {{c.errFg}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Mac に届きません</span><span style="font-size: 12px; color: {{c.text2}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">最終取得 3 分前</span></span>
+<button type="button" style="flex: none; height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.accent}}; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer">再接続を試す</button>
+</sc-if>
+<sc-if value="{{ accAttention }}" hint-placeholder-val="{{ true }}">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-left: 6px"><span style="font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">対応待ち 2</span><span style="font-size: 12px; color: {{c.text2}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">add /approvals endpoint · <b style="font-weight: 600; color: {{c.apprFg}}">承認待ち</b></span></span>
+<span aria-hidden="true" style="flex: none; display: inline-flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font-size: 15px; font-weight: 600">開く</span>
+</sc-if>
+</div>
+<nav aria-label="タブ" style="position: absolute; left: {{g.tabSide}}px; right: {{g.tabRight}}px; bottom: {{g.tabBottom}}px; height: 62px; box-sizing: border-box; padding: 4px; display: flex; border-radius: 999px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%)">
+<sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="3"><button type="button" aria-label="{{ tb.aria }}" aria-current="{{ tb.cur }}" style="position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: 999px; background: {{tb.bg}}; color: {{tb.fg}}; font: inherit; font-size: 10px; font-weight: 600; cursor: pointer"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ tb.icon }}"></path></svg><span>{{ tb.t }}</span><sc-if value="{{ tb.badge }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="position: absolute; top: 3px; left: 54%; min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px; border-radius: 999px; background: {{c.badge}}; color: #FFFFFF; font-size: 12px; font-weight: 700; line-height: 18px; text-align: center">{{ tb.badgeT }}</span></sc-if></button></sc-for>
+</nav>
+<a href="Draft.dc.html" aria-label="新規チャット" style="position: absolute; right: {{g.tabSide}}px; bottom: {{g.tabBottom}}px; width: 62px; height: 62px; box-sizing: border-box; border-radius: 50%; border: 1px solid {{c.glassBorder}}; background: {{c.glassBg}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: {{c.accent}}; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.2 2.3 L13.7 4.8 L7.6 10.9 L4.6 11.4 L5.1 8.4 Z M9.9 3.6 L12.4 6.1 M13 9 V13.5 H2.5 V3 H7"></path></svg></a>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"dt":{"editor":"enum","options":["default","max"],"default":"default"},"size":{"editor":"enum","options":["plus","se"],"default":"plus"},"state":{"editor":"enum","options":["setConnected","setDisconnected"],"default":"setConnected"},"appear":{"editor":"enum","options":["system","light","dark"],"default":"system"},"$preview":{"width":428,"height":926}}'>
+const LG = { claude: 'lg lg-claude', codex: 'lg lg-codex', cursor: 'lg lg-cursor' };
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const dark = (p.theme ?? 'light') === 'dark';
+    const dt = (p.dt ?? 'default') === 'max';
+    const se = (p.size ?? 'plus') === 'se';
+    const st = p.state ?? 'setConnected';
+    const appearSel = p.appear ?? 'system';
+    const W = se ? 375 : 428;
+    const H = se ? 667 : 926;
+    const safeTop = se ? 20 : 47;
+
+    const c = dark ? {
+      bg: '#000000', bg0: 'rgba(0,0,0,0)', card: '#1C1C1E', text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5',
+      sep: 'rgba(84,84,88,0.65)', slot: 'rgba(235,235,245,0.38)', accent: '#F2F2F4', accentOnFill: '#000000',
+      fill: 'rgba(118,118,128,0.28)', skel: 'rgba(118,118,128,0.3)', track: 'rgba(118,118,128,0.32)',
+      iconBg: 'rgba(118,118,128,0.2)', iconFg: '#E4E4EA', on: '#30B85A',
+      okFg: '#6FD08C', okBg: 'rgba(52,199,89,0.16)', errFg: '#FF8C82', errBg: 'rgba(255,69,58,0.18)',
+      warnFg: '#FFB46E', warnBg: 'rgba(255,159,10,0.18)', warnBar: '#FF9F0A', errBar: '#FF6961', normBar: '#AEAEB6',
+      apprFg: '#FFB46E', apprBg: 'rgba(255,159,10,0.2)', badge: '#E5483F',
+      glassBg: 'rgba(38,38,42,0.6)', glassBorder: 'rgba(255,255,255,0.14)',
+      glassShadow: '0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)',
+      tabOn: 'rgba(255,255,255,0.14)', segSel: '#636366'
+    } : {
+      bg: '#F2F2F7', bg0: 'rgba(242,242,247,0)', card: '#FFFFFF', text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73',
+      sep: 'rgba(60,60,67,0.18)', slot: 'rgba(60,60,67,0.38)', accent: '#1D1D1F', accentOnFill: '#FFFFFF',
+      fill: 'rgba(118,118,128,0.12)', skel: 'rgba(118,118,128,0.16)', track: 'rgba(118,118,128,0.18)',
+      iconBg: '#EDEDF0', iconFg: '#1D1D1F', on: '#34C759',
+      okFg: '#1F7A3A', okBg: '#E3F4E8', errFg: '#B8241C', errBg: '#FDE7E5',
+      warnFg: '#A8430A', warnBg: '#FFEBD6', warnBar: '#D9730D', errBar: '#D62F26', normBar: '#6B6B73',
+      apprFg: '#A8430A', apprBg: '#FFEBD6', badge: '#D62F26',
+      glassBg: 'rgba(255,255,255,0.62)', glassBorder: 'rgba(255,255,255,0.85)',
+      glassShadow: '0 10px 30px rgba(20,20,40,0.14), 0 1px 3px rgba(20,20,40,0.08), inset 0 1px 0 rgba(255,255,255,0.95)',
+      tabOn: 'rgba(118,118,128,0.16)', segSel: '#FFFFFF'
+    };
+    const f = dt ? {
+      large: 60, title: 56, body: 53, sub: 49, foot: 44, cap: 43, mono: 44, badge: 60, icon: 34, btn: 51, btnH: 84, pct: 60
+    } : {
+      large: 34, title: 22, body: 17, sub: 15, foot: 13, cap: 12, mono: 13, badge: 36, icon: 18, btn: 17, btnH: 50, pct: 24
+    };
+    const ICON = {
+      qr: 'M2.5 2.5 H6.5 V6.5 H2.5 Z M9.5 2.5 H13.5 V6.5 H9.5 Z M2.5 9.5 H6.5 V13.5 H2.5 Z M9.5 9.5 H11 V11 H9.5 Z M12 12 H13.5 V13.5 H12 Z M12 9.5 H13.5 M9.5 13.5 H11',
+      pulse: 'M1.5 8.5 H4.5 L6 4.5 L9 12 L10.5 8.5 H14.5',
+      bell: 'M4 11.5 V7.5 A4 4 0 0 1 12 7.5 V11.5 L13 12.5 H3 Z M6.6 14 A1.5 1.5 0 0 0 9.4 14',
+      face: 'M2.5 5.5 V3.8 A1.3 1.3 0 0 1 3.8 2.5 H5.5 M10.5 2.5 H12.2 A1.3 1.3 0 0 1 13.5 3.8 V5.5 M13.5 10.5 V12.2 A1.3 1.3 0 0 1 12.2 13.5 H10.5 M5.5 13.5 H3.8 A1.3 1.3 0 0 1 2.5 12.2 V10.5 M5.8 6 V7 M10.2 6 V7 M8 6 V8.8 H7.3 M5.8 10.4 C7 11.4 9 11.4 10.2 10.4',
+      touch: 'M4.5 10 C4.5 6 6 4.5 8 4.5 C10 4.5 11.5 6 11.5 9 M6.5 12.5 C6.5 10.5 6.5 8.5 8 8.5 C9.5 8.5 9.5 10 9.5 13 M3 7.5 C3.5 4.5 5.5 2.5 8 2.5 C10.5 2.5 12.5 4.5 13 7 M8 10.5 V14',
+      host: 'M3 4 H13 V10.5 H3 Z M1.5 12.5 H14.5 M2 1.8 L14 14.2',
+      mac: 'M3 4 H13 V10.5 H3 Z M1.5 12.5 H14.5',
+      err: 'M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7',
+      warn: 'M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7',
+      stop: 'M5.2 1.8 H10.8 L14.2 5.2 V10.8 L10.8 14.2 H5.2 L1.8 10.8 V5.2 Z M5.5 8 H10.5',
+      off: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M4 12 L12 4'
+    };
+
+    const isSettings = true;
+    const disconnected = st === 'setDisconnected';
+
+    const conn = disconnected
+      ? { title: 'Mac に届きません', titleFg: c.errFg, sub: '最終取得 3 分前' }
+      : { title: 'Mac と接続中', titleFg: c.okFg, sub: '最終取得 たった今' };
+
+    const AP = (k, t, l, r) => {
+      const on = appearSel === k;
+      return { t, l, r, on, checked: on ? 'true' : 'false', w: on ? 700 : 500,
+        border: on ? '2px solid ' + c.accent : '2px solid transparent', bg: on ? c.fill : 'transparent' };
+    };
+    const appear = [AP('system', 'システム', '#F2F2F7', '#1C1C1E'), AP('light', 'ライト', '#F2F2F7', '#FFFFFF'), AP('dark', 'ダーク', '#1C1C1E', '#000000')];
+
+
+    const tabIcons = {
+      s: 'M5 8 H13 A2 2 0 0 1 15 10 V15 A2 2 0 0 1 13 17 H8.5 L5.5 19.8 V17 H5 A2 2 0 0 1 3 15 V10 A2 2 0 0 1 5 8 Z M9 8 V6 A2 2 0 0 1 11 4 H19 A2 2 0 0 1 21 6 V11 A2 2 0 0 1 19 13 H18.5 V15.5 L16 13 H15',
+      t: 'M12 9.2 A2.8 2.8 0 1 0 12 14.8 A2.8 2.8 0 1 0 12 9.2 Z M12 5.5 A6.5 6.5 0 1 0 12 18.5 A6.5 6.5 0 1 0 12 5.5 Z M12 2.5 V5.5 M12 18.5 V21.5 M2.5 12 H5.5 M18.5 12 H21.5'
+    };
+    const TAB = (t, icon, on, badge) => ({ t, icon, cur: on ? 'page' : 'false', bg: on ? c.tabOn : 'transparent', fg: on ? c.accent : c.text,
+      badge: !!badge, badgeT: badge || '', aria: t + (badge ? '、対応待ち ' + badge + ' 件' : '') });
+    const tabs = [TAB('セッション', tabIcons.s, false, disconnected ? '' : '2'), TAB('設定', tabIcons.t, true)];
+
+    const tabBottom = se ? 8 : 26;
+    const g = {
+      W, H, top: safeTop + (se ? 10 : 16), side: se ? 16 : 20, accSide: 16, tabSide: 20, tabRight: 20 + 62 + 10,
+      tabBottom, accBottom: tabBottom + 62 + 8,
+      padBottom: tabBottom + 62 + 8 + 56 + 16,
+      fadeH: tabBottom + 62 + 8 + 56 + 30
+    };
+
+    return {
+      c, f, g, ICON, conn, appear, tabs,
+      isSettings, disconnected,
+      bioLabel: se ? 'Touch ID でロック' : 'Face ID でロック',
+      bioIcon: se ? ICON.touch : ICON.face,
+      accOffline: disconnected, accAttention: !disconnected
+    };
+  }
+}
+</script>
+</body>
+</html>

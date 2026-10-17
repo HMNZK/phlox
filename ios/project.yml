@@ -114,6 +114,18 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         MARKETING_VERSION: "0.1.0"
 
+  PhloxMobileSnapshotTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: PhloxMobileSnapshotTests
+    dependencies:
+      - target: PhloxMobile
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+
   PhloxMobileUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -129,6 +141,16 @@ targets:
         TEST_TARGET_NAME: PhloxMobile
 
 schemes:
+  PhloxMobileSnapshots:
+    build:
+      targets:
+        PhloxMobile: all
+    test:
+      config: Debug
+      targets:
+        - name: PhloxMobileSnapshotTests
+          parallelizable: false
+
   PhloxMobile:
     build:
       targets:

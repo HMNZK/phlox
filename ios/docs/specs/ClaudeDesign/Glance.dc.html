@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>アプリ外の表示 · 画面の中で</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 428px; height: 926px; overflow: hidden; background: {{rootBg}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased">
+
+<!-- ===== ロック画面（Live Activity・ウィジェット・通知） ===== -->
+<sc-if value="{{ isLock }}" hint-placeholder-val="{{ true }}">
+<div style="position: absolute; left: 0; right: 0; top: 62px; text-align: center; color: {{c.lockText}}">
+<div style="font-size: 20px; font-weight: 600">10月6日 火曜日</div>
+<div style="font-size: 104px; line-height: 1; font-weight: 700; letter-spacing: -2px; margin-top: 2px">16:42</div>
+</div>
+<div style="position: absolute; left: 38px; right: 38px; top: 220px; display: flex; gap: 8px">
+<div role="img" aria-label="{{ s.aWidget }}" style="width: 172px; height: 76px; box-sizing: border-box; border-radius: 16px; background: {{c.lBg}}; color: {{c.lockText}}; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; gap: 1px">
+<sc-if value="{{ s.has }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.icon }}"></path></svg>{{ s.label }}<span style="margin-left: auto; font-size: 12px; font-weight: 500; opacity: 0.75">{{ s.ago }}</span></div>
+<div style="font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ s.name }}</div>
+<div style="font-size: 12px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ s.sub }}</div>
+</sc-if>
+<sc-if value="{{ s.empty }}" hint-placeholder-val="{{ false }}"><div style="font-size: 14px; font-weight: 700">Phlox</div><div style="font-size: 13px; opacity: 0.8">セッションはありません</div></sc-if>
+</div>
+<div aria-hidden="true" style="width: 76px; height: 76px; border-radius: 50%; background: {{c.lBg}}; color: {{c.lockText}}; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; opacity: 0.85"><span style="font-weight: 700; font-size: 22px">28°</span><span>天気</span></div>
+<div aria-hidden="true" style="width: 76px; height: 76px; border-radius: 50%; background: {{c.lBg}}; color: {{c.lockText}}; display: flex; align-items: center; justify-content: center; font-size: 11px; opacity: 0.85">電池 82%</div>
+</div>
+
+<sc-if value="{{ showLA }}" hint-placeholder-val="{{ true }}">
+<div role="img" aria-label="{{ s.aLA }}" style="position: absolute; left: 12px; right: 12px; bottom: 132px; box-sizing: border-box; border-radius: 24px; background: {{c.laBg}}; color: {{c.text}}; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: 0 6px 18px rgba(0,0,0,0.12)">
+<div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: {{c.text2}}"><span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 5px; background: {{c.accent}}; color: {{c.accentOnFill}}; font-size: 8px; font-weight: 800; display: flex; align-items: center; justify-content: center">P</span><span style="font-weight: 600">Phlox</span><span style="margin-left: auto">{{ s.laTime }}</span></div>
+<div style="display: flex; gap: 12px; align-items: center">
+<span aria-hidden="true" style="flex: none; width: 40px; height: 40px; border-radius: 50%; background: {{s.bg}}; color: {{s.fg}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ s.icon }}"></path></svg></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px"><span style="font-size: 17px; font-weight: 700; color: {{s.fg}}">{{ s.label }}</span><span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ s.name }}</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: {{c.text2}}"><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ s.detail }}</span><sc-if value="{{ s.cta }}" hint-placeholder-val="{{ false }}"><span style="flex: none; font-weight: 700; color: {{s.fg}}">タップして応答 ›</span></sc-if></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showNotifs }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 12px; right: 12px; bottom: 132px; display: flex; flex-direction: column; gap: 8px">
+<div style="padding: 0 8px; font-size: 15px; font-weight: 700; color: {{c.lockText}}">通知センター</div>
+<sc-for list="{{ notifs }}" as="n" hint-placeholder-count="4">
+<div role="img" aria-label="{{ n.aria }}" style="border-radius: 22px; background: {{c.laBg}}; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px)">
+<span aria-hidden="true" style="flex: none; width: 38px; height: 38px; border-radius: 10px; background: {{c.accent}}; color: {{c.accentOnFill}}; font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center">P</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+<div style="display: flex; gap: 6px; align-items: baseline"><span style="flex: 1; min-width: 0; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ n.title }}</span><span style="font-size: 12px; color: {{c.text2}}">{{ n.time }}</span></div>
+<div style="font-size: 14px; line-height: 1.4; color: {{c.text}}; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical">{{ n.body }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<div aria-hidden="true" style="position: absolute; left: 46px; bottom: 54px; width: 50px; height: 50px; border-radius: 50%; background: {{c.lBg}}"></div>
+<div aria-hidden="true" style="position: absolute; right: 46px; bottom: 54px; width: 50px; height: 50px; border-radius: 50%; background: {{c.lBg}}"></div>
+<div aria-hidden="true" style="position: absolute; left: 50%; bottom: 10px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: {{c.lockText}}; opacity: 0.8"></div>
+</sc-if>
+
+<!-- ===== ホーム画面 ===== -->
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 30px; top: 16px; font-size: 17px; font-weight: 600; color: {{c.lockText}}">16:42</div>
+<div role="img" aria-label="{{ s.aWidget }}" style="position: absolute; left: 27px; top: 70px; width: 170px; height: 170px; box-sizing: border-box; border-radius: 24px; background: {{c.wBg}}; color: {{c.text}}; padding: 14px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.14)">
+<sc-if value="{{ s.has }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 22px; height: 22px; border-radius: 6px; background: {{c.accent}}; color: {{c.accentOnFill}}; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center">P</span><span style="flex: 1"></span><span style="font-size: 12px; color: {{c.text2}}">{{ s.ago }}</span></div>
+<span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px 3px 6px; border-radius: 999px; background: {{s.chipBg}}; color: {{s.fg}}; font-size: 13px; font-weight: 700"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.icon }}"></path></svg>{{ s.label }}</span>
+<div style="flex: 1; min-height: 0; font-size: 15px; line-height: 1.3; font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical">{{ s.name }}</div>
+<div style="font-size: 12px; color: {{c.text2}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ s.sub }}</div>
+</sc-if>
+<sc-if value="{{ s.empty }}" hint-placeholder-val="{{ false }}">
+<svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="{{ c.text2 }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9 L3.8 3.2 H12.2 L14 9 V13 H2 Z M2 9 H5.5 L6.5 10.5 H9.5 L10.5 9 H14"></path></svg>
+<div style="flex: 1"></div>
+<div style="font-size: 15px; line-height: 1.3; font-weight: 600">セッションはありません</div>
+<div style="font-size: 12px; line-height: 1.4; color: {{c.text2}}">Mac でエージェントを動かすと、最新の 1 件がここに出ます</div>
+</sc-if>
+</div>
+<div style="position: absolute; left: 27px; top: 248px; width: 170px; text-align: center; font-size: 12px; color: {{c.lockText}}">Phlox</div>
+<sc-for list="{{ icons }}" as="ic" hint-placeholder-count="12">
+<div aria-hidden="true" style="position: absolute; left: {{ic.x}}px; top: {{ic.y}}px; width: 64px; display: flex; flex-direction: column; align-items: center; gap: 5px"><span style="width: 64px; height: 64px; border-radius: 15px; background: {{ic.bg}}; color: {{ic.fg}}; font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{ ic.t }}</span><span style="font-size: 12px; color: {{c.lockText}}; white-space: nowrap">{{ ic.label }}</span></div>
+</sc-for>
+<div aria-hidden="true" style="position: absolute; left: 12px; right: 12px; bottom: 22px; height: 96px; border-radius: 34px; background: {{c.lBg}}; backdrop-filter: blur(20px)"></div>
+<sc-for list="{{ dock }}" as="ic" hint-placeholder-count="4"><span aria-hidden="true" style="position: absolute; left: {{ic.x}}px; bottom: 38px; width: 64px; height: 64px; border-radius: 15px; background: {{ic.bg}}"></span></sc-for>
+</sc-if>
+
+<!-- ===== Dynamic Island（ほかのアプリの上） ===== -->
+<sc-if value="{{ isIsland }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; inset: 0; padding: 70px 20px 0; display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 30px; font-weight: 700; color: {{c.text}}">メモ</div>
+<sc-for list="{{ ghost }}" as="gh" hint-placeholder-count="8"><div style="height: 14px; border-radius: 7px; background: {{c.ghost}}; width: {{gh.w}}%"></div></sc-for>
+</div>
+<div style="position: absolute; left: 20px; top: 16px; font-size: 17px; font-weight: 600; color: {{c.text}}">16:42</div>
+<sc-if value="{{ compact }}" hint-placeholder-val="{{ true }}">
+<div role="img" aria-label="{{ s.aCompact }}" style="position: absolute; left: 89px; top: 11px; width: 250px; height: 37px; border-radius: 19px; background: #000000; display: flex; align-items: center; justify-content: space-between; padding: 0 12px 0 10px; box-sizing: border-box">
+<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="{{ s.dfg }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.icon }}"></path></svg>
+<span style="font-size: 13px; font-weight: 700; color: {{s.dfg}}">{{ s.short }}</span>
+</div>
+<div style="position: absolute; left: 20px; right: 20px; top: 70px; padding: 10px 12px; border-radius: 12px; border: 1.5px dashed {{c.note}}; color: {{c.note}}; font-size: 13px; line-height: 1.5; background: {{c.noteBg}}">注記: ほかのアプリを使っている間は compact。左に状態の記号、右に状態の文言。長押しで expanded、タップでセッションの詳細へ</div>
+</sc-if>
+<sc-if value="{{ expanded }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(0,0,0,0.25)"></div>
+<div role="img" aria-label="{{ s.aLA }}" style="position: absolute; left: 8px; right: 8px; top: 8px; box-sizing: border-box; border-radius: 44px; background: #000000; color: #F2F2F4; padding: 16px 22px 18px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="{{ s.dfg }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.icon }}"></path></svg><span style="font-size: 14px; font-weight: 700; color: {{s.dfg}}">{{ s.label }}</span><span style="flex: 1"></span><span style="font-size: 12px; color: #AFAFB6">Phlox</span></div>
+<div style="font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ s.name }}</div>
+<div style="display: flex; gap: 8px; align-items: center; font-size: 13px; color: #AFAFB6"><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ s.detail }}</span><sc-if value="{{ s.cta }}" hint-placeholder-val="{{ false }}"><span style="flex: none; font-weight: 700; color: {{s.dfg}}">タップして応答 ›</span></sc-if></div>
+</div>
+</sc-if>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"screen":{"editor":"enum","options":["lock","notifs","home","island","islandExp"],"default":"lock"},"state":{"editor":"enum","options":["run","appr","q","done","err","stall","end","empty"],"default":"appr"},"$preview":{"width":428,"height":926}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const dark = (p.theme ?? 'light') === 'dark';
+    const screen = p.screen ?? 'lock';
+    const st = p.state ?? 'appr';
+    const c = dark ? {
+      wall: 'linear-gradient(160deg, #1C1C20 0%, #27272C 55%, #2E2B2A 100%)', lockText: '#FFFFFF', lBg: 'rgba(255,255,255,0.16)',
+      text: '#F2F2F4', text2: '#AFAFB6', slot: 'rgba(235,235,245,0.4)', wBg: '#1C1C1E', laBg: 'rgba(28,28,30,0.82)',
+      accent: '#F2F2F4', accentOnFill: '#000000', appBg: '#000000', ghost: 'rgba(235,235,245,0.14)', badgeRing: '#1C1C1E',
+      note: '#E4E4EA', noteBg: 'rgba(0,0,0,0.3)'
+    } : {
+      wall: 'linear-gradient(160deg, #E3E5E9 0%, #ECEBEF 55%, #F3EEE9 100%)', lockText: '#1D1D1F', lBg: 'rgba(0,0,0,0.08)',
+      text: '#1D1D1F', text2: '#56565E', slot: 'rgba(60,60,67,0.38)', wBg: '#FFFFFF', laBg: 'rgba(255,255,255,0.84)',
+      accent: '#1D1D1F', accentOnFill: '#FFFFFF', appBg: '#FFFFFF', ghost: 'rgba(60,60,67,0.1)', badgeRing: '#FFFFFF',
+      note: '#1D1D1F', noteBg: 'rgba(255,255,255,0.7)'
+    };
+    const L = { run: ['#3A3A42', 'rgba(118,118,128,0.14)'], appr: ['#A8430A', '#FFEBD6'], q: ['#1555C0', '#E3EEFF'], done: ['#1F7A3A', '#E3F4E8'], err: ['#B8241C', '#FDE7E5'], stall: ['#5B3FA8', '#F1ECFB'], end: ['#56565E', 'rgba(118,118,128,0.12)'] };
+    const D = { run: ['#D4D4DA', 'rgba(118,118,128,0.3)'], appr: ['#FFB46E', 'rgba(255,159,10,0.22)'], q: ['#8DB9FF', 'rgba(10,132,255,0.24)'], done: ['#6FD08C', 'rgba(52,199,89,0.2)'], err: ['#FF8C82', 'rgba(255,69,58,0.22)'], stall: ['#C9B6FF', 'rgba(150,120,230,0.24)'], end: ['#AFAFB6', 'rgba(118,118,128,0.24)'] };
+    const ICON = {
+      run: 'M8 2.4 A5.6 5.6 0 1 1 2.4 8',
+      appr: 'M8 1.8 L13.2 3.8 V7.6 C13.2 10.9 10.9 13.3 8 14.3 C5.1 13.3 2.8 10.9 2.8 7.6 V3.8 Z M8 5.4 V8.6 M8 11 V11.1',
+      q: 'M3 2.8 H13 A1.2 1.2 0 0 1 14.2 4 V10 A1.2 1.2 0 0 1 13 11.2 H8 L5 13.8 V11.2 H3 A1.2 1.2 0 0 1 1.8 10 V4 A1.2 1.2 0 0 1 3 2.8 Z M6.6 5.6 A1.5 1.5 0 1 1 8.6 7 C8.2 7.2 8 7.5 8 8 M8 9.6 V9.7',
+      done: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M5.4 8.2 L7.2 10 L10.7 6.3',
+      err: 'M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7',
+      stall: 'M4.5 2 H11.5 M4.5 14 H11.5 M5.2 2 C5.2 5.5 10.8 5.5 10.8 8 C10.8 10.5 5.2 10.5 5.2 14 M10.8 2 C10.8 5.5 5.2 5.5 5.2 8 C5.2 10.5 10.8 10.5 10.8 14',
+      end: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M6 6 H10 V10 H6 Z'
+    };
+    // [状態の語, compact の語, Live Activity の summary（Mac が作る文言）, ウィジェットの経過, LA の時刻]
+    const META = {
+      run: ['実行中', '実行中', '', '今', ''],
+      appr: ['承認待ち', '承認待ち', '承認待ち', '1 分前', '16:41'],
+      q: ['質問あり', '質問あり', '質問があります', '2 分前', '16:40'],
+      done: ['完了', '完了', '作業が完了しました', '今', '16:42'],
+      err: ['エラー', 'エラー', 'エラーで止まりました', '2 分前', '16:40'],
+      stall: ['無応答', '無応答', '応答がありません', '3 分前', '16:39'],
+      end: ['終了', '終了', 'セッションが終了しました · exit 0', '今', '16:58']
+    };
+    // ウィジェットの補足はワークスペース名、Live Activity にはエージェント種別のデータが無い
+    const NAME = 'refactor: ControlServer proxy', SUB = 'phlox';
+    const pal = dark ? D : L;
+    let s;
+    if (st === 'empty') {
+      s = { has: false, empty: true, icon: '', label: '', short: '', detail: '', ago: '', laTime: '', name: '', sub: '', fg: '', bg: '', chipBg: '', dfg: '', dbg: '', cta: false,
+        aWidget: 'Phlox、セッションはありません', aLA: '', aCompact: '' };
+    } else {
+      const m = META[st];
+      const attn = ['appr', 'q', 'err'].includes(st);
+      s = { has: true, empty: false, icon: ICON[st], label: m[0], short: m[1], detail: m[2], ago: m[3], laTime: m[4], name: NAME, sub: SUB,
+        fg: pal[st][0], bg: pal[st][1], chipBg: attn ? pal[st][1] : 'transparent', dfg: D[st][0], dbg: attn ? D[st][1] : 'rgba(118,118,128,0.3)', cta: attn,
+        aWidget: 'Phlox、' + m[0] + '、' + NAME + '、' + SUB + '、' + m[3],
+        aLA: 'Phlox、' + m[0] + '、' + NAME + '、' + m[2], aCompact: 'Phlox、' + m[0] };
+    }
+    // 通知: タイトル＝セッション名、本文＝Mac が作る文言（Mac の表示言語）。状態の語を本文の先頭に置く案（Mac 側の文言の提案）
+    const N = (k, title, body, time) => ({ title, body, time, aria: 'Phlox、' + title + '、' + body + '、' + time });
+    const notifs = [
+      N('appr', NAME, '承認待ち — ControlServer.swift を削除して続行しますか？', '今'),
+      N('q', 'add /approvals endpoint', '質問があります — 失敗している 3 件のテストはどう扱いますか？', '2 分前'),
+      N('stall', 'write unit tests', '応答がありません — 3 分間 Mac から更新がありません', '4 分前'),
+      N('err', 'Tulip', 'エラーで止まりました — swift build が終了コード 1', '6 分前'),
+      N('done', 'Rose', '作業が完了しました', '12 分前')
+    ];
+    const xs = [27, 130, 233, 336];
+    const iconAt = (x, y, t, label, bg, fg) => ({ x, y, t, label, bg, fg });
+    const gray = dark ? '#3A3A40' : '#C9CCD6';
+    const icons = [
+      iconAt(xs[2], 70, '', '天気', gray, '#fff'), iconAt(xs[3], 70, '', 'カレンダー', gray, '#fff'),
+      iconAt(xs[2], 170, '', 'メモ', gray, '#fff'), iconAt(xs[3], 170, 'P', 'Phlox', c.accent, c.accentOnFill),
+      iconAt(xs[0], 280, '', '写真', gray, '#fff'), iconAt(xs[1], 280, '', 'カメラ', gray, '#fff'), iconAt(xs[2], 280, '', 'メール', gray, '#fff'), iconAt(xs[3], 280, '', '時計', gray, '#fff'),
+      iconAt(xs[0], 380, '', 'マップ', gray, '#fff'), iconAt(xs[1], 380, '', 'ミュージック', gray, '#fff'), iconAt(xs[2], 380, '', 'Safari', gray, '#fff'), iconAt(xs[3], 380, '', '設定', gray, '#fff')
+    ];
+    const dock = xs.map(x => ({ x, bg: gray }));
+    const ghost = [92, 76, 84, 60, 88, 70, 52, 80, 66, 90, 74].map(w => ({ w }));
+    const isLock = screen === 'lock' || screen === 'notifs';
+    const isIsland = screen === 'island' || screen === 'islandExp';
+    return {
+      c, s, notifs, icons, dock, ghost,
+      rootBg: isIsland ? c.appBg : c.wall,
+      isLock, isHome: screen === 'home', isIsland,
+      showLA: screen === 'lock' && st !== 'empty' && st !== 'run', showNotifs: screen === 'notifs',
+      compact: screen === 'island', expanded: screen === 'islandExp'
+    };
+  }
+}
+</script>
+</body>
+</html>

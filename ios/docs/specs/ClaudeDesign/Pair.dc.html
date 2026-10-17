@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>起動と接続</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+@keyframes pairspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.pair-spin{animation:none !important}}
+</style>
+</helmet>
+<div style="position: relative; width: {{g.W}}px; height: {{g.H}}px; overflow: hidden; background: {{rootBg}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased">
+
+<!-- ===== 起動ゲート ===== -->
+<sc-if value="{{ isGate }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; box-sizing: border-box; padding: {{g.gateTop}}px 24px {{g.padB}}px; display: flex; flex-direction: column">
+<div style="flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center">
+<div aria-hidden="true" style="position: relative; width: {{g.lockBox}}px; height: {{g.lockBox}}px; border-radius: 22%; background: {{c.accent}}; color: {{c.accentOnFill}}; display: flex; align-items: center; justify-content: center; font-size: {{g.logoFont}}px; font-weight: 800">P<span style="position: absolute; right: -6px; bottom: -6px; width: 30px; height: 30px; border-radius: 50%; background: {{c.card}}; color: {{c.text}}; box-shadow: 0 0 0 2px {{c.bg}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.2 H12 V14 H4 Z M5.6 7.2 V5 A2.4 2.4 0 0 1 10.4 5 V7.2 M8 10 V11.4"></path></svg></span></div>
+<h1 style="margin: 0; font-size: {{f.title}}px; line-height: 1.3; font-weight: 700">Phlox</h1>
+<p style="margin: -6px 0 0; font-size: {{f.sub}}px; line-height: 1.5; color: {{c.text2}}">エージェントを止めないリモコン</p>
+<p role="status" style="margin: 6px 0 0; font-size: {{f.sub}}px; line-height: 1.5; font-weight: 600">{{ gateStatus }}</p>
+<sc-if value="{{ gateFail }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="margin-top: 8px; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 16px; background: {{c.errBg}}; text-align: left; max-width: 100%">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: {{f.sub}}px; font-weight: 700; color: {{c.errFg}}">認証できませんでした</span><span style="font-size: {{f.foot}}px; line-height: 1.5">もう一度 Face ID を試すか、パスコードで解除してください。</span></div>
+</div>
+</sc-if>
+</div>
+<div style="flex: none; display: flex; flex-direction: column; gap: 8px">
+<button type="button" aria-disabled="{{ gateBusy }}" style="min-height: {{f.btnH}}px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; opacity: {{gateBtnOp}}; font: inherit; font-size: {{f.btn}}px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; cursor: pointer"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.face }}"></path></svg>{{ gateBtn }}</button>
+<button type="button" aria-disabled="{{ gateBusy }}" style="min-height: 44px; border: 0; background: transparent; color: {{c.accent}}; opacity: {{gateBtnOp}}; font: inherit; font-size: {{f.btn}}px; font-weight: 600; cursor: pointer">パスコードを使用</button>
+<p style="margin: 4px 0 0; text-align: center; font-size: {{f.cap}}px; line-height: 1.5; color: {{c.text2}}">トークンは Keychain に保護されています。認証するまで Mac には接続しません。</p>
+</div>
+</div>
+<sc-if value="{{ gateAuth }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; left: 50%; top: 38%; width: 160px; height: 160px; margin: -80px 0 0 -80px; border-radius: 34px; background: {{c.hud}}; box-shadow: 0 18px 50px rgba(0,0,0,0.25); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: {{c.text}}">
+<svg width="64" height="64" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ ICON.face }}"></path></svg>
+<span style="font-size: 15px; font-weight: 600">Face ID</span>
+</div>
+<div style="position: absolute; left: 0; right: 0; top: calc(38% + 92px); text-align: center; font-size: 12px; color: {{c.text3}}">（OS が表示する認証中の表示）</div>
+</sc-if>
+</sc-if>
+
+<!-- ===== 接続設定（初回） ===== -->
+<sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 0; top: 0; right: 0; bottom: {{g.setupBottom}}px; overflow: hidden; box-sizing: border-box; padding: {{g.setupTop}}px 20px 24px; display: flex; flex-direction: column; gap: 12px">
+<h1 style="margin: 0; font-size: {{f.large}}px; line-height: 1.2; font-weight: 700">Mac とつなぐ</h1>
+<p style="margin: 0; font-size: {{f.sub}}px; line-height: 1.55; color: {{c.text2}}">Mac で動いている Claude Code・Codex・Cursor のセッションを、この iPhone から見て、応答できるようにします。</p>
+<h2 style="margin: 10px 4px 0; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">先に Mac で準備すること</h2>
+<ol aria-label="Mac での準備" style="margin: 0; padding: 4px 0; list-style: none; border-radius: 18px; background: {{c.card}}">
+<sc-for list="{{ steps }}" as="s" hint-placeholder-count="3">
+<li style="display: flex; gap: 12px; padding: 12px 16px; border-top: {{s.border}}">
+<span aria-hidden="true" style="flex: none; width: {{f.num}}px; height: {{f.num}}px; border-radius: 50%; background: {{c.accentTint}}; color: {{c.accentText}}; font-size: {{f.foot}}px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ s.n }}</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+<span style="font-size: {{f.body}}px; line-height: 1.35; font-weight: 600">{{ s.t }}</span>
+<span style="font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">{{ s.d }}</span>
+<sc-if value="{{ s.illus }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="margin-top: 8px; border-radius: 12px; overflow: hidden; background: {{c.macDesk}}; border: 1px solid {{c.sep}}">
+<div style="height: 22px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 10px; background: {{c.macBar}}; font-size: 11px; color: {{c.macBarFg}}"><span>Wi‑Fi</span><span style="padding: 1px 5px; border-radius: 4px; background: {{c.accent}}; color: {{c.accentOnFill}}; font-weight: 700">Phlox</span><span>16:42</span></div>
+<div style="display: flex; justify-content: flex-end; padding: 0 22px 10px">
+<div style="width: 178px; margin-top: 2px; border-radius: 8px; background: {{c.macMenu}}; box-shadow: 0 6px 18px rgba(0,0,0,0.18); padding: 4px; font-size: 12px; color: {{c.text}}">
+<div style="padding: 4px 8px; color: {{c.text2}}">Phlox · 稼働中</div>
+<div style="padding: 4px 8px; border-radius: 5px; background: {{c.accent}}; color: {{c.accentOnFill}}; font-weight: 600">iPhone を接続…</div>
+<div style="padding: 4px 8px">設定…</div>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</li>
+</sc-for>
+</ol>
+<div style="border-radius: 16px; background: {{c.card}}; overflow: hidden">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 52px; padding: 8px 16px; box-sizing: border-box; font-size: {{f.body}}px; flex-wrap: wrap"><span>現在の接続先</span><span style="color: {{c.text2}}">未設定</span></div>
+<div style="height: 1px; margin-left: 16px; background: {{c.sep}}"></div>
+<button type="button" aria-disabled="true" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 6px 16px; border: 0; background: transparent; color: {{c.accent}}; opacity: 0.45; font: inherit; font-size: {{f.body}}px; text-align: left; cursor: default"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.pulse }}"></path></svg>疎通テスト</button>
+</div>
+<p style="margin: -4px 16px 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">疎通テストは、QR コードを読み取って接続先を保存すると押せます。</p>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; padding: 18px 20px {{g.padB}}px; display: flex; flex-direction: column; gap: 6px; background: linear-gradient(to bottom, {{c.bg0}}, {{c.bg}} 24px)">
+<button type="button" style="min-height: {{f.btnH}}px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font: inherit; font-size: {{f.btn}}px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; cursor: pointer"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.qr }}"></path></svg>QR を読み取る</button>
+<button type="button" style="min-height: 44px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: {{f.btn}}px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.photo }}"></path></svg>写真から読み取る</button>
+</div>
+</sc-if>
+
+<!-- ===== QR スキャン ===== -->
+<sc-if value="{{ isScan }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ camOn }}" hint-placeholder-val="{{ true }}">
+<div aria-hidden="true" style="position: absolute; inset: 0; background: radial-gradient(120% 70% at 30% 20%, #3A3530 0%, #1B1917 55%, #0D0C0B 100%)">
+<div style="position: absolute; left: 50%; top: {{g.frameCy}}px; width: 330px; height: 236px; margin: -130px 0 0 -165px; border-radius: 10px; background: #2A2A2E; box-shadow: 0 0 0 7px #1A1A1C, 0 30px 60px rgba(0,0,0,0.5); filter: blur(0.3px)">
+<div style="position: absolute; inset: 8px; border-radius: 4px; background: #E9E9EE; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px">
+<svg width="148" height="148" viewBox="-1 -1 27 27" shape-rendering="crispEdges"><rect x="-1" y="-1" width="27" height="27" fill="#FFFFFF"></rect><path d="{{ qrPath }}" fill="#1D1D1F"></path></svg>
+<span style="font-size: 10px; color: #56565E">iPhone の Phlox で読み取ってください</span>
+</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ camOff }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="position: absolute; inset: 0; background: #0E0E10"></div></sc-if>
+
+<sc-if value="{{ showFrame }}" hint-placeholder-val="{{ true }}">
+<div aria-hidden="true" style="position: absolute; left: 50%; top: {{g.frameCy}}px; width: {{g.frame}}px; height: {{g.frame}}px; margin: {{g.frameM}}; border-radius: 30px; box-shadow: 0 0 0 2000px {{camDim}}"></div>
+<svg aria-hidden="true" width="{{g.frame}}" height="{{g.frame}}" viewBox="0 0 100 100" fill="none" stroke="{{ frameFg }}" stroke-width="2.4" stroke-linecap="round" style="position: absolute; left: 50%; top: {{g.frameCy}}px; margin: {{g.frameM}}"><path d="M3 22 V12 A9 9 0 0 1 12 3 H22 M78 3 H88 A9 9 0 0 1 97 12 V22 M97 78 V88 A9 9 0 0 1 88 97 H78 M22 97 H12 A9 9 0 0 1 3 88 V78"></path></svg>
+</sc-if>
+
+<header style="position: absolute; left: 0; right: 0; top: {{g.safeTop}}px; height: 52px">
+<button type="button" aria-label="{{ backLabel }}" style="position: absolute; left: 16px; top: 4px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(44,44,48,0.55); backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: #FFFFFF; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.5 L4.5 8 L10 13.5"></path></svg></button>
+<h1 style="position: absolute; left: 72px; right: 72px; top: 0; height: 52px; margin: 0; display: flex; align-items: center; justify-content: center; font-size: {{f.nav}}px; font-weight: 600; color: #FFFFFF; white-space: nowrap; overflow: hidden">{{ scanTitle }}</h1>
+</header>
+
+<sc-if value="{{ showHint }}" hint-placeholder-val="{{ true }}">
+<div style="position: absolute; left: 24px; right: 24px; top: {{g.hintTop}}px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: #FFFFFF">
+<p style="margin: 0; font-size: {{f.body}}px; line-height: 1.4; font-weight: 600">Mac に表示した QR を枠に入れてください</p>
+<p style="margin: 0; font-size: {{f.foot}}px; line-height: 1.5; color: rgba(255,255,255,0.82)">遠いときはピンチで拡大できます</p>
+<sc-if value="{{ isRescan }}" hint-placeholder-val="{{ false }}"><p style="margin: 0; font-size: {{f.foot}}px; line-height: 1.5; color: rgba(255,255,255,0.82)">読み取れるまで、今の接続先 <span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace">100.64.0.1:8765</span> は変わりません</p></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ showScanBtns }}" hint-placeholder-val="{{ true }}">
+<div style="position: absolute; left: 20px; right: 20px; bottom: {{g.padB}}px; display: flex; flex-direction: column; align-items: center; gap: 6px">
+<button type="button" style="min-height: {{f.btnH}}px; padding: 8px 22px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.22); background: rgba(44,44,48,0.6); backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: #FFFFFF; font: inherit; font-size: {{f.btn}}px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.photo }}"></path></svg>写真から読み取る</button>
+<button type="button" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: rgba(255,255,255,0.88); font: inherit; font-size: {{f.foot}}px; font-weight: 600; text-decoration: underline; cursor: pointer">Mac で QR を出すには</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ camOff }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 24px; right: 24px; top: 0; bottom: {{g.padB}}px; display: flex; flex-direction: column; justify-content: center; gap: 14px; color: #FFFFFF">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div aria-hidden="true" style="width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="{{ ICON.camOff }}"></path></svg></div>
+<h2 style="margin: 0; font-size: {{f.title}}px; font-weight: 700">カメラを使えません</h2>
+<p style="margin: 0; font-size: {{f.sub}}px; line-height: 1.55; color: rgba(255,255,255,0.85)">カメラへのアクセスが許可されていません。Mac の QR をスクリーンショットにして、写真から読み取れます。</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px">
+<button type="button" style="min-height: {{f.btnH}}px; border: 0; border-radius: 999px; background: #FFFFFF; color: #1D1D1F; font: inherit; font-size: {{f.btn}}px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; cursor: pointer"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.photo }}"></path></svg>写真から読み取る</button>
+<button type="button" style="min-height: 44px; border: 0; background: transparent; color: #FFFFFF; font: inherit; font-size: {{f.btn}}px; font-weight: 600; cursor: pointer">設定アプリでカメラを許可</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showCard }}" hint-placeholder-val="{{ false }}">
+<section role="{{ card.role }}" aria-label="{{ card.heading }}" style="position: absolute; left: 12px; right: 12px; bottom: {{g.cardB}}px; box-sizing: border-box; padding: 20px; border-radius: 30px; background: {{c.card}}; color: {{c.text}}; box-shadow: 0 18px 50px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; gap: 12px; align-items: flex-start">
+<sc-if value="{{ card.spin }}" hint-placeholder-val="{{ false }}"><svg class="pair-spin" width="{{f.badge}}" height="{{f.badge}}" viewBox="0 0 16 16" fill="none" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" style="flex: none; animation: pairspin 0.9s linear infinite"><circle cx="8" cy="8" r="6" stroke="{{ c.slot }}" opacity="0.5"></circle><path d="M8 2 A6 6 0 0 1 14 8" stroke="{{ c.text2 }}"></path></svg></sc-if>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-size: {{f.cardH}}px; line-height: 1.35; font-weight: 700; color: {{card.headFg}}">{{ card.heading }}</h2>
+<p style="margin: 0; font-size: {{f.sub}}px; line-height: 1.55">{{ card.body }}</p>
+<sc-if value="{{ card.hasNext }}" hint-placeholder-val="{{ true }}"><p style="margin: 0; font-size: {{f.sub}}px; line-height: 1.55; color: {{c.text2}}">{{ card.next }}</p></sc-if>
+<sc-if value="{{ card.hasMono }}" hint-placeholder-val="{{ true }}"><div style="margin-top: 2px; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; line-height: 1.45; color: {{c.text2}}; overflow-wrap: anywhere">{{ card.mono }}</div></sc-if>
+</div>
+</div>
+<sc-if value="{{ card.hasBtn }}" hint-placeholder-val="{{ true }}"><button type="button" style="margin-top: 4px; min-height: {{f.btnH}}px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font: inherit; font-size: {{f.btn}}px; font-weight: 600; padding: 8px 16px; cursor: pointer">{{ card.btn }}</button></sc-if>
+</section>
+</sc-if>
+</sc-if>
+
+<!-- ===== 接続中（初回ペアリング直後・全画面） ===== -->
+<sc-if value="{{ isConn }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; box-sizing: border-box; padding: {{g.connTop}}px 24px {{g.padB}}px; display: flex; flex-direction: column">
+<div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: {{connJustify}}; gap: 12px; text-align: center">
+<sc-if value="{{ connBusy }}" hint-placeholder-val="{{ true }}">
+<div role="status" aria-live="polite" style="display: flex; flex-direction: column; align-items: center; gap: 14px">
+<svg class="pair-spin" width="44" height="44" viewBox="0 0 16 16" fill="none" stroke-width="1.4" stroke-linecap="round" aria-hidden="true" style="animation: pairspin 0.9s linear infinite"><circle cx="8" cy="8" r="6" stroke="{{ c.slot }}" opacity="0.5"></circle><path d="M8 2 A6 6 0 0 1 14 8" stroke="{{ c.text2 }}"></path></svg>
+<h1 style="margin: 0; font-size: {{f.title}}px; line-height: 1.3; font-weight: 700">Mac に接続しています…</h1>
+<div style="font-size: {{f.sub}}px; font-weight: 600">Ryosuke's Mac</div>
+<div style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; color: {{c.text2}}">100.64.0.1:8765</div>
+<p style="margin: 0; font-size: {{f.sub}}px; line-height: 1.55; color: {{c.text2}}">セッションの一覧を読み込んでいます（8 秒）</p>
+</div>
+<p style="margin: 18px 0 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text3}}">20 秒たっても読み込めないときは、原因を表示します</p>
+</sc-if>
+<sc-if value="{{ connFail }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px">
+<h1 style="margin: 0; font-size: {{f.title}}px; line-height: 1.3; font-weight: 700; color: {{c.errFg}}">Mac から一覧を読み込めませんでした</h1>
+<p style="margin: 0; font-size: {{f.sub}}px; line-height: 1.55; color: {{c.text2}}">接続先は保存しました。20 秒待っても Mac から応答がありません。Mac で次の 3 つを確かめてから、再試行してください。</p>
+</div>
+<ul aria-label="確かめること" style="width: 100%; margin: 6px 0 0; padding: 4px 0; list-style: none; border-radius: 16px; background: {{c.card}}; text-align: left">
+<sc-for list="{{ checks }}" as="k" hint-placeholder-count="3"><li style="display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 6px 16px; border-top: {{k.border}}; font-size: {{f.sub}}px; line-height: 1.4"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="{{ c.text2 }}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{ k.icon }}"></path></svg><span>{{ k.t }}</span></li></sc-for>
+</ul>
+<div style="width: 100%; text-align: left; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; line-height: 1.45; color: {{c.text2}}; overflow-wrap: anywhere">GET http://100.64.0.1:8765/sessions · 20 秒で無応答</div>
+</sc-if>
+</div>
+<sc-if value="{{ connFail }}" hint-placeholder-val="{{ false }}">
+<div style="flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 12px">
+<button type="button" style="min-height: {{f.btnH}}px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font: inherit; font-size: {{f.btn}}px; font-weight: 600; cursor: pointer">再試行</button>
+<button type="button" aria-describedby="close-note" style="min-height: 44px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: {{f.btn}}px; font-weight: 600; cursor: pointer">閉じる</button>
+<p id="close-note" style="margin: 0; text-align: center; font-size: {{f.cap}}px; line-height: 1.5; color: {{c.text2}}">閉じると一覧に進み、接続が戻るのを待ちます</p>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<!-- ===== 設定タブ（再ペアリング・疎通テスト） ===== -->
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; box-sizing: border-box; padding: {{g.setupTop}}px 20px 0; display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0 0 8px; font-size: {{f.large}}px; line-height: 1.2; font-weight: 700">設定</h1>
+<h2 style="margin: 6px 4px 2px; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">接続</h2>
+<div style="border-radius: 16px; background: {{c.card}}; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; padding: 10px 16px; min-height: 60px; box-sizing: border-box">
+<span style="font-size: {{f.body}}px">接続先</span>
+<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px"><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; color: {{c.text2}}">100.64.0.1:8765</span><span style="font-size: {{f.foot}}px; font-weight: 600; color: {{reach.fg}}">{{ reach.t }}</span></span>
+</div>
+<div style="height: 1px; margin-left: 16px; background: {{c.sep}}"></div>
+<button type="button" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 6px 16px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: {{f.body}}px; text-align: left; cursor: pointer"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.qr }}"></path></svg><span style="flex: 1">QR で再接続</span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="{{ c.text3 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3 L11 8 L6 13"></path></svg></button>
+<div style="height: 1px; margin-left: 16px; background: {{c.sep}}"></div>
+<button type="button" aria-busy="{{ testBusy }}" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 6px 16px; border: 0; background: transparent; color: {{c.accent}}; opacity: {{testBtnOp}}; font: inherit; font-size: {{f.body}}px; text-align: left; cursor: pointer"><svg width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ ICON.pulse }}"></path></svg><span style="flex: 1">疎通テスト</span></button>
+<sc-if value="{{ hasTest }}" hint-placeholder-val="{{ false }}">
+<div role="status" aria-live="polite" style="display: flex; gap: 10px; align-items: flex-start; margin: 0 12px 12px; padding: 10px 12px; border-radius: 12px; background: {{test.bg}}">
+<sc-if value="{{ test.spin }}" hint-placeholder-val="{{ false }}"><svg class="pair-spin" width="{{f.icon}}" height="{{f.icon}}" viewBox="0 0 16 16" fill="none" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 2px; animation: pairspin 0.9s linear infinite"><circle cx="8" cy="8" r="6" stroke="{{ c.slot }}" opacity="0.5"></circle><path d="M8 2 A6 6 0 0 1 14 8" stroke="{{ c.text2 }}"></path></svg></sc-if>
+<div style="display: flex; flex-direction: column; gap: 3px; min-width: 0"><span style="font-size: {{f.sub}}px; font-weight: 700; color: {{test.fg}}">{{ test.head }}</span><sc-if value="{{ test.hasBody }}" hint-placeholder-val="{{ false }}"><span style="font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text}}">{{ test.body }}</span></sc-if><sc-if value="{{ test.hasMono }}" hint-placeholder-val="{{ true }}"><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.cap}}px; line-height: 1.45; color: {{c.text2}}; overflow-wrap: anywhere">{{ test.mono }}</span></sc-if></div>
+</div>
+</sc-if>
+</div>
+<p style="margin: 4px 16px 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">接続先は、Mac の Phlox が表示する QR から設定します。</p>
+<h2 style="margin: 14px 4px 2px; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">セキュリティ</h2>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 6px 16px; box-sizing: border-box; border-radius: 16px; background: {{c.card}}"><span style="font-size: {{f.body}}px">Face ID でロック</span><span role="switch" aria-checked="true" aria-label="Face ID でロック" style="flex: none; width: 52px; height: 32px; border-radius: 999px; background: {{c.ok}}; position: relative"><span style="position: absolute; right: 2px; top: 2px; width: 28px; height: 28px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.2)"></span></span></div>
+<p style="margin: 4px 16px 0; font-size: {{f.foot}}px; line-height: 1.5; color: {{c.text2}}">起動時とバックグラウンドからの復帰時に認証します。</p>
+</div>
+<nav aria-label="タブ" style="position: absolute; left: {{g.tabLeft}}px; right: {{g.tabRight}}px; bottom: {{g.tabBottom}}px; height: 62px; box-sizing: border-box; padding: 4px; display: flex; border-radius: 999px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%)">
+<sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="3"><button type="button" aria-label="{{ tb.t }}" aria-current="{{ tb.cur }}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: 999px; background: {{tb.bg}}; color: {{tb.fg}}; font: inherit; font-size: 10px; font-weight: 600; cursor: pointer"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ tb.icon }}"></path></svg><span>{{ tb.t }}</span></button></sc-for>
+</nav>
+<a href="Draft.dc.html" aria-label="新規チャット" style="position: absolute; right: {{g.tabLeft}}px; bottom: {{g.tabBottom}}px; width: 62px; height: 62px; box-sizing: border-box; border-radius: 50%; border: 1px solid {{c.glassBorder}}; background: {{c.glassBg}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: {{c.accent}}; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.2 2.3 L13.7 4.8 L7.6 10.9 L4.6 11.4 L5.1 8.4 Z M9.9 3.6 L12.4 6.1 M13 9 V13.5 H2.5 V3 H7"></path></svg></a>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"dt":{"editor":"enum","options":["default","max"],"default":"default"},"size":{"editor":"enum","options":["plus","se"],"default":"plus"},"state":{"editor":"enum","options":["setup","gate","gateAuth","gateFail","scan","noCam","applying","parseErr","unreach","connecting","connectFail","settings","testing","testOk","testFail","rescan","rescanDone"],"default":"setup"},"perr":{"editor":"enum","options":["p1","p2","p3","p4","p5","photo"],"default":"p3"},"$preview":{"width":428,"height":926}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const dark = (p.theme ?? 'light') === 'dark';
+    const dt = (p.dt ?? 'default') === 'max';
+    const se = (p.size ?? 'plus') === 'se';
+    const st = p.state ?? 'setup';
+    const perr = p.perr ?? 'p3';
+    const W = se ? 375 : 428;
+    const H = se ? 667 : 926;
+    const safeTop = se ? 20 : 47;
+    const safeBot = se ? 0 : 34;
+
+    const c = dark ? {
+      bg: '#000000', bg0: 'rgba(0,0,0,0)', card: '#1C1C1E', text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5',
+      sep: 'rgba(84,84,88,0.65)', slot: 'rgba(235,235,245,0.38)', accent: '#F2F2F4', accentOnFill: '#000000',
+      accentTint: 'rgba(118,118,128,0.2)', accentText: '#E4E4EA',
+      fill: 'rgba(118,118,128,0.28)', ok: '#30B85A', okFg: '#6FD08C', okBg: 'rgba(52,199,89,0.16)',
+      errFg: '#FF8C82', errBg: 'rgba(255,69,58,0.18)', neutralBg: 'rgba(118,118,128,0.24)',
+      hud: 'rgba(44,44,48,0.9)',
+      macDesk: '#2B2D3A', macBar: 'rgba(30,30,34,0.85)', macBarFg: '#E4E4EA', macMenu: 'rgba(44,44,48,0.97)',
+      glassBg: 'rgba(38,38,42,0.6)', glassBorder: 'rgba(255,255,255,0.14)',
+      glassShadow: '0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)'
+    } : {
+      bg: '#F2F2F7', bg0: 'rgba(242,242,247,0)', card: '#FFFFFF', text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73',
+      sep: 'rgba(60,60,67,0.18)', slot: 'rgba(60,60,67,0.38)', accent: '#1D1D1F', accentOnFill: '#FFFFFF',
+      accentTint: '#EDEDF0', accentText: '#1D1D1F',
+      fill: 'rgba(118,118,128,0.12)', ok: '#34C759', okFg: '#1F7A3A', okBg: '#E3F4E8',
+      errFg: '#B8241C', errBg: '#FDE7E5', neutralBg: 'rgba(118,118,128,0.14)',
+      hud: 'rgba(250,250,252,0.9)',
+      macDesk: '#C9CEDC', macBar: 'rgba(246,246,248,0.85)', macBarFg: '#1D1D1F', macMenu: 'rgba(250,250,252,0.97)',
+      glassBg: 'rgba(255,255,255,0.62)', glassBorder: 'rgba(255,255,255,0.85)',
+      glassShadow: '0 10px 30px rgba(20,20,40,0.14), 0 1px 3px rgba(20,20,40,0.08), inset 0 1px 0 rgba(255,255,255,0.95)'
+    };
+    const f = dt ? {
+      large: 60, title: 56, body: 53, sub: 49, foot: 44, cap: 43, mono: 44, btn: 51, btnH: 84, icon: 34, sicon: 30, nav: 30, num: 58, badge: 60, cardH: 53
+    } : {
+      large: 34, title: 22, body: 17, sub: 15, foot: 13, cap: 12, mono: 13, btn: 17, btnH: 52, icon: 18, sicon: 13, nav: 17, num: 28, badge: 36, cardH: 17
+    };
+
+    const ICON = {
+      err: 'M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7',
+      face: 'M2.5 5.5 V3.8 A1.3 1.3 0 0 1 3.8 2.5 H5.5 M10.5 2.5 H12.2 A1.3 1.3 0 0 1 13.5 3.8 V5.5 M13.5 10.5 V12.2 A1.3 1.3 0 0 1 12.2 13.5 H10.5 M5.5 13.5 H3.8 A1.3 1.3 0 0 1 2.5 12.2 V10.5 M5.8 6 V7 M10.2 6 V7 M8 6 V8.8 H7.3 M5.8 10.4 C7 11.4 9 11.4 10.2 10.4',
+      qr: 'M2.5 2.5 H6.5 V6.5 H2.5 Z M9.5 2.5 H13.5 V6.5 H9.5 Z M2.5 9.5 H6.5 V13.5 H2.5 Z M9.5 9.5 H11 V11 H9.5 Z M12 12 H13.5 V13.5 H12 Z M12 9.5 H13.5 M9.5 13.5 H11',
+      photo: 'M2 3 H14 V13 H2 Z M2 11 L6 7.5 L9 10 L11 8.5 L14 11 M10.5 5.5 V5.6',
+      camOff: 'M2 5 H5 L6 3.5 H10 L11 5 H14 V13 H2 Z M8 7 A2.3 2.3 0 1 0 8 11.6 A2.3 2.3 0 1 0 8 7 Z M1.5 1.8 L14.5 14.5',
+      host: 'M3 4 H13 V10.5 H3 Z M1.5 12.5 H14.5 M2 1.8 L14 14.2',
+      mac: 'M3 4 H13 V10.5 H3 Z M1.5 12.5 H14.5',
+      net: 'M1.8 6.2 C5.2 3.2 10.8 3.2 14.2 6.2 M4 8.6 C6.3 6.8 9.7 6.8 12 8.6 M6.3 11 C7.3 10.3 8.7 10.3 9.7 11 M8 13.3 V13.4 M2.2 1.8 L13.8 14.2',
+      done: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M5.4 8.2 L7.2 10 L10.7 6.3',
+      check: 'M3.5 8.5 L6.5 11.5 L12.5 4.5',
+      moon: 'M12.5 10.2 A5.4 5.4 0 1 1 6 3.4 A4.3 4.3 0 0 0 12.5 10.2 Z',
+      app: 'M3 3 H13 V13 H3 Z M5.5 6 L7.5 8 L5.5 10 M8.5 10 H10.5',
+      link: 'M6.5 9.5 L9.5 6.5 M7 4.5 L8.2 3.3 A2.5 2.5 0 0 1 12.7 7.8 L11.5 9 M9 11.5 L7.8 12.7 A2.5 2.5 0 0 1 3.3 8.2 L4.5 7',
+      pulse: 'M1.5 8.5 H4.5 L6 4.5 L9 12 L10.5 8.5 H14.5',
+      qmark: 'M2.4 8 A5.6 5.6 0 1 0 13.6 8 A5.6 5.6 0 1 0 2.4 8 Z M6.4 6.3 A1.7 1.7 0 1 1 8.6 7.9 C8.2 8.1 8 8.4 8 8.9 M8 10.8 V10.9'
+    };
+
+    // QR pattern (deterministic)
+    const N = 25; const cells = [];
+    const finder = (x, y, ox, oy) => {
+      const dx = x - ox, dy = y - oy;
+      if (dx < 0 || dy < 0 || dx > 6 || dy > 6) return null;
+      return (dx === 0 || dy === 0 || dx === 6 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4));
+    };
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      let v = finder(x, y, 0, 0); if (v === null) v = finder(x, y, N - 7, 0); if (v === null) v = finder(x, y, 0, N - 7);
+      const nearFinder = (x < 8 && y < 8) || (x > N - 9 && y < 8) || (x < 8 && y > N - 9);
+      if (v === null) v = nearFinder ? false : (((x * 7 + y * 13 + x * y * 3) % 11) < 5);
+      if (v) cells.push('M' + x + ' ' + y + 'h1v1h-1z');
+    }
+    const qrPath = cells.join('');
+
+    const isGate = st.startsWith('gate');
+    const isSetup = st === 'setup';
+    const scanStates = ['scan', 'noCam', 'applying', 'parseErr', 'unreach', 'rescan', 'rescanDone'];
+    const isScan = scanStates.includes(st);
+    const isConn = st === 'connecting' || st === 'connectFail';
+    const isSettings = ['settings', 'testing', 'testOk', 'testFail'].includes(st);
+    const isRescan = st === 'rescan' || st === 'rescanDone';
+    const camOff = st === 'noCam';
+
+    const frame = se ? 230 : 260;
+    const frameCy = Math.round(H * (se ? 0.40 : 0.38));
+    const g = {
+      W, H, safeTop, padB: 16 + safeBot,
+      gateTop: safeTop + 40, lockBox: dt ? 96 : 84, lockIcon: dt ? 44 : 32, logoFont: dt ? 48 : 40,
+      setupTop: safeTop + (se ? 12 : 20), setupBottom: dt ? 150 : (se ? 112 : 132),
+      frame, frameCy, frameM: (-frame / 2) + 'px 0 0 ' + (-frame / 2) + 'px',
+      hintTop: frameCy + frame / 2 + 22,
+      cardB: 12 + safeBot,
+      connTop: safeTop + 24,
+      tabLeft: 20, tabRight: 20 + 62 + 10, tabBottom: se ? 8 : 26
+    };
+
+    const cardOf = {
+      applying: { role: 'status', spin: true, hasIcon: false, icon: '', iconBg: '', iconFg: '', headFg: c.text,
+        heading: '接続先を保存しています…', body: '読み取った QR から接続先を取り出しました。', next: '', mono: '100.64.0.1:8765', btn: '' },
+      unreach: { role: 'alert', spin: false, hasIcon: false, icon: '', iconBg: '', iconFg: '', headFg: c.errFg,
+        heading: 'Mac に届きません', body: '接続先は保存しました。ただ、その接続先から応答がありません。',
+        next: 'Mac と iPhone の Tailscale がオンかを確かめ、Mac 側で QR を表示し直してから、もう一度読み取ってください。',
+        mono: 'GET http://100.64.0.1:8765/sessions · 無応答', btn: 'もう一度スキャン' },
+      rescanDone: { role: 'status', spin: false, hasIcon: false, icon: '', iconBg: '', iconFg: '', headFg: c.okFg,
+        heading: '接続しました（Ryosuke\'s Mac）', body: 'これからは新しい接続先から一覧を読み込みます。', next: '', mono: '100.64.0.7:8765', btn: '' }
+    };
+    // 機能一覧 4.2 のパースエラー 5 種（検証順）と、写真から QR を見つけられないとき
+    const PERR = {
+      p1: { heading: 'ペアリング用の QR ではありません', body: '読み取った QR は Phlox の接続用ではありません。', next: 'Mac の Phlox が表示したペアリング用の QR を読み取ってください。', mono: 'https://example.com/menu' },
+      p2: { heading: 'この QR の版には対応していません', body: 'QR の版（v）が無いか、このアプリが読めない版です。', next: 'iPhone と Mac の Phlox を両方とも最新にしてから、QR を表示し直してください。', mono: 'phlox://pair?v=2&host=…' },
+      p3: { heading: 'QR に接続先がありません', body: 'QR の中に Mac のアドレス（host）が入っていません。', next: 'Mac で QR を表示し直して、もう一度読み取ってください。', mono: 'phlox://pair?v=1&port=8765&token=…（host なし）' },
+      p4: { heading: 'ポート番号が正しくありません', body: 'QR の中のポート番号が、使える範囲（1〜65535）にありません。', next: 'Mac の Phlox の設定でポートを確かめ、QR を表示し直してください。', mono: 'port=99999' },
+      p5: { heading: 'QR のトークンが正しくありません', body: 'QR の中の接続の鍵（トークン）の形が違います。', next: 'Mac で QR を表示し直して、もう一度読み取ってください。', mono: 'token=…（64 桁の 16 進ではない）' },
+      photo: { heading: '画像から QR を見つけられません', body: '選んだ画像の中に、読み取れる QR がありませんでした。', next: 'QR 全体がはっきり写ったスクリーンショットを選んでください。', mono: '' }
+    };
+    let card = null;
+    if (st === 'parseErr') {
+      const e = PERR[perr] || PERR.p2;
+      card = Object.assign({ role: 'alert', spin: false, hasIcon: false, icon: '', iconBg: '', iconFg: '', headFg: c.errFg, btn: 'もう一度スキャン' }, e);
+    } else if (cardOf[st]) card = cardOf[st];
+    if (card) { card.hasNext = !!card.next; card.hasMono = !!card.mono; card.hasBtn = !!card.btn; }
+    const showCard = !!card;
+    if (!card) card = { role: 'status', spin: false, hasIcon: false, icon: '', iconBg: '', iconFg: '', headFg: c.text, heading: '', body: '', next: '', mono: '', btn: '', hasNext: false, hasMono: false, hasBtn: false };
+
+    const steps = [
+      { n: '1', t: 'Mac で Phlox を起動する', d: 'メニューバーに Phlox のアイコンが出ていれば起動しています。', illus: false, border: '0' },
+      { n: '2', t: 'Mac と iPhone を同じ Tailscale につなぐ', d: '両方で同じアカウントにログインし、オンにします。', illus: false, border: '1px solid ' + c.sep },
+      { n: '3', t: 'Mac で QR を表示する', d: 'メニューバーの Phlox から「iPhone を接続…」を選びます。', illus: !dt, border: '1px solid ' + c.sep }
+    ];
+    const checks = [
+      { icon: ICON.moon, t: 'Mac がスリープしていない', border: '0' },
+      { icon: ICON.app, t: 'Mac で Phlox が起動している', border: '1px solid ' + c.sep },
+      { icon: ICON.link, t: 'Mac と iPhone の Tailscale がオンになっている', border: '1px solid ' + c.sep }
+    ];
+
+    const testMap = {
+      testing: { bg: c.fill, fg: c.text, spin: true, hasIcon: false, icon: '', head: '確かめています…', body: '', mono: 'GET http://100.64.0.1:8765/sessions' },
+      testOk: { bg: c.okBg, fg: c.okFg, spin: false, hasIcon: false, icon: '', head: '接続できました', body: '', mono: 'GET /sessions → 200 · 16:42 に確認' },
+      testFail: { bg: c.errBg, fg: c.errFg, spin: false, hasIcon: false, icon: '', head: 'Mac に届きません', body: 'Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。確かめてから、もう一度テストしてください。', mono: 'GET /sessions · 無応答' }
+    };
+    const test = testMap[st] || testMap.testing;
+    test.hasBody = !!test.body; test.hasMono = !!test.mono;
+    const reach = st === 'testFail'
+      ? { fg: c.errFg, t: 'Mac に届きません' }
+      : { fg: c.okFg, t: '接続中' };
+
+    const tabIcons = {
+      s: 'M5 8 H13 A2 2 0 0 1 15 10 V15 A2 2 0 0 1 13 17 H8.5 L5.5 19.8 V17 H5 A2 2 0 0 1 3 15 V10 A2 2 0 0 1 5 8 Z M9 8 V6 A2 2 0 0 1 11 4 H19 A2 2 0 0 1 21 6 V11 A2 2 0 0 1 19 13 H18.5 V15.5 L16 13 H15',
+      t: 'M12 9.2 A2.8 2.8 0 1 0 12 14.8 A2.8 2.8 0 1 0 12 9.2 Z M12 5.5 A6.5 6.5 0 1 0 12 18.5 A6.5 6.5 0 1 0 12 5.5 Z M12 2.5 V5.5 M12 18.5 V21.5 M2.5 12 H5.5 M18.5 12 H21.5'
+    };
+    const tab = (t, icon, on) => ({ t, icon, cur: on ? 'page' : 'false', bg: on ? (dark ? 'rgba(255,255,255,0.14)' : 'rgba(118,118,128,0.16)') : 'transparent', fg: on ? c.accent : c.text });
+    const tabs = [tab('セッション', tabIcons.s, false), tab('設定', tabIcons.t, true)];
+
+    const scanBusy = st === 'applying' || st === 'rescanDone';
+    return {
+      c, f, g, ICON, qrPath, steps, checks, tabs, card, test, reach,
+      rootBg: isScan ? '#000000' : c.bg,
+      isGate, isSetup, isScan, isConn, isSettings, isRescan,
+      gateAuth: st === 'gateAuth', gateFail: st === 'gateFail',
+      gateBusy: st === 'gateAuth' ? 'true' : 'false', gateBtnOp: st === 'gateAuth' ? 0.4 : 1,
+      gateBtn: st === 'gateFail' ? 'もう一度 Face ID' : 'Face ID で解除',
+      gateStatus: st === 'gateAuth' ? 'Face ID で認証中…' : (st === 'gateFail' ? '' : 'ロックされています'),
+      camOn: !camOff, camOff,
+      showFrame: !camOff,
+      frameFg: scanBusy ? '#7EE2A0' : '#FFFFFF',
+      camDim: showCard ? 'rgba(0,0,0,0.62)' : 'rgba(0,0,0,0.42)',
+      showHint: !camOff && !showCard,
+      showScanBtns: !camOff && !showCard,
+      showCard,
+      scanTitle: isRescan ? 'QR で再接続' : 'QR を読み取る',
+      backLabel: isRescan ? '設定へ戻る' : '接続設定へ戻る',
+      connBusy: st === 'connecting', connFail: st === 'connectFail',
+      connJustify: st === 'connecting' ? 'center' : 'flex-start',
+      hasTest: ['testing', 'testOk', 'testFail'].includes(st),
+      testBusy: st === 'testing' ? 'true' : 'false', testBtnOp: st === 'testing' ? 0.45 : 1
+    };
+  }
+}
+</script>
+</body>
+</html>

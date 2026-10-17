@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>操作と確認ダイアログ — 流れと機能対応表</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1400px; height: 2420px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">セッションへの操作 · 10 章／16.3 節 · 流れと機能対応表</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">入口は「…」の 1 か所。確認を挟むのは削除だけ</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #45454F">
+<span><b style="color: #1D1D1F">変更</b> 配置・挙動を変える</span>
+<span><b style="color: #8A4200">候補</b> 提案。採否を決めてほしい</span>
+<span><b style="color: #1F6B3A">解消</b> 21.2 節の不具合を正しい振る舞いで描いた</span>
+<span><b style="color: #45454F">分岐</b> 機能一覧で推測・未確認</span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: #6B6B73">N1・R1・M1・D1・E1・P1・T1</span><span>= カタログの盤面番号</span>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 18px; font-weight: 700">操作の流れ</div>
+<sc-for list="{{ flows }}" as="fl" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; line-height: 1.4">
+<span style="width: 110px; flex: none; font-weight: 700; color: {{fl.fg}}">{{ fl.name }}</span>
+<sc-for list="{{ fl.steps }}" as="s" hint-placeholder-count="5">
+<sc-if value="{{ s.arrow }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="color: #8A8A93; font-size: 13px">{{ s.t }}</span></sc-if>
+<sc-if value="{{ s.box }}" hint-placeholder-val="{{ true }}"><span style="padding: 7px 12px; border-radius: 10px; background: {{s.bg}}; border: 1px solid {{s.bd}}; color: {{s.fg}}"><b style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; margin-right: 6px; color: #6B6B73">{{ s.id }}</b>{{ s.t }}</span></sc-if>
+</sc-for>
+</div>
+</sc-for>
+<div style="font-size: 13px; line-height: 1.6; color: #45454F; padding-top: 8px; border-top: 1px solid #E6E6EC">キャンセル・Esc・アラートの外をタップ（シートは下へスワイプ）は、どの段でも「何もしない」。入力した名前は捨てる。シートとアラートは同時に 1 つだけ（ADR 0013）。通知や URL で別画面へ移るときは閉じてから移り、入力欄の本文は捨てない</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 220px 440px minmax(0, 1fr); background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">機能（章）</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">モック上の置き場所</div>
+<div style="padding: 10px 14px; background: #EEEEF2; font-weight: 700">現行からの変更と理由</div>
+<sc-for list="{{ map }}" as="m" hint-placeholder-count="16">
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC; font-weight: 600">{{ m.f }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC">{{ m.p }}</div>
+<div style="padding: 9px 14px; border-top: 1px solid #E6E6EC"><sc-if value="{{ m.hasTag }}" hint-placeholder-val="{{ true }}"><b style="color: {{m.tagFg}}; margin-right: 6px">{{ m.tag }}</b></sc-if>{{ m.r }}</div>
+</sc-for>
+</div>
+
+<div style="font-size: 13px; line-height: 1.6; color: #45454F">未配置の機能: なし。追加した機能: なし（R2 の「変更」を押せなくする、E3 の「残りを削除」は既存の操作の出し方の候補・分岐として描いた）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":2420}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const B = (id, t, kind) => {
+      const k = {
+        n: { bg: '#F2F2F6', bd: '#DCDCE3', fg: '#18181B' },
+        rev: { bg: '#EDEDF0', bd: '#E4E4EA', fg: '#1D1D1F' },
+        irr: { bg: '#FDE7E5', bd: '#F5C2BD', fg: '#8E1A14' },
+        ok: { bg: '#E3F4E8', bd: '#B9E2C6', fg: '#1F5C34' }
+      }[kind || 'n'];
+      return { box: true, arrow: false, id, t, bg: k.bg, bd: k.bd, fg: k.fg };
+    };
+    const A = (t) => ({ box: false, arrow: true, t: t || '→' });
+    const flows = [
+      { name: '名前変更', fg: '#1D1D1F', steps: [B('N1', '「…」→ 名前変更'), A(), B('R1', '名前を入れる', 'rev'), A('変更 →'), B('', '閉じてタイトルが変わる', 'ok'), A('失敗 →'), B('R3', '詳細の上に赤い帯', 'irr')] },
+      { name: 'モデル変更', fg: '#1D1D1F', steps: [B('N1', 'チップ または「…」→ モデル変更'), A(), B('M1', 'シート', 'rev'), A('行を押す →'), B('M2', '反映中', 'rev'), A('成功 →'), B('', '閉じてチップが変わる', 'ok'), A('失敗 →'), B('M3', 'シートに赤い帯', 'irr')] },
+      { name: '削除', fg: '#A11F18', steps: [B('N1', '「…」→ 削除'), A(), B('D1–D4', '確認', 'irr'), A('3 件を削除 →'), B('E1', '削除中', 'irr'), A('成功 →'), B('E5', '一覧へ戻る', 'ok'), A('失敗 →'), B('E2–E4', '失敗のアラート', 'irr'), A('もう一度削除 → E1／閉じる →'), B('', '詳細に残る')] },
+      { name: '権限の変更', fg: '#A11F18', steps: [B('', '入力欄の権限のチップ（狭い幅は「…」）'), A(), B('', '権限のメニュー', 'rev'), A('Bypass Permissions／Full Access →'), B('P1・P2', '確認', 'irr'), A('… にする →'), B('', '反映（実行中は次の指示から）', 'ok'), A('失敗 →'), B('', '入力欄の上に「権限を変更できませんでした」', 'irr')] }
+    ];
+    const T = { chg: ['変更', '#1D1D1F'], cand: ['候補', '#8A4200'], fix: ['解消', '#1F6B3A'], br: ['分岐', '#45454F'], keep: ['守る', '#45454F'] };
+    const M = (f, p, tag, r) => ({ f, p, r, hasTag: !!tag, tag: tag ? T[tag][0] : '', tagFg: tag ? T[tag][1] : '#45454F' });
+    const map = [
+      M('「…」メニュー（10）', 'N1。詳細のナビ右上。モデル変更（現在のモデル）／名前変更／広い区切り／削除（赤い文字＋ごみ箱の記号）', 'keep', '項目と順は現行どおり。削除の前だけ区切りを広げ、色だけに頼らず記号でも分ける'),
+      M('作成前のメニュー（10・21.2-6）', 'N2。新規チャット（作成前）は上部に「…」を出さない。モデルは入力欄のモデルのチップで変える（DraftSpec の決定）', 'fix', '作成前の「削除」が何も起きない／「名前変更」が存在しないセッションへ送られる不具合を、入口を出さないことで解消'),
+      M('モデル一覧が無いとき（8.5・ADR 0005）', 'N3。チップと「モデル変更」の 2 行目に Mac の既定のモデル名。開いたシートのその欄は「取得できません」の行（選べない）', 'chg', 'エラーにしない点は守る。DraftSpec の決定（全部取れないときはチップに Mac の既定のモデル名）にそろえた'),
+      M('サブエージェント詳細（10・ADR 0029）', 'メニューを出さない', 'keep', '現行どおり'),
+      M('名前変更（10）', 'R1。OS 標準のアラート＋入力欄。現在の名前で初期化。キャンセル｜変更（塗り・既定）', 'cand', '開いたときに名前を全選択しておく（打てば置き換わる）。現在の名前で初期化する点は守る'),
+      M('空・同じ名前（10）', 'R2。「変更」を押せなくする', 'cand', '現行は押すと何もせず閉じる。押せるのに何も起きないより、押せないほうが分かる。不採用なら現行どおり'),
+      M('名前変更の失敗（10）', 'R3。アラートを閉じてから、詳細の上に赤い帯（見出し・名前は元のまま・理由）', 'chg', '現行は何も出ない。失敗を見落とすと、変わったと思い込むため'),
+      M('モデル変更（8.5・10）', 'M1。新規チャットと同じ形のシート（ロゴつきのエージェントの見出し・絞り込み欄・✓・「既定」の印）で、このセッションのエージェントのモデルだけ。モデル名は Mac から届く表示名（例: Opus (1M context)）。「選択中／その他」の区分と行の下のエージェント名はやめた。行を押した時点で反映、確認なし', 'chg', '入口が 2 つ（チップと「…」）なのは守る（ADR 0010）'),
+      M('モデル変更の反映中・失敗（8.5）', 'M2 反映中（行にスピナー）／M3 失敗（シート内の赤い帯、✓ は元のまま）／M4 絞り込みで 0 件', 'chg', '現行は失敗が無表示。選んだ場所で知らせる。実行中のセッションで次の指示から反映か、すぐ反映かは未確認（分岐）'),
+      M('削除の確認（10・16.3）', 'D1–D4。OS 標準のアラート。キャンセル（太字・既定）｜「N 件を削除」（赤い文字）', 'chg', '移動元: 自前の全画面オーバーレイ → 移動先: OS 標準のアラート。HIG どおり既定をキャンセルにし、実行を塗らない'),
+      M('子孫の件数（10・21.2-6）', 'D2 実数を本文とボタンに／D3 取れないときは数を出さない', 'fix', '件数が実際と合わない不具合を、実数で出すか出さないかの 2 通りで解消'),
+      M('実行中のセッションの削除', 'D4。止まることを本文に書く', 'br', '実行中に削除できるか、止めてから消すかは機能一覧で未確認'),
+      M('削除中（16.3）', 'E1。確認を閉じてから、画面を覆う進み具合（スピナー＋「削除しています…」＋件数）。取り消しなし', 'chg', '移動元: オーバーレイの中の表示 → 移動先: 画面を覆う表示。OS のアラートは押すと閉じるため、分けて出す'),
+      M('削除の失敗（16.3）', 'E2 何も消えていない（閉じる・既定｜もう一度削除）／E3 一部だけ（分岐）／E4 通信が切れた（閉じるだけ）', 'chg', '何が残っているかを書く。結果が分からないときは再実行を出さず、二重の削除を避ける'),
+      M('削除の成功（10）', 'E5。一覧へ戻り、消えた行のぶん詰まる', 'keep', '一覧へ戻るのは現行どおり。Reduce Motion ではフェードだけ'),
+      M('VoiceOver', '確認は alertdialog。実行ボタンは「3 件を削除。元に戻せません」と読む。削除中は status で読み、終わったら「3 件を削除しました」と読み上げる', '', '赤い色が見えなくても、文言だけで取り返しがつかないと分かるようにする'),
+      M('Dynamic Type 最大', 'T1–T3。ボタンを縦に積む（実行が上、キャンセル・閉じるが下）。本文はアラート内でスクロール', 'keep', 'OS 標準の振る舞い。既定（太字）は並びが変わっても同じ'),
+      M('状態の示し方・バーとボタン', '背景の一覧の行の状態（完了。待機は一覧の行に出さない）と背景の詳細の小見出し（待機 · Claude Code）・失敗の帯（R3・M3・E 系）は文字だけ。背景の詳細のナビの丸ボタンは 44pt のガラス、入力欄はガラスのカプセル。アラートは OS 標準', 'chg', 'アプリ内は文字だけ。記号はロック画面・ウィジェット・Live Activity・Dynamic Island だけ。行の状態の記号と、帯の三角を外した（Mac と同じ）。メニューのごみ箱は操作のアイコンなので残す'),
+      M('権限の変更（確認あり）', 'P1（Claude Code · Bypass Permissions）／P2（Codex · Full Access）／P3 DT 最大。入口は入力欄の権限のチップ（狭い幅では「…」メニュー）→ 権限のメニュー。OS 標準のアラート。キャンセル（太字・既定）｜「… にする」（赤い文字）', 'chg', '確認なしで全部を許す権限だけ確認する（iPhone から最も強い権限を与えるため）。ほかの権限は確認なしで選んだ時点で反映。実行中に変えたら次の指示から効く。変えられなかったら入力欄の上に「権限を変更できませんでした」、権限は元のまま'),
+      M('Reduce Motion', 'スピナーは回さず、文言「削除しています…」で示す。行が消えるのはフェード', '', '動きが無くても状態が分かる')
+    ];
+    return { flows, map };
+  }
+}
+</script>
+</body>
+</html>

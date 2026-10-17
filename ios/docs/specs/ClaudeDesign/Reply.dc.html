@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>返答（承認・質問・入力）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.lg{display:inline-block;flex:none}
+.lg-claude,.lg-codex{background-color:currentColor;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.lg-claude{-webkit-mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7);mask-image:url(/_blob/66b7f1b7606ba770d37ef565d21126a7)}
+.lg-codex{-webkit-mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba);mask-image:url(/_blob/9b2e356e19d43dd099a2a01181b303ba)}
+.lg-cursor{background:url(/_blob/02f5e276fd254ff6f2137701b1097708) center/contain no-repeat}
+.phx-shim{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:260% 100%;background-repeat:no-repeat;animation:phx-shim 3.2s linear infinite}
+@keyframes phx-shim{from{background-position:120% 0}to{background-position:-160% 0}}
+@media (prefers-reduced-motion: reduce){.phx-shim{animation:none !important;-webkit-text-fill-color:currentColor !important;background-image:none !important}}
+</style>
+</helmet>
+<div style="position: relative; width: {{g.W}}px; height: {{g.H}}px; overflow: hidden; background: {{c.bg}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased">
+
+<div style="position: absolute; left: 0; bottom: {{g.cBottom}}px; width: {{g.W}}px; box-sizing: border-box; padding: 0 16px; display: flex; flex-direction: column; gap: 14px">
+<button type="button" aria-expanded="false" aria-label="{{ tail.label }}、{{ tail.cmd }}、{{ tail.mark }}。開く" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; box-sizing: border-box; padding: 6px 12px; border: {{tail.bw}}px solid {{tail.border}}; border-radius: 8px; background: {{c.cardBg}}; color: {{c.text}}; font: inherit; text-align: left; cursor: pointer">
+<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{ c.text3 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 3.5 L10.5 8 L6 12.5"></path></svg>
+<span style="flex: none; font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}">{{ tail.label }}</span>
+<span style="flex: 1; min-width: 0; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ tail.cmd }}</span>
+<span style="flex: none; font-family: {{tail.markFont}}; font-size: {{f.foot}}px; color: {{tail.markFg}}">{{ tail.mark }}</span>
+</button>
+<p style="margin: 0; font-size: {{f.body}}px; line-height: 1.55">{{ tail.text }}</p>
+<sc-if value="{{ tail.hasErr }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: {{c.errBg}}; color: {{c.errFg}}">
+<svg width="{{ f.icon }}" height="{{ f.icon }}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M8 2.2 L14.6 13.6 H1.4 Z M8 6.4 V9.6 M8 11.6 V11.7"></path></svg>
+<span style="flex: 1; min-width: 0; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.mono}}px; line-height: 1.5; overflow-wrap: anywhere">{{ tail.errText }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ tail.hasUsage }}" hint-placeholder-val="{{ false }}">
+<div style="text-align: right; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.cap}}px; line-height: 1.4; color: {{c.text3}}">{{ tail.usage }}</div>
+</sc-if>
+<sc-if value="{{ tail.hasUser }}" hint-placeholder-val="{{ false }}">
+<div style="align-self: flex-end; max-width: 78%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-radius: 14px; background: {{c.codeBg}}; opacity: 0.72">
+<div style="display: flex; gap: 6px"><sc-for list="{{ tail.userImgs }}" as="ui" hint-placeholder-count="2"><div role="img" aria-label="添付画像 {{ ui.n }}" style="width: 56px; height: 56px; border-radius: 10px; background: {{ui.bg}}; border: 1px solid {{c.cardBorder}}"></div></sc-for></div>
+<div style="font-size: {{f.body}}px; line-height: 1.45">{{ tail.user }}</div>
+</div>
+<span style="font-size: {{f.cap}}px; color: {{c.text2}}">送信中…</span>
+</div>
+</sc-if>
+<sc-if value="{{ tail.hasRun }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-height: 24px">
+<span class="phx-shim" style="font-size: {{f.sub}}px; font-weight: 600; color: {{c.text}}; background-image: linear-gradient(100deg, {{c.text}} 0%, {{c.text}} 42%, {{c.shine}} 50%, {{c.text}} 58%, {{c.text}} 100%); background-position: 30% 0">{{ tail.runWord }}</span>
+<span style="font-size: {{f.sub}}px; color: {{c.text2}}">{{ tail.runSum }}</span>
+</div>
+</sc-if>
+</div>
+
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: {{g.W}}px; height: {{g.edgeH}}px; background: linear-gradient(to bottom, {{c.edge}} 55%, {{c.edge0}}); pointer-events: none"></div>
+
+<header style="position: absolute; left: 0; top: {{g.safeTop}}px; width: {{g.W}}px; height: 52px">
+<a href="List.dc.html" aria-label="ホーム（セッション一覧に戻る）" style="position: absolute; left: 16px; top: 4px; width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; border: 1px solid {{c.glassBorder}}; background: {{c.glassBg}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: {{c.text}}; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.6 L8 3 L13.5 7.6 M4 6.4 V13.2 H6.8 V9.8 H9.2 V13.2 H12 V6.4"></path></svg></a>
+<div style="position: absolute; left: 72px; width: {{g.titleW}}px; top: 0; height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; text-align: center">
+<h1 style="margin: 0; max-width: 100%; font-size: {{f.nav}}px; line-height: 1.25; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ sessionName }}</h1>
+<div style="display: inline-flex; align-items: center; gap: 4px; font-size: {{f.navSub}}px; line-height: 1.25; font-weight: 600; color: {{nav.fg}}"><span>{{ nav.label }}</span><span style="font-weight: 400; color: {{c.text2}}">· {{ agentName }}</span></div>
+</div>
+<button type="button" aria-label="セッションメニュー" style="position: absolute; right: 16px; top: 4px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid {{c.glassBorder}}; background: {{c.glassBg}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: {{c.text}}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer"><svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.4"></circle><circle cx="8" cy="8" r="1.4"></circle><circle cx="12.5" cy="8" r="1.4"></circle></svg></button>
+</header>
+
+<div style="position: absolute; left: 0; bottom: 0; width: {{g.W}}px; box-sizing: border-box; padding: 0 12px {{g.padB}}px 12px; display: flex; flex-direction: column; gap: 8px">
+
+<sc-if value="{{ z.hasFail }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="padding: 0 12px; font-size: {{f.foot}}px; line-height: 1.4; font-weight: 600; color: {{c.errFg}}">{{ z.failText }}</div>
+</sc-if>
+
+<sc-if value="{{ z.appr }}" hint-placeholder-val="{{ false }}">
+<!-- 誤って承認しない工夫: ① 何を許可するか（対象・説明・差分）をボタンより上に ② カードが出た直後・内容が変わった直後の 0.6 秒はボタンが反応しない ③ 承認の後に次の承認へ自動で進まない（‹ › で自分で送る） ④ キーボード表示中は 1 行に畳む -->
+<section aria-label="承認待ち · {{ z.kind }}" style="max-height: {{g.apprMax}}px; overflow-y: auto; box-sizing: border-box; border-radius: 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%)">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-height: 28px; margin: -8px -10px -4px 0">
+<span style="font-size: {{f.foot}}px; line-height: 1.3; font-weight: 600; color: {{c.apprFg}}">承認待ち · {{ z.kind }}</span>
+<span style="font-size: {{f.foot}}px; line-height: 1.3; color: {{c.text3}}">{{ z.age }}</span>
+<sc-if value="{{ z.multi }}" hint-placeholder-val="{{ false }}">
+<div role="group" aria-label="承認 {{ z.page }}" style="margin-left: auto; display: flex; align-items: center">
+<button type="button" aria-label="前の承認" aria-disabled="true" style="width: 44px; height: 44px; border: 0; background: transparent; color: {{c.text3}}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: default"><svg width="{{ f.icon }}" height="{{ f.icon }}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 L5.5 8 L10 12.5"></path></svg></button>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.foot}}px; color: {{c.text2}}">{{ z.page }}</span>
+<button type="button" aria-label="次の承認" style="width: 44px; height: 44px; border: 0; background: transparent; color: {{c.text}}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer"><svg width="{{ f.icon }}" height="{{ f.icon }}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 L10.5 8 L6 12.5"></path></svg></button>
+</div>
+</sc-if>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.monoT}}px; line-height: 1.4; font-weight: 600; overflow-wrap: anywhere">{{ z.target }}</span>
+<span style="font-size: {{f.sub}}px; line-height: 1.45">{{ z.prompt }}</span>
+</div>
+<sc-if value="{{ z.hasDiff }}" hint-placeholder-val="{{ false }}">
+<button type="button" aria-expanded="{{ z.diffExp }}" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: -6px 0; padding: 0; border: 0; background: transparent; color: {{c.text}}; font: inherit; font-size: {{f.sub}}px; font-weight: 600; cursor: pointer"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{ c.text2 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ z.diffChev }}"></path></svg>差分を見る（2 ファイル）</button>
+</sc-if>
+<sc-if value="{{ z.diffOpen }}" hint-placeholder-val="{{ false }}">
+<div style="border-radius: 8px; border: 1px solid {{c.cardBorder}}; background: {{c.cardBg}}; overflow: hidden; font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px; border-bottom: 1px solid {{c.cardBorder}}; font-size: {{f.diff}}px">
+<span style="flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Sources/ControlServer/ProxyRouter.swift</span>
+<span style="color: {{c.addFg}}">+3</span><span style="color: {{c.delFg}}">−1</span>
+</div>
+<sc-for list="{{ z.diff }}" as="d" hint-placeholder-count="7">
+<div style="display: flex; align-items: baseline; background: {{d.bg}}; font-size: {{f.diff}}px; line-height: 1.6">
+<span style="flex: none; width: 28px; text-align: right; color: {{c.text3}}">{{ d.o }}</span>
+<span style="flex: none; width: 28px; text-align: right; color: {{c.text3}}">{{ d.n }}</span>
+<span style="flex: none; width: 18px; text-align: center; color: {{d.fg}}">{{ d.s }}</span>
+<span style="flex: 1; min-width: 0; white-space: pre; overflow: hidden; text-overflow: ellipsis">{{ d.t }}</span>
+</div>
+</sc-for>
+<button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 10px; border: 0; border-top: 1px solid {{c.cardBorder}}; background: transparent; color: {{c.text}}; font: inherit; font-size: {{f.diff}}px; text-align: left; cursor: pointer">
+<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="{{ c.text3 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 3.5 L10.5 8 L6 12.5"></path></svg>
+<span style="flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Sources/ControlServer/ControlServer.swift</span>
+<span style="color: {{c.addFg}}">+1</span><span style="color: {{c.delFg}}">−4</span>
+</button>
+</div>
+</sc-if>
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 2px">
+<div style="display: flex; flex-direction: {{g.btnDir}}; gap: 8px">
+<button type="button" style="flex: {{g.bf1}}; min-height: {{g.btnH}}px; padding: 6px 10px; border: 0; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font: inherit; font-size: {{g.btnF}}px; line-height: 1.2; font-weight: 600; cursor: pointer">許可</button>
+<button type="button" style="flex: {{g.bf2}}; min-height: {{g.btnH}}px; padding: 6px 10px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.text}}; font: inherit; font-size: {{g.btnF}}px; line-height: 1.2; font-weight: 600; cursor: pointer">このセッション中は許可</button>
+</div>
+<div style="display: flex; flex-direction: {{g.btnDir}}; gap: 8px">
+<button type="button" style="flex: {{g.bf1}}; min-height: {{g.btnH}}px; padding: 6px 10px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.errFg}}; font: inherit; font-size: {{g.btnF}}px; line-height: 1.2; font-weight: 600; cursor: pointer">拒否</button>
+<button type="button" style="flex: {{g.bf2}}; min-height: {{g.btnH}}px; padding: 6px 10px; border: 0; border-radius: 999px; background: transparent; color: {{c.text}}; font: inherit; font-size: {{g.btnF}}px; line-height: 1.2; font-weight: 500; cursor: pointer">キャンセル</button>
+</div>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{ z.apprMini }}" hint-placeholder-val="{{ false }}">
+<button type="button" aria-label="承認待ち · {{ z.kind }}、{{ z.target }}。表示するとキーボードを閉じます" style="display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 7px 0 16px; border-radius: 24px; border: 1px solid {{c.glassBorder}}; background: {{c.glassBg}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: {{c.text}}; font: inherit; text-align: left; cursor: pointer">
+<span style="flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><b style="font-weight: 600; color: {{c.apprFg}}">承認待ち · {{ z.kind }}</b><span style="color: {{c.text2}}"> · </span><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: 14px; color: {{c.text2}}">{{ z.target }}</span></span>
+<span style="flex: none; height: 34px; padding: 0 14px; border-radius: 999px; background: {{c.fill}}; color: {{c.accent}}; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center">表示</span>
+</button>
+</sc-if>
+
+<sc-if value="{{ z.q }}" hint-placeholder-val="{{ false }}">
+<section aria-label="質問待ち · DEPLOY ほか 1 問" style="max-height: {{g.qMax}}px; overflow-y: auto; box-sizing: border-box; border-radius: 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%)">
+<span style="font-size: {{f.foot}}px; line-height: 1.3; font-weight: 600; color: {{c.qFg}}">質問待ち · DEPLOY ほか 1 問</span>
+
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 4px">
+<legend style="padding: 0; display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px"><span style="display: flex; gap: 8px; align-items: center; font-size: {{f.cap}}px; font-weight: 700; letter-spacing: 0.4px; color: {{c.text2}}">1. DEPLOY<span style="font-weight: 600; letter-spacing: 0; padding: 1px 6px; border-radius: 5px; background: {{c.fill}}">1 つ選ぶ</span></span><span style="font-size: {{f.sub}}px; font-weight: 600; color: {{c.text}}">どの環境で動作確認しますか？</span></legend>
+<sc-for list="{{ q1 }}" as="o" hint-placeholder-count="2">
+<button type="button" role="radio" aria-checked="{{ o.checked }}" style="display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 2px 0; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left; cursor: pointer"><span aria-hidden="true" style="flex: none; width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; border: {{o.ring}}; background: {{o.fill}}; color: {{c.accentOnFill}}; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="{{ o.check }}"></path></svg></span><span style="display: flex; flex-direction: column"><span style="font-size: {{f.sub}}px; font-weight: {{o.w}}">{{ o.label }}</span><span style="font-size: {{f.cap}}px; color: {{c.text2}}">{{ o.desc }}</span></span></button>
+</sc-for>
+<label style="display: flex; flex-direction: column; gap: 2px; margin-top: 2px"><span style="font-size: {{f.cap}}px; color: {{c.text2}}">自由入力（入力すると選択は外れます）</span><input type="text" placeholder="選択肢以外で答える" style="min-height: 40px; border: 1px solid {{c.sep}}; border-radius: 12px; padding: 0 12px; background: {{c.card}}; color: {{c.text}}; font: inherit; font-size: {{f.sub}}px"></label>
+</fieldset>
+
+<div style="height: 1px; background: {{c.sep}}"></div>
+
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 4px">
+<legend style="padding: 0; display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px"><span style="display: flex; gap: 8px; align-items: center; font-size: {{f.cap}}px; font-weight: 700; letter-spacing: 0.4px; color: {{c.text2}}">2. CHECKS<span style="font-weight: 600; letter-spacing: 0; padding: 1px 6px; border-radius: 5px; background: {{c.fill}}">いくつでも</span></span><span style="font-size: {{f.sub}}px; font-weight: 600; color: {{c.text}}">マージ前に何を実行しますか？</span></legend>
+<sc-for list="{{ q2 }}" as="o" hint-placeholder-count="3">
+<button type="button" role="checkbox" aria-checked="{{ o.checked }}" style="display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 2px 0; border: 0; background: transparent; color: {{c.text}}; font: inherit; text-align: left; cursor: pointer"><span aria-hidden="true" style="flex: none; width: 22px; height: 22px; border-radius: 6px; box-sizing: border-box; border: {{o.ring}}; background: {{o.fill}}; color: {{c.accentOnFill}}; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="{{ o.check }}"></path></svg></span><span style="font-size: {{f.sub}}px; font-weight: {{o.w}}">{{ o.label }}</span></button>
+</sc-for>
+</fieldset>
+
+<button type="button" aria-disabled="{{ z.qDisabled }}" style="min-height: {{g.btnH}}px; padding: 6px 10px; border: 0; border-radius: 999px; background: {{z.qBtnBg}}; color: {{z.qBtnFg}}; font: inherit; font-size: {{g.btnF}}px; line-height: 1.2; font-weight: 600; cursor: pointer">回答を送信</button>
+<sc-if value="{{ z.qHint }}" hint-placeholder-val="{{ true }}"><span style="text-align: center; font-size: {{f.cap}}px; color: {{c.text2}}">あと 1 問に答えると送信できます</span></sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{ z.qPlain }}" hint-placeholder-val="{{ false }}">
+<section aria-label="質問待ち · CONTRACT" style="box-sizing: border-box; border-radius: 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; background: {{c.glassBg}}; border: 1px solid {{c.glassBorder}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%)">
+<span style="font-size: {{f.foot}}px; line-height: 1.3; font-weight: 600; color: {{c.qFg}}">質問待ち · CONTRACT</span>
+<span style="font-size: {{f.body}}px; line-height: 1.45">/approvals のレスポンス契約は v2（id・session・kind・prompt を含む）で進めますか？</span>
+<span style="font-size: {{f.cap}}px; color: {{c.text2}}">選択肢のない質問です。下の入力欄に書いて送信してください。</span>
+</section>
+</sc-if>
+
+
+<sc-if value="{{ inp.starting }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; border-radius: 26px; background: {{c.fill}}; color: {{c.text2}}; font-size: {{f.sub}}px">
+<svg width="18" height="18" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M14 8 L14 3"></path><path d="M18.24 9.76 L21.78 6.22" opacity="0.85"></path><path d="M20 14 L25 14" opacity="0.7"></path><path d="M18.24 18.24 L21.78 21.78" opacity="0.58"></path><path d="M14 20 L14 25" opacity="0.46"></path><path d="M9.76 18.24 L6.22 21.78" opacity="0.36"></path><path d="M8 14 L3 14" opacity="0.28"></path><path d="M9.76 9.76 L6.22 6.22" opacity="0.2"></path></svg>
+<span>セッションを起動しています。準備ができると入力できます</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ inp.show }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 0 12px; font-size: {{f.cap}}px; color: {{c.text3}}">
+<span style="display: inline-flex; align-items: center; gap: 4px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5 V13.5 M4.5 9.5 C4.5 6.5 11.5 8 11.5 4.5 M11.5 4.5 V2.5"></path></svg>Phlox</span>
+</div>
+
+<!--CMP:BEGIN-->
+<div style="position: relative; display: flex; flex-direction: column; gap: 6px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+<sc-if value="{{ cmp.hasErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="padding: 0 12px; font-size: {{cmp.f.err}}px; line-height: 1.4; font-weight: 600; color: {{cmp.k.errFg}}">{{ cmp.err }}</div></sc-if>
+<div style="display: flex; flex-direction: column; gap: {{cmp.f.gap}}px; box-sizing: border-box; padding: {{cmp.f.padT}}px 6px 6px; border-radius: 26px; background: {{cmp.k.glassBg}}; border: 1px solid {{cmp.border}}; box-shadow: {{cmp.k.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%)">
+<sc-if value="{{ cmp.hasAtt }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 10px; padding: 4px 8px 0">
+<sc-for list="{{ cmp.att }}" as="a" hint-placeholder-count="2">
+<div style="position: relative; flex: none; width: 60px; height: 60px">
+<div role="img" aria-label="{{ a.aria }}" style="position: absolute; left: 0; top: 4px; width: 56px; height: 56px; border-radius: 12px; background: {{a.bg}}; border: 1px solid {{cmp.k.sep}}; display: flex; align-items: flex-end; overflow: hidden"><span style="margin: 4px; padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,0.62); color: #FFFFFF; font-size: 11px; font-weight: 700; font-family: ui-monospace, 'SF Mono', Menlo, monospace">#{{ a.n }}</span></div>
+<button type="button" aria-label="{{ a.rm }}" style="position: absolute; right: -10px; top: -10px; width: 34px; height: 34px; border: 0; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer"><span aria-hidden="true" style="width: 22px; height: 22px; border-radius: 50%; background: {{cmp.k.text}}; color: {{cmp.k.accentOnFill}}; display: flex; align-items: center; justify-content: center"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 4 L12 12 M12 4 L4 12"></path></svg></span></button>
+</div>
+</sc-for>
+<span style="margin-left: auto; font-size: 12px; color: {{cmp.k.text2}}">画像 {{ cmp.attCount }}/4</span>
+</div>
+</sc-if>
+<label style="display: block; padding: 0 10px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">メッセージ</span>
+<div style="min-height: {{cmp.textMinH}}px; font-size: {{cmp.f.body}}px; line-height: {{cmp.f.lh}}; white-space: pre-wrap; overflow-wrap: anywhere"><sc-if value="{{ cmp.isEmpty }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ cmp.caret }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="display: inline-block; width: 2px; height: 1.1em; vertical-align: text-bottom; margin-right: 1px; background: {{cmp.k.accent}}"></span></sc-if><span style="color: {{cmp.k.text3}}">{{ cmp.placeholder }}</span></sc-if><sc-for list="{{ cmp.segs }}" as="s" hint-placeholder-count="1"><span style="color: {{s.c}}; font-weight: {{s.w}}">{{ s.t }}</span></sc-for><sc-if value="{{ cmp.hasText }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ cmp.caret }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="display: inline-block; width: 2px; height: 1.1em; vertical-align: text-bottom; background: {{cmp.k.accent}}"></span></sc-if></sc-if></div>
+</label>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px {{cmp.f.cg}}px; min-height: {{cmp.f.row2}}px">
+<sc-for list="{{ cmp.left }}" as="it" hint-placeholder-count="4">
+<button type="button" aria-label="{{ it.aria }}" style="flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: {{it.minW}}px; height: {{cmp.f.chipH}}px; box-sizing: border-box; padding: 0 {{cmp.f.cpx}}px; border: 0; border-radius: 999px; background: {{it.bg}}; color: {{it.fg}}; font: inherit; font-size: {{cmp.f.chip}}px; font-weight: {{it.fw}}; white-space: nowrap; cursor: pointer">
+<sc-if value="{{ it.hasLg }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" class="{{ it.lg }}" style="width: {{cmp.f.logo}}px; height: {{cmp.f.logo}}px; color: {{cmp.k.text2}}"></span></sc-if>
+<sc-if value="{{ it.hasIcon }}" hint-placeholder-val="{{ true }}"><svg width="{{ cmp.f.ic }}" height="{{ cmp.f.ic }}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="{{ it.stroke }}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ it.icon }}"></path></svg></sc-if>
+<sc-if value="{{ it.hasLabel }}" hint-placeholder-val="{{ false }}"><span style="max-width: {{it.maxW}}px; overflow: hidden; text-overflow: ellipsis">{{ it.label }}</span></sc-if>
+<sc-if value="{{ it.hasChevSvg }}" hint-placeholder-val="{{ false }}"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="{{ cmp.k.text2 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.2 L8 10 L12 6.2"></path></svg></sc-if>
+</button>
+</sc-for>
+<span style="flex: 1 1 0; min-width: 0"></span>
+<sc-for list="{{ cmp.right }}" as="it" hint-placeholder-count="1">
+<button type="button" aria-label="{{ it.aria }}" style="flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: {{cmp.f.chipH}}px; box-sizing: border-box; padding: 0 {{cmp.f.cpx}}px; border: 0; border-radius: 999px; background: {{it.bg}}; color: {{it.fg}}; font: inherit; font-size: {{cmp.f.chip}}px; font-weight: 500; white-space: nowrap; cursor: pointer">
+<svg width="{{ cmp.f.ic }}" height="{{ cmp.f.ic }}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ it.icon }}"></path></svg>
+<sc-if value="{{ it.hasLabel }}" hint-placeholder-val="{{ true }}"><span>{{ it.label }}</span></sc-if>
+<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="{{ cmp.k.text2 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.2 L8 10 L12 6.2"></path></svg>
+</button>
+</sc-for>
+<sc-if value="{{ cmp.showStop }}" hint-placeholder-val="{{ false }}"><button type="button" aria-label="停止" style="flex: none; width: {{cmp.f.chipH}}px; height: {{cmp.f.chipH}}px; border-radius: 50%; border: 0; background: {{cmp.k.stop}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer"><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"></rect></svg></button></sc-if>
+<sc-if value="{{ cmp.showSend }}" hint-placeholder-val="{{ true }}"><button type="button" aria-label="{{ cmp.sendAria }}" aria-disabled="{{ cmp.sendDis }}" style="flex: none; width: {{cmp.f.chipH}}px; height: {{cmp.f.chipH}}px; border-radius: 50%; border: 0; background: {{cmp.sendBg}}; color: {{cmp.sendFg}}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13 V3.5 M3.8 7.5 L8 3.3 L12.2 7.5"></path></svg></button></sc-if>
+<sc-if value="{{ cmp.showSpin }}" hint-placeholder-val="{{ false }}"><span role="status" aria-label="{{ cmp.sendAria }}" style="flex: none; width: {{cmp.f.chipH}}px; height: {{cmp.f.chipH}}px; border-radius: 50%; background: {{cmp.k.fill}}; color: {{cmp.k.text2}}; display: flex; align-items: center; justify-content: center"><svg width="17" height="17" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M14 8 L14 3"></path><path d="M18.24 9.76 L21.78 6.22" opacity="0.85"></path><path d="M20 14 L25 14" opacity="0.7"></path><path d="M18.24 18.24 L21.78 21.78" opacity="0.58"></path><path d="M14 20 L14 25" opacity="0.46"></path><path d="M9.76 18.24 L6.22 21.78" opacity="0.36"></path><path d="M8 14 L3 14" opacity="0.28"></path><path d="M9.76 9.76 L6.22 6.22" opacity="0.2"></path></svg></span></sc-if>
+</div>
+</div>
+<sc-if value="{{ cmp.hasUse }}" hint-placeholder-val="{{ true }}">
+<button type="button" aria-label="{{ cmp.use.aria }}" aria-haspopup="dialog" aria-expanded="{{ cmp.use.exp }}" style="display: flex; flex-direction: column; justify-content: center; gap: {{cmp.use.u.lineGap}}px; height: {{cmp.use.h}}px; margin-bottom: -8px; box-sizing: border-box; padding: 0 {{cmp.use.u.padX}}px; border: 0; background: transparent; color: {{cmp.k.text2}}; font: inherit; font-size: {{cmp.use.u.fs}}px; line-height: 1; font-variant-numeric: tabular-nums; text-align: left; cursor: pointer">
+<sc-for list="{{ cmp.use.lines }}" as="ln" hint-placeholder-count="1">
+<span aria-hidden="true" style="display: flex; align-items: center; gap: {{cmp.use.u.gAg}}px; height: {{cmp.use.u.lineH}}px; white-space: nowrap">
+<sc-for list="{{ ln.items }}" as="it" hint-placeholder-count="3">
+<sc-if value="{{ it.isAgent }}" hint-placeholder-val="{{ true }}"><span style="flex: none; display: inline-flex; align-items: center"><span class="{{ it.lg }}" style="width: {{cmp.use.u.logo}}px; height: {{cmp.use.u.logo}}px; color: {{cmp.k.text2}}"></span><sc-for list="{{ it.win }}" as="w" hint-placeholder-count="2"><span style="display: inline-flex; align-items: center; gap: {{cmp.use.u.gTag}}px; margin-left: {{w.ml}}px"><svg width="{{ cmp.use.u.ring }}" height="{{ cmp.use.u.ring }}" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="{{ w.track }}" stroke-width="{{ cmp.use.u.sw }}"></circle><circle cx="10" cy="10" r="8" stroke="{{ w.fg }}" stroke-width="{{ cmp.use.u.sw }}" stroke-linecap="{{ w.cap }}" stroke-dasharray="{{ w.dash }}" transform="rotate(-90 10 10)"></circle></svg><sc-if value="{{ w.hasTag }}" hint-placeholder-val="{{ false }}"><span style="color: {{w.tagFg}}; font-weight: {{w.tagFw}}">{{ w.tag }}</span></sc-if></span></sc-for></span></sc-if>
+<sc-if value="{{ it.isTag }}" hint-placeholder-val="{{ false }}"><span style="margin-left: auto; color: {{cmp.k.text2}}">{{ it.t }}</span></sc-if>
+</sc-for>
+</span>
+</sc-for>
+</button>
+</sc-if>
+<sc-if value="{{ cmp.usePop }}" hint-placeholder-val="{{ false }}">
+<div role="dialog" aria-label="使用量の詳細" style="position: absolute; left: 0; bottom: {{cmp.use.popBottom}}px; width: {{cmp.use.popW}}px; box-sizing: border-box; padding: 12px 14px 12px; border-radius: 18px; background: {{cmp.k.menuBg}}; box-shadow: 0 16px 48px rgba(0,0,0,0.28); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); display: flex; flex-direction: column; gap: 10px; color: {{cmp.k.text}}; font-size: {{cmp.use.u.pfs}}px; line-height: 1.35; font-variant-numeric: tabular-nums">
+<sc-if value="{{ cmp.use.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size: {{cmp.use.u.pcap}}px; line-height: 1.45; color: {{cmp.k.text2}}">{{ cmp.use.note }}</div></sc-if>
+<div style="display: grid; grid-template-columns: {{cmp.use.u.cols}}; gap: 8px; font-size: {{cmp.use.u.pcap}}px; font-weight: 600; color: {{cmp.k.text2}}"><span>枠</span><span>残り</span><span>リセット</span></div>
+<sc-for list="{{ cmp.use.pop }}" as="a" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 3px; padding-top: 8px; border-top: 1px solid {{cmp.k.sep}}">
+<div style="display: flex; align-items: center; gap: 6px; font-weight: 600"><span aria-hidden="true" class="{{ a.lg }}" style="width: {{cmp.use.u.logo}}px; height: {{cmp.use.u.logo}}px; color: {{cmp.k.text2}}"></span><span>{{ a.name }}</span></div>
+<sc-if value="{{ a.na }}" hint-placeholder-val="{{ false }}"><div style="color: {{cmp.k.text2}}">取得できません</div></sc-if>
+<sc-for list="{{ a.rows }}" as="r" hint-placeholder-count="2">
+<div style="display: grid; grid-template-columns: {{cmp.use.u.cols}}; gap: 8px; align-items: baseline"><span style="color: {{cmp.k.text2}}">{{ r.n }}</span><span style="color: {{r.fg}}; font-weight: {{r.fw}}">{{ r.pct }}</span><span style="color: {{cmp.k.text2}}">{{ r.reset }}</span></div>
+</sc-for>
+</div>
+</sc-for>
+<span aria-hidden="true" style="position: absolute; left: {{cmp.use.arrowLeft}}px; bottom: -6px; width: 12px; height: 12px; background: {{cmp.k.menuBg}}; transform: rotate(45deg)"></span>
+</div>
+</sc-if>
+<sc-if value="{{ cmp.menuEffort }}" hint-placeholder-val="{{ false }}">
+<div role="menu" aria-label="思考の強さ" style="position: absolute; left: {{cmp.menuLeft}}px; bottom: {{cmp.menuBottom}}px; width: {{cmp.menuW}}px; border-radius: 18px; overflow: hidden; background: {{cmp.k.menuBg}}; box-shadow: 0 16px 48px rgba(0,0,0,0.28); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%)">
+<div style="padding: 10px 16px 6px; font-size: 13px; font-weight: 600; color: {{cmp.k.text2}}">{{ cmp.menuTitle }}</div>
+<sc-for list="{{ cmp.effortItems }}" as="m" hint-placeholder-count="5">
+<button type="button" role="menuitemradio" aria-checked="{{ m.on }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 16px; border: 0; border-top: 1px solid {{cmp.k.sep}}; background: transparent; color: {{m.fg}}; font: inherit; font-size: 17px; font-weight: {{m.fw}}; text-align: left; cursor: pointer"><span style="width: 18px; color: {{cmp.k.accent}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ m.check }}"></path></svg></span><span style="flex: 1">{{ m.t }}</span><sc-if value="{{ m.hasSub }}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; color: {{cmp.k.text2}}">{{ m.sub }}</span></sc-if></button>
+</sc-for>
+<div style="padding: 8px 16px 12px; border-top: 1px solid {{cmp.k.sep}}; font-size: 12px; line-height: 1.45; color: {{cmp.k.text2}}">{{ cmp.menuNote }}</div>
+</div>
+</sc-if>
+<sc-if value="{{ cmp.menuPerm }}" hint-placeholder-val="{{ false }}">
+<div role="menu" aria-label="権限" style="position: absolute; left: {{cmp.menuLeft}}px; bottom: {{cmp.menuBottom}}px; width: {{cmp.menuW}}px; border-radius: 18px; overflow: hidden; background: {{cmp.k.menuBg}}; box-shadow: 0 16px 48px rgba(0,0,0,0.28); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%)">
+<div style="padding: 10px 16px 6px; font-size: 13px; font-weight: 600; color: {{cmp.k.text2}}">{{ cmp.menuTitle }}</div>
+<sc-for list="{{ cmp.permItems }}" as="m" hint-placeholder-count="6">
+<button type="button" role="menuitemradio" aria-checked="{{ m.on }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 16px; border: 0; border-top: 1px solid {{cmp.k.sep}}; background: transparent; color: {{m.fg}}; font: inherit; font-size: 17px; font-weight: {{m.fw}}; text-align: left; cursor: pointer"><span style="width: 18px; color: {{cmp.k.accent}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ m.check }}"></path></svg></span><span style="flex: 1">{{ m.t }}</span><sc-if value="{{ m.hasSub }}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; color: {{cmp.k.text2}}">{{ m.sub }}</span></sc-if></button>
+</sc-for>
+<div style="padding: 8px 16px 12px; border-top: 1px solid {{cmp.k.sep}}; font-size: 12px; line-height: 1.45; color: {{cmp.k.text2}}">{{ cmp.menuNote }}</div>
+</div>
+</sc-if>
+<sc-if value="{{ cmp.menuProject }}" hint-placeholder-val="{{ false }}">
+<div role="menu" aria-label="プロジェクト" style="position: absolute; left: {{cmp.menuLeft}}px; bottom: {{cmp.menuBottom}}px; width: {{cmp.menuW}}px; border-radius: 18px; overflow: hidden; background: {{cmp.k.menuBg}}; box-shadow: 0 16px 48px rgba(0,0,0,0.28); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%)">
+<div style="padding: 10px 16px 6px; font-size: 13px; font-weight: 600; color: {{cmp.k.text2}}">{{ cmp.menuTitle }}</div>
+<sc-for list="{{ cmp.projectItems }}" as="m" hint-placeholder-count="4">
+<button type="button" role="menuitemradio" aria-checked="{{ m.on }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 16px; border: 0; border-top: 1px solid {{cmp.k.sep}}; background: transparent; color: {{m.fg}}; font: inherit; font-size: 17px; font-weight: {{m.fw}}; text-align: left; cursor: pointer"><span style="width: 18px; color: {{cmp.k.accent}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ m.check }}"></path></svg></span><span style="flex: 1">{{ m.t }}</span><sc-if value="{{ m.hasSub }}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; color: {{cmp.k.text2}}">{{ m.sub }}</span></sc-if></button>
+</sc-for>
+<div style="padding: 8px 16px 12px; border-top: 1px solid {{cmp.k.sep}}; font-size: 12px; line-height: 1.45; color: {{cmp.k.text2}}">{{ cmp.menuNote }}</div>
+</div>
+</sc-if>
+<sc-if value="{{ cmp.menuMore }}" hint-placeholder-val="{{ false }}">
+<div role="menu" aria-label="思考の強さと権限" style="position: absolute; left: {{cmp.menuLeft}}px; bottom: {{cmp.menuBottom}}px; width: {{cmp.menuW}}px; border-radius: 18px; overflow: hidden; background: {{cmp.k.menuBg}}; box-shadow: 0 16px 48px rgba(0,0,0,0.28); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%)">
+<sc-for list="{{ cmp.moreItems }}" as="m" hint-placeholder-count="2">
+<button type="button" role="menuitem" aria-haspopup="menu" aria-label="{{ m.t }}、{{ m.val }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-top: {{m.border}}; background: transparent; color: {{cmp.k.text}}; font: inherit; font-size: 17px; text-align: left; cursor: pointer"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ m.icon }}"></path></svg><span style="flex: 1; display: flex; flex-direction: column; gap: 1px"><span>{{ m.t }}</span><span style="font-size: 13px; color: {{cmp.k.text2}}">{{ m.val }}</span></span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="{{ cmp.k.text2 }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 L10.5 8 L6 12.5"></path></svg></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<!--CMP:END-->
+</sc-if>
+
+<sc-if value="{{ keyboard }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="height: {{g.kbH}}px; margin: 0 -12px; display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(135deg, {{c.kb1}} 0 10px, {{c.kb2}} 10px 20px); color: {{c.text2}}; font-size: 15px; font-weight: 600">キーボード（OS が表示。本文をスクロールすると閉じる）</div>
+</sc-if>
+</div>
+
+<sc-if value="{{ msheet }}" hint-placeholder-val="{{ false }}">
+<!--CMPSHEET:BEGIN-->
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: {{sh.W}}px; height: {{sh.H}}px; background: {{sh.k.dim}}"></div>
+<div role="dialog" aria-label="{{ sh.title }}" style="position: absolute; left: 8px; bottom: 8px; width: {{sh.sheetW}}px; height: {{sh.sheetH}}px; box-sizing: border-box; border-radius: 38px; background: {{sh.k.sheetBg}}; box-shadow: 0 -10px 40px rgba(0,0,0,0.2); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); overflow: hidden; display: flex; flex-direction: column; color: {{sh.k.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+<div aria-hidden="true" style="align-self: center; width: 36px; height: 5px; border-radius: 3px; background: {{sh.k.slot}}; margin-top: 8px"></div>
+<div style="display: flex; align-items: center; height: 52px; padding: 0 12px">
+<button type="button" style="min-width: 64px; height: 44px; border: 0; border-radius: 999px; background: {{sh.k.fill}}; color: {{sh.k.text}}; font: inherit; font-size: 15px; font-weight: 600; padding: 0 14px; cursor: pointer">閉じる</button>
+<h2 style="flex: 1; margin: 0; text-align: center; font-size: 17px; font-weight: 700">{{ sh.title }}</h2>
+<span style="min-width: 64px"></span>
+</div>
+<div style="padding: 4px 16px 8px"><label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; background: {{sh.k.fill}}; color: {{sh.k.text2}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M7 2.5 A4.5 4.5 0 1 0 7 11.5 A4.5 4.5 0 1 0 7 2.5 Z M10.3 10.3 L13.5 13.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">モデルを絞り込む</span><input type="search" placeholder="絞り込み" style="flex: 1; min-width: 0; border: 0; background: transparent; color: {{sh.k.text}}; font: inherit; font-size: 16px; outline: none"></label></div>
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 0 16px 16px; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ sh.secs }}" as="sec" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 8px; margin: 12px 4px 6px; font-size: 13px; font-weight: 700; color: {{sh.k.text2}}"><span aria-hidden="true" class="{{ sec.lg }}" style="width: 16px; height: 16px; color: {{sh.k.text2}}"></span>{{ sec.name }}</div>
+<div role="group" aria-label="{{ sec.name }}" style="border-radius: 16px; background: {{sh.k.card}}; overflow: hidden">
+<sc-if value="{{ sec.na }}" hint-placeholder-val="{{ false }}"><div aria-disabled="true" style="display: flex; align-items: center; min-height: 52px; padding: 0 16px; font-size: 16px; color: {{sh.k.text3}}">取得できません</div></sc-if>
+<sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="3">
+<button type="button" role="option" aria-selected="{{ r.on }}" aria-label="{{ r.aria }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-top: {{r.bt}}; background: transparent; color: {{sh.k.text}}; font: inherit; font-size: 17px; font-weight: {{r.fw}}; text-align: left; cursor: pointer"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ r.n }}</span><sc-if value="{{ r.isDef }}" hint-placeholder-val="{{ false }}"><span style="flex: none; padding: 1px 8px; border-radius: 999px; background: {{sh.k.fill}}; color: {{sh.k.text2}}; font-size: 12px; font-weight: 600">既定</span></sc-if><span style="flex: none; width: 20px; color: {{sh.k.accent}}"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ r.check }}"></path></svg></span></button>
+</sc-for>
+<sc-if value="{{ sec.hasMore }}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 16px; border-top: 1px solid {{sh.k.sep}}; font-size: 13px; color: {{sh.k.text2}}">{{ sec.more }}</div></sc-if>
+</div>
+</sc-for>
+<div style="margin: 8px 4px 0; font-size: 12px; line-height: 1.5; color: {{sh.k.text2}}">{{ sh.note }}</div>
+</div>
+</div>
+<!--CMPSHEET:END-->
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"dt":{"editor":"enum","options":["default","max"],"default":"default"},"size":{"editor":"enum","options":["plus","se"],"default":"plus"},"state":{"editor":"enum","options":["empty","typing","attach","attachErr","runEmpty","runText","sending","done","error","starting","keyboard","keyboardAppr","approval","approvalFail","approvalDiff","codex","question","questionFail","questionPlain","model","effort","perm","permFail","haiku","more","permDanger"],"default":"approval"},"aerr":{"editor":"enum","options":["count","size","total","dim","load"],"default":"count"},"use":{"editor":"enum","options":["normal","low","na","stale","refreshing","pop"],"default":"normal"},"$preview":{"width":428,"height":926}}'>
+const LG = { claude: 'lg lg-claude', codex: 'lg lg-codex', cursor: 'lg lg-cursor' };
+/*CMPCORE:BEGIN*/
+// ---- 入力欄の共通部品（新規チャット・セッション画面で共通。Mac 版の新規チャットと同じ） ----
+const CMP_LG = { claude: 'lg lg-claude', codex: 'lg lg-codex', cursor: 'lg lg-cursor' };
+const CMP_AGENT = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor' };
+// モデル名は Mac から届く表示名のまま（例）。effort: そのモデルの段階（空なら思考の強さのチップを出さない）
+const CMP_MODELS = {
+  claude: [
+    { n: 'Opus (1M context)', effort: ['低', '中', '高', '非常に高', '最大'], def: '高' },
+    { n: 'Sonnet 5', effort: ['低', '中', '高', '非常に高', '最大'], def: '高', isDefault: true },
+    { n: 'Haiku 5.5', effort: [], def: '' }
+  ],
+  codex: [
+    { n: 'gpt-6.1-sol', effort: ['低', '中', '高'], def: '中', isDefault: true },
+    { n: 'gpt-6.1-codex', effort: ['低', '中', '高', '最大'], def: '中' },
+    { n: 'gpt-6.1-mini', effort: ['低', '中'], def: '低' }
+  ],
+  cursor: [
+    { n: 'Auto', effort: [], def: '', isDefault: true },
+    { n: 'composer-1', effort: [], def: '' },
+    { n: 'sonnet-5-thinking', effort: ['低', '中', '高'], def: '中' },
+    { n: 'gpt-6.1-sol', effort: ['低', '中', '高'], def: '中' },
+    { n: 'opus-1m', effort: [], def: '' }
+  ]
+};
+const CMP_CURSOR_MORE = 34;
+const CMP_PERMS = {
+  claude: ['Manual', 'Accept Edits', 'Auto', 'Bypass Permissions', "Don't Ask", 'Plan'],
+  codex: ['Read Only', 'Default', 'Full Access', 'Plan'],
+  cursor: ['既定', 'Ask', 'Plan']
+};
+const CMP_PERM_DEF = { claude: 'Manual', codex: 'Default', cursor: '既定' };
+const CMP_DANGER = { 'Bypass Permissions': true, 'Full Access': true };
+const CMP_ICON = {
+  plus: 'M8 2.5 V13.5 M2.5 8 H13.5',
+  chev: 'M4 6.2 L8 10 L12 6.2',
+  gauge: 'M2.5 11.5 A5.5 5.5 0 1 1 13.5 11.5 M8 11.5 L10.6 7.4',
+  shield: 'M8 1.8 L13.2 3.8 V7.6 C13.2 10.9 10.9 13.3 8 14.3 C5.1 13.3 2.8 10.9 2.8 7.6 V3.8 Z',
+  folder: 'M1.8 4.2 A1 1 0 0 1 2.8 3.2 H6.2 L7.6 4.8 H13.2 A1 1 0 0 1 14.2 5.8 V12 A1 1 0 0 1 13.2 13 H2.8 A1 1 0 0 1 1.8 12 Z',
+  more: 'M3.5 8 H3.6 M8 8 H8.1 M12.5 8 H12.6',
+  up: 'M8 13 V3.5 M3.8 7.5 L8 3.3 L12.2 7.5',
+  check: 'M3.5 8.5 L6.5 11.5 L12.5 4.5',
+  next: 'M6 3.5 L10.5 8 L6 12.5',
+  search: 'M7 2.5 A4.5 4.5 0 1 0 7 11.5 A4.5 4.5 0 1 0 7 2.5 Z M10.3 10.3 L13.5 13.5',
+  x: 'M4 4 L12 12 M12 4 L4 12'
+};
+function cmpColors(dark) {
+  return dark ? {
+    text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5', accent: '#F2F2F4', accentOnFill: '#000000',
+    fill: 'rgba(118,118,128,0.28)', chip: 'rgba(118,118,128,0.22)', sep: 'rgba(84,84,88,0.65)', errFg: '#FF8C82', stop: '#E5483F',
+    glassBg: 'rgba(38,38,42,0.62)', glassBorder: 'rgba(255,255,255,0.14)',
+    glassShadow: '0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)', focus: 'rgba(255,255,255,0.32)',
+    menuBg: 'rgba(44,44,48,0.92)', menuGap: 'rgba(0,0,0,0.3)', att: ['#3A3A40', '#2E4038', '#4A3A2E', '#2F3A4F'],
+    sheetBg: 'rgba(28,28,30,0.97)', card: '#2C2C2E', dim: 'rgba(0,0,0,0.45)', slot: 'rgba(235,235,245,0.38)', danger: '#FF8C82'
+  } : {
+    text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73', accent: '#1D1D1F', accentOnFill: '#FFFFFF',
+    fill: 'rgba(118,118,128,0.12)', chip: 'rgba(118,118,128,0.10)', sep: 'rgba(60,60,67,0.18)', errFg: '#B8241C', stop: '#D62F26',
+    glassBg: 'rgba(255,255,255,0.66)', glassBorder: 'rgba(255,255,255,0.85)',
+    glassShadow: '0 10px 30px rgba(20,20,40,0.14), 0 1px 3px rgba(20,20,40,0.08), inset 0 1px 0 rgba(255,255,255,0.95)', focus: 'rgba(60,60,67,0.30)',
+    menuBg: 'rgba(250,250,252,0.94)', menuGap: 'rgba(60,60,67,0.08)', att: ['#DCDCE2', '#CFE5D8', '#F0DCCB', '#CFDCEE'],
+    sheetBg: 'rgba(242,242,247,0.98)', card: '#FFFFFF', dim: 'rgba(0,0,0,0.25)', slot: 'rgba(60,60,67,0.38)', danger: '#B8241C'
+  };
+}
+function cmpTW(t, fs) {
+  let w = 0;
+  for (const ch of String(t)) {
+    const k = ch.charCodeAt(0);
+    w += k > 0xff ? fs : (/[A-Z0-9]/.test(ch) ? fs * 0.64 : (/[a-z]/.test(ch) ? fs * 0.53 : fs * 0.33));
+  }
+  return w;
+}
+// o: { dark, dt, width, mode: 'draft'|'session', agent, model, effort, perm, segs: [{t, tok}], caret, focus,
+//      attach: [n], err, project, run: 'idle'|'running'|'sending'|'creating', menu: ''|'effort'|'perm'|'overflow', canStop,
+//      use: 'normal'|'low'|'na'|'stale'|'refreshing'|'pop'|'off'（入力欄の下の使用量の行） }
+function cmpVals(o) {
+  const k = cmpColors(!!o.dark);
+  const dt = !!o.dt;
+  const W = Number(o.width) || 396;
+  const f = dt
+    ? { body: 40, chip: 26, ic: 26, logo: 26, chipH: 58, row2: 60, padT: 14, gap: 10, cg: 6, err: 30, cpx: 12, lh: 1.32 }
+    : { body: 17, chip: 13, ic: 14, logo: 15, chipH: 34, row2: 36, padT: 10, gap: 6, cg: 3, err: 13, cpx: 7, lh: 1.42 };
+  const agent = o.agent || 'claude';
+  const list = CMP_MODELS[agent];
+  const mdl = list.find((m) => m.n === o.model) || list.find((m) => m.isDefault) || list[0];
+  const effort = mdl.effort.length ? (o.effort && mdl.effort.indexOf(o.effort) >= 0 ? o.effort : mdl.def) : '';
+  const perm = o.perm || CMP_PERM_DEF[agent];
+  const draft = o.mode === 'draft';
+  const segs = (o.segs || []).map((s) => ({ t: s.t, c: s.tok ? k.accent : k.text, w: s.tok ? 600 : 400 }));
+  const hasText = segs.length > 0;
+  const run = o.run || 'idle';
+  const running = run === 'running';
+  const busy = run === 'sending' || run === 'creating';
+  const innerW = W - 12 - 2;
+  // 2 段目の幅を見積もり、足りなければ「…」にまとめる → プロジェクトを印だけに → モデル名を縮める
+  const chipW = (label, icon, logo, chev) => (logo ? f.logo + 4 : 0) + (icon ? f.ic + 4 : 0) + (label ? cmpTW(label, f.chip) : 0) + (chev ? f.ic * 0.8 + 3 : 0) + f.cpx * 2;
+  const btnW = f.chipH;
+  const sendW = (running && hasText) ? btnW * 2 + f.cg : btnW;
+  const projLabel = o.project || 'プロジェクト';
+  const modelFull = chipW(mdl.n, false, true, true);
+  // 強い権限（Bypass Permissions・Full Access）は「…」に入れず、赤いチップのまま見せる
+  const danger = !!CMP_DANGER[perm];
+  const widthAt = (L) => {
+    let w = btnW + f.cg + (L >= 3 ? Math.min(modelFull, chipW('Sonnet…', false, true, true)) : modelFull);
+    if (L === 0) { if (effort) w += f.cg + chipW(effort, true, false, false); w += f.cg + chipW(perm, true, false, false); }
+    else if (danger) { if (effort) w += f.cg + btnW; w += f.cg + chipW(perm, true, false, false); }
+    else w += f.cg + btnW;
+    if (draft) w += f.cg + (L >= 2 ? chipW('', true, false, true) : chipW(projLabel, true, false, true));
+    w += f.cg + sendW + 2;
+    return w;
+  };
+  let L = dt ? 1 : 0;
+  while (L < 2 && widthAt(L) > innerW) L += 1;
+  const wrap2 = widthAt(L) > innerW; // それでも入らなければ 2 段目を折り返す（モデル名と送信は省かない）
+  const merged = L >= 1;
+  const C = (kind, o2) => Object.assign({ kind, lg: '', hasLg: false, icon: '', hasIcon: false, label: '', hasLabel: false, chev: false, aria: '', bg: k.chip, fg: k.text, minW: 0, maxW: 9999, fw: 500, x: 0 }, o2);
+  const left = [];
+  left.push(C('plus', { icon: CMP_ICON.plus, hasIcon: true, aria: '画像を添付', bg: k.fill, minW: btnW, iconStroke: 2 }));
+  left.push(C('model', { lg: CMP_LG[agent], hasLg: true, label: mdl.n, hasLabel: true, chev: true, aria: 'モデル、' + CMP_AGENT[agent] + ': ' + mdl.n, maxW: 9999, fw: 600 }));
+  if (!merged) {
+    if (effort) left.push(C('effort', { icon: CMP_ICON.gauge, hasIcon: true, label: effort, hasLabel: true, aria: '思考の強さ、' + effort }));
+    left.push(C('perm', { icon: CMP_ICON.shield, hasIcon: true, label: perm, hasLabel: true, aria: '権限、' + perm, fg: CMP_DANGER[perm] ? k.danger : k.text }));
+  } else if (danger) {
+    if (effort) left.push(C('more', { icon: CMP_ICON.more, hasIcon: true, aria: '思考の強さ ' + effort + '。変更するメニュー', minW: btnW, iconStroke: 2.6 }));
+    left.push(C('perm', { icon: CMP_ICON.shield, hasIcon: true, label: perm, hasLabel: true, aria: '権限、' + perm + '。確認なしで全部を許可しています', fg: k.danger }));
+  } else {
+    left.push(C('more', { icon: CMP_ICON.more, hasIcon: true, aria: (effort ? '思考の強さ ' + effort + '、' : '') + '権限 ' + perm + '。変更するメニュー', minW: btnW, iconStroke: 2.6 }));
+  }
+  const right = [];
+  if (draft) right.push(C('project', { icon: CMP_ICON.folder, hasIcon: true, label: L >= 2 ? '' : projLabel, hasLabel: L < 2, chev: true, aria: 'プロジェクト、' + (o.project || '未選択'), fg: o.project ? k.text : k.text2 }));
+  left.forEach((it) => { it.hasChevSvg = it.chev; it.stroke = it.iconStroke || 1.6; });
+  right.forEach((it) => { it.hasChevSvg = it.chev; it.stroke = 1.6; });
+  // x 位置（メニューの置き場所）
+  let x = 6;
+  left.forEach((it) => { it.x = x; x += (it.minW || chipW(it.hasLabel ? it.label : '', it.hasIcon, it.hasLg, it.chev)) + f.cg; });
+  const sendOn = hasText && !busy;
+  const v = {
+    k, f, W, merged, L, wrap2,
+    hasErr: !!o.err, err: o.err || '',
+    hasAtt: (o.attach || []).length > 0, att: (o.attach || []).map((n, i) => ({ n, bg: k.att[i % 4], aria: '添付画像 ' + n, rm: '添付 ' + n + ' を削除' })), attCount: (o.attach || []).length,
+    segs, hasText, isEmpty: !hasText, placeholder: o.placeholder || 'やりたいことを入力', caret: !!o.caret,
+    border: o.focus ? k.focus : k.glassBorder,
+    left, right,
+    showStop: running && o.canStop !== 'no', showSend: !busy && (!running || hasText), showSpin: busy,
+    sendBg: sendOn ? k.accent : k.fill, sendFg: sendOn ? k.accentOnFill : k.text3, sendDis: sendOn ? 'false' : 'true',
+    sendAria: busy ? '送信中。終わるまで送信できません' : '送信',
+    agent, agentName: CMP_AGENT[agent], model: mdl.n, effort, perm, effortList: mdl.effort
+  };
+  // 高さ
+  const lines = hasText ? Math.max(1, Math.min(5, Math.ceil(segs.reduce((a, s) => a + cmpTW(s.t, f.body), 0) / (innerW - 20)) + (segs.some((s) => s.t.indexOf('\n') >= 0) ? 1 : 0))) : 1;
+  const textH = Math.round(lines * f.body * f.lh);
+  const attH = v.hasAtt ? (dt ? 84 : 64) + f.gap : 0;
+  const errLines = o.err ? Math.max(1, Math.ceil(cmpTW(o.err, f.err) / (W - 24))) : 0;
+  const errH = o.err ? Math.round(errLines * f.err * 1.4) + 6 : 0;
+  v.boxH = f.padT + attH + textH + f.gap + f.row2 * (wrap2 ? 2 : 1) + (wrap2 ? 6 : 0) + 6 + 2;
+  v.use = cmpUse(o, k, W, dt);
+  v.hasUse = v.use.on;
+  v.usePop = v.use.on && v.use.isPop;
+  v.useExtra = v.use.on ? 6 + v.use.h - 8 : 0;
+  v.h = errH + v.boxH + v.useExtra;
+  v.textMinH = textH;
+  // メニュー
+  const M = (t, on, o3) => Object.assign({ t, on: on ? 'true' : 'false', check: on ? CMP_ICON.check : '', fw: on ? 600 : 400, sub: '', hasSub: false, fg: k.text }, o3 || {});
+  const anchor = (kind) => { const it = left.find((c) => c.kind === kind); return it ? it.x : 6; };
+  v.menu = o.menu || '';
+  v.menuEffort = v.menu === 'effort'; v.menuPerm = v.menu === 'perm'; v.menuMore = v.menu === 'overflow';
+  v.menuProject = v.menu === 'project';
+  const projs = o.projects || ['Phlox', 'SimpleBudget', 'landing-page', 'dotfiles'];
+  v.projectItems = projs.map((p) => M(p, p === o.project, p === (o.lastProject || 'Phlox') ? { sub: '前回使った', hasSub: true } : {}));
+  v.menuBottom = v.boxH + 8 + v.useExtra;
+  v.menuW = Math.min(280, W - 8);
+  v.effortItems = mdl.effort.map((e) => M(e, e === effort, e === mdl.def ? { sub: '既定', hasSub: true } : {}));
+  v.permItems = CMP_PERMS[agent].map((p) => M(p, p === perm, CMP_DANGER[p] ? { sub: '確認あり', hasSub: true, fg: k.danger } : {}));
+  v.menuLeft = v.menu === 'project' ? W - v.menuW : Math.max(0, Math.min(W - v.menuW, anchor(v.menu === 'effort' ? 'effort' : v.menu === 'perm' ? (left.some((c) => c.kind === 'perm') ? 'perm' : 'more') : 'more')));
+  v.moreItems = [];
+  if (effort) v.moreItems.push({ t: '思考の強さ', val: effort, icon: CMP_ICON.gauge, border: '0' });
+  if (!(merged && danger)) v.moreItems.push({ t: '権限', val: perm, icon: CMP_ICON.shield, border: v.moreItems.length > 0 ? '1px solid ' + k.sep : '0' });
+  v.menuTitle = v.menuEffort ? '思考の強さ' : v.menuPerm ? '権限 · ' + CMP_AGENT[agent] : v.menuProject ? 'プロジェクト' : '';
+  v.menuNote = v.menuProject ? 'セッション一覧に出ているプロジェクト（セッションが 1 つ以上あるもの）から選びます。初期値は前回使ったプロジェクト' : v.menuPerm ? '確認なしで全部を許す権限は、選ぶときに確認します。実行中に変えたときは次の指示から効きます' : (v.menuEffort ? 'モデルを変えると、そのモデルの既定の強さに戻ります' : '');
+  return v;
+}
+// モデルのシート。o: { dark, mode: 'draft'|'session', agent, model, cursorNa, W, H }
+function cmpSheet(o) {
+  const k = cmpColors(!!o.dark);
+  const agents = o.mode === 'draft' ? ['claude', 'codex', 'cursor'] : [o.agent || 'claude'];
+  const secs = agents.map((a) => {
+    const na = a === 'cursor' && !!o.cursorNa;
+    const rows = na ? [] : CMP_MODELS[a].map((m, i) => {
+      const on = a === (o.agent || 'claude') && m.n === o.model;
+      return { n: m.n, on: on ? 'true' : 'false', check: on ? CMP_ICON.check : '', fw: on ? 600 : 400, isDef: !!m.isDefault, bt: i > 0 ? '1px solid ' + k.sep : '0', aria: CMP_AGENT[a] + ': ' + m.n + (m.isDefault ? '、既定' : '') + (on ? '、選択中' : '') };
+    });
+    return { lg: CMP_LG[a], name: CMP_AGENT[a], na, rows, hasMore: !na && a === 'cursor', more: 'ほか ' + CMP_CURSOR_MORE + ' 件（スクロール・絞り込みで探す）' };
+  });
+  return {
+    k, secs, title: o.mode === 'draft' ? 'モデル' : CMP_AGENT[o.agent || 'claude'] + ' のモデル',
+    note: o.mode === 'draft' ? 'モデルを選ぶと、エージェントもそのモデルのものに切り替わります' : 'このセッションのエージェントのモデルだけを選べます',
+    sheetW: o.W - 16, sheetH: Math.round(o.H * 0.72), W: o.W, H: o.H
+  };
+}
+// ---- 使用量の行（入力欄の下。残りを枠ごとのリングで示す。2 回目の修正 5/6） ----
+// 枠: n=枠の名前（吹き出し）、tag=リングの横の文字（Claude Code だけ）、r=残り %（null は値が届いていない＝期限切れ）、reset=リセット
+const CMP_USE_DATA = (function () {
+  const W = (n, tag, r, reset, kind) => ({ n, tag, r, reset: reset || '', kind: kind || '' });
+  const CL = [W('5時間', '5h', 72, '03:12', '5h'), W('週次', '7d', 40, '10/20 14:00', 'wk')];
+  const CX = [W('5時間', '', 99, '04:05', '5h'), W('週次', '', 85, '10/23 09:00', 'wk')];
+  const CU = [W('Auto', '', 80), W('API', '', 95)];
+  const A = (key, win, o) => Object.assign({ key, win }, o || {});
+  const N = [A('claude', CL), A('codex', CX), A('cursor', CU)];
+  return {
+    normal: { agents: N },
+    pop: { agents: N, pop: true },
+    refreshing: { agents: N, tag: '更新中…', tagAria: '更新中。' },
+    stale: { agents: N, tag: '16:12 時点', tagAria: '16時12分時点の値。更新できませんでした。', note: '16:12 時点の値です。更新できませんでした。一覧を引っ張ると取り直します' },
+    low: { agents: [A('claude', [W('5時間', '5h', 12, '00:38', '5h'), W('週次', '7d', 40, '10/20 14:00', 'wk')]), A('codex', CX), A('cursor', [W('Auto', '', 80), W('API', '', 9)])] },
+    na: { agents: [A('claude', CL), A('codex', [W('5時間', '', 99, '04:05', '5h'), W('週次', '', null, '', 'wk')]), A('cursor', [W('Auto', '', null), W('API', '', null)], { na: true })] }
+  };
+})();
+const CMP_USE_NAME = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor' };
+function cmpUse(o, k, W, dt) {
+  const st = o.use || 'normal';
+  if (st === 'off') return { on: false, h: 0 };
+  const D = CMP_USE_DATA[st] || CMP_USE_DATA.normal;
+  const dark = !!o.dark;
+  const u = dt
+    ? { fs: 22, ring: 30, sw: 3.4, logo: 26, gWin: 8, gTag: 5, gLogo: 8, gAg: 20, lineH: 44, lineGap: 2, padX: 12, pfs: 22, pcap: 18, popW: W, cols: '1.1fr 1.1fr 1.3fr' }
+    : { fs: 11, ring: 18, sw: 2.6, logo: 15, gWin: 6, gTag: 3, gLogo: 6, gAg: 14, lineH: 44, lineGap: 0, padX: 12, pfs: 15, pcap: 12, popW: Math.min(W, 300), cols: '64px 76px 1fr' };
+  const col = dark
+    ? { arc: '#C7C7CE', track: 'rgba(118,118,128,0.42)', low: '#F4BD68', lowTrack: 'rgba(244,189,104,0.30)', empty: 'rgba(118,118,128,0.42)' }
+    : { arc: '#56565E', track: 'rgba(118,118,128,0.22)', low: '#8A5300', lowTrack: 'rgba(138,83,0,0.20)', empty: 'rgba(118,118,128,0.26)' };
+  const C = 2 * Math.PI * 8;
+  const tw = (t) => cmpTW(t, u.fs) * 1.05;
+  const items = D.agents.map((a) => {
+    let w = u.logo;
+    const win = a.win.map((x, i) => {
+      const none = x.r === null || x.r === undefined || a.na;
+      const low = !none && x.r < 20;
+      const arc = none ? 0 : Math.max(0.6, C * x.r / 100);
+      const showTag = !!x.tag;
+      w += (i === 0 ? u.gLogo : u.gWin) + u.ring + (showTag ? u.gTag + tw(x.tag) : 0);
+      return {
+        track: none ? col.empty : (low ? col.lowTrack : col.track), fg: low ? col.low : col.arc,
+        dash: arc.toFixed(2) + ' ' + C.toFixed(2), cap: arc > 0 ? 'round' : 'butt',
+        hasTag: showTag, tag: x.tag, tagFg: low ? col.low : k.text2, tagFw: low ? 600 : 400,
+        ml: i === 0 ? u.gLogo : u.gWin
+      };
+    });
+    return { kind: 'agent', w, it: { isAgent: true, isTag: false, lg: CMP_LG[a.key], win, t: '' } };
+  });
+  if (D.tag) items.push({ kind: 'tag', w: tw(D.tag), it: { isAgent: false, isTag: true, lg: '', win: [], t: D.tag } });
+  const avail = W - u.padX * 2;
+  const lines = [];
+  let cur = []; let cw = 0;
+  items.forEach((x) => {
+    const add = cur.length ? u.gAg + x.w : x.w;
+    if (cur.length && cw + add > avail) { lines.push(cur); cur = [x]; cw = x.w; } else { cur.push(x); cw += add; }
+  });
+  if (cur.length) lines.push(cur);
+  const h = lines.length * u.lineH + (lines.length - 1) * u.lineGap;
+  // VoiceOver: 行全体を 1 つとして読む
+  const parts = D.agents.map((a) => {
+    if (a.na) return CMP_USE_NAME[a.key] + ' 取得できません';
+    return CMP_USE_NAME[a.key] + ' ' + a.win.map((x) => {
+      const nm = x.n;
+      if (x.r === null || x.r === undefined) return nm + ' 値なし';
+      return nm + ' 残り ' + x.r + '%' + (x.r < 20 ? '、残りわずか' : '');
+    }).join('、');
+  });
+  const aria = '使用量。' + (D.tagAria || '') + parts.join('。') + '。';
+  // 吹き出し（押して詳細）
+  const pop = D.agents.map((a) => ({
+    lg: CMP_LG[a.key], name: CMP_AGENT[a.key], na: !!a.na,
+    rows: a.na ? [] : a.win.map((x) => {
+      const none = x.r === null || x.r === undefined;
+      const low = !none && x.r < 20;
+      return { n: x.n, pct: none ? '値なし' : '残り ' + x.r + '%', fg: none ? k.text2 : (low ? col.low : k.text), fw: low ? 700 : 500, reset: none || a.key === 'cursor' ? '' : x.reset };
+    })
+  }));
+  return {
+    on: true, st, u, lines: lines.map((ln) => ({ items: ln.map((x) => x.it) })), h, aria,
+    exp: D.pop ? 'true' : 'false', isPop: !!D.pop,
+    pop, hasNote: !!D.note, note: D.note || '', popW: u.popW, popBottom: h - 8 + 10, arrowLeft: u.padX + Math.round(u.logo / 2) - 6
+  };
+}
+/*CMPCORE:END*/
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const dark = (p.theme ?? 'light') === 'dark';
+    const dt = (p.dt ?? 'default') === 'max';
+    const se = (p.size ?? 'plus') === 'se';
+    const st = p.state ?? 'approval';
+    const W = se ? 375 : 428;
+    const H = se ? 667 : 926;
+    const safeTop = se ? 20 : 47;
+    const safeBot = se ? 0 : 34;
+
+    const c = dark ? {
+      bg: '#000000', card: '#1C1C1E', text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5',
+      sep: 'rgba(84,84,88,0.65)', slot: 'rgba(235,235,245,0.38)', accent: '#F2F2F4', accentOnFill: '#000000',
+      fill: 'rgba(118,118,128,0.28)', codeBg: '#1C1C1E', cardBg: '#1C1C1E',
+      cardBorder: 'rgba(84,84,88,0.65)', cardBorderRun: 'rgba(235,235,245,0.55)',
+      addFg: '#6FD08C', delFg: '#FF8C82', addBg: 'rgba(111,208,140,0.16)', delBg: 'rgba(255,140,130,0.16)', shine: '#FFFFFF',
+      apprFg: '#FFB46E', qFg: '#8DB9FF', errFg: '#FF8C82', errBg: 'rgba(255,69,58,0.18)', stop: '#E5483F',
+      glassBg: 'rgba(38,38,42,0.62)', glassBorder: 'rgba(255,255,255,0.14)',
+      glassShadow: '0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)',
+      sheetBg: 'rgba(28,28,30,0.96)', dim: 'rgba(0,0,0,0.45)', kb1: '#1C1C1E', kb2: '#232326',
+      att: ['#3A3A40', '#2E4038', '#4A3A2E', '#2F3A4F'],
+      edge: 'rgba(0,0,0,0.95)', edge0: 'rgba(0,0,0,0)'
+    } : {
+      bg: '#F2F2F7', card: '#FFFFFF', text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73',
+      sep: 'rgba(60,60,67,0.18)', slot: 'rgba(60,60,67,0.38)', accent: '#1D1D1F', accentOnFill: '#FFFFFF',
+      fill: 'rgba(118,118,128,0.12)', codeBg: '#E9E9EE', cardBg: '#FFFFFF',
+      cardBorder: 'rgba(60,60,67,0.18)', cardBorderRun: 'rgba(60,60,67,0.55)',
+      addFg: '#1F7A3A', delFg: '#B8241C', addBg: 'rgba(31,122,58,0.10)', delBg: 'rgba(184,36,28,0.08)', shine: '#C9C9D0',
+      apprFg: '#A8430A', qFg: '#1555C0', errFg: '#B8241C', errBg: '#FDE7E5', stop: '#D62F26',
+      glassBg: 'rgba(255,255,255,0.66)', glassBorder: 'rgba(255,255,255,0.85)',
+      glassShadow: '0 10px 30px rgba(20,20,40,0.14), 0 1px 3px rgba(20,20,40,0.08), inset 0 1px 0 rgba(255,255,255,0.95)',
+      sheetBg: 'rgba(242,242,247,0.97)', dim: 'rgba(0,0,0,0.25)', kb1: '#D9DADF', kb2: '#E3E4E8',
+      att: ['#DCDCE2', '#CFE5D8', '#F0DCCB', '#CFDCEE'],
+      edge: 'rgba(242,242,247,0.95)', edge0: 'rgba(242,242,247,0)'
+    };
+    const f = dt ? {
+      body: 53, sub: 44, foot: 34, cap: 30, mono: 34, monoBody: 44, monoT: 44, diff: 30, nav: 22, navSub: 18, chip: 26, btn: 40, icon: 30
+    } : {
+      body: 17, sub: 15, foot: 13, cap: 12, mono: 13, monoBody: 16, monoT: 15, diff: 12, nav: 17, navSub: 13, chip: 13, btn: 17, icon: 14
+    };
+
+    const codex = st === 'codex';
+    const agentName = codex ? 'Codex' : 'Claude Code';
+    const agentLg = codex ? LG.codex : LG.claude;
+    const model = codex ? 'gpt-6.1-sol' : 'Sonnet 5';
+
+    let status = 'idle';
+    if (['runEmpty', 'runText'].indexOf(st) >= 0) status = 'run';
+    if (['approval', 'approvalFail', 'approvalDiff', 'codex', 'keyboardAppr'].indexOf(st) >= 0) status = 'appr';
+    if (['question', 'questionFail', 'questionPlain'].indexOf(st) >= 0) status = 'q';
+    if (st === 'done') status = 'done';
+    if (st === 'error') status = 'err';
+    if (st === 'starting') status = 'start';
+    const navMap = {
+      idle: { label: '待機', fg: c.text2 },
+      run: { label: '実行中', fg: c.text2 },
+      appr: { label: '承認待ち', fg: c.apprFg },
+      q: { label: '質問あり', fg: c.qFg },
+      done: { label: '完了', fg: c.text2 },
+      err: { label: 'エラー', fg: c.errFg },
+      start: { label: '起動中', fg: c.text2 }
+    };
+    const nav = navMap[status];
+
+    // 会話の末尾（Mac と同じ。アバターなし・全幅・ツールは共通のカード）
+    const SWT = '$ swift test --package-path macos/Packages/ControlServer';
+    const ok0 = { mark: 'exit 0', markFg: c.text3, mono: true };
+    const tailMap = {
+      appr: Object.assign({ cmd: '$ git status --short', text: codex ? 'テストが通ったので、リモートのブランチを更新します。' : (st === 'approvalDiff' ? 'ルートの登録を ProxyRouter に移します。2 つのファイルを編集します。' : '旧 ControlServer.swift は ProxyRouter に置き換わったため、削除が必要です。') }, ok0),
+      q: Object.assign({ cmd: SWT, text: 'テストは通りました。次に進む前に 2 点確認させてください。' }, ok0),
+      run: { cmd: SWT, text: 'ProxyRouter を追加しました。テストを実行します。', mark: '実行中', markFg: c.text2, mono: false, run: true },
+      done: Object.assign({ cmd: '$ swiftlint lint --strict', text: 'lint の指摘 3 件を直しました。テストと lint はすべて通っています。' }, ok0),
+      err: { cmd: SWT, text: 'swift test が終了コード 1 で失敗しました。失敗したテストを調べます。', mark: 'exit 1', markFg: c.errFg, mono: true },
+      start: { cmd: '$ phlox spawn --agent claude-code', text: 'セッションを準備しています。', mark: '実行中', markFg: c.text2, mono: false, run: true },
+      idle: Object.assign({ cmd: SWT, text: 'テストは 50 件すべて成功しました。次は何をしますか？' }, ok0)
+    };
+    const tm = tailMap[status];
+    const MONO = "ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace";
+    const tail = {
+      label: 'コマンド', cmd: tm.cmd, text: tm.text, mark: tm.mark, markFg: tm.markFg,
+      markFont: tm.mono ? MONO : 'inherit',
+      bw: tm.run ? 1.5 : 1, border: tm.run ? c.cardBorderRun : c.cardBorder,
+      hasRun: status === 'run', runWord: '実行中…', runSum: 'swift test を実行中 · 38 秒',
+      hasErr: status === 'err', errText: 'API Error: 529 overloaded_error',
+      hasUsage: status === 'done' || status === 'idle' || status === 'err',
+      usage: '$0.42 · 入力 18.2k · 出力 1.9k · コンテキスト 22%',
+      hasUser: false, user: '', userImgs: []
+    };
+    if (st === 'sending') { tail.hasUser = true; tail.user = 'この 2 枚の 502 の画面を見て、失敗しているテストを先に直して [Image #1] [Image #2]'; tail.userImgs = [{ bg: c.att[0], n: 1 }, { bg: c.att[1], n: 2 }]; }
+
+    // 承認と質問のカード（入力欄のすぐ上。上から 送信失敗の知らせ → 承認 → 質問 → 入力欄）
+    const isDiff = st === 'approvalDiff';
+    const dl = (o, n, sgn, t) => ({ o, n, s: sgn, t, bg: sgn === '+' ? c.addBg : sgn === '−' ? c.delBg : 'transparent', fg: sgn === '+' ? c.addFg : c.delFg });
+    const z = {
+      appr: ['approval', 'approvalFail', 'approvalDiff', 'codex'].indexOf(st) >= 0,
+      apprMini: st === 'keyboardAppr',
+      fail: st === 'approvalFail',
+      kind: codex ? 'Shell' : (isDiff ? 'Edit' : 'Bash'),
+      age: isDiff ? '1 分' : '2 分',
+      multi: st === 'approval' || st === 'approvalFail' || st === 'keyboardAppr',
+      page: '1/2',
+      target: codex ? 'git push --force-with-lease origin feature/proxy-router' : (isDiff ? 'Sources/ControlServer/ProxyRouter.swift ほか 1 件' : 'git rm ControlServer.swift'),
+      prompt: codex ? 'リモートのブランチを書き換えます。実行しますか？' : (isDiff ? 'ルートの登録を ProxyRouter に移し、ControlServer.swift から古い登録を消します。' : '旧 ControlServer.swift を削除します（ProxyRouter に置き換え済み）。'),
+      hasDiff: isDiff, diffOpen: isDiff, diffExp: isDiff ? 'true' : 'false',
+      diffChev: isDiff ? 'M3.5 6 L8 10.5 L12.5 6' : 'M6 3.5 L10.5 8 L6 12.5',
+      diff: [
+        dl('41', '41', ' ', '  func register(_ app: Application) {'),
+        dl('42', '42', ' ', '    app.get("health", use: health)'),
+        dl('43', '', '−', '    legacy.mount(on: app)'),
+        dl('', '43', '+', '    app.get("approvals", use: list)'),
+        dl('', '44', '+', '    app.post("approvals", ":id", use: respond)'),
+        dl('', '45', '+', '    app.get("sessions", use: sessions)'),
+        dl('44', '46', ' ', '  }')
+      ],
+      q: st === 'question' || st === 'questionFail',
+      qFail: st === 'questionFail',
+      qPlain: st === 'questionPlain'
+    };
+    z.hasFail = z.fail || z.qFail;
+    z.failText = z.fail ? '承認を送信できませんでした（Mac に接続できません）' : '回答を送信できませんでした。選んだ内容は残っています';
+    const qReady = st === 'questionFail';
+    z.qDisabled = qReady ? 'false' : 'true';
+    z.qBtnBg = qReady ? c.accent : c.fill;
+    z.qBtnFg = qReady ? c.accentOnFill : c.text3;
+    z.qHint = !qReady;
+
+    const radio = (label, desc, sel) => ({ label, desc, checked: sel ? 'true' : 'false', ring: sel ? '0' : '1.5px solid ' + c.slot, fill: sel ? c.accent : 'transparent', check: sel ? 'M3.5 8.5 L6.5 11.5 L12.5 4.5' : '', w: sel ? 700 : 500 });
+    const q1 = [radio('staging', '検証環境', true), radio('prod', '本番環境', false)];
+    const q2 = qReady
+      ? [radio('lint', '', true), radio('unit tests', '', true), radio('UI tests', '', false)]
+      : [radio('lint', '', false), radio('unit tests', '', false), radio('UI tests', '', false)];
+
+    const mkSeg = (t, tok) => ({ t, tok: !!tok });
+    let text = '';
+    let segs = [];
+    let att = [];
+    let attErr = '';
+    if (st === 'typing' || st === 'runText' || st === 'keyboard' || st === 'keyboardAppr' || st === 'haiku') {
+      segs = [mkSeg('ProxyRouterTests の失敗 3 件を先に直して。\n直したら swift test をもう一度流して、結果だけ教えて')];
+      text = 'x';
+    }
+    if (st === 'attach') {
+      segs = [mkSeg('この 2 枚の 502 の画面を見て原因を探して '), mkSeg('[Image #1]', true), mkSeg(' '), mkSeg('[Image #2]', true)];
+      text = 'x';
+      att = [1, 2];
+    }
+    if (st === 'attachErr') {
+      // 文言はアプリの現行の文言をそのまま（上限: 最大 4 枚・1 枚 20MB・合計 80MB・各辺 8000 ピクセル）
+      const AE = {
+        count: [4, '画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。'],
+        size: [2, '画像は1枚あたり20MBまでです'],
+        total: [3, '画像は合計80MBまでです'],
+        dim: [1, '画像は各辺8000ピクセルまでです。必要な部分を切り出してください'],
+        load: [2, '画像を読み込めませんでした']
+      }[p.aerr ?? 'count'] || [4, ''];
+      att = Array.from({ length: AE[0] }, (_, i) => i + 1);
+      segs = [mkSeg('ログの画面 ')];
+      att.forEach((n, i) => { if (i) segs.push(mkSeg(' ')); segs.push(mkSeg('[Image #' + n + ']', true)); });
+      text = 'x';
+      attErr = AE[1];
+    }
+    const hasText = !!text;
+    const running = status === 'run';
+    const sending = st === 'sending';
+    const starting = st === 'starting';
+    const placeholder = status === 'q' && st === 'questionPlain' ? '回答を入力' : 'やりたいことを入力';
+    const inp = {
+      show: !starting, starting
+    };
+    const keyboard = st === 'typing' || st === 'keyboard' || st === 'keyboardAppr' || st === 'effort' || st === 'perm' || st === 'more';
+    const kbH = se ? 260 : 336;
+
+    const msheet = st === 'model';
+    const cmpAgent = codex ? 'codex' : 'claude';
+    const cmpModel = codex ? 'gpt-6.1-sol' : (st === 'haiku' ? 'Haiku 5.5' : 'Sonnet 5');
+    const cmpErr = attErr || (st === 'permFail' ? '権限を変更できませんでした。今の権限（Manual）のままです。もう一度選んでください' : '');
+    const cmp = cmpVals({ dark, dt, use: this.props.use ?? 'normal', width: W - 24, mode: 'session', agent: cmpAgent, model: cmpModel,
+      perm: st === 'permFail' ? 'Manual' : st === 'permDanger' ? 'Bypass Permissions' : (codex ? 'Default' : 'Accept Edits'),
+      segs, caret: keyboard && st !== 'effort' && st !== 'perm' && st !== 'more', focus: keyboard,
+      attach: att, err: cmpErr, placeholder,
+      run: sending ? 'sending' : (running ? 'running' : 'idle'),
+      menu: st === 'effort' ? 'effort' : st === 'perm' ? 'perm' : st === 'more' ? 'overflow' : '' });
+    const sh = cmpSheet({ dark, mode: 'session', agent: cmpAgent, model: cmpModel, W, H });
+    // 下端の積み重ねの高さ: 送信失敗の 1 行 + 承認／質問のカード + 文脈の行 + 入力欄（cmp.h は入力欄のエラーの行を含む）
+    const navH = safeTop + 52;
+    const bottomH = (starting ? 52 : 26 + cmp.h) + 8 + (keyboard ? kbH + 8 : safeBot);
+    const failH = z.hasFail ? (dt ? 96 : 19) + 8 : 0;
+    const cardMax = H - navH - 48 - bottomH - failH - 8;
+    const apprEst = isDiff ? 560 : codex ? 270 : 252;
+    const apprH = z.appr ? (dt ? cardMax : Math.min(apprEst, cardMax)) : 0;
+    const qH = z.q ? (dt ? cardMax : Math.min(582, cardMax)) : 0;
+    const zoneH = z.appr ? apprH : z.apprMini ? 48 : z.q ? qH : z.qPlain ? 132 : 0;
+    const stackH = failH + (zoneH ? zoneH + 8 : 0) + bottomH;
+    const g = {
+      W, H, safeTop,
+      titleW: W - 144,
+      edgeH: navH + 18,
+      padB: keyboard ? 0 : 8 + safeBot,
+      cBottom: stackH + 14,
+      btnDir: dt ? 'column' : 'row',
+      btnH: dt ? 72 : 46,
+      btnF: dt ? f.btn : (se ? 15 : 17),
+      bf1: dt ? 'none' : '1 1 0',
+      bf2: dt ? 'none' : '1.55 1 0',
+      apprMax: Math.max(cardMax, 200),
+      qMax: Math.max(cardMax, 200),
+      kbH
+    };
+
+    return {
+      c, f, g, z, q1, q2, inp, nav, tail, keyboard, cmp, sh, msheet,
+      agentName, agentLg, model,
+      sessionName: codex ? 'add /approvals endpoint' : 'refactor: ControlServer proxy'
+    };
+  }
+}
+</script>
+</body>
+</html>

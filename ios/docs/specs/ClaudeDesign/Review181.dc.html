@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>レビュー 2 — 18.1 節「守る」の守り方</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 2400px; height: 2400px; box-sizing: border-box; padding: 56px 64px; overflow: hidden; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">レビュー 2 / 4 · 機能一覧 18.1 節 表 A（{{ count }} 行）</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">18.1 節の振る舞いは、すべてどこかの盤面で守っている</h2>
+<p style="margin: 0; max-width: 1500px; font-size: 15px; line-height: 1.6; color: #2A2A31">見た目・配置・文言は新しくしても、振る舞いは変えていない。「レビューで補強」は、守ってはいたが盤面や注記に書いていなかったので、この回で書き足したもの。</p>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 13px; line-height: 1.55">
+<div style="display: grid; grid-template-columns: 120px 520px 400px minmax(0, 1fr) 150px; background: #EEEEF2; font-weight: 700">
+<div style="padding: 10px 14px">ADR</div><div style="padding: 10px 14px">守る振る舞い（要約）</div><div style="padding: 10px 14px">守っている盤面</div><div style="padding: 10px 14px">どう守っているか</div><div style="padding: 10px 14px">判定</div>
+</div>
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="31">
+<div style="display: grid; grid-template-columns: 120px 520px 400px minmax(0, 1fr) 150px; border-top: 1px solid #E6E6EC">
+<div style="padding: 8px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-weight: 600">{{ r.a }}</div>
+<div style="padding: 8px 14px">{{ r.s }}</div>
+<div style="padding: 8px 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: #3A3A42; overflow-wrap: anywhere">{{ r.b }}</div>
+<div style="padding: 8px 14px">{{ r.h }}</div>
+<div style="padding: 8px 14px"><b style="padding: 1px 8px; border-radius: 999px; background: {{r.bg}}; color: {{r.fg}}; font-size: 12px">{{ r.t }}</b></div>
+</div>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">見た目は変えたが、振る舞いは守っているもの</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>0007: タブの形は自前から OS 標準へ。使用量の回でタブは「セッション／設定」の 2 面になったが、使用量は入力欄の下に常にある（2 回目の修正 5/6）ので、どの情報にもいつでも行ける点は同じ</li>
+<li>0021: 失敗表示は同じ全画面のまま、原因を「確かめる 3 項目」の形に（コードの動きに合わせ、ADR の「閉じてオフラインへ」ではない）</li>
+<li>0023: 96pt の接続アニメをやめ、読み込み表示に。出す条件（初回だけ・未作成には出さない）は同じ</li>
+<li>0036: 見出しの語を「Projects」から「セッション」に（候補）。消えない・同じ位置は同じ</li>
+<li>0016/0018: 入力欄は 2 段（本文／＋・モデル・思考の強さ・権限・送信）だが、1 つの入力欄の中にまとまっている（2 回目の修正 3/6）</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 18px; font-weight: 700">注意して見てほしいもの</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.65; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>0033: 2 回目の修正 4/6 の指示で、左上の「＜ 戻る」を家の形のホームのボタン（一覧へ）に差し替えた。ADR の「戻るを差し替えない」とは食い違うが、利用者の指示を正とした。端スワイプで戻る操作は残す（leading を差し替えても端スワイプが効く作りにする）</li>
+<li>0014: 大見出しを OS 標準にする案。iOS 26 の不具合が残るなら、現行の自前描画で同じ見た目を作る（ListSpec）</li>
+<li>0005: モデル一覧が無いときに「モデル変更」を淡色にして理由を添える。エラーの帯は出さない（エラー扱いにしない点を守る）</li>
+<li>0003: 画面に出ない振る舞い。表示は足していない</li>
+</ul>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":2400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const T = { ok: ['守っている', '#1F6B3A', '#E3F4E8'], add: ['レビューで補強', '#1D1D1F', '#EDEDF0'], na: ['画面に出ない', '#45454F', '#EEEEF2'], ins: ['指示で変えた', '#8A4200', '#FFF0DC'] };
+    const A = (a, s, b, h, t) => ({ a, s, b, h, t: T[t || 'ok'][0], fg: T[t || 'ok'][1], bg: T[t || 'ok'][2] });
+    const rows = [
+      A('0004', '外観は再起動なしで即反映。システムは OS に追従', 'SetUse / SetDark', '3 択を押すとすぐ切り替わる。注記「選ぶとすぐに切り替わります」。ウィジェットは端末の外観に従う（GlanceSpec）'),
+      A('0005', 'モデル一覧が取れなくてもエラーにしない', 'DraftModelNa / Dialogs N3 / ReplySpec', 'モデルのシートの、取れないエージェントの欄に「取得できません」の行（選べない）。ほかのエージェントは選べる。エラーにはしない（2 回目の修正 3/6 で 1 つの一覧に）'),
+      A('0007', 'セッション／設定／使用量の 3 面にいつでも行ける', 'Shell / FlowUsage / SetUseSpec / List', '標準タブで常に 2 面（セッション／設定）＋離した「新規チャット」。使用量はタブにせず、入力欄の下の 1 行のリングへ（2/6 で一覧の下端のバーから外し、5/6 で描いた。Usage*）'),
+      A('0008', 'プロジェクトごと・空状態から新規。送信 1 回で作成→準備→送信。未作成は停止なし・入力は常に有効', 'List / ListEmpty / ListAllAttention / Draft / DraftCreating', '各グループ末尾と空状態に入口。3 段階の進み具合カード。停止は作成後に出す'),
+      A('0009', 'ウィジェットに状態。一時的な空では直近の非空を保つ', 'GlanceHome / GlanceCatalog W9 / GlanceSpec', '起動直後の空では上書きせず、0 件と確かめたときだけ空表示', 'add'),
+      A('0010', 'モデル変更はチップとメニューの両方から同じシート。選択肢があるときだけチップ', 'ReplyEmpty / ChatMenu / Dialogs M1・N3', '2 つの入口を残す。一覧が空ならチップを出さない'),
+      A('0011', 'Live Activity は push で自動表示。1 セッション 1 つ', 'Glance / GlanceSpec', 'アプリは開始しない。1 セッション 1 つと注記', 'add'),
+      A('0013', 'モデル変更・名前変更は何度でも開け、同時には開かない', 'Dialogs / ChatRename', 'アラートとシートを 1 つずつ。閉じればすぐ開ける'),
+      A('0014', '一覧と詳細を往復しても一覧の上部に空白が出ない', 'List / ListManyScrolled / ListSpec', '大見出しは OS 標準。不具合が残るなら自前で同じ見た目'),
+      A('0016/0018', '添付・本文・送信/停止が 1 つの入力領域。マイク無し。スクロールで閉じる。画像 4 枚', 'ReplyEmpty / ReplyTyping / ReplyAttach / ReplyKeyboard', '2 段の 1 つの入力欄。「画像 n/4」で 4 枚まで'),
+      A('0017', 'Face ID ロックは既定オフ。起動と復帰で再ロック。オフで即解除', 'SetUse / PairGate', 'スイッチは既定オフ。注記に既定と即解除を明記', 'add'),
+      A('0019', '「再接続を試す」で即再判定。圏外と Mac 無応答を出し分ける', 'ListOffNet / ListOffHost / ShellOffline', '圏外は無彩色の文字、Mac に届かないは赤い文字＋等幅の詳細（記号なし）。ボタンは下端'),
+      A('0020', '画像付きの発言に「画像」「画像 ×N」。突き合わせできなければ出さない', 'Chat', '4/6 の指示で、添付は吹き出しの中・本文の上に（移動元 吹き出しの下の「画像 ×N」）。突き合わせできなければ出さないのは守る', 'ins'),
+      A('0021', '初回 QR 後は全画面「接続中…」を一覧が読めるまで。再ペアは対象外。約 20 秒で失敗表示', 'PairConnecting / PairConnectFail / PairRescanDone', '一覧が読めるまで閉じない。失敗は同じ画面で原因・再試行・閉じる。再ペアは留まる'),
+      A('0022/0037', '50 ブロックの窓。「以前のメッセージを表示（残り k 件）」で +50、位置が飛ばない', 'ChatLong', '先頭の全幅ボタン。押した位置を保つ'),
+      A('0023', '詳細の初回読み込み表示。データかエラーで消え、未作成には出さない', 'ChatLoading / ChatFetchErr / Draft', 'エラーで消える側を ChatFetchErr で描いた。新規の画面には出さない', 'add'),
+      A('0024', '質問はタップだけで送らない。自由入力が優先。成功後だけ回答済み。期限切れを表示', 'ReplyQuestion / ReplyQuestionFail / ChatQuestion / ChatLong', '「回答する」で送る。失敗中は未回答のまま帯を出す。回答済みは「入力: …」'),
+      A('0025', 'カーソル位置に [Image #N]', 'ReplyAttach', '本文に [Image #1]'),
+      A('0026', '単独のツール実行で出力が空でも、開けばコマンドが読める', 'ChatExpandCmd / ChatSpec', '1 件でもまとまりを出し、開くと「$ コマンド」'),
+      A('0027', '判定中は接続中のまま。オフラインは判定後だけ（20 秒）。理由を出し分け', 'ListJudging / ListOffUnknown', '「Mac に接続しています…」。20 秒で「接続を確かめています」'),
+      A('0028', '入力を無効にするのは開始中だけ。完了・エラー後も入力できる', 'ReplyStarting / ReplyDone / ReplyError', '起動中だけ帯。完了・エラー後も入力欄はそのまま（「やりたいことを入力」）'),
+      A('0029', 'サブエージェントも 50 件窓。巨大本文は先頭・末尾を残して省略、コピーは全文', 'ChatSub', '先頭のボタン＋省略の注記'),
+      A('0030', '新規で選んだ種別はすり替わらない。Codex は一覧が空のとき「Codex」行', 'Draft / DraftModel / DraftModelNa', 'モデルを選ぶとエージェントも決まり、そのまま作成まで変わらない。一覧が更新されて選んだモデルが消えても、同じエージェントの既定 → 任意の順で選び直す（3/6 で 3 択を廃止し、1 つの一覧のシートに）'),
+      A('0031', '本文は「…」で切らず全文。表は横スクロール', 'ChatIdle / Chat', '折り返して全文。表は横スクロール＋端のフェード（端末風の出力は端末画面ごと廃止。1/6）'),
+      A('0033', '端スワイプで戻れる。詳細から 3 操作。見出し＝セッション名', 'Chat / ChatMenu / Detail', '左上はホームのボタン（4/6 の指示で戻るから差し替え）。端スワイプは残す。「…」にモデル変更・名前変更・削除', 'ins'),
+      A('0035/0039/0040', '端末は全文・ANSI 反映・欠けない・折り返さない・全角 2 桁・縮めて収める', 'ChatUnsupported', '2 回目の修正の指示で端末画面を機能ごと廃止したため、守る対象が無くなった。端末型のセッションは「このセッションは iPhone では表示できません。Mac で開いてください」とだけ出す', 'ins'),
+      A('0036', '見出しはスクロール往復後も消えず、読み込み・空・オフライン・エラーで同じ位置', 'List / ListLoading / ListEmpty / ListOff* / ListError', '大見出し「セッション」を全状態で同じ位置'),
+      A('0038', 'ツール実行は 50 行まで、残りは「残り N 件を表示」。コピーは押したときだけ', 'ChatExpandCmd / DS', '4/6 の指示で Mac と同じ 20 行・「さらに表示（残り n 行）」「セクションをコピー」に。押したときだけ出すのは守る', 'ins'),
+      A('0041', '見出し＝最後のコマンド原文。diff は行番号・横スクロール・パス見出しは外。ファイル変更は既定で閉', 'ChatExpandCmd / ChatExpandDiff', '等幅の原文＋件数。差分は行番号つき'),
+      A('0042', '実行中も追加指示。停止と送信の出し分け。コピーは長押しだけ', 'ReplyRunEmpty / ReplyRunText / ChatCopy', '規則表どおり。行ごとのコピーボタンは置かない'),
+      A('0003', '信頼できない接続先にはトークンを送らない', '—', '画面に出ない。表示は足していない', 'na')
+    ];
+    return { rows, count: String(rows.length) };
+  }
+}
+</script>
+</body>
+</html>

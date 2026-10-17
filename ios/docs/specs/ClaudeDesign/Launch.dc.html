@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>骨格 — 起動の分岐と外部からの遷移</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1600px; height: 1000px; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" style="position: absolute; left: 240px; top: 296px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 0 4 L 59 4" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+<svg width="79" height="8" viewBox="0 0 79 8" preserveAspectRatio="none" style="position: absolute; left: 496px; top: 296px; width: 79px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 0 4 L 75 4" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+<svg width="79" height="8" viewBox="0 0 79 8" preserveAspectRatio="none" style="position: absolute; left: 776px; top: 296px; width: 79px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 0 4 L 75 4" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+<svg width="8" height="56" viewBox="0 0 8 56" preserveAspectRatio="none" style="position: absolute; left: 396px; top: 196px; width: 8px; height: 56px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 56 L 4 0"></path></svg>
+<svg width="560" height="8" viewBox="0 0 560 8" preserveAspectRatio="none" style="position: absolute; left: 400px; top: 192px; width: 560px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 560 4"></path></svg>
+<svg width="8" height="55" viewBox="0 0 8 55" preserveAspectRatio="none" style="position: absolute; left: 956px; top: 196px; width: 8px; height: 55px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-4" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 51" marker-end="url(#dc-arrow-head-filled-4)"></path></svg>
+<svg width="79" height="8" viewBox="0 0 79 8" preserveAspectRatio="none" style="position: absolute; left: 1064px; top: 296px; width: 79px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-5" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 0 4 L 75 4" marker-end="url(#dc-arrow-head-filled-5)"></path></svg>
+<svg width="8" height="71" viewBox="0 0 8 71" preserveAspectRatio="none" style="position: absolute; left: 956px; top: 348px; width: 8px; height: 71px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-6" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 67" marker-end="url(#dc-arrow-head-filled-6)"></path></svg>
+<svg width="8" height="63" viewBox="0 0 8 63" preserveAspectRatio="none" style="position: absolute; left: 956px; top: 484px; width: 8px; height: 63px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-7" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 59" marker-end="url(#dc-arrow-head-filled-7)"></path></svg>
+<svg width="8" height="63" viewBox="0 0 8 63" preserveAspectRatio="none" style="position: absolute; left: 956px; top: 612px; width: 8px; height: 63px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-8" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 59" marker-end="url(#dc-arrow-head-filled-8)"></path></svg>
+<svg width="164" height="8" viewBox="0 0 164 8" preserveAspectRatio="none" style="position: absolute; left: 1060px; top: 704px; width: 164px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 164 4"></path></svg>
+<svg width="8" height="375" viewBox="0 0 8 375" preserveAspectRatio="none" style="position: absolute; left: 1220px; top: 333px; width: 8px; height: 375px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-9" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 4 375 L 4 4" marker-end="url(#dc-arrow-head-filled-9)"></path></svg>
+<svg width="8" height="63" viewBox="0 0 8 63" preserveAspectRatio="none" style="position: absolute; left: 956px; top: 740px; width: 8px; height: 63px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-10" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 59" marker-end="url(#dc-arrow-head-filled-10)"></path></svg>
+<svg width="244" height="8" viewBox="0 0 244 8" preserveAspectRatio="none" style="position: absolute; left: 1060px; top: 854px; width: 244px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 244 4"></path></svg>
+<svg width="8" height="525" viewBox="0 0 8 525" preserveAspectRatio="none" style="position: absolute; left: 1300px; top: 333px; width: 8px; height: 525px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-11" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 4 525 L 4 4" marker-end="url(#dc-arrow-head-filled-11)"></path></svg>
+<svg width="48" height="8" viewBox="0 0 48 8" preserveAspectRatio="none" style="position: absolute; left: 812px; top: 826px; width: 48px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 48 4"></path></svg>
+<svg width="8" height="122" viewBox="0 0 8 122" preserveAspectRatio="none" style="position: absolute; left: 808px; top: 708px; width: 8px; height: 122px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 122"></path></svg>
+<svg width="47" height="8" viewBox="0 0 47 8" preserveAspectRatio="none" style="position: absolute; left: 812px; top: 704px; width: 47px; height: 8px; overflow: visible; fill: none; stroke: #6B6B76; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-12" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6B6B76" stroke="none" style="stroke: none; fill: #6B6B76; fill: context-stroke"/></marker></defs><path d="M 0 4 L 43 4" marker-end="url(#dc-arrow-head-filled-12)"></path></svg>
+
+<div style="position: absolute; left: 64px; top: 56px; font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">起動の分岐</div>
+<div style="position: absolute; left: 64px; top: 84px; width: 1200px; font-size: 32px; line-height: 1.25; font-weight: 700">ロック → 接続未設定 → 本体。外からの遷移は、ロック解除まで保留する</div>
+
+<div style="position: absolute; left: 64px; top: 268px; width: 176px; height: 64px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #18181B; color: #FFFFFF; border-radius: 12px; font-size: 16px; font-weight: 600">起動・前面復帰</div>
+<div style="position: absolute; left: 304px; top: 252px; width: 192px; height: 96px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; text-align: center; background: #E6E6EC; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); font-size: 15px; font-weight: 600">ロック有効？</div>
+<div style="position: absolute; left: 576px; top: 268px; width: 200px; height: 64px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #FFFFFF; border: 1px solid #C9C9D2; border-radius: 12px; font-size: 15px; line-height: 1.4"><span><b>起動ゲート</b><br>Face ID／パスコード</span></div>
+<div style="position: absolute; left: 856px; top: 252px; width: 208px; height: 96px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; text-align: center; background: #E6E6EC; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); font-size: 15px; font-weight: 600">接続設定あり？</div>
+<div style="position: absolute; left: 1144px; top: 268px; width: 280px; height: 64px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #FFFFFF; border: 2px solid #18181B; border-radius: 12px; font-size: 15px; line-height: 1.4"><span><b>本体（2 タブ）</b><br>保留中の遷移があれば適用</span></div>
+<div style="position: absolute; left: 860px; top: 420px; width: 200px; height: 64px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #FFFFFF; border: 1px solid #C9C9D2; border-radius: 12px; font-size: 15px; line-height: 1.4"><span><b>接続設定</b><br>初回セットアップ</span></div>
+<div style="position: absolute; left: 860px; top: 548px; width: 200px; height: 64px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #FFFFFF; border: 1px solid #C9C9D2; border-radius: 12px; font-size: 15px; line-height: 1.4"><span><b>QR スキャン</b><br>読取 → 保存</span></div>
+<div style="position: absolute; left: 860px; top: 676px; width: 200px; height: 64px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #FFFFFF; border: 1px solid #C9C9D2; border-radius: 12px; font-size: 15px; line-height: 1.4"><span><b>接続中…</b><br>全画面オーバーレイ</span></div>
+<div style="position: absolute; left: 860px; top: 804px; width: 200px; height: 80px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #FFF1EF; border: 1px solid #E8B4AE; border-radius: 12px; font-size: 15px; line-height: 1.4"><span><b>接続失敗の表示</b><br>原因＋再試行／閉じる</span></div>
+
+<div style="position: absolute; left: 520px; top: 272px; width: 32px; text-align: center; font-size: 13px; line-height: 16px; color: #45454F">はい</div>
+<div style="position: absolute; left: 780px; top: 272px; width: 72px; text-align: center; font-size: 13px; line-height: 16px; color: #45454F">認証成功</div>
+<div style="position: absolute; left: 412px; top: 216px; width: 48px; text-align: left; font-size: 13px; line-height: 16px; color: #45454F">いいえ</div>
+<div style="position: absolute; left: 1088px; top: 272px; width: 32px; text-align: center; font-size: 13px; line-height: 16px; color: #45454F">はい</div>
+<div style="position: absolute; left: 972px; top: 376px; width: 48px; text-align: left; font-size: 13px; line-height: 16px; color: #45454F">いいえ</div>
+<div style="position: absolute; left: 972px; top: 508px; width: 80px; text-align: left; font-size: 13px; line-height: 16px; color: #45454F">QR で接続</div>
+<div style="position: absolute; left: 972px; top: 636px; width: 120px; text-align: left; font-size: 13px; line-height: 16px; color: #45454F">疎通を 1 回確認</div>
+<div style="position: absolute; left: 1078px; top: 680px; width: 128px; text-align: center; font-size: 13px; line-height: 16px; color: #45454F">一覧を取得できた</div>
+<div style="position: absolute; left: 972px; top: 764px; width: 170px; text-align: left; font-size: 13px; line-height: 16px; color: #45454F">約 20 秒で取得できない</div>
+<div style="position: absolute; left: 1082px; top: 870px; width: 200px; text-align: center; font-size: 13px; line-height: 16px; color: #45454F">閉じる → 本体のオフライン表示</div>
+<div style="position: absolute; left: 752px; top: 761px; width: 48px; text-align: right; font-size: 13px; line-height: 16px; color: #45454F">再試行</div>
+
+<div style="position: absolute; left: 1344px; top: 380px; width: 192px; box-sizing: border-box; padding: 14px; background: #FFFFFF; border: 1px dashed #B9B9C4; border-radius: 12px; font-size: 13px; line-height: 1.6; color: #35353D">到達性が未判定の間は、本体でも接続中の表示を続ける。オフライン表示は判定して失敗したときだけ（約 20 秒で打ち切り）</div>
+
+<div style="position: absolute; left: 64px; top: 400px; width: 700px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 16px; font-weight: 700">外部からの遷移</div>
+<div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px 14px; font-size: 13px; line-height: 1.6; color: #2A2A31">
+<div style="font-weight: 700">通知タップ</div>
+<div>セッションタブに切り替え、スタックを「一覧 → 該当の詳細」に置き換える。同じセッション画面を開いていれば重ねず、入力欄の上の承認・質問のカードを見せる <span style="font-size: 11px; font-weight: 700; color: #1D1D1F; background: #EDEDF0; border-radius: 5px; padding: 1px 5px">変更</span></div>
+<div style="font-weight: 700">ロック中の通知タップ</div>
+<div>遷移先を保留し、起動ゲートを通った後に適用する <span style="font-size: 11px; font-weight: 700; color: #1D1D1F; background: #EDEDF0; border-radius: 5px; padding: 1px 5px">変更</span></div>
+<div style="font-weight: 700">phlox://pair?…</div>
+<div>本体: 設定タブ → QR スキャンを push して自動適用（成功後も留まる）。接続未設定: 接続設定 → QR スキャン。ロック中は解除後</div>
+<div style="font-weight: 700">ウィジェット・Live Activity</div>
+<div>現行はアプリの起動だけ。<span style="font-weight: 700; color: #9A4A00">候補:</span> 通知と同じ規則で、表示中のセッションの詳細へ</div>
+<div style="font-weight: 700">通知の許可</div>
+<div><span style="font-weight: 700; color: #9A4A00">候補:</span> 起動直後ではなく、初回の接続に成功した直後に OS の許可ダイアログを出す</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

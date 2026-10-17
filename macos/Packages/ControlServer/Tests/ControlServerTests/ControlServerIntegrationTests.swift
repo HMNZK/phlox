@@ -625,6 +625,32 @@ private actor HandlerStub {
 
     // MARK: - GET /approvals
 
+    @Test(arguments: ["command", "fileChange", "permissions", nil] as [String?])
+    func getApprovalsIncludesActionKindOnlyWhenPresent(actionKind: String?) async throws {
+        let approval = ApprovalDTO(
+            id: "approval-1", sessionID: sessionID.rawValue.uuidString,
+            kind: "codex", prompt: "Allow?", actionKind: actionKind
+        )
+        let stub = HandlerStub(response: .json(200, ["approvals": [approval]]))
+        let (port, server) = try await startServer(stub: stub)
+        _ = server
+        var urlRequest = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/approvals")!)
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        #expect((response as? HTTPURLResponse)?.statusCode == 200)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let approvals = try #require(json["approvals"] as? [[String: Any]])
+        #expect(approvals.count == 1)
+        let item = try #require(approvals.first)
+        #expect(item["kind"] as? String == "codex")
+        if let actionKind {
+            #expect(item["actionKind"] as? String == actionKind)
+        } else {
+            #expect(!item.keys.contains("actionKind"))
+        }
+    }
+
     @Test func getApprovalsWithValidBearerRoutesToListApprovals() async throws {
         let stub = HandlerStub()
         let (port, server) = try await startServer(stub: stub)

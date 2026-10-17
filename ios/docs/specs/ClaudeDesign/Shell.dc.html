@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>一覧 · Liquid Glass 採用案（iOS 26）· タブ 2 つ＋新規チャット</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: {{g.W}}px; height: {{g.H}}px; overflow: hidden; background: {{c.bg}}; color: {{c.text}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased">
+<sc-if value="{{ isSessions }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 0; top: 0; width: {{g.W}}px; height: {{g.H}}px">
+<dc-import name="List" theme="{{ lp.theme }}" dt="{{ lp.dt }}" size="{{ lp.size }}" variant="{{ lp.variant }}" menu="{{ lp.menu }}" thumb="{{ lp.thumb }}" hint-size="428px,926px"></dc-import>
+</div>
+</sc-if>
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ true }}">
+
+<div style="position: absolute; left: 0; top: 0; width: {{g.W}}px; box-sizing: border-box; padding: {{g.safeTop}}px 16px {{g.bottomPad}}px 16px; display: flex; flex-direction: column">
+
+<h1 style="margin: 44px 4px 14px 4px; font-size: {{f.lt}}px; line-height: 1.15; font-weight: 700; letter-spacing: 0.2px">{{tabTitle}}</h1>
+
+
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}; margin: 4px 16px 2px">接続</div>
+<div style="background: {{c.card}}; border-radius: 22px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 12px 16px; min-height: 52px; box-sizing: border-box; font-size: {{f.body}}px"><span>現在の接続先</span><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.sub}}px; color: {{c.text2}}">100.64.0.1:8765</span></div>
+<div style="height: 1px; background: {{c.sep}}; margin-left: 16px"></div>
+<button type="button" style="display: flex; align-items: center; width: 100%; min-height: 52px; padding: 0 16px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: {{f.body}}px; text-align: left; cursor: pointer">QR で再接続</button>
+<div style="height: 1px; background: {{c.sep}}; margin-left: 16px"></div>
+<button type="button" style="display: flex; align-items: center; width: 100%; min-height: 52px; padding: 0 16px; border: 0; background: transparent; color: {{c.accent}}; font: inherit; font-size: {{f.body}}px; text-align: left; cursor: pointer">疎通テスト</button>
+</div>
+<div style="font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}; margin: 18px 16px 2px">通知</div>
+<div style="background: {{c.card}}; border-radius: 22px; padding: 12px 16px; display: flex; align-items: center; gap: 12px">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px"><span style="font-size: {{f.body}}px">プッシュ通知を受け取る</span><span style="font-size: {{f.foot}}px; color: {{c.text2}}">セッションの更新を通知します</span></span>
+<button type="button" role="switch" aria-checked="true" aria-label="プッシュ通知を受け取る" style="flex: none; width: 51px; height: 31px; border-radius: 999px; border: 0; padding: 2px; background: {{c.switchOn}}; display: flex; justify-content: flex-end; cursor: pointer"><span style="width: 27px; height: 27px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.25)"></span></button>
+</div>
+<div style="font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}; margin: 18px 16px 2px">セキュリティ</div>
+<div style="background: {{c.card}}; border-radius: 22px; padding: 12px 16px; display: flex; align-items: center; gap: 12px">
+<span style="flex: 1; min-width: 0; font-size: {{f.body}}px">Face ID でロック</span>
+<button type="button" role="switch" aria-checked="false" aria-label="Face ID でロック" style="flex: none; width: 51px; height: 31px; border-radius: 999px; border: 0; padding: 2px; background: {{c.fill2}}; display: flex; justify-content: flex-start; cursor: pointer"><span style="width: 27px; height: 27px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.25)"></span></button>
+</div>
+<div style="font-size: {{f.foot}}px; line-height: 1.4; color: {{c.text2}}; margin: 2px 16px 0">起動時とバックグラウンドからの復帰時に認証します。既定はオフで、オフにするとすぐに解除されます。</div>
+<div style="font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}; margin: 18px 16px 2px">外観</div>
+<div style="background: {{c.card}}; border-radius: 22px; padding: 10px 12px">
+<div role="radiogroup" aria-label="外観" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 10px; background: {{c.fill}}">
+<button type="button" role="radio" aria-checked="true" style="min-height: 36px; border: 0; border-radius: 8px; background: {{c.segSel}}; color: {{c.text}}; font: inherit; font-size: {{f.sub}}px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.12)">システム</button>
+<button type="button" role="radio" aria-checked="false" style="min-height: 36px; border: 0; border-radius: 8px; background: transparent; color: {{c.text}}; font: inherit; font-size: {{f.sub}}px">ライト</button>
+<button type="button" role="radio" aria-checked="false" style="min-height: 36px; border: 0; border-radius: 8px; background: transparent; color: {{c.text}}; font: inherit; font-size: {{f.sub}}px">ダーク</button>
+</div>
+</div>
+<div style="font-size: {{f.foot}}px; font-weight: 600; color: {{c.text2}}; margin: 18px 16px 2px">このアプリについて</div>
+<div style="background: {{c.card}}; border-radius: 22px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 12px 16px; min-height: 52px; box-sizing: border-box; font-size: {{f.body}}px"><span>アプリ</span><span style="color: {{c.text2}}">Phlox</span></div>
+<div style="height: 1px; background: {{c.sep}}; margin-left: 16px"></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 12px 16px; min-height: 52px; box-sizing: border-box; font-size: {{f.body}}px"><span>バージョン</span><span style="font-family: ui-monospace, 'SF Mono', Menlo, 'JetBrains Mono', monospace; font-size: {{f.sub}}px; color: {{c.text2}}">0.1.0 (1)</span></div>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<sc-if value="{{ glass }}" hint-placeholder-val="{{ true }}">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: {{g.W}}px; height: {{g.edgeH}}px; background: linear-gradient(to bottom, {{c.edge}}, {{c.edge0}}); pointer-events: none"></div>
+</sc-if>
+
+<nav aria-label="タブ" style="position: absolute; left: {{g.tabLeft}}px; top: {{g.tabTop}}px; width: {{g.tabW}}px; height: {{g.tabH}}px; box-sizing: border-box; padding: 4px 4px {{g.tabPadB}}px 4px; display: flex; border-radius: {{g.tabRadius}}px; background: {{g.barBg}}; border: {{g.barBorder}}; border-top: {{g.barBorderTop}}; box-shadow: {{g.barShadow}}; backdrop-filter: {{g.blur}}; -webkit-backdrop-filter: {{g.blur}}">
+<button type="button" aria-label="セッション、対応待ち 2 件" aria-current="{{ tabs.s.current }}" style="position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: 999px; background: {{tabs.s.bg}}; color: {{tabs.s.fg}}; font: inherit; font-size: 10px; font-weight: 600; cursor: pointer">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8 H13 A2 2 0 0 1 15 10 V15 A2 2 0 0 1 13 17 H8.5 L5.5 19.8 V17 H5 A2 2 0 0 1 3 15 V10 A2 2 0 0 1 5 8 Z M9 8 V6 A2 2 0 0 1 11 4 H19 A2 2 0 0 1 21 6 V11 A2 2 0 0 1 19 13 H18.5 V15.5 L16 13 H15"></path></svg>
+<span>セッション</span>
+<sc-if value="{{ showBadge }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="position: absolute; top: 3px; left: 54%; min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px; border-radius: 999px; background: {{c.badge}}; color: #FFFFFF; font-size: 12px; font-weight: 700; line-height: 18px; text-align: center">2</span></sc-if>
+</button>
+<button type="button" aria-label="設定" aria-current="{{ tabs.t.current }}" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: 999px; background: {{tabs.t.bg}}; color: {{tabs.t.fg}}; font: inherit; font-size: 10px; font-weight: 600; cursor: pointer">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9.2 A2.8 2.8 0 1 0 12 14.8 A2.8 2.8 0 1 0 12 9.2 Z M12 5.5 A6.5 6.5 0 1 0 12 18.5 A6.5 6.5 0 1 0 12 5.5 Z M12 2.5 V5.5 M12 18.5 V21.5 M2.5 12 H5.5 M18.5 12 H21.5 M5.3 5.3 L7.4 7.4 M16.6 16.6 L18.7 18.7 M5.3 18.7 L7.4 16.6 M16.6 7.4 L18.7 5.3"></path></svg>
+<span>設定</span>
+</button>
+</nav>
+<sc-if value="{{ glass }}" hint-placeholder-val="{{ true }}">
+<a href="Draft.dc.html" aria-label="新規チャット" style="position: absolute; left: {{g.newLeft}}px; top: {{g.tabTop}}px; width: 62px; height: 62px; box-sizing: border-box; border-radius: 50%; border: 1px solid {{c.glassBorder}}; background: {{c.glassBg}}; box-shadow: {{c.glassShadow}}; backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); color: {{c.accent}}; display: flex; align-items: center; justify-content: center; text-decoration: none">
+<svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.2 2.3 L13.7 4.8 L7.6 10.9 L4.6 11.4 L5.1 8.4 Z M9.9 3.6 L12.4 6.1 M13 9 V13.5 H2.5 V3 H7"></path></svg>
+</a>
+</sc-if>
+
+
+<sc-if value="{{ menu }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: {{g.W}}px; height: {{g.H}}px; background: {{c.dim}}; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px)"></div>
+</sc-if>
+
+<sc-if value="{{ showAcc }}" hint-placeholder-val="{{ true }}">
+<div style="position: absolute; left: {{g.accLeft}}px; top: {{g.accTop}}px; width: {{g.accW}}px; height: {{g.accH}}px; box-sizing: border-box; border-radius: {{g.accRadius}}px; background: {{g.accBg}}; border: {{g.barBorder}}; border-top: {{g.barBorderTop}}; box-shadow: {{g.barShadow}}; backdrop-filter: {{g.blur}}; -webkit-backdrop-filter: {{g.blur}}; display: flex; align-items: center">
+<sc-if value="{{ accAttention }}" hint-placeholder-val="{{ true }}">
+<a href="Detail.dc.html" aria-label="対応待ち 2 件。先頭は add /approvals endpoint、承認待ち。長押しで一覧から選ぶ" style="flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 18px; text-decoration: none; color: {{c.text}}">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: {{f.accT}}px; line-height: 1.25; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">対応待ち 2</span>
+<span style="font-size: {{f.accS}}px; line-height: 1.25; color: {{c.text2}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">add /approvals endpoint · <b style="font-weight: 600; color: {{c.apprFg}}">承認待ち</b></span>
+</span>
+<span aria-hidden="true" style="flex: none; display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 12px; border-radius: 999px; background: {{c.accent}}; color: {{c.accentOnFill}}; font-size: 15px; font-weight: 600">開く<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 L10.5 8 L6 12.5"></path></svg></span>
+</a>
+</sc-if>
+<sc-if value="{{ accOffline }}" hint-placeholder-val="{{ false }}">
+<div style="flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 18px">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: {{f.accT}}px; line-height: 1.25; font-weight: 700; color: {{c.errFg}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Mac に届きません</span>
+<span style="font-size: {{f.accS}}px; line-height: 1.25; color: {{c.text2}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">最終取得 3 分前 · スリープ中か Tailscale 切断</span>
+</span>
+<button type="button" style="flex: none; height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: {{c.fill}}; color: {{c.accent}}; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer">再接続を試す</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ menu }}" hint-placeholder-val="{{ false }}">
+<div role="menu" aria-label="対応待ち" style="position: absolute; left: 16px; bottom: {{g.menuBottom}}px; width: {{g.menuW}}px; border-radius: 18px; overflow: hidden; background: {{c.menuBg}}; box-shadow: 0 16px 48px rgba(0,0,0,0.28); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%)">
+<a role="menuitem" href="Detail.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; box-sizing: border-box; text-decoration: none; color: {{c.text}}">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">add /approvals endpoint</span><span style="font-size: 13px; color: {{c.text2}}"><b style="font-weight: 600; color: {{c.apprFg}}">承認待ち</b> · Codex · Phlox</span></span>
+</a>
+<div style="height: 1px; background: {{c.sep}}"></div>
+<a role="menuitem" href="Detail.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; box-sizing: border-box; text-decoration: none; color: {{c.text}}">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Tulip</span><span style="font-size: 13px; color: {{c.text2}}"><b style="font-weight: 600; color: {{c.qFg}}">質問あり</b> · Claude Code · Phlox</span></span>
+</a>
+<div style="height: 8px; background: {{c.menuGap}}"></div>
+<a role="menuitem" href="Shell.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 16px; box-sizing: border-box; text-decoration: none; color: {{c.text}}">
+<span style="flex: 1; font-size: 17px">セッション一覧で見る</span>
+<span aria-hidden="true"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 4 H13.5 M2.5 8 H13.5 M2.5 12 H13.5"></path></svg></span>
+</a>
+</div>
+</sc-if>
+
+<sc-if value="{{ thumb }}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: {{g.W}}px; height: {{g.H}}px; pointer-events: none; background: radial-gradient(circle at {{g.thumbX}}px {{g.H}}px, rgba(30,170,90,0.30) 0px, rgba(30,170,90,0.30) {{g.r1}}px, rgba(255,184,0,0.24) {{g.r1}}px, rgba(255,184,0,0.24) {{g.r2}}px, rgba(230,60,50,0.16) {{g.r2}}px)"></div>
+<div aria-hidden="true" style="position: absolute; right: 16px; top: {{g.l1}}px; padding: 4px 10px; border-radius: 999px; background: #0F5132; color: #FFFFFF; font-size: 13px; font-weight: 700">楽に届く</div>
+<div aria-hidden="true" style="position: absolute; right: 16px; top: {{g.l2}}px; padding: 4px 10px; border-radius: 999px; background: #6B4A00; color: #FFFFFF; font-size: 13px; font-weight: 700">伸ばせば届く</div>
+<div aria-hidden="true" style="position: absolute; right: 16px; top: {{g.l3}}px; padding: 4px 10px; border-radius: 999px; background: #8A1F17; color: #FFFFFF; font-size: 13px; font-weight: 700">持ち替えが必要</div>
+</sc-if>
+
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"variant":{"editor":"enum","options":["glass","ios18"],"default":"glass"},"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"dt":{"editor":"enum","options":["default","max"],"default":"default"},"size":{"editor":"enum","options":["plus","se"],"default":"plus"},"tab":{"editor":"enum","options":["sessions","settings"],"default":"sessions"},"acc":{"editor":"enum","options":["attention","offline","none"],"default":"attention"},"menu":{"editor":"enum","options":["off","on"],"default":"off"},"thumb":{"editor":"enum","options":["off","on"],"default":"off"},"$preview":{"width":428,"height":926}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const variant = (p.variant ?? 'glass') === 'ios18' ? 'ios18' : 'glass';
+    const dark = (p.theme ?? 'light') === 'dark';
+    const dt = (p.dt ?? 'default') === 'max';
+    const se = (p.size ?? 'plus') === 'se';
+    const tab = (p.tab ?? 'sessions') === 'usage' ? 'settings' : (p.tab ?? 'sessions');
+    const acc = p.acc ?? 'attention';
+    const menu = (p.menu ?? 'off') === 'on';
+    const thumb = (p.thumb ?? 'off') === 'on';
+    const glass = variant === 'glass';
+    const W = se ? 375 : 428;
+    const H = se ? 667 : 926;
+    const safeTop = se ? 20 : 47;
+    const safeBot = se ? 0 : 34;
+
+    const c = dark ? {
+      bg: '#000000', card: '#1C1C1E', text: '#F2F2F4', text2: '#AFAFB6', text3: '#9D9DA5',
+      sep: 'rgba(84,84,88,0.65)', slot: 'rgba(235,235,245,0.38)', accent: '#F2F2F4', accentOnFill: '#000000',
+      fill: 'rgba(118,118,128,0.28)', fill2: 'rgba(120,120,128,0.36)', segSel: '#636366', switchOn: '#30D158',
+      apprFg: '#FFB46E', apprBg: 'rgba(255,149,0,0.20)', qFg: '#8DB9FF', qBg: 'rgba(64,140,255,0.22)',
+      errFg: '#FF8C82', errBg: 'rgba(255,69,58,0.22)',
+      ring: '#2A2A2E', badge: '#FF453A', dim: 'rgba(0,0,0,0.35)', menuBg: 'rgba(44,44,48,0.88)', menuGap: 'rgba(0,0,0,0.3)',
+      glassBg: 'rgba(38,38,42,0.58)', glassBorder: 'rgba(255,255,255,0.14)',
+      glassShadow: '0 10px 30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)', glassSel: 'rgba(255,255,255,0.14)',
+      bar18: 'rgba(22,22,24,0.86)', mat18: 'rgba(40,40,44,0.86)',
+      edge: 'rgba(0,0,0,0.92)', edge0: 'rgba(0,0,0,0)'
+    } : {
+      bg: '#F2F2F7', card: '#FFFFFF', text: '#1D1D1F', text2: '#56565E', text3: '#6B6B73',
+      sep: 'rgba(60,60,67,0.18)', slot: 'rgba(60,60,67,0.38)', accent: '#1D1D1F', accentOnFill: '#FFFFFF',
+      fill: 'rgba(118,118,128,0.12)', fill2: 'rgba(120,120,128,0.2)', segSel: '#FFFFFF', switchOn: '#34C759',
+      apprFg: '#A8430A', apprBg: '#FFEBD6', qFg: '#1555C0', qBg: '#E3EEFF',
+      errFg: '#B8241C', errBg: '#FDE7E5',
+      ring: '#FFFFFF', badge: '#E5283B', dim: 'rgba(0,0,0,0.18)', menuBg: 'rgba(250,250,252,0.9)', menuGap: 'rgba(60,60,67,0.08)',
+      glassBg: 'rgba(255,255,255,0.58)', glassBorder: 'rgba(255,255,255,0.85)',
+      glassShadow: '0 10px 30px rgba(20,20,40,0.14), 0 1px 3px rgba(20,20,40,0.08), inset 0 1px 0 rgba(255,255,255,0.95)', glassSel: 'rgba(118,118,128,0.16)',
+      bar18: 'rgba(249,249,251,0.88)', mat18: 'rgba(255,255,255,0.84)',
+      edge: 'rgba(242,242,247,0.92)', edge0: 'rgba(242,242,247,0)'
+    };
+
+    const f = dt ? {
+      lt: 52, sec: 46, body: 53, sub: 44, foot: 40, chip: 40, icon: 34, logo: 48, slotT: 14,
+      accT: 26, accS: 22, wrap: 'normal'
+    } : {
+      lt: 34, sec: 17, body: 17, sub: 15, foot: 13, chip: 13, icon: 14, logo: 32, slotT: 10,
+      accT: 15, accS: 13, wrap: 'nowrap'
+    };
+
+    const tabH = glass ? 62 : 49 + safeBot;
+    const tabTop = glass ? H - (se ? 10 : 25) - tabH : H - tabH;
+    const showAcc = acc !== 'none';
+    const accH = dt ? 74 : 56;
+    const accGap = glass ? 10 : 8;
+    const accTop = tabTop - accGap - accH;
+    const bottomPad = (showAcc ? H - accTop : H - tabTop) + 24;
+    const hair = '1px solid ' + c.sep;
+
+    const g = {
+      W, H, safeTop, bottomPad, sepIndent: f.logo + 28,
+      edgeH: safeTop + 16,
+      tabTop, tabH,
+      tabLeft: glass ? 20 : 0, tabW: glass ? W - 40 - 62 - 10 : W, newLeft: W - 20 - 62,
+      tabRadius: glass ? 31 : 0,
+      tabPadB: glass ? 4 : safeBot + 4,
+      barBg: glass ? c.glassBg : c.bar18,
+      barBorder: glass ? '1px solid ' + c.glassBorder : 'none',
+      barBorderTop: glass ? '1px solid ' + c.glassBorder : hair,
+      barShadow: glass ? c.glassShadow : 'none',
+      blur: glass ? 'blur(22px) saturate(180%)' : 'blur(20px) saturate(160%)',
+      accTop, accH,
+      accLeft: glass ? 16 : 12,
+      accW: glass ? W - 32 : W - 24,
+      accRadius: glass ? 28 : 16,
+      accBg: glass ? c.glassBg : c.mat18,
+      menuBottom: H - accTop + 10,
+      menuW: Math.min(320, W - 32),
+      thumbX: Math.round(W * 0.82),
+      r1: Math.round(H * 0.42), r2: Math.round(H * 0.66),
+      l1: Math.round(H - H * 0.42 + 24), l2: Math.round(H - H * 0.66 + 24), l3: safeTop + 60
+    };
+
+    const tabItem = (on) => ({
+      bg: on && glass ? c.glassSel : 'transparent',
+      fg: on ? c.accent : c.text,
+      current: on ? 'page' : 'false'
+    });
+    const tabs = { s: tabItem(tab === 'sessions'), t: tabItem(tab === 'settings') };
+    const tabTitle = tab === 'settings' ? '設定' : 'セッション';
+
+    return {
+      c, f, g, tabs, tabTitle,
+      glass, menu, thumb, showAcc,
+      accAttention: acc === 'attention', accOffline: acc === 'offline',
+      showBadge: true,
+      isSessions: tab === 'sessions', isSettings: tab === 'settings',
+      lp: { theme: dark ? 'dark' : 'light', dt: dt ? 'max' : 'default', size: se ? 'se' : 'plus', variant: glass ? 'glass' : 'ios18', menu: menu ? 'on' : 'off', thumb: thumb ? 'on' : 'off' }
+    };
+  }
+}
+</script>
+</body>
+</html>

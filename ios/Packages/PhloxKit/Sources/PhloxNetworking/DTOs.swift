@@ -42,10 +42,11 @@ struct ApprovalDTO: Decodable {
     let sessionID: String
     let kind: String
     let prompt: String
+    let actionKind: String?
 
     func toDomain() -> Approval? {
         guard let agent = AgentKind(rawValue: kind) else { return nil }
-        return Approval(id: id, sessionID: sessionID, kind: agent, prompt: prompt)
+        return Approval(id: id, sessionID: sessionID, kind: agent, prompt: prompt, actionKind: actionKind)
     }
 }
 

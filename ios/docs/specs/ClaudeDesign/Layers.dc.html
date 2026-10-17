@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>骨格 — 重なり順</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1080px; box-sizing: border-box; padding: 56px 64px; background: #F6F6F8; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #5B5B66; letter-spacing: 0.4px">重なり順（上ほど手前）</div>
+<h2 style="margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700">6 つの層。自前の全画面オーバーレイは「接続中」だけ残す</h2>
+</div>
+
+<div style="display: grid; grid-template-columns: 56px 230px minmax(0, 1fr) 220px 220px; background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.55">
+<div style="padding: 10px 12px; background: #EEEEF2; font-weight: 700"></div>
+<div style="padding: 10px 12px; background: #EEEEF2; font-weight: 700">層</div>
+<div style="padding: 10px 12px; background: #EEEEF2; font-weight: 700">中身</div>
+<div style="padding: 10px 12px; background: #EEEEF2; font-weight: 700">下の層の扱い</div>
+<div style="padding: 10px 12px; background: #EEEEF2; font-weight: 700">閉じ方</div>
+
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-size: 22px; font-weight: 700; color: #18181B">6</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-weight: 700">起動ゲート</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">Face ID（またはパスコード）。起動時と、ロック有効時の復帰時</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">すべてを覆う。開いていたシートや入力中の本文は保ったまま</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">認証の成功だけ</div>
+
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-size: 22px; font-weight: 700">5</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-weight: 700">全画面オーバーレイ</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">接続中…／接続失敗（初回ペアリング直後だけ）</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">タブバーごと覆う</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">一覧を取得できたら自動。失敗時は「再試行」「閉じる」</div>
+
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-size: 22px; font-weight: 700">4</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-weight: 700">アラート</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">名前変更（入力欄つき）／削除確認 <span style="font-size: 12px; font-weight: 700; color: #1D1D1F; background: #EDEDF0; border-radius: 6px; padding: 1px 6px">変更</span><br><span style="color: #5B5B66">削除確認は自前の全画面オーバーレイから OS 標準のアラートへ移す</span></div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">OS 標準の暗幕で全体を覆う</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">ボタンだけ（暗幕タップでは閉じない）</div>
+
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-size: 22px; font-weight: 700">3</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-weight: 700">シート</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">モデル選択（中・大の 2 段）／写真ピッカー（OS）</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">セッション画面の上に重なり、入力欄は隠れる</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">下へスワイプ／「閉じる」「キャンセル」</div>
+
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-size: 22px; font-weight: 700">2</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-weight: 700">push 画面</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">セッション画面／新規チャット／サブエージェント詳細／QR スキャン</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">タブバーと対応待ちバーを隠す <span style="font-size: 12px; font-weight: 700; color: #1D1D1F; background: #EDEDF0; border-radius: 6px; padding: 1px 6px">変更</span><br><span style="color: #5B5B66">設定 → QR でも隠す（全面カメラ）</span></div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">ホームのボタン（家の形・一覧へ）／画面左端からの右スワイプ</div>
+
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-size: 22px; font-weight: 700">1</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC; font-weight: 700">タブのルート</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">セッション一覧／設定。下端に対応待ちバーとタブバー、タブバーの右に離して新規チャットの丸いボタン</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">—</div>
+<div style="padding: 14px 12px; border-top: 1px solid #E6E6EC">タブの切替。各タブは自分の push 履歴を保つ</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 16px; font-weight: 700">一時的に重なるもの（OS）</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>長押しメニュー: 発言の「コピー」「選択して部分コピー」と時刻、対応待ちバーの一覧。呼び出した要素の上に出る</li><li>使用量の吹き出し（ポップオーバー）: 入力欄の下の使用量の行を押すと、行の上に出る。外を押すと閉じる</li>
+<li>キーボード: push 画面の最下端に重なり、承認・質問のカード・入力欄・使用量の行を押し上げる（使用量の行はキーボード表示中も出す）</li>
+<li>前面で受けた通知バナー: OS が最上位に出す</li>
+</ul>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DCDCE3; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 16px; font-weight: 700">同時に開く数の決まり</div>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #2A2A31; display: flex; flex-direction: column; gap: 4px">
+<li>シートとアラートはどちらか 1 つだけ（ADR 0013）。モデル変更と名前変更は何度でも開き直せる</li>
+<li>通知・URL で別画面へ移るときは、開いているシート・アラートを閉じてから遷移する。入力中の本文は捨てない</li>
+<li>起動ゲートは閉じずに上に重ねるので、解除すると元の画面に戻る</li>
+</ul>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

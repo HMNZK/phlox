@@ -5,6 +5,8 @@ last-verified: 2026-07-27
 
 # ADR 0038: iOS のツール実行カードは閉状態で行データもコピー文字列も作らず、展開時は行数を有界化する
 
+> **一部 superseded**: 展開時の「50 行」は 20 行に改めた。閉じたカードで行データとコピー文字列を作らない判断は有効。（[ADR 0046](0046-align-ios-with-mac.md)）
+
 ## ステータス
 
 採択・実装済み（2026-07-27, `feature/tool-call-collapse-threshold`）。[ADR 0037](0037-transcript-window-counts-blocks.md) と対で読む。macOS の [ADR 0128](../../../macos/docs/adr/0128-command-group-cost-bounding.md) と同じ決定に、iOS 固有のコピー経路の対処を加えたもの。

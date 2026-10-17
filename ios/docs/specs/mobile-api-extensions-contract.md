@@ -403,3 +403,18 @@ body は次のうち**1 つ以上**（モデルの変更は従来どおり §6 `
 - Mac が変更を受け付けない状態（権限の切り替え中）は、以前は 500 だったのを **409 `{"error":"settings update in progress"}`** に変える。§8.4 の PATCH と同じ。
 - 本当の適用失敗は 500 のまま。ほかのステータス（200/400/404/425）は不変。
 - iOS（`PhloxAPIClient.setModel`）は再試行せず、失敗を黙って現状維持にしているだけで 500 を特別扱いしていない（2026-10-17 確認）。このため iOS の挙動は変わらない。
+
+### 8.9 GET /approvals — `actionKind` 追加（承認の操作の種類。2026-10-17 追加）
+
+承認の見出し「承認待ち · {操作の種類}」を iPhone で出すため、`GET /approvals` の各要素に**省略可**の `actionKind`（String）を追加する:
+```json
+{ "approvals": [
+  { "id": "…", "sessionID": "…", "kind": "codex", "prompt": "…", "actionKind": "command" }
+] }
+```
+- 値は Codex の承認の種類（Mac の `ChatApprovalKind`）: `"command"`（コマンドの実行）・`"fileChange"`（ファイルの変更）・`"permissions"`（権限の変更）。Mac の承認カードの見出し（`ApprovalCard.kindLabel`）と同じ出所。
+- 既存の `kind` は今までどおり**エージェントの種類**（`"codex"`）。意味は変えない。
+- 種類が分からない承認では**キー自体を省略**する。iOS は欠落・未知の値を「種類なし」として扱い、見出しを「承認待ち」だけにする。
+- 古い iOS は知らないキーを無視するので影響しない。古い Mac は `actionKind` を返さない（上と同じく「種類なし」）。
+- 表示の文言は iOS 側で持つ（値は 3 つの固定の語で、Mac の表示言語に依存しない）。
+- Claude Code の許可は `/approvals` に載らない（§8.7 の質問カード）。質問の `header` にツール名（`Bash` など）が入っている。

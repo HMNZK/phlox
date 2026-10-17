@@ -7,9 +7,9 @@ public struct DSButton: View {
         case primary
         case secondary
         case destructive
-        /// 承認（緑塗り · カンプ③）。
+        /// 承認の主操作。
         case approve
-        /// 却下（ピンク枠 · カンプ③）。
+        /// 却下・取り消しなどの注意操作。
         case declineOutline
 
         /// 破壊的操作のみ `.destructive` ロール（赤系・VoiceOver も破壊的と読む）。
@@ -20,34 +20,38 @@ public struct DSButton: View {
         /// テスト用スタイル契約（AtomsTests · DS-AUDIT-5）。
         package var foregroundToken: Color {
             switch self {
-            case .primary, .destructive, .approve:
-                return DSColor.textOnBrand
+            case .primary, .approve:
+                return IOSColor.accentOnFill
+            case .destructive:
+                return .white
             case .secondary:
-                return DSColor.accent
+                return IOSColor.text.primary
             case .declineOutline:
-                return DSColor.campAttention
+                return IOSColor.status.error
             }
         }
 
         package var backgroundToken: Color {
             switch self {
             case .primary:
-                return DSColor.accent
+                return IOSColor.accent
             case .destructive:
-                return DSColor.statusError
-            case .secondary, .declineOutline:
-                return DSColor.surfaceElevated
+                return IOSColor.status.error
+            case .secondary:
+                return IOSColor.bg.fill
+            case .declineOutline:
+                return IOSColor.bg.fill
             case .approve:
-                return DSColor.statusRunning
+                return IOSColor.accent
             }
         }
 
         package var borderToken: Color {
             switch self {
             case .secondary:
-                return DSColor.border
+                return IOSColor.bg.separator
             case .declineOutline:
-                return DSColor.campAttention
+                return IOSColor.status.error
             default:
                 return .clear
             }
@@ -56,12 +60,15 @@ public struct DSButton: View {
 
     /// 全 variant 共通の最小高さ（= タッチターゲット下限）。
     static let minHeight: CGFloat = DSTouch.minSize
+    static let cornerRadius = DSRadius.m
 
     let title: String
     let variant: Variant
     let isLoading: Bool
     let accessibilityIdentifier: String?
     let action: () -> Void
+
+    package var isEnabled: Bool { !isLoading }
 
     public init(
         _ title: String,
@@ -91,14 +98,14 @@ public struct DSButton: View {
             .frame(maxWidth: .infinity, minHeight: Self.minHeight)
             .padding(.horizontal, DSSpacing.l)
             .foregroundStyle(foreground)
-            .background(background, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+            .background(background, in: RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: borderWidth)
             )
         }
         .buttonStyle(.plain)
-        .disabled(isLoading)
+        .disabled(!isEnabled)
         .accessibilityLabel(Text(title))
         .accessibilityAddTraits(.isButton)
         .accessibilityValue(isLoading ? Text("読み込み中") : Text(""))

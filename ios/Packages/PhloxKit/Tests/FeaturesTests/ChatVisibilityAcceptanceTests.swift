@@ -13,11 +13,9 @@ private struct StubUnusedError: Error {}
 private final class AcceptanceStubAPI: PhloxAPI, @unchecked Sendable {
     var sessionsResult: Result<[Session], PhloxError> = .success([])
     var messagesResult: Result<[ChatMessage], PhloxError> = .success([])
-    var outputResult: Result<String, PhloxError> = .success("")
 
     func listSessions() async throws -> [Session] { try sessionsResult.get() }
     func messages(sessionID: String) async throws -> [ChatMessage] { try messagesResult.get() }
-    func output(sessionID: String) async throws -> String { try outputResult.get() }
 
     func spawn(_ request: SpawnRequest) async throws -> Session { throw StubUnusedError() }
     func waitUntilReady(sessionID: String) async throws -> Bool { throw StubUnusedError() }
@@ -110,20 +108,6 @@ struct ChatVisibilityAcceptanceTests {
         api.sessionsResult = .success([makeSession(.idle, id: "別セッション")])
         await vm.refresh()
         #expect(vm.currentStatus == .running)
-    }
-
-    @Test("ターミナル表示（チャットなし）では running でもインジケータ条件が立たない")
-    func noIndicatorInTerminalMode() async {
-        let api = AcceptanceStubAPI()
-        api.messagesResult = .success([])
-        api.outputResult = .success("terminal text")
-        api.sessionsResult = .success([makeSession(.running)])
-        let vm = SessionDetailViewModel(session: makeSession(.running), api: api)
-        await vm.load()
-        await vm.refresh()
-        #expect(!vm.showsChat)
-        #expect(vm.currentStatus == .running)
-        #expect(!vm.isAgentWorking)
     }
 
     // MARK: - thinkingPreview

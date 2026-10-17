@@ -30,6 +30,10 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - path: App
+      - path: Resources/DotGothic16-Regular.ttf
+        buildPhase: resources
+      - path: Resources/OFL.txt
+        buildPhase: resources
     dependencies:
       - target: PhloxWidget
         embed: true
@@ -53,6 +57,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Phlox
+        UIAppFonts:
+          - DotGothic16-Regular.ttf
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
@@ -60,8 +66,6 @@ targets:
         NSSupportsLiveActivities: true
         NSFaceIDUsageDescription: "保存したセッション情報を保護するため、起動時に Face ID で本人確認します。"
         NSCameraUsageDescription: "Mac とのペアリング用 QR コードを読み取るためにカメラを使用します。"
-        NSMicrophoneUsageDescription: "音声でメッセージを入力するためにマイクを使用します。"
-        NSSpeechRecognitionUsageDescription: "話した内容を文字に変換して入力するために音声認識を使用します。"
         CFBundleURLTypes:
           - CFBundleURLName: com.phlox.mobile.phlox
             CFBundleURLSchemes:
@@ -126,20 +130,6 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: "YES"
 
-  PhloxMobileUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    deploymentTarget: "18.0"
-    sources:
-      - path: PhloxMobileUITests
-    dependencies:
-      - target: PhloxMobile
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.phlox.mobile.PhloxMobileUITests
-        GENERATE_INFOPLIST_FILE: "YES"
-        TEST_TARGET_NAME: PhloxMobile
-
 schemes:
   PhloxMobileSnapshots:
     build:
@@ -157,40 +147,12 @@ schemes:
         PhloxMobile: all
     run:
       config: Debug
-    test:
-      config: Debug
-      targets:
-        - name: PhloxMobileUITests
-          parallelizable: true
-          # ライブ回帰テストはローカル偽サーバー（scripts/fake-phlox-server.py）が要るので既定では走らせない。
-          # キーは skippedTests（skipped は「ターゲット丸ごと除外」の Bool で、リストを渡しても効かない）。
-          skippedTests:
-            - SessionListTitleLiveRegressionUITests
-            - SessionTerminalLiveRegressionUITests
     profile:
       config: Release
     analyze:
       config: Debug
     archive:
       config: Release
-
-  # ライブ回帰テスト専用。実行前に scripts/fake-phlox-server.py --port 53099 を起動しておく。
-  # 既定スキームは skippedTests でこれらを外しており、`-only-testing` では上書きできない
-  # （scheme の SkippedTests との積を取るので 0 件になる）。走らせる入口をスキームで分ける。
-  PhloxMobile-Live:
-    build:
-      targets:
-        PhloxMobile: all
-    test:
-      config: Debug
-      targets:
-        - name: PhloxMobileUITests
-          parallelizable: false
-          skippedTests:
-            - PhloxMobileScreenshotTests
-            - PhloxMobileUITests
-            - SessionDetailBackSwipeUITests
-            - Wave5RegressionUITests
 
   # シミュレーター手動確認用。⌘R でモックデータ（セッション一覧）が即表示される。
   PhloxMobile-Demo:
@@ -203,13 +165,3 @@ schemes:
         "-UITesting": true
         "-UIScenario=goldenPath": true
         "-UIViewAnimationsEnabled": "NO"
-    test:
-      config: Debug
-      targets:
-        - name: PhloxMobileUITests
-          parallelizable: true
-          # ライブ回帰テストはローカル偽サーバー（scripts/fake-phlox-server.py）が要るので既定では走らせない。
-          # キーは skippedTests（skipped は「ターゲット丸ごと除外」の Bool で、リストを渡しても効かない）。
-          skippedTests:
-            - SessionListTitleLiveRegressionUITests
-            - SessionTerminalLiveRegressionUITests

@@ -49,30 +49,26 @@ struct SessionDetailLoadingWhiteboxTests {
         #expect(viewModel.showsChat)
     }
 
-    @Test("空メッセージから出力へフォールバックした後は初回ロードを完了する")
-    func outputFallbackCompletesInitialLoading() async {
+    @Test("構造化チャットのないセッションは既存の空表示へ落ちる")
+    func missingMessagesCompleteInitialLoadingWithoutError() async {
         let viewModel = SessionDetailViewModel(
             session: makeSession(),
-            api: MockAPI(
-                outputOutcome: .success("terminal output"),
-                messagesOutcome: .success([])
-            )
+            api: MockAPI(messagesOutcome: .failure(.notFound))
         )
 
         await viewModel.load()
 
         #expect(!viewModel.isInitialLoading)
-        #expect(viewModel.outputText == "terminal output")
+        #expect(!viewModel.showsInitialLoadingIndicator)
+        #expect(!viewModel.showsChat)
+        #expect(viewModel.loadError == nil)
     }
 
-    @Test("メッセージと出力の取得失敗後も初回ロードを完了する")
+    @Test("メッセージ取得失敗後も初回ロードを完了する")
     func failureCompletesInitialLoading() async {
         let viewModel = SessionDetailViewModel(
             session: makeSession(),
-            api: MockAPI(
-                outputOutcome: .failure(.unreachable),
-                messagesOutcome: .failure(.unreachable)
-            )
+            api: MockAPI(messagesOutcome: .failure(.unreachable))
         )
 
         await viewModel.load()
@@ -85,10 +81,7 @@ struct SessionDetailLoadingWhiteboxTests {
     func refreshDoesNotRestoreInitialLoading() async {
         let viewModel = SessionDetailViewModel(
             session: makeSession(),
-            api: MockAPI(
-                outputOutcome: .success("terminal output"),
-                messagesOutcome: .success([])
-            )
+            api: MockAPI(messagesOutcome: .success([.agent(id: "m1", text: "loaded")]))
         )
         await viewModel.load()
 

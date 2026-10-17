@@ -28,7 +28,6 @@ extension EnvironmentValues {
 public enum Route: Hashable, Sendable {
     case sessionDetail(id: String)
     case sessionComposeDraft(SessionComposeDraft)
-    case chatAnswer(sessionID: String)
     case settings
     case qrScan
     case deleteConfirmation(id: String, cascadeCount: Int)

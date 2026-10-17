@@ -9,15 +9,8 @@ import UniformTypeIdentifiers
 import UIKit
 #endif
 
-// FeaturesTests は DesignSystemIOS を直接依存に持たないため、入力欄の公開テスト境界を再公開する。
-public typealias DSVoiceInputController = DesignSystemIOS.DSVoiceInputController
-public typealias DSVoiceInputState = DesignSystemIOS.DSVoiceInputState
-public typealias DSVoiceInputAuthorization = DesignSystemIOS.DSVoiceInputAuthorization
-public typealias DSVoiceInputError = DesignSystemIOS.DSVoiceInputError
-public typealias VoiceInputRecognizing = DesignSystemIOS.VoiceInputRecognizing
-
 /// セッション詳細（カンプ③ / E4-6）+ 送信（カンプ⑦ / E4-8）。
-/// 出力は表示時に1回取得。入力は送信受付後にだけクリアし、送信中の編集を保持する。
+/// 入力は送信受付後にだけクリアし、送信中の編集を保持する。
 @MainActor
 @Observable
 public final class SessionDetailViewModel {
@@ -27,7 +20,6 @@ public final class SessionDetailViewModel {
         case failed(String)
     }
 
-    static let maxOutputLines = 500
     /// 添付上限（契約 §5 / ComposerAttachments と同一）。
     static let maxAttachmentCount = ImageAttachmentLimits.maxCount
     static let maxAttachmentBytesPerImage = ImageAttachmentLimits.maxInputBytes
@@ -52,13 +44,7 @@ public final class SessionDetailViewModel {
     /// task-3 契約の PM スタブ。入力欄のカーソル位置（UTF-16 オフセット）。
     /// View が書き込み、添付時のプレースホルダ挿入位置として使う。
     public var inputCursorUTF16: Int = 0
-    /// ターミナル出力は開いた直後から全文を見せる。折りたたみ操作は引き続き可能。
-    public var isOutputExpanded = true
-    public private(set) var outputText: String = ""
-    /// Mac が色つきの端末画面を配信できたときだけ中身が入る。端末を持たないセッションでは
-    /// Mac がプレーンテキストへ落とすので `.empty` のまま（`outputText` 側で描く）。
-    public private(set) var terminalScreen: TerminalScreen = .empty
-    /// 初回の messages / output 解決まで true。ポーリング更新では再点灯しない。
+    /// 初回の messages 解決まで true。ポーリング更新では再点灯しない。
     public private(set) var isInitialLoading: Bool = true
     public private(set) var chatMessages: [ChatMessage] = [] {
         didSet { reconcileAttachments() }
@@ -135,7 +121,7 @@ public final class SessionDetailViewModel {
         !isAwaitingInitialSpawn && currentStatus == .running && canInterrupt
     }
     public var showsInitialLoadingIndicator: Bool {
-        isInitialLoading && !isAwaitingInitialSpawn && chatMessages.isEmpty && outputText.isEmpty
+        isInitialLoading && !isAwaitingInitialSpawn && chatMessages.isEmpty
     }
     /// 表示名の単一の源（初期値は session.name）。
     public private(set) var displayName: String
@@ -530,19 +516,16 @@ public final class SessionDetailViewModel {
         return modelSettings.availableModels.first?.displayName
     }
 
-    /// 構造化チャットを表示するか（メッセージが1件以上ある場合）。空なら従来のターミナル表示にフォールバック。
+    /// 構造化チャットを表示するか（メッセージが1件以上ある場合）。
     public var showsChat: Bool { !chatMessages.isEmpty }
 
-    /// 詳細表示時のロード入口。構造化チャット（`messages`）を優先し、
-    /// 空・非対応(404)・取得失敗のいずれもターミナル `output` にフォールバックする。
-    /// （Codex 等 .appServer セッションはチャット、PTY/非構造化はターミナル表示になる。）
+    /// 詳細表示時のロード入口。構造化チャットを取得する。
     public func load() async {
         defer { isInitialLoading = false }
         await refreshSubAgentIndex()
         await loadModelSettings()
         if await adoptNonEmptyMessages(updateOnlyIfChanged: false) { return }
         chatMessages = []
-        await loadOutput()
     }
 
     /// ポーリング間隔（リアルタイム更新の代替。P3 のストリーミングまでの暫定）。
@@ -574,26 +557,12 @@ public final class SessionDetailViewModel {
     /// ポーリング更新。データは更新するが、**一時的な失敗・空では表示を消さない**（復帰時フリッカー防止）。
     /// - 構造化メッセージが取れれば（非空）チャットを更新。
     /// - チャット表示中の失敗/空は現状維持。
-    /// - ターミナル表示中は出力を再取得（失敗時は現状維持）。
     public func refresh() async {
         await refreshCurrentStatus()
         await refreshSubAgentIndex()
         await loadModelSettings()
         if await adoptMessagesFromDelta(updateOnlyIfChanged: true) { return }
         if showsChat { return }
-        if let screen = try? await api.terminalScreen(sessionID: session.id) {
-            adopt(screen)
-            loadError = nil
-        }
-    }
-
-    /// 受け取った端末画面を表示状態へ反映する。
-    /// 折りたたみ判定・空判定は従来どおりプレーンテキストで行うので、色つきでも同じ規則で畳める。
-    private func adopt(_ screen: TerminalScreen) {
-        let truncated = Self.truncate(screen.plainText)
-        if outputText != truncated { outputText = truncated }
-        let adopted = screen.isANSI ? screen : .empty
-        if terminalScreen != adopted { terminalScreen = adopted }
     }
 
     /// task-6: モデル一覧を取得する。404/オフライン等はチップ非表示に留め画面は壊さない。
@@ -735,17 +704,6 @@ public final class SessionDetailViewModel {
         return !settings.availableModels.isEmpty
     }
 
-    public func loadOutput() async {
-        do {
-            adopt(try await api.terminalScreen(sessionID: session.id))
-            loadError = nil
-        } catch let error as PhloxError {
-            loadError = error.presentation.message
-        } catch {
-            loadError = "出力の取得に失敗しました"
-        }
-    }
-
     /// E4-8 送信。受付後に同じ入力だけクリアする。失敗時は入力を書き換えない。
     public func sendMessage() async {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -831,17 +789,29 @@ public final class SessionDetailViewModel {
         case notReady
     }
 
-    /// messages 全量取得→非空なら採用して `loadError` をクリア。`load()` と delta フォールバック用。
+    /// messages 全量取得→非空なら採用。`load()` と delta フォールバック用。
     private func adoptNonEmptyMessages(updateOnlyIfChanged: Bool) async -> Bool {
-        guard let messages = try? await api.messages(sessionID: session.id), !messages.isEmpty else {
+        let messages: [ChatMessage]
+        do {
+            messages = try await api.messages(sessionID: session.id)
+            loadError = nil
+        } catch let error as PhloxError {
+            if case .notFound = error {
+                loadError = nil
+            } else if !showsChat {
+                loadError = error.presentation.message
+            }
+            return false
+        } catch {
+            if !showsChat { loadError = "会話の取得に失敗しました" }
             return false
         }
+        guard !messages.isEmpty else { return false }
         if updateOnlyIfChanged {
             if chatMessages != messages { chatMessages = messages }
         } else {
             chatMessages = messages
         }
-        loadError = nil
         return true
     }
 
@@ -853,14 +823,18 @@ public final class SessionDetailViewModel {
             if let cursor = delta.cursor {
                 messagesCursor = cursor
             }
+            loadError = nil
             if !chatMessages.isEmpty {
-                loadError = nil
                 return true
             }
             return false
         } catch let error as PhloxError where shouldFallbackToFullMessages(error) {
             return await adoptNonEmptyMessages(updateOnlyIfChanged: updateOnlyIfChanged)
+        } catch let error as PhloxError {
+            if !showsChat { loadError = error.presentation.message }
+            return false
         } catch {
+            if !showsChat { loadError = "会話の取得に失敗しました" }
             return false
         }
     }
@@ -974,14 +948,6 @@ public final class SessionDetailViewModel {
         case let .userQuestion(_, _, questions, _, _):
             return !questions.isEmpty
         }
-    }
-
-    /// 出力を最大行数で切り詰める（メモリ無制限展開を防ぐ）。
-    static func truncate(_ text: String, maxLines: Int = maxOutputLines) -> String {
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-        guard lines.count > maxLines else { return text }
-        let tail = lines.suffix(maxLines).joined(separator: "\n")
-        return "（先頭を省略しました）\n" + tail
     }
 
     // MARK: - task-10 画像正規化（契約 §5: mediaType と実バイトを一致させる）

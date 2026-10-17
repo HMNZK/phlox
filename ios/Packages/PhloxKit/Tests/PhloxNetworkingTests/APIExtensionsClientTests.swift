@@ -79,11 +79,4 @@ final class APIExtensionsClientTests: XCTestCase {
         XCTAssertEqual(percentEncodedPath(of: NetStubURLProtocol.lastRequest), "/approvals/ap%201")
     }
 
-    func testOutputPercentEncodesSpaceInSessionID() async throws {
-        NetStubURLProtocol.outcomes = [
-            .status(200, Data(#"{"text":"out"}"#.utf8), [:]),
-        ]
-        _ = try await makeClient().output(sessionID: "ses 1")
-        XCTAssertEqual(percentEncodedPath(of: NetStubURLProtocol.lastRequest), "/sessions/ses%201/output")
-    }
 }

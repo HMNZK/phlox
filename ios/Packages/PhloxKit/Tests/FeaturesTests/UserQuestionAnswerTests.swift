@@ -36,7 +36,6 @@ private actor QuestionMockAPI: PhloxAPI {
     }
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func send(_ request: SendRequest) async throws -> SendResult { SendResult(accepted: true) }
-    func output(sessionID: String) async throws -> String { "" }
     func messages(sessionID: String) async throws -> [ChatMessage] { try messagesOutcome.get() }
     func remove(sessionID: String) async throws {}
     func approvals() async throws -> [Approval] { [] }

@@ -224,7 +224,7 @@ public struct QRScanScreen: View {
                     .font(DSFont.headline)
             }
             .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
-            .foregroundStyle(DSColor.accent)
+            .foregroundStyle(IOSColor.accent)
             .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
@@ -271,7 +271,7 @@ public struct QRScanScreen: View {
             Text(QRScanCopy.scanAgainButtonTitle)
                 .font(DSFont.headline)
                 .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
-                .foregroundStyle(DSColor.accent)
+                .foregroundStyle(IOSColor.accent)
                 .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)

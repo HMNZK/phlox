@@ -10,7 +10,6 @@
 #   make build         — xcodebuild for the PhloxMobile scheme on iPhone 16 simulator
 #   make run           — シミュレーターでデモ起動（モックデータ・一覧画面）
 #   make run-live      — シミュレーターで本番フロー起動
-#   make run-ui-test   — XCUITest（UI E2E）をシミュレーターで実行
 #   make snapshot      — 単体テストで一覧・会話の PNG を書き出す
 #   make test          — swift test on Packages/PhloxKit
 #   make lint          — raw-value literal lint
@@ -27,7 +26,7 @@ DESTINATION   := platform=iOS Simulator,id=$(SIMULATOR_ID)
 SNAPSHOT_SIMULATOR_ID ?= $(shell xcrun simctl list devices available | sed -nE 's/^[[:space:]]*iPhone[^()]*\(([A-F0-9-]+)\).*/\1/p' | head -1)
 SNAPSHOT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)/.verification/ios-redesign
 
-.PHONY: all generate build run run-live run-ui-test snapshot test lint
+.PHONY: all generate build run run-live snapshot test lint
 
 all: generate build test lint
 
@@ -46,13 +45,6 @@ run:
 
 run-live:
 	bash $(RUN_SCRIPT) --live
-
-run-ui-test: generate
-	xcodebuild test \
-	  -scheme $(SCHEME) \
-	  -destination 'platform=iOS Simulator,id=$(SIMULATOR_ID)' \
-	  -only-testing:PhloxMobileUITests \
-	  CODE_SIGNING_ALLOWED=NO
 
 snapshot: generate
 	TEST_RUNNER_PHLOX_DESIGN_SNAPSHOTS=1 \

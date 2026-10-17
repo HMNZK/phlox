@@ -63,7 +63,7 @@ public struct DSApprovalRequestCard: View {
             Text(Self.labelText)
                 .font(DSFont.footnote.weight(.bold))
                 .textCase(.uppercase)
-                .foregroundStyle(DSColor.statusAwaitingApproval)
+                .foregroundStyle(IOSColor.status.approval)
 
             promptText
                 .font(DSFont.subheadline)
@@ -72,8 +72,8 @@ public struct DSApprovalRequestCard: View {
         }
         .padding(DSSpacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColor.campSurfaceEmphasis, in: cardShape)
-        .overlay(cardShape.strokeBorder(DSColor.statusAwaitingApproval.opacity(Self.borderOpacity), lineWidth: 1))
+        .background(IOSColor.status.approvalBackground, in: cardShape)
+        .overlay(cardShape.strokeBorder(IOSColor.status.approval.opacity(Self.borderOpacity), lineWidth: 1))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("\(Self.labelText)、\(prompt)"))
     }
@@ -89,7 +89,7 @@ public struct DSApprovalRequestCard: View {
                 if segment.isEmphasized {
                     styled = Text(segment.text)
                         .font(DSFont.campMono)
-                        .foregroundStyle(DSColor.campAttention)
+                .foregroundStyle(IOSColor.status.approval)
                 } else {
                     styled = Text(segment.text)
                 }

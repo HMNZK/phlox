@@ -41,8 +41,8 @@ public enum DSNavigationChrome {
         appearanceInstaller.state
     }
 
-    public static var barBackground: Color { DSColor.surface }
-    public static var accentTint: Color { DSColor.campAccentBright }
+    public static var barBackground: Color { IOSColor.bg.base }
+    public static var accentTint: Color { IOSColor.accent }
 
     /// 既存呼び出しとの互換用。固定値ではなく現在テーマから都度決定する。
     public static var barColorScheme: ColorScheme {

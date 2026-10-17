@@ -104,20 +104,6 @@ final class E2EFlowTests: XCTestCase {
         XCTAssertTrue(result.accepted)
     }
 
-    // UC-04: 詳細画面の出力取得
-    func testOutputFetchForDetail() async throws {
-        E2EStubURLProtocol.router = { request in
-            guard request.httpMethod == "GET", request.url?.path == "/sessions/s1/output" else {
-                return (404, Data())
-            }
-            // Mac の output 応答は wire キー `text`（実機 wire で確認）。
-            return (200, Data(#"{"text":"> running tests...\nOK"}"#.utf8))
-        }
-
-        let text = try await makeClient().output(sessionID: "s1")
-        XCTAssertTrue(text.contains("running tests"))
-    }
-
     // UC-02: トークン失効時は unauthorized
     func testUnauthorizedListSessions() async throws {
         E2EStubURLProtocol.router = { _ in (401, Data()) }

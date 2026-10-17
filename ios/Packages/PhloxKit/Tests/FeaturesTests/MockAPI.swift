@@ -7,7 +7,6 @@ actor MockAPI: PhloxAPI {
     let approvalsList: [Approval]
     let spawnOutcome: Result<Session, PhloxError>
     let sendOutcome: Result<SendResult, PhloxError>
-    var outputOutcome: Result<String, PhloxError>
     var messagesOutcome: Result<[ChatMessage], PhloxError>
     let removeError: PhloxError?
     let respondError: PhloxError?
@@ -64,7 +63,6 @@ actor MockAPI: PhloxAPI {
         approvalsList: [Approval] = [],
         spawnOutcome: Result<Session, PhloxError> = .success(MockAPI.defaultSession),
         sendOutcome: Result<SendResult, PhloxError> = .success(SendResult(accepted: true)),
-        outputOutcome: Result<String, PhloxError> = .success(""),
         messagesOutcome: Result<[ChatMessage], PhloxError> = .success([]),
         removeError: PhloxError? = nil,
         respondError: PhloxError? = nil
@@ -73,7 +71,6 @@ actor MockAPI: PhloxAPI {
         self.approvalsList = approvalsList
         self.spawnOutcome = spawnOutcome
         self.sendOutcome = sendOutcome
-        self.outputOutcome = outputOutcome
         self.messagesOutcome = messagesOutcome
         self.removeError = removeError
         self.respondError = respondError
@@ -106,10 +103,6 @@ actor MockAPI: PhloxAPI {
         return try sendOutcome.get()
     }
 
-    func output(sessionID: String) async throws -> String {
-        try outputOutcome.get()
-    }
-
     func messages(sessionID: String) async throws -> [ChatMessage] {
         try messagesOutcome.get()
     }
@@ -117,11 +110,6 @@ actor MockAPI: PhloxAPI {
     /// テストでポーリング更新を模すため、messages の結果を差し替える。
     func setMessagesOutcome(_ outcome: Result<[ChatMessage], PhloxError>) {
         messagesOutcome = outcome
-    }
-
-    /// テストで output の復帰（失敗→成功）を模すため、output の結果を差し替える。
-    func setOutputOutcome(_ outcome: Result<String, PhloxError>) {
-        outputOutcome = outcome
     }
 
     func remove(sessionID: String) async throws {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// XCUITest 起動時の引数解釈（`-UITesting` / `-UIScenario=…` / `-UIScreen=…`）。
+/// シミュレーターの見本データ起動時の引数解釈（`-UITesting` / `-UIScenario=…` / `-UIScreen=…`）。
 enum UITestingSupport {
     static var isEnabled: Bool {
         ProcessInfo.processInfo.arguments.contains("-UITesting")
@@ -29,17 +29,12 @@ enum UITestingSupport {
         case launchGate
     }
 
-    /// `ios-design.html` の 11 画面（カンプ①〜⑪）に対応。
     enum Screen: String, CaseIterable {
         case connectionSettings
         case sessionList
         case sessionDetail
-        case spawn
         case deleteConfirmation
         case launchGate
-        case chatAnswer
-        case codexApproval
-        case spawnError
         case unreachable
         case empty
 
@@ -48,14 +43,10 @@ enum UITestingSupport {
             case .connectionSettings: "01-connection-settings"
             case .sessionList: "02-session-list"
             case .sessionDetail: "03-session-detail-approval"
-            case .spawn: "04-spawn"
-            case .deleteConfirmation: "05-delete-confirmation"
-            case .launchGate: "06-launch-gate"
-            case .chatAnswer: "07-chat-answer"
-            case .codexApproval: "08-codex-approval-sheet"
-            case .spawnError: "09-spawn-error"
-            case .unreachable: "10-unreachable"
-            case .empty: "11-empty-state"
+            case .deleteConfirmation: "04-delete-confirmation"
+            case .launchGate: "05-launch-gate"
+            case .unreachable: "06-unreachable"
+            case .empty: "07-empty-state"
             }
         }
 
@@ -64,14 +55,10 @@ enum UITestingSupport {
             case .connectionSettings: "① 接続設定"
             case .sessionList: "② セッション一覧"
             case .sessionDetail: "③ セッション詳細・承認"
-            case .spawn: "④ 新規タスク（spawn）"
-            case .deleteConfirmation: "⑤ 削除確認（カスケード）"
-            case .launchGate: "⑥ 起動ゲート（Face ID）"
-            case .chatAnswer: "⑦ 質問への回答（send）"
-            case .codexApproval: "⑧ 承認の応答（Codex 4 択）"
-            case .spawnError: "⑨ spawn 失敗（レート制限）"
-            case .unreachable: "⑩ 到達不可（Mac スリープ）"
-            case .empty: "⑪ 空状態（初回）"
+            case .deleteConfirmation: "④ 削除確認（カスケード）"
+            case .launchGate: "⑤ 起動ゲート（Face ID）"
+            case .unreachable: "⑥ 到達不可（Mac スリープ）"
+            case .empty: "⑦ 空状態（初回）"
             }
         }
     }

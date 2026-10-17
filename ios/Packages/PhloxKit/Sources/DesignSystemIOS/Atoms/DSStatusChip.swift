@@ -1,9 +1,7 @@
 import SwiftUI
 import AgentDomain
 
-/// `SessionStatus` の 6 状態を色 + アイコン + テキストの三重符号化で表示するチップ。
-/// 色覚多様性に配慮し、状態は色だけでなく形（SF Symbol）と文言でも区別する。
-/// 語彙・色・アイコンは共有 `StatusBadge`（SSOT）から引く。
+/// 仕様の語・色・太さでセッション状態を表示する。待機は表示しない。
 public struct DSStatusChip: View {
     let status: SessionStatus
     @Environment(\.locale) private var locale
@@ -12,28 +10,21 @@ public struct DSStatusChip: View {
         self.status = status
     }
 
-    /// チップが表示するラベルとアイコン名を解決する純粋ヘルパー（テスト可能・6 分岐の検証点）。
-    static func content(for status: SessionStatus, locale: Locale) -> (label: String, icon: String) {
-        (StatusBadge.localizedLabel(for: status, locale: locale), StatusBadge.iconName(for: status))
+    static func presentation(for status: SessionStatus, locale: Locale) -> IOSStatusPresentation {
+        IOSStatusVocabulary.presentation(for: status, locale: locale)
     }
 
     public var body: some View {
-        let resolved = Self.content(for: status, locale: locale)
-        let tint = StatusBadge.color(for: status)
-        HStack(spacing: DSSpacing.xs) {
-            Image(systemName: resolved.icon)
-                .imageScale(.small)
-            Text(resolved.label)
-                .font(DSFont.captionStrong)
+        let resolved = Self.presentation(for: status, locale: locale)
+        if let label = resolved.label, let color = resolved.color, let weight = resolved.weight {
+            Text(label)
+                .font(DSFont.subheadline.weight(weight.fontWeight))
+                .foregroundStyle(color)
+                .fixedSize()
+                .accessibilityLabel(Text(label))
+        } else {
+            EmptyView()
         }
-        .foregroundStyle(tint)
-        .padding(.horizontal, DSSpacing.s)
-        .padding(.vertical, DSSpacing.xxs)
-        .background(tint.opacity(0.15), in: Capsule())
-        .overlay(Capsule().strokeBorder(tint.opacity(0.5), lineWidth: 1))
-        .fixedSize()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(resolved.label))
     }
 }
 

@@ -21,7 +21,6 @@ public struct SessionListView: View {
     let reachability: Reachability
     let host: String
     let onSelectDetail: (String) -> Void
-    let onAnswerQuestion: (String) -> Void
     let onAddSession: (SessionComposeDraft) -> Void
     let onReconnect: () async -> Void
     let onSettings: () -> Void
@@ -31,7 +30,6 @@ public struct SessionListView: View {
         reachability: Reachability = .unknown,
         host: String? = nil,
         onSelectDetail: @escaping (String) -> Void,
-        onAnswerQuestion: @escaping (String) -> Void,
         onAddSession: @escaping (SessionComposeDraft) -> Void,
         onReconnect: @escaping () async -> Void = {},
         onSettings: @escaping () -> Void = {}
@@ -40,7 +38,6 @@ public struct SessionListView: View {
         self.reachability = reachability
         self.host = host ?? viewModel.connectionHost
         self.onSelectDetail = onSelectDetail
-        self.onAnswerQuestion = onAnswerQuestion
         self.onAddSession = onAddSession
         self.onReconnect = onReconnect
         self.onSettings = onSettings
@@ -145,10 +142,10 @@ public struct SessionListView: View {
             .foregroundStyle(DSColor.textPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(DSSpacing.m)
-            .background(DSColor.statusError.opacity(0.15))
+            .background(IOSColor.status.errorBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(DSColor.statusError.opacity(0.35))
+                    .fill(IOSColor.status.error.opacity(0.35))
                     .frame(height: 1)
             }
             .accessibilityLabel(Text(unreachableViewModel.bannerText()))
@@ -265,7 +262,7 @@ public struct SessionListView: View {
                 .font(DSFont.footnote.weight(.bold))
                 .kerning(SessionListMetrics.sectionHeaderKerning)
                 .textCase(.uppercase)
-                .foregroundStyle(DSColor.campTextQuaternary)
+                .foregroundStyle(IOSColor.text.tertiary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .contain)
@@ -287,25 +284,21 @@ public struct SessionListView: View {
                     .accessibilityIdentifier(AccessibilityID.sessionRow(session.id))
                 }
             }
-            .background(DSColor.campSurfaceEmphasis, in: RoundedRectangle(cornerRadius: DSRadius.card, style: .continuous))
+            .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.card, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: DSRadius.card, style: .continuous)
-                    .strokeBorder(DSColor.campCardBorder, lineWidth: 1)
+                    .strokeBorder(IOSColor.bg.separator, lineWidth: 1)
             )
         }
     }
 
     private var attentionSectionHeader: some View {
         HStack(spacing: DSSpacing.s) {
-            Circle()
-                .fill(DSColor.campAttention)
-                .frame(width: SessionListMetrics.glowDotSize, height: SessionListMetrics.glowDotSize)
-                .shadow(color: DSColor.campAttention, radius: SessionListMetrics.glowDotShadowRadius)
             Text(viewModel.attentionSectionTitle)
                 .font(DSFont.footnote.weight(.bold))
                 .kerning(SessionListMetrics.sectionHeaderKerning)
                 .textCase(.uppercase)
-                .foregroundStyle(DSColor.campAttention)
+                .foregroundStyle(IOSColor.text.secondary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("あなたの番")
@@ -317,7 +310,8 @@ public struct SessionListView: View {
         } label: {
             Text("+ セッションを追加")
                 .font(DSFont.subheadline)
-                .foregroundStyle(DSColor.campAccentBright)
+                .foregroundStyle(IOSColor.accent)
+                .underline()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, DSSpacing.xs)
         }
@@ -326,11 +320,7 @@ public struct SessionListView: View {
     }
 
     private func selectAttentionSession(_ session: Session) {
-        if session.subtitle.hasPrefix("回答待ち") {
-            onAnswerQuestion(session.id)
-        } else {
-            onSelectDetail(session.id)
-        }
+        onSelectDetail(session.id)
     }
 }
 
@@ -380,7 +370,6 @@ private enum OfflineOverlayMetrics {
                 configStore: InMemoryConnectionConfigStore(ConnectionConfig(host: "100.64.0.1", port: 8765))
             ),
             onSelectDetail: { _ in },
-            onAnswerQuestion: { _ in },
             onAddSession: { _ in }
         )
     }
@@ -393,7 +382,6 @@ private enum OfflineOverlayMetrics {
             reachability: .unreachableHost,
             host: "100.64.0.1",
             onSelectDetail: { _ in },
-            onAnswerQuestion: { _ in },
             onAddSession: { _ in },
             onReconnect: {}
         )
@@ -405,7 +393,6 @@ private enum OfflineOverlayMetrics {
         SessionListView(
             viewModel: SessionListViewModel(repository: StubSessionRepository(states: [.empty])),
             onSelectDetail: { _ in },
-            onAnswerQuestion: { _ in },
             onAddSession: { _ in }
         )
     }

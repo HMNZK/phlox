@@ -44,21 +44,6 @@ struct SentBannerRemovalAcceptanceTests {
         #expect(vm.inputText == "こんにちは", "失敗時のテキスト復元は維持する")
     }
 
-    @Test("ChatAnswer: 送信成功後は sent 状態を経ず idle に戻る（完了バナー廃止）")
-    func chatAnswerSendReturnsToIdle() async {
-        let session = Session(
-            id: "s1", name: "Tulip", agent: .codex,
-            status: .awaitingApproval(prompt: "どちらにしますか？"),
-            subtitle: "", updatedAt: Date(timeIntervalSince1970: 0)
-        )
-        let api = MockAPI(sendOutcome: .success(SendResult(accepted: true)))
-        let vm = ChatAnswerViewModel(session: session, api: api)
-        vm.inputText = "A で進めてください"
-
-        await vm.sendAnswer()
-
-        #expect(vm.sendState == .idle, "送信完了ステータスは表示しない（バナー廃止）")
-    }
 }
 
 struct ChatAutoFollowPolicyAcceptanceTests {

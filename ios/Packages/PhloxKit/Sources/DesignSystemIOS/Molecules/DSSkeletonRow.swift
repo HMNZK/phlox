@@ -21,7 +21,7 @@ public struct DSSkeletonRow: View {
     }
 
     /// セッション行アバターと同寸（design.md §2.3）。
-    public static let agentBadgeSize = DSSessionRow.agentBadgeSize
+    public static let agentLogoSize = DSSessionRow.agentLogoSize
 
     public var body: some View {
         HStack(spacing: DSSpacing.m) {
@@ -38,7 +38,7 @@ public struct DSSkeletonRow: View {
         .overlay(alignment: .bottom) {
             if showsDivider {
                 Rectangle()
-                    .fill(DSColor.campCardBorder)
+                    .fill(IOSColor.bg.separator)
                     .frame(height: 1)
             }
         }
@@ -46,14 +46,7 @@ public struct DSSkeletonRow: View {
     }
 
     private var skeletonAgentBadge: some View {
-        let color = DSColor.campAgentColor(for: agentKind)
-        return RoundedRectangle(cornerRadius: DSSessionRow.agentBadgeCornerRadius, style: .continuous)
-            .fill(color.opacity(0.16))
-            .overlay(
-                RoundedRectangle(cornerRadius: DSSessionRow.agentBadgeCornerRadius, style: .continuous)
-                    .strokeBorder(color.opacity(0.4), lineWidth: 1)
-            )
-            .frame(width: Self.agentBadgeSize, height: Self.agentBadgeSize)
+        DSAgentBrandIcon(kind: agentKind, size: Self.agentLogoSize)
     }
 
     private func skeletonBar(height: CGFloat, widthRatio: CGFloat) -> some View {

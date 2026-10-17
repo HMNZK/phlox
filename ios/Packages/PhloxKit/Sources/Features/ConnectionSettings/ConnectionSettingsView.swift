@@ -72,7 +72,7 @@ public struct ConnectionSettingsSection: View {
 
             HStack(spacing: DSSpacing.s) {
                 Image(systemName: "network")
-                    .foregroundStyle(DSColor.accent)
+                    .foregroundStyle(IOSColor.accent)
                 Text(viewModel.currentConnection)
                     .font(DSFont.body)
                     .foregroundStyle(DSColor.textPrimary)
@@ -103,7 +103,7 @@ public struct ConnectionSettingsSection: View {
                     .font(DSFont.headline)
             }
             .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
-            .foregroundStyle(DSColor.accent)
+            .foregroundStyle(IOSColor.accent)
             .background(
                 DSColor.surfaceElevated,
                 in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
@@ -133,7 +133,7 @@ public struct ConnectionSettingsSection: View {
                     .font(DSFont.headline)
             }
             .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
-            .foregroundStyle(DSColor.accent)
+            .foregroundStyle(IOSColor.accent)
             .background(
                 DSColor.surfaceElevated,
                 in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)

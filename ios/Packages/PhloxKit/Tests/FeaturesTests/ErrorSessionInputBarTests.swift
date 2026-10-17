@@ -144,7 +144,6 @@ private actor SlowSendAPI: PhloxAPI {
         await withCheckedContinuation { releaseContinuation = $0 }
         return SendResult(accepted: true)
     }
-    func output(sessionID: String) async throws -> String { "" }
     func messages(sessionID: String) async throws -> [ChatMessage] { [] }
     func remove(sessionID: String) async throws {}
     func approvals() async throws -> [Approval] { [] }

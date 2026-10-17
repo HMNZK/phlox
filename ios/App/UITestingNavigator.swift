@@ -1,7 +1,7 @@
 import Features
 import PhloxCore
 
-/// UI テスト / スクリーンショット用の初期ルート・ナビゲーションを適用する。
+/// シミュレーター見本・描画テスト用の初期ルート・ナビゲーションを適用する。
 @MainActor
 enum UITestingNavigator {
     static func initialModel() -> AppModel {
@@ -35,12 +35,6 @@ enum UITestingNavigator {
         case .deleteConfirmation:
             router.push(.sessionDetail(id: "sess-rose"))
             router.present(.deleteConfirmation(id: "sess-rose", cascadeCount: 3))
-        case .spawn, .spawnError:
-            break // spawn 画面は wave-4 で廃止（遷移なし。Screen ケースは screenshot 用に残置）
-        case .chatAnswer:
-            router.push(.chatAnswer(sessionID: "sess-tulip"))
-        case .codexApproval:
-            router.push(.sessionDetail(id: "sess-codex"))
         case .connectionSettings, .sessionList, .launchGate, .unreachable, .empty:
             break
         }

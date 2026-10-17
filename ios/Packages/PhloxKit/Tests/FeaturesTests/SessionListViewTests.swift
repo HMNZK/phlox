@@ -6,9 +6,9 @@ import DesignSystemIOS
 final class SessionListViewTests: XCTestCase {
 
     func testNavigationChromeUsesSurfaceAndDarkScheme() {
-        XCTAssertEqual(DSNavigationChrome.barBackground, DSColor.surface)
+        XCTAssertEqual(DSNavigationChrome.barBackground, IOSColor.bg.base)
         XCTAssertEqual(DSNavigationChrome.barColorScheme, .dark)
-        XCTAssertEqual(DSNavigationChrome.accentTint, DSColor.campAccentBright)
+        XCTAssertEqual(DSNavigationChrome.accentTint, IOSColor.accent)
     }
 
     func testNavigationChromeInstallsUIKitAppearanceWithoutCrashing() {

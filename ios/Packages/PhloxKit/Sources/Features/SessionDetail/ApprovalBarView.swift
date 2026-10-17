@@ -24,11 +24,6 @@ public struct ApprovalBarView: View {
                         Task { await viewModel.tapPrimary(approvalID: approval.id, decision: decision) }
                     }
                 }
-                .sheet(isPresented: $viewModel.showCodexSheet) {
-                    CodexApprovalSheet(approvalID: approval.id) { decision in
-                        Task { await viewModel.respond(decision, approvalID: approval.id) }
-                    }
-                }
             }
         }
     }
@@ -37,7 +32,7 @@ public struct ApprovalBarView: View {
 #if DEBUG
 #Preview("ClaudeCode") {
     ApprovalBarView(viewModel: ApprovalViewModel(
-        sessionID: "s1", agentKind: .claudeCode,
+        sessionID: "s1",
         api: StubPhloxAPI(approvals: [Approval(id: "a1", sessionID: "s1", kind: .claudeCode, prompt: "削除しますか？")])
     ))
     .padding(DSSpacing.l)

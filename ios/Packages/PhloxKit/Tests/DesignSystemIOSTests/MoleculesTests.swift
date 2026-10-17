@@ -16,10 +16,10 @@ final class MoleculesTests: XCTestCase {
 
     // MARK: - DSSessionRow (DP-2-4 camp)
 
-    func testSessionRowCampAbbreviationsDelegateToCampAgentBadge() {
-        XCTAssertEqual(DSSessionRow.campAbbreviation(for: .claudeCode), DSCampAgentBadge.abbreviation(for: .claudeCode))
-        XCTAssertEqual(DSSessionRow.campAbbreviation(for: .codex), DSCampAgentBadge.abbreviation(for: .codex))
-        XCTAssertEqual(DSSessionRow.campAbbreviation(for: .cursor), DSCampAgentBadge.abbreviation(for: .cursor))
+    func testSessionRowAgentLogoUsesSharedBrandAssets() {
+        XCTAssertEqual(AgentBrandIcon(kind: .claudeCode, size: DSSessionRow.agentLogoSize).descriptor.displayName, "Claude Code")
+        XCTAssertEqual(AgentBrandIcon(kind: .codex, size: DSSessionRow.agentLogoSize).descriptor.displayName, "Codex")
+        XCTAssertEqual(AgentBrandIcon(kind: .cursor, size: DSSessionRow.agentLogoSize).descriptor.displayName, "Cursor")
     }
 
     func testSessionRowCampDetailLineCombinesSubtitleAndTime() {
@@ -58,9 +58,9 @@ final class MoleculesTests: XCTestCase {
         XCTAssertEqual(DSSessionRow.rowOpacity(for: .running), 1.0, accuracy: 0.001)
     }
 
-    func testSessionRowAgentBadgeSizeDelegatesToCampAgentBadge() {
-        XCTAssertEqual(DSSessionRow.agentBadgeSize, DSCampAgentBadge.sessionRowSize)
-        XCTAssertEqual(DSSessionRow.agentBadgeCornerRadius, DSCampAgentBadge.sessionRowCornerRadius)
+    func testSessionRowAgentLogoUsesThirtyEightPoints() {
+        XCTAssertEqual(DSSessionRow.agentLogoSize, 38)
+        XCTAssertEqual(DSSkeletonRow.agentLogoSize, DSSessionRow.agentLogoSize)
     }
 
     // MARK: - DSSkeletonRow (DP-2-4)
@@ -71,8 +71,8 @@ final class MoleculesTests: XCTestCase {
         XCTAssertEqual(row.secondaryBarWidthRatio, 0.4, accuracy: 0.001)
     }
 
-    func testSkeletonRowUsesAgentBadgeSizeFromSessionRow() {
-        XCTAssertEqual(DSSkeletonRow.agentBadgeSize, DSSessionRow.agentBadgeSize)
+    func testSkeletonRowUsesAgentLogoSizeFromSessionRow() {
+        XCTAssertEqual(DSSkeletonRow.agentLogoSize, DSSessionRow.agentLogoSize)
     }
 
     // MARK: - DSAttentionRow
@@ -87,12 +87,13 @@ final class MoleculesTests: XCTestCase {
         XCTAssertEqual(row.promptPreview, "実行中の補足")
     }
 
-    func testAttentionRowCampTokensMatchDesign() {
+    func testAttentionRowUsesApprovalStatusTokens() {
+        let session = makeSession(status: .awaitingApproval(prompt: "p"))
         XCTAssertEqual(DSAttentionRow.accentBarWidth, DSSpacing.xs)
         XCTAssertEqual(DSAttentionRow.cornerRadius, DSRadius.card)
-        XCTAssertEqual(DSAttentionRow.accentColor, DSColor.campAttention)
-        XCTAssertEqual(DSAttentionRow.surfaceColor, DSColor.campSurfaceEmphasis)
-        XCTAssertEqual(DSAttentionRow.borderColor, DSColor.campAttention.opacity(0.32))
+        XCTAssertEqual(DSAttentionRow.tint(for: session), IOSColor.status.approval)
+        XCTAssertEqual(DSAttentionRow.surface(for: session), IOSColor.status.approvalBackground)
+        XCTAssertEqual(DSAttentionRow.border(for: session), IOSColor.status.approval.opacity(0.32))
     }
 
     func testAttentionRowSubtitleAppendsRelativeTime() {
@@ -111,11 +112,11 @@ final class MoleculesTests: XCTestCase {
 
     func testAttentionRowSubtitlePreservesQuestionFormat() {
         let session = makeSession(
-            status: .awaitingApproval(prompt: "v2 契約で進めますか？"),
-            subtitle: "回答待ち: 「v2 契約で進めますか？」"
+            status: .awaitingUserQuestion,
+            subtitle: "質問あり: 「v2 契約で進めますか？」"
         )
         let row = DSAttentionRow(session: session) {}
-        XCTAssertEqual(row.subtitleLine, "回答待ち: 「v2 契約で進めますか？」")
+        XCTAssertEqual(row.subtitleLine, "質問あり: 「v2 契約で進めますか？」")
         XCTAssertEqual(DSAttentionRow.attentionKind(for: session), .question)
     }
 
@@ -126,15 +127,28 @@ final class MoleculesTests: XCTestCase {
             subtitle: "ファイル削除の承認待ち"
         )
         let question = makeSession(
-            status: .awaitingApproval(prompt: "v2?"),
-            subtitle: "回答待ち: 「v2?」"
+            status: .awaitingUserQuestion,
+            subtitle: "質問あり: 「v2?」"
         )
         XCTAssertEqual(DSAttentionRow.chipLabel(for: approval, locale: ja), "承認待ち")
-        XCTAssertEqual(DSAttentionRow.chipLabel(for: question, locale: ja), "質問待ち")
+        XCTAssertEqual(DSAttentionRow.chipLabel(for: question, locale: ja), "質問あり")
     }
 
-    func testAttentionRowChipUsesAwaitingTint() {
-        XCTAssertEqual(DSAttentionRow.chipTint, DSColor.statusAwaitingApproval)
+    func testAttentionRowQuestionUsesQuestionTint() {
+        let question = makeSession(status: .awaitingUserQuestion)
+        XCTAssertEqual(DSAttentionRow.tint(for: question), IOSColor.status.question)
+    }
+
+    func testThinkingIndicatorUsesCanonicalPendingStatusWords() {
+        let locale = Locale(identifier: "ja_JP")
+        let approval = DSThinkingIndicator(
+            state: .waiting,
+            status: .awaitingApproval(prompt: "")
+        )
+        let question = DSThinkingIndicator(state: .waiting, status: .awaitingUserQuestion)
+
+        XCTAssertEqual(approval.displayLabel(locale: locale), "承認待ち")
+        XCTAssertEqual(question.displayLabel(locale: locale), "質問あり")
     }
 
     // MARK: - DSInputBar
@@ -263,15 +277,18 @@ final class MoleculesTests: XCTestCase {
 
     // MARK: - DSChatBubble (DP-2-6 / カンプ⑦)
     // 配色（背景・前景）の契約は task-2 で macOS 揃えに仕様変更され、
-    // DSChatBubbleStyleTests へ移管した（旧: グラデ背景・campSurfaceEmphasis・textOnBrand）。
+    // DSChatBubbleStyleTests へ移管した（エージェント印の強調表示）。
 
     func testChatBubbleAlignmentReflectsRole() {
         XCTAssertEqual(DSChatBubble.horizontalAlignment(for: .agent), .leading)
         XCTAssertEqual(DSChatBubble.horizontalAlignment(for: .user), .trailing)
     }
 
-    func testChatBubbleAccessibilitySpeakerLabels() {
+    func testChatBubbleAccessibilitySpeakerLabelsIncludeAgentName() {
         XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent), "エージェント")
+        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent, agentKind: .claudeCode), "Claude Code")
+        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent, agentKind: .codex), "Codex")
+        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent, agentKind: .cursor), "Cursor")
         XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .user), "あなた")
     }
 
@@ -279,9 +296,8 @@ final class MoleculesTests: XCTestCase {
         XCTAssertEqual(DSChatBubble.cornerRadius, DSRadius.card)
     }
 
-    func testChatBubbleAgentAvatarSizeDelegatesToCampAgentBadge() {
-        XCTAssertEqual(DSChatBubble.agentAvatarSize, DSCampAgentBadge.chatAvatarSize)
-        XCTAssertEqual(DSChatBubble.agentAvatarCornerRadius, DSCampAgentBadge.chatAvatarCornerRadius)
+    func testChatBubbleAgentLogoUsesTwentyEightPointSize() {
+        XCTAssertEqual(DSChatBubble.agentLogoSize, 28)
     }
 
     // MARK: - DSChatInputBar (DP-2-6 / カンプ⑦)
@@ -311,20 +327,4 @@ final class MoleculesTests: XCTestCase {
         XCTAssertEqual(DSChatInputBar.sendButtonIconName, "arrow.up")
     }
 
-    // MARK: - DSFixedBottomCTA
-
-    func testFixedBottomCTAUsesScreenHorizontalInset() {
-        XCTAssertEqual(DSFixedBottomCTA.horizontalInset, DSSpacing.l)
-    }
-
-    func testFixedBottomCTAStoresTitleAndEnabledState() {
-        let cta = DSFixedBottomCTA("保存して接続", isEnabled: false) {}
-        XCTAssertEqual(cta.title, "保存して接続")
-        XCTAssertFalse(cta.isEnabled)
-    }
-
-    func testFixedBottomCTADefaultsToEnabled() {
-        let cta = DSFixedBottomCTA("起動して送信") {}
-        XCTAssertTrue(cta.isEnabled)
-    }
 }

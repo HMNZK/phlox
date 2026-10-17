@@ -17,10 +17,8 @@ struct AppRoot: View {
     @State private var router = UITestingNavigator.initialRouter()
     @State private var setupRouter = NavigationRouter()
     @State private var settingsRouter = NavigationRouter()
-    @State private var usageRouter = NavigationRouter()
     @State private var listVM: SessionListViewModel?
     @State private var appShell: AppShellViewModel?
-    @State private var usageVM: UsageViewModel?
     @State private var qrScanInitialPayload: String?
     @Binding private var pendingPairingURLString: String?
     private let configStore = UserDefaultsConnectionConfigStore()
@@ -61,12 +59,7 @@ struct AppRoot: View {
                     listVM = SessionListViewModel(repository: environment.sessionRepository)
                 }
                 if appShell == nil {
-                    appShell = AppShellViewModel(
-                        overview: SessionsOverviewViewModel(repository: environment.sessionRepository)
-                    )
-                }
-                if usageVM == nil {
-                    usageVM = UsageViewModel(api: environment.apiClient)
+                    appShell = AppShellViewModel()
                 }
                 if UITestingSupport.isEnabled {
                     if let listVM {
@@ -160,9 +153,9 @@ struct AppRoot: View {
 
     @ViewBuilder
     private var sessionsStack: some View {
-        if let listVM, let appShell, let usageVM {
+        if let listVM, let appShell {
             VStack(spacing: 0) {
-                selectedTabContent(listVM: listVM, appShell: appShell, usageVM: usageVM)
+                selectedTabContent(listVM: listVM, appShell: appShell)
                 if !tabBarHidden(appShell: appShell) {
                     appTabBar(appShell: appShell)
                 }
@@ -181,16 +174,13 @@ struct AppRoot: View {
     @ViewBuilder
     private func selectedTabContent(
         listVM: SessionListViewModel,
-        appShell: AppShellViewModel,
-        usageVM: UsageViewModel
+        appShell: AppShellViewModel
     ) -> some View {
         switch appShell.selectedTab {
         case .sessions:
             sessionsTab(listVM: listVM)
         case .settings:
             settingsTab
-        case .usage:
-            usageTab(usageVM: usageVM)
         }
     }
 
@@ -208,12 +198,6 @@ struct AppRoot: View {
                     tab: .settings,
                     title: "設定",
                     systemImage: "gearshape",
-                    appShell: appShell
-                )
-                appTabButton(
-                    tab: .usage,
-                    title: "Usage",
-                    systemImage: "chart.bar",
                     appShell: appShell
                 )
             }
@@ -238,8 +222,10 @@ struct AppRoot: View {
                 Text(title)
                     .font(.caption2)
             }
-            .foregroundStyle(isSelected ? DSColor.campAccentBright : DSColor.textSecondary)
+            .foregroundStyle(isSelected ? IOSColor.accentOnFill : IOSColor.text.secondary)
             .frame(maxWidth: .infinity, minHeight: DSTouch.rowMinHeight)
+            .padding(.vertical, DSSpacing.xs)
+            .background(isSelected ? IOSColor.accent : Color.clear, in: Capsule())
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -255,10 +241,10 @@ struct AppRoot: View {
                 reachability: model.reachability,
                 host: connectionHost ?? SessionListViewModel.uiTestFallbackHost,
                 onSelectDetail: { router.push(.sessionDetail(id: $0)) },
-                onAnswerQuestion: { router.push(.chatAnswer(sessionID: $0)) },
                 onAddSession: { onAddSession(draft: $0) },
                 onReconnect: { await refreshReachability() }
             )
+            .navigationStackHomeBackButton()
             .navigationDestination(for: Route.self) { route in
                 destination(for: route, router: router)
             }
@@ -278,17 +264,6 @@ struct AppRoot: View {
             settingsView(onQRScan: { openQRScan(using: settingsRouter) })
                 .navigationDestination(for: Route.self) { route in
                     destination(for: route, router: settingsRouter)
-                }
-        }
-        .dsCampNavigationChrome()
-    }
-
-    private func usageTab(usageVM: UsageViewModel) -> some View {
-        @Bindable var usageRouter = usageRouter
-        return NavigationStack(path: $usageRouter.path) {
-            UsageView(model: usageVM)
-                .navigationDestination(for: Route.self) { route in
-                    destination(for: route, router: usageRouter)
                 }
         }
         .dsCampNavigationChrome()
@@ -321,17 +296,6 @@ struct AppRoot: View {
                     api: environment.apiClient,
                     onDelete: { router.present(.deleteConfirmation(id: session.id, cascadeCount: 0)) }
                 )
-            } else if UITestingSupport.isEnabled, id == "sess-spawned" {
-                // UI テスト: spawn 直後は一覧に未反映のためスタブ詳細を表示
-                let spawned = Session(
-                    id: id, name: "UITest Spawn", agent: .claudeCode,
-                    status: .running, subtitle: "ui-test-proj", updatedAt: Date()
-                )
-                SessionDetailView(
-                    viewModel: SessionDetailViewModel(session: spawned, api: environment.apiClient),
-                    approvalViewModel: nil,
-                    onDelete: { router.present(.deleteConfirmation(id: id, cascadeCount: 0)) }
-                )
             } else {
                 Text("セッションが見つかりません")
                     .font(DSFont.body)
@@ -344,8 +308,6 @@ struct AppRoot: View {
                 draft: draft,
                 api: environment.apiClient
             )
-        case .chatAnswer(let sessionID):
-            chatAnswerDestination(sessionID: sessionID)
         case .settings:
             settingsView(onQRScan: { openQRScan(using: router) })
         case .qrScan:
@@ -357,32 +319,6 @@ struct AppRoot: View {
             .onAppear { qrScanInitialPayload = nil }
         case .deleteConfirmation:
             EmptyView() // sheet で処理
-        }
-    }
-
-    @ViewBuilder
-    private func chatAnswerDestination(sessionID: String) -> some View {
-        let session = listVM?.session(id: sessionID)
-        if let session {
-            ChatAnswerDestination(session: session, api: environment.apiClient)
-        } else if UITestingSupport.isEnabled, sessionID == "sess-tulip" {
-            let stub = Session(
-                id: sessionID,
-                name: "Tulip",
-                agent: .codex,
-                status: .awaitingApproval(
-                    prompt: "`/approvals` のレスポンス契約は v2 (id・session・kind・prompt を含む) で進めますか？最小の id だけにしますか？"
-                ),
-                subtitle: "回答待ち: 「v2 契約で進めますか？」",
-                updatedAt: Date()
-            )
-            ChatAnswerDestination(session: stub, api: environment.apiClient)
-        } else {
-            Text("セッションが見つかりません")
-                .font(DSFont.body)
-                .foregroundStyle(DSColor.textSecondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(DSColor.surface)
         }
     }
 
@@ -623,7 +559,7 @@ private struct ConnectingOverlayView: View {
         VStack(spacing: DSSpacing.m) {
             Image(systemName: "wifi.exclamationmark")
                 .font(DSFont.iconConnectionFailure)
-                .foregroundStyle(DSColor.statusError)
+                .foregroundStyle(IOSColor.status.error)
                 .padding(.bottom, DSSpacing.xs)
             Text(failure.title)
                 .font(DSFont.title2)
@@ -672,23 +608,5 @@ private struct QRScanDestination: View {
             initialScannedString: initialScannedString,
             onApplied: onApplied
         )
-    }
-}
-
-/// 回答画面の ViewModel 寿命をナビゲーション push 単位で固定する。
-private struct ChatAnswerDestination: View {
-    let session: Session
-    let api: PhloxAPI
-
-    @State private var viewModel: ChatAnswerViewModel
-
-    init(session: Session, api: PhloxAPI) {
-        self.session = session
-        self.api = api
-        _viewModel = State(initialValue: ChatAnswerViewModel(session: session, api: api))
-    }
-
-    var body: some View {
-        ChatAnswerView(viewModel: viewModel)
     }
 }

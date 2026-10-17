@@ -8,6 +8,25 @@ import UIKit
 /// すべて `Font.TextStyle` ベース（固定サイズ `.system(size:)` を使わない）で、
 /// ユーザーの文字サイズ設定に追従する。
 public extension DSFont {
+    /// 新規チャットの DotGothic16 見出し。仕様の Dynamic Type 段階に合わせて固定サイズを選ぶ。
+    static func displayDot(for dynamicTypeSize: DynamicTypeSize) -> Font {
+        .custom("DotGothic16-Regular", size: displayDotSize(for: dynamicTypeSize))
+    }
+
+    static func displayDotSize(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        switch dynamicTypeSize {
+        case .xSmall: 24
+        case .small: 25
+        case .medium: 27
+        case .large: 28
+        case .xLarge: 30
+        case .xxLarge: 32
+        case .xxxLarge, .accessibility1, .accessibility2, .accessibility3, .accessibility4: 34
+        case .accessibility5: 44
+        @unknown default: 34
+        }
+    }
+
     /// 一覧最上部の大タイトル。iOS 標準の large title と同じ見た目にする。
     static let largeTitle = Font.largeTitle.weight(.bold)
     /// 画面タイトル（カンプ各ヘッダ）。

@@ -26,19 +26,19 @@ public struct SettingsView: View {
                     onQRScan: onQRScan
                 )
 
-                settingsSection("セキュリティ") {
-                    DSToggle(
-                        isOn: $settings.faceIDEnabled,
-                        title: "Face ID / Touch ID でロック",
-                        subtitle: "起動時とバックグラウンドからの復帰時に認証します"
-                    )
-                }
-
                 settingsSection("通知") {
                     DSToggle(
                         isOn: $settings.notificationsEnabled,
                         title: "プッシュ通知を受け取る",
                         subtitle: "セッションの更新を通知します"
+                    )
+                }
+
+                settingsSection("セキュリティ") {
+                    DSToggle(
+                        isOn: $settings.faceIDEnabled,
+                        title: "Face ID / Touch ID でロック",
+                        subtitle: "起動時とバックグラウンドからの復帰時に認証します"
                     )
                 }
 
@@ -52,11 +52,31 @@ public struct SettingsView: View {
                     .accessibilityLabel("外観")
                 }
 
-                settingsSection("About") {
+                settingsSection("このアプリについて") {
                     VStack(spacing: DSSpacing.s) {
                         aboutRow(label: "アプリ", value: viewModel.appName)
                         Divider().overlay(DSColor.separator)
                         aboutRow(label: "バージョン", value: viewModel.version)
+                        Divider().overlay(DSColor.separator)
+                        NavigationLink {
+                            DotGothic16LicenseView()
+                        } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: DSSpacing.s) {
+                                Text("DotGothic16")
+                                    .font(DSFont.body)
+                                    .foregroundStyle(DSColor.textPrimary)
+                                Spacer(minLength: DSSpacing.xs)
+                                Text("SIL Open Font License 1.1")
+                                    .font(DSFont.footnote)
+                                    .foregroundStyle(DSColor.textSecondary)
+                                Image(systemName: "chevron.right")
+                                    .font(DSFont.caption.weight(.semibold))
+                                    .foregroundStyle(IOSColor.text.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("DotGothic16 のライセンス、SIL Open Font License 1.1")
                     }
                 }
             }
@@ -65,6 +85,7 @@ public struct SettingsView: View {
         }
         .background(DSColor.background)
         .navigationTitle("設定")
+        .tint(IOSColor.accent)
     }
 
     private func settingsSection<Content: View>(

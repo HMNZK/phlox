@@ -16,7 +16,7 @@ public struct DSResultBanner: View {
     }
 
     private var tint: Color {
-        isError ? DSColor.statusError : DSColor.statusCompleted
+        isError ? IOSColor.status.error : IOSColor.status.success
     }
 
     public var body: some View {

@@ -48,29 +48,104 @@ final class TokensTests: XCTestCase {
     }
 
     func testAddedDynamicTypeFontsAreAccessible() {
-        let fonts: [Font] = [DSFont.title1, DSFont.title2, DSFont.headline, DSFont.subheadline, DSFont.footnote, DSFont.body, DSFont.caption]
-        XCTAssertEqual(fonts.count, 7)
+        let fonts: [Font] = [
+            DSFont.title1, DSFont.title2, DSFont.headline, DSFont.subheadline,
+            DSFont.footnote, DSFont.body, DSFont.caption, DSFont.displayDot(for: .large),
+        ]
+        XCTAssertEqual(fonts.count, 8)
     }
 
-    // MARK: - DP-2-1 Camp tokens (design.md §2)
-
-    func testBrandGradientUsesCampRGBValues() {
-        XCTAssertEqual(DSGradient.brandStart, RGB(0xA8, 0x55, 0xF7))
-        XCTAssertEqual(DSGradient.brandEnd, RGB(0xF4, 0x72, 0xB6))
-        XCTAssertEqual(DSGradient.brandAngleDegrees, 135, accuracy: 0.001)
-        let gradient: LinearGradient = DSGradient.brand
-        XCTAssertNotNil(gradient)
+    func testDisplayDotSizesFollowDynamicTypeSpecification() {
+        XCTAssertEqual(DSFont.displayDotSize(for: .large), 28)
+        XCTAssertEqual(DSFont.displayDotSize(for: .xxxLarge), 34)
+        XCTAssertEqual(DSFont.displayDotSize(for: .accessibility1), 34)
+        XCTAssertEqual(DSFont.displayDotSize(for: .accessibility2), 34)
+        XCTAssertEqual(DSFont.displayDotSize(for: .accessibility3), 34)
+        XCTAssertEqual(DSFont.displayDotSize(for: .accessibility4), 34)
+        XCTAssertEqual(DSFont.displayDotSize(for: .accessibility5), 44)
     }
 
-    func testCampShadowGlowValuesMatchDesign() {
-        XCTAssertEqual(DSShadow.ctaGlow.x, 0)
-        XCTAssertEqual(DSShadow.ctaGlow.y, 8)
-        XCTAssertEqual(DSShadow.ctaGlow.radius, 24)
-        XCTAssertEqual(DSShadow.fabGlow.y, 6)
-        XCTAssertEqual(DSShadow.fabGlow.radius, 16)
+    // MARK: - iOS redesign colors
+
+    func testAccentAndAccentOnFillMatchDarkTheme() {
+        withTheme(AppTheme.phlox.id) {
+            expectColor(IOSColor.accent, 0xF2F2F4)
+            expectColor(IOSColor.accentOnFill, 0x000000)
+            XCTAssertNotEqual(IOSColor.accent, IOSColor.accentOnFill)
+        }
+    }
+
+    func testIOSColorTokensMatchLightTheme() {
+        withTheme(AppTheme.phloxLight.id) {
+            expectColor(IOSColor.accent, 0x1D1D1F)
+            expectColor(IOSColor.accentOnFill, 0xFFFFFF)
+            expectColor(IOSColor.text.primary, 0x1D1D1F)
+            expectColor(IOSColor.text.secondary, 0x56565E)
+            expectColor(IOSColor.text.tertiary, 0x6B6B73)
+            expectColor(IOSColor.stop, 0xD62F26)
+            expectColor(IOSColor.badge, 0xD62F26)
+            expectColor(IOSColor.status.approval, 0xA8430A)
+            expectColor(IOSColor.status.approvalBackground, 0xFFEBD6)
+            expectColor(IOSColor.status.question, 0x1555C0)
+            expectColor(IOSColor.status.questionBackground, 0xE3EEFF)
+            expectColor(IOSColor.status.error, 0xB8241C)
+            expectColor(IOSColor.status.errorBackground, 0xFDE7E5)
+            expectColor(IOSColor.status.stalled, 0x5B3FA8)
+            expectColor(IOSColor.status.stalledBackground, 0xF1ECFB)
+            expectColor(IOSColor.status.caution, 0x8A5300)
+            expectColor(IOSColor.status.success, 0x1F7A3A)
+            expectColor(IOSColor.status.neutral, 0x3A3A42)
+            expectColor(IOSColor.bg.base, 0xF2F2F7)
+            expectColor(IOSColor.bg.card, 0xFFFFFF)
+            expectColor(IOSColor.bg.raised, 0xE4E4EB)
+            expectColor(IOSColor.bg.code, 0xF7F6FA)
+            expectColor(IOSColor.bg.fill, 0x767680, opacity: 0.12)
+            expectColor(IOSColor.bg.separator, 0x3C3C43, opacity: 0.18)
+            expectColor(IOSColor.bg.glass, 0xFFFFFF, opacity: 0.62)
+            expectColor(IOSColor.bg.bar, 0xF9F9FB, opacity: 0.94)
+            expectColor(IOSColor.bg.sheet, 0xF2F2F7, opacity: 0.97)
+            expectColor(IOSColor.bg.menu, 0xFAFAFC, opacity: 0.94)
+            XCTAssertEqual(IOSColor.bg.dim, Color.black.opacity(0.28))
+        }
+    }
+
+    func testIOSColorTokensMatchDarkTheme() {
+        withTheme(AppTheme.phlox.id) {
+            expectColor(IOSColor.accent, 0xF2F2F4)
+            expectColor(IOSColor.accentOnFill, 0x000000)
+            expectColor(IOSColor.text.primary, 0xF2F2F4)
+            expectColor(IOSColor.text.secondary, 0xAFAFB6)
+            expectColor(IOSColor.text.tertiary, 0x9D9DA5)
+            expectColor(IOSColor.stop, 0xE5483F)
+            expectColor(IOSColor.badge, 0xE5483F)
+            expectColor(IOSColor.status.approval, 0xFFB46E)
+            expectColor(IOSColor.status.approvalBackground, 0xFF9F0A, opacity: 0.20)
+            expectColor(IOSColor.status.question, 0x8DB9FF)
+            expectColor(IOSColor.status.questionBackground, 0x0A84FF, opacity: 0.22)
+            expectColor(IOSColor.status.error, 0xFF8C82)
+            expectColor(IOSColor.status.errorBackground, 0xFF453A, opacity: 0.18)
+            expectColor(IOSColor.status.stalled, 0xC9B6FF)
+            expectColor(IOSColor.status.stalledBackground, 0x9678E6, opacity: 0.20)
+            expectColor(IOSColor.status.caution, 0xF4BD68)
+            expectColor(IOSColor.status.success, 0x6FD08C)
+            expectColor(IOSColor.status.neutral, 0xD4D4DA)
+            expectColor(IOSColor.bg.base, 0x000000)
+            expectColor(IOSColor.bg.card, 0x1C1C1E)
+            expectColor(IOSColor.bg.raised, 0x2C2C30)
+            expectColor(IOSColor.bg.code, 0x141416)
+            expectColor(IOSColor.bg.fill, 0x767680, opacity: 0.28)
+            expectColor(IOSColor.bg.separator, 0x545458, opacity: 0.65)
+            expectColor(IOSColor.bg.glass, 0x26262A, opacity: 0.60)
+            expectColor(IOSColor.bg.bar, 0x161618, opacity: 0.94)
+            expectColor(IOSColor.bg.sheet, 0x1C1C1E, opacity: 0.97)
+            expectColor(IOSColor.bg.menu, 0x2C2C30, opacity: 0.94)
+            XCTAssertEqual(IOSColor.bg.dim, Color.black.opacity(0.45))
+        }
+    }
+
+    func testDialogShadowValuesMatchDesign() {
         XCTAssertEqual(DSShadow.dialog.y, 30)
         XCTAssertEqual(DSShadow.dialog.radius, 60)
-        XCTAssertEqual(DSShadow.ctaGlow.color, RGB(0xA8, 0x55, 0xF7).color.opacity(0.6))
         XCTAssertEqual(DSShadow.dialog.color, Color.black.opacity(0.7))
     }
 
@@ -85,19 +160,55 @@ final class TokensTests: XCTestCase {
         XCTAssertEqual(fonts.count, 4)
     }
 
-    func testCampColorAliasesMatchDesign() {
-        XCTAssertEqual(DSColor.campSurfaceEmphasis, RGB(0x22, 0x1A, 0x33).color)
-        XCTAssertEqual(DSColor.campSurfaceDialog, RGB(0x1F, 0x18, 0x30).color)
-        XCTAssertEqual(DSColor.campOutputBackground, RGB(0x0C, 0x0A, 0x14).color)
-        XCTAssertEqual(DSColor.campTextQuaternary, RGB(0xB0, 0xA8, 0xBE).color)
-        XCTAssertEqual(DSColor.campAccentBright, RGB(0xC0, 0x84, 0xFC).color)
-        XCTAssertEqual(DSColor.campAttention, RGB(0xF4, 0x72, 0xB6).color)
-        XCTAssertEqual(DSColor.textOnBrand, RGB(0xFF, 0xFF, 0xFF).color)
+    func testRedesignReplacesLegacyColorsWithSemanticTokens() {
+        withTheme(AppTheme.phlox.id) {
+            expectColor(IOSColor.status.approvalBackground, 0xFF9F0A, opacity: 0.20)
+            expectColor(IOSColor.bg.menu, 0x2C2C30, opacity: 0.94)
+            expectColor(IOSColor.bg.code, 0x141416)
+            expectColor(IOSColor.text.tertiary, 0x9D9DA5)
+            expectColor(IOSColor.accent, 0xF2F2F4)
+            expectColor(IOSColor.status.error, 0xFF8C82)
+            expectColor(IOSColor.accentOnFill, 0x000000)
+        }
     }
 
-    func testCampModalBackdropMatchesDesignBrightness() {
-        XCTAssertEqual(DSColor.campModalBackdropBrightness, 0.45, accuracy: 0.001)
-        XCTAssertEqual(DSColor.campModalBackdropOpacity, 0.55, accuracy: 0.001)
-        XCTAssertEqual(DSColor.campModalBackdrop, Color.black.opacity(0.55))
+    func testModalBackdropUsesRedesignDimToken() {
+        withTheme(AppTheme.phlox.id) {
+            XCTAssertEqual(IOSColor.bg.dim, Color.black.opacity(0.45))
+        }
+    }
+
+    private func withTheme(_ id: String, assert: () -> Void) {
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: ThemeStore.themeKey)
+        defaults.set(id, forKey: ThemeStore.themeKey)
+        defer {
+            if let previous {
+                defaults.set(previous, forKey: ThemeStore.themeKey)
+            } else {
+                defaults.removeObject(forKey: ThemeStore.themeKey)
+            }
+        }
+        assert()
+    }
+
+    private func expectColor(
+        _ actual: Color,
+        _ hex: UInt32,
+        opacity: Double = 1,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            actual,
+            Color(
+                red: Double((hex >> 16) & 0xFF) / 255,
+                green: Double((hex >> 8) & 0xFF) / 255,
+                blue: Double(hex & 0xFF) / 255,
+                opacity: opacity
+            ),
+            file: file,
+            line: line
+        )
     }
 }

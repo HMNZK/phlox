@@ -14,7 +14,7 @@ public struct UnreachableView: View {
         VStack(spacing: DSSpacing.m) {
             Image(systemName: DSIcon.unreachable)
                 .font(.title2)
-                .foregroundStyle(DSColor.statusError)
+                .foregroundStyle(IOSColor.status.error)
                 .accessibilityHidden(true)
             Text(viewModel.cardTitle)
                 .font(DSFont.headline)
@@ -27,7 +27,7 @@ public struct UnreachableView: View {
             if let detail = viewModel.technicalDetail {
                 Text(detail)
                     .font(DSFont.campMonoCaption)
-                    .foregroundStyle(DSColor.campTextQuaternary)
+                    .foregroundStyle(IOSColor.text.tertiary)
                     .multilineTextAlignment(.center)
             }
             DSButton("再接続を試す", variant: .secondary, isLoading: viewModel.isRetrying) {
@@ -36,10 +36,10 @@ public struct UnreachableView: View {
         }
         .padding(DSSpacing.l)
         .frame(maxWidth: .infinity)
-        .background(DSColor.campSurfaceDialog, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
+        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .strokeBorder(DSColor.campCardBorder, lineWidth: 1)
+                .strokeBorder(IOSColor.bg.separator, lineWidth: 1)
         )
         .padding(.horizontal, DSSpacing.m)
         .padding(.bottom, DSSpacing.m)

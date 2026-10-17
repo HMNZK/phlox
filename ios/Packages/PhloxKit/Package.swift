@@ -32,7 +32,6 @@ let package = Package(
         .library(name: "PhloxSecurity", targets: ["PhloxSecurity"]),
         .library(name: "PhloxReachability", targets: ["PhloxReachability"]),
         .library(name: "DesignSystemIOS", targets: ["DesignSystemIOS"]),
-        .library(name: "TerminalScreenIOS", targets: ["TerminalScreenIOS"]),
         .library(name: "Features", targets: ["Features"]),
     ],
     dependencies: [
@@ -66,24 +65,12 @@ let package = Package(
             ]
         ),
 
-        // TerminalScreenIOS: Mac の端末画面（SGR 付きテキスト）を装飾付きテキストとして描く層。
-        // 端末エミュレータには依存しない（→ ADR 0039）。Features からは View だけを使う。
-        .target(
-            name: "TerminalScreenIOS",
-            dependencies: [
-                "PhloxCore",
-                "DesignSystemIOS",
-                .product(name: "DesignSystem", package: "DesignSystem"),
-            ]
-        ),
-
         .target(
             name: "Features",
             dependencies: [
                 "PhloxCore",
                 "PhloxNetworking",
                 "DesignSystemIOS",
-                "TerminalScreenIOS",
                 .product(name: "ImageAttachmentKit", package: "AgentDomain"),
                 .product(name: "DesignSystem", package: "DesignSystem"),
                 .product(name: "ChatRenderKit", package: "AgentDomain"),
@@ -95,7 +82,6 @@ let package = Package(
         .testTarget(name: "PhloxSecurityTests", dependencies: ["PhloxSecurity", "PhloxCore"]),
         .testTarget(name: "PhloxReachabilityTests", dependencies: ["PhloxReachability", "PhloxCore"]),
         .testTarget(name: "DesignSystemIOSTests", dependencies: ["DesignSystemIOS", "PhloxCore"]),
-        .testTarget(name: "TerminalScreenIOSTests", dependencies: ["TerminalScreenIOS", "PhloxCore"]),
         .testTarget(name: "FeaturesTests", dependencies: ["Features", "PhloxCore", "PhloxNetworking"]),
         .testTarget(name: "E2ETests", dependencies: ["PhloxNetworking", "PhloxCore"]),
     ],

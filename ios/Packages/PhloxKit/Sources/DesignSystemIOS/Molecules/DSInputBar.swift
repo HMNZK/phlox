@@ -214,7 +214,7 @@ public struct DSInputBar: View {
             if let attachmentError {
                 Text(LocalizedStringKey(attachmentError))
                     .font(DSFont.caption)
-                    .foregroundStyle(DSColor.statusError)
+                    .foregroundStyle(IOSColor.status.error)
             }
             if !attachmentStrip.isEmpty {
                 attachmentStripView
@@ -260,7 +260,7 @@ public struct DSInputBar: View {
         }
         .font(DSFont.body)
         .foregroundStyle(DSColor.textPrimary)
-        .tint(DSColor.accent)
+        .tint(IOSColor.accent)
         .lineLimit(1...Self.maximumTextLineCount)
         .focused($isFocused)
         .accessibilityLabel(Text(placeholder))
@@ -282,7 +282,7 @@ public struct DSInputBar: View {
         }
         .font(DSFont.body)
         .foregroundStyle(DSColor.textPrimary)
-        .tint(DSColor.accent)
+        .tint(IOSColor.accent)
         .lineLimit(1...Self.maximumTextLineCount)
         .focused($isFocused)
         .accessibilityLabel(Text(placeholder))
@@ -372,12 +372,12 @@ public struct DSInputBar: View {
                     .clipShape(RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous)
-                            .strokeBorder(DSColor.campCardBorder, lineWidth: 1)
+                            .strokeBorder(IOSColor.bg.separator, lineWidth: 1)
                     )
 
                 Text("#\(item.number)")
                     .font(DSFont.caption.weight(.semibold))
-                    .foregroundStyle(DSColor.textOnBrand)
+                    .foregroundStyle(IOSColor.text.secondary)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, 2)
                     .background(DSColor.textSecondary.opacity(0.85), in: Capsule())
@@ -391,7 +391,7 @@ public struct DSInputBar: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(DSFont.footnote)
-                        .foregroundStyle(DSColor.textOnBrand, DSColor.textSecondary)
+                        .foregroundStyle(IOSColor.text.secondary, IOSColor.bg.fill)
                 }
                 .buttonStyle(.plain)
                 .offset(x: 6, y: -6)
@@ -463,7 +463,7 @@ public struct DSInputBar: View {
     #endif
 
     private var pillBorderColor: Color {
-        DSColor.campCardBorder
+        IOSColor.bg.separator
     }
 
     private var actionButton: some View {
@@ -485,15 +485,15 @@ public struct DSInputBar: View {
                 if isLoading {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(DSColor.textOnBrand)
+                        .tint(IOSColor.accentOnFill)
                 } else {
                     Image(systemName: Self.sendButtonIconName)
                         .font(Self.sendButtonIconFont)
                 }
             }
-            .foregroundStyle(DSColor.textOnBrand)
+            .foregroundStyle(IOSColor.accentOnFill)
             .frame(width: Self.minHeight, height: Self.minHeight)
-            .background(DSColor.accent, in: Circle())
+            .background(IOSColor.accent, in: Circle())
         }
         .buttonStyle(.plain)
         .disabled(!actionState.sendIsEnabled)
@@ -505,9 +505,9 @@ public struct DSInputBar: View {
         Button(action: stop) {
             Image(systemName: Self.stopButtonIconName)
                 .font(Self.sendButtonIconFont)
-                .foregroundStyle(DSColor.textOnBrand)
+                .foregroundStyle(IOSColor.accentOnFill)
                 .frame(width: Self.minHeight, height: Self.minHeight)
-                .background(DSColor.statusError, in: Circle())
+                .background(IOSColor.stop, in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(Self.stopAccessibilityLabel))

@@ -119,10 +119,10 @@ struct SessionDetailToolCallGroupRow: View {
                     HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
                         Text(header.title)
                             .font(DSFont.footnote.weight(.bold))
-                            .foregroundStyle(DSColor.campTextQuaternary)
+                            .foregroundStyle(IOSColor.text.tertiary)
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(DSFont.footnote.weight(.semibold))
-                            .foregroundStyle(DSColor.campTextQuaternary)
+                            .foregroundStyle(IOSColor.text.tertiary)
                         Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)

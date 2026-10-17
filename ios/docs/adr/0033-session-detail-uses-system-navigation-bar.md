@@ -5,7 +5,7 @@ last-verified: 2026-07-27
 
 # ADR 0033: セッション詳細はシステムのナビゲーションバーを使う（自前 chrome と端スワイプは両立しない）
 
-> **一部 superseded**: 「戻るを差し替えない」は、左上をホームのボタンにする決定で置き換えた。システムのナビゲーションバーを使う判断と端スワイプは有効。（[ADR 0046](0046-align-ios-with-mac.md)）
+> **一部 superseded**: 「戻るの見た目（‹）」は、左上をホームにする決定で置き換えた（[ADR 0046](0046-align-ios-with-mac.md)）。作り方はシステムの戻るボタンの印を家に替えるもので、システムのナビゲーションバー・システムの戻るボタン・leading に自前の項目を置かない判断と端スワイプは有効（[ADR 0048](0048-home-button-is-the-system-back-button-with-a-house.md)）。
 
 > **このファイルの役割**: 「ナビゲーションバーを隠して自前ヘッダを描く」構成をやめ、システムのナビゲーションバーへ chrome を載せ替えた決定と、そう判断するに至った実機での観測。
 > **書かないもの**: 差し替え前の経緯（→ [ADR 0032](0032-interactive-pop-gesture-on-hidden-navigation-bar.md)。本 ADR が supersede する）。

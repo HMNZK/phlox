@@ -2,7 +2,7 @@ import XCTest
 import PhloxCore
 @testable import Features
 
-// E4-7 検証。承認取得（セッション絞り込み）、応答成功で非表示、Codex 4 択シート分岐を検証する。
+// E4-7 検証。承認取得（セッション絞り込み）、応答成功で非表示、Codex の許可・拒否を検証する。
 @MainActor
 final class ApprovalViewModelTests: XCTestCase {
 
@@ -12,7 +12,7 @@ final class ApprovalViewModelTests: XCTestCase {
     ]
 
     func testLoadFiltersApprovalsBySession() async {
-        let vm = ApprovalViewModel(sessionID: "s1", agentKind: .claudeCode, api: MockAPI(approvalsList: approvals))
+        let vm = ApprovalViewModel(sessionID: "s1", api: MockAPI(approvalsList: approvals))
         await vm.load()
         XCTAssertEqual(vm.approvals.map(\.id), ["a1"])
         XCTAssertTrue(vm.isVisible)
@@ -20,7 +20,7 @@ final class ApprovalViewModelTests: XCTestCase {
 
     func testRespondAcceptHidesBar() async {
         let mock = MockAPI(approvalsList: approvals)
-        let vm = ApprovalViewModel(sessionID: "s1", agentKind: .claudeCode, api: mock)
+        let vm = ApprovalViewModel(sessionID: "s1", api: mock)
         await vm.load()
         await vm.respond(.accept, approvalID: "a1")
         XCTAssertFalse(vm.isVisible)
@@ -30,25 +30,27 @@ final class ApprovalViewModelTests: XCTestCase {
         XCTAssertEqual(log.first?.1, .accept)
     }
 
-    func testCodexUsesSheet() {
-        let vm = ApprovalViewModel(sessionID: "s1", agentKind: .codex, api: MockAPI())
-        XCTAssertTrue(vm.usesCodexSheet)
-        let cc = ApprovalViewModel(sessionID: "s1", agentKind: .claudeCode, api: MockAPI())
-        XCTAssertFalse(cc.usesCodexSheet)
-    }
+    func testCodexCanAcceptAndDeclineFromApprovalBarActions() async {
+        let acceptMock = MockAPI(approvalsList: [Approval(id: "a9", sessionID: "s1", kind: .codex, prompt: "p")])
+        let acceptVM = ApprovalViewModel(sessionID: "s1", api: acceptMock)
+        await acceptVM.load()
+        await acceptVM.tapPrimary(approvalID: "a9", decision: .accept)
+        XCTAssertFalse(acceptVM.isVisible)
+        let acceptLog = await acceptMock.respondLog
+        XCTAssertEqual(acceptLog.map(\.1), [.accept])
 
-    func testCodexTapOpensSheetWithoutResponding() async {
-        let mock = MockAPI(approvalsList: [Approval(id: "a9", sessionID: "s1", kind: .codex, prompt: "p")])
-        let vm = ApprovalViewModel(sessionID: "s1", agentKind: .codex, api: mock)
-        await vm.tapPrimary(approvalID: "a9", decision: .accept)
-        XCTAssertTrue(vm.showCodexSheet)
-        let log = await mock.respondLog
-        XCTAssertTrue(log.isEmpty, "Codex は即応答せずシートを開く")
+        let declineMock = MockAPI(approvalsList: [Approval(id: "a10", sessionID: "s1", kind: .codex, prompt: "p")])
+        let declineVM = ApprovalViewModel(sessionID: "s1", api: declineMock)
+        await declineVM.load()
+        await declineVM.tapPrimary(approvalID: "a10", decision: .decline)
+        XCTAssertFalse(declineVM.isVisible)
+        let declineLog = await declineMock.respondLog
+        XCTAssertEqual(declineLog.map(\.1), [.decline])
     }
 
     func testNonCodexTapRespondsDirectly() async {
         let mock = MockAPI(approvalsList: approvals)
-        let vm = ApprovalViewModel(sessionID: "s1", agentKind: .claudeCode, api: mock)
+        let vm = ApprovalViewModel(sessionID: "s1", api: mock)
         await vm.tapPrimary(approvalID: "a1", decision: .decline)
         let log = await mock.respondLog
         XCTAssertEqual(log.first?.1, .decline)
@@ -56,7 +58,7 @@ final class ApprovalViewModelTests: XCTestCase {
     }
 
     func testRespondFailureShowsError() async {
-        let vm = ApprovalViewModel(sessionID: "s1", agentKind: .claudeCode,
+        let vm = ApprovalViewModel(sessionID: "s1",
                                    api: MockAPI(approvalsList: approvals, respondError: .unauthorized))
         await vm.respond(.accept, approvalID: "a1")
         XCTAssertNotNil(vm.errorMessage)

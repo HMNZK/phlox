@@ -83,7 +83,7 @@ public struct LaunchGateView: View {
                 Task { await authenticate() }
             }
             .font(DSFont.subheadline.weight(.semibold))
-            .foregroundStyle(DSColor.campAccentBright)
+            .foregroundStyle(IOSColor.accent)
             .accessibilityIdentifier(AccessibilityID.launchGateUnlock)
             .padding(.bottom, LaunchGateMetrics.passcodeBottomPadding)
         }
@@ -94,16 +94,15 @@ public struct LaunchGateView: View {
 
     private var brandLogo: some View {
         RoundedRectangle(cornerRadius: LaunchGateMetrics.logoCornerRadius, style: .continuous)
-            .fill(DSGradient.brand)
+            .fill(IOSColor.accent)
             .frame(width: LaunchGateMetrics.logoSize, height: LaunchGateMetrics.logoSize)
             .overlay {
                 Image(systemName: LaunchGateMetrics.logoSymbolName)
                     .resizable()
                     .scaledToFit()
                     .frame(width: LaunchGateMetrics.logoIconSize, height: LaunchGateMetrics.logoIconSize)
-                    .foregroundStyle(DSColor.textOnBrand)
+                    .foregroundStyle(IOSColor.accentOnFill)
             }
-            .dsShadow(DSShadow.ctaGlow)
     }
 
     private var faceIDSection: some View {
@@ -111,14 +110,14 @@ public struct LaunchGateView: View {
             Task { await authenticate() }
         } label: {
             RoundedRectangle(cornerRadius: LaunchGateMetrics.faceIDCornerRadius, style: .continuous)
-                .strokeBorder(DSColor.statusRunning, lineWidth: LaunchGateMetrics.faceIDBorderWidth)
+                .strokeBorder(IOSColor.status.success, lineWidth: LaunchGateMetrics.faceIDBorderWidth)
                 .frame(width: LaunchGateMetrics.faceIDFrameSize, height: LaunchGateMetrics.faceIDFrameSize)
                 .overlay {
                     Image(systemName: DSIcon.faceID)
                         .resizable()
                         .scaledToFit()
                         .frame(width: LaunchGateMetrics.faceIDIconSize, height: LaunchGateMetrics.faceIDIconSize)
-                        .foregroundStyle(DSColor.statusRunning)
+                        .foregroundStyle(IOSColor.status.success)
                 }
         }
         .buttonStyle(.plain)
@@ -130,7 +129,7 @@ public struct LaunchGateView: View {
         if let message = viewModel.errorMessage {
             Text(message)
                 .font(DSFont.subheadline.weight(.semibold))
-                .foregroundStyle(DSColor.statusError)
+                .foregroundStyle(IOSColor.status.error)
                 .multilineTextAlignment(.center)
         } else {
             Text(LaunchGateCopy.authenticating)

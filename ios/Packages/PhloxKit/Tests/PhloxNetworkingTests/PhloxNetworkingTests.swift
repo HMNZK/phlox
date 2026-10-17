@@ -170,13 +170,6 @@ final class PhloxNetworkingTests: XCTestCase {
         }
     }
 
-    func testOutputDecodes() async throws {
-        // Mac の GET /sessions/{id}/output は本文を wire キー `text` で返す（実機 wire で確認）。
-        NetStubURLProtocol.outcomes = [.status(200, json(#"{"text":"line1\nline2"}"#), [:])]
-        let output = try await makeClient().output(sessionID: "s1")
-        XCTAssertEqual(output, "line1\nline2")
-    }
-
     func testMessagesDecodesAllKindsAndSkipsUnknownType() async throws {
         // 全 6 種 + 未知 type を含む wire（CH-1 の実 wire 形に一致。未知 type は前方互換で除外される）。
         NetStubURLProtocol.outcomes = [.status(200, json("""
@@ -204,7 +197,7 @@ final class PhloxNetworkingTests: XCTestCase {
     }
 
     func testMessagesNotFoundThrowsNotFound() async {
-        // 非構造化/不在セッションは Mac が 404 を返す → 呼び出し側はターミナル output にフォールバックする。
+        // 構造化チャットのないセッションでは Mac が 404 を返す。
         NetStubURLProtocol.outcomes = [.status(404, json(#"{"error":"session not found"}"#), [:])]
         do {
             _ = try await makeClient().messages(sessionID: "pty1")

@@ -49,12 +49,7 @@ public struct EmptyStateView: View {
                 .padding(.horizontal, DSSpacing.xl)
             Spacer()
             if showsCTA {
-                DSGradientButton(
-                    EmptyStateCopy.ctaTitle,
-                    usesHorizontalBrand: true,
-                    cornerRadius: DSGradientButton.height / 2,
-                    action: onCreate
-                )
+                DSButton(EmptyStateCopy.ctaTitle, action: onCreate)
                     .padding(.horizontal, DSSpacing.l)
                     .padding(.bottom, DSSpacing.s)
             }
@@ -66,13 +61,13 @@ public struct EmptyStateView: View {
     private var dashedIconPlaceholder: some View {
         Image(systemName: EmptyStateMetrics.iconName)
             .font(DSFont.title1)
-            .foregroundStyle(DSColor.accent)
+            .foregroundStyle(IOSColor.accent)
             .frame(width: EmptyStateMetrics.iconSize, height: EmptyStateMetrics.iconSize)
             .frame(width: EmptyStateMetrics.iconContainerSize, height: EmptyStateMetrics.iconContainerSize)
             .overlay(
                 RoundedRectangle(cornerRadius: EmptyStateMetrics.iconContainerCornerRadius, style: .continuous)
                     .strokeBorder(
-                        DSColor.accent.opacity(EmptyStateMetrics.iconBorderOpacity),
+                        IOSColor.accent.opacity(EmptyStateMetrics.iconBorderOpacity),
                         style: StrokeStyle(
                             lineWidth: EmptyStateMetrics.iconContainerBorderWidth,
                             dash: [DSSpacing.xs, DSSpacing.xs]

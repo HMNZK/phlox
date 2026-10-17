@@ -32,25 +32,21 @@ public struct StubAuthenticator: Authenticating {
 public struct StubPhloxAPI: PhloxAPI {
     public let sessions: [Session]
     public let approvals: [Approval]
-    public let outputText: String
     public let chatMessages: [ChatMessage]
 
     public init(
         sessions: [Session] = [],
         approvals: [Approval] = [],
-        outputText: String = "",
         chatMessages: [ChatMessage] = []
     ) {
         self.sessions = sessions
         self.approvals = approvals
-        self.outputText = outputText
         self.chatMessages = chatMessages
     }
 
     public func listSessions() async throws -> [Session] { sessions }
     public func waitUntilReady(sessionID: String) async throws -> Bool { true }
     public func approvals() async throws -> [Approval] { approvals }
-    public func output(sessionID: String) async throws -> String { outputText }
     public func messages(sessionID: String) async throws -> [ChatMessage] { chatMessages }
     public func remove(sessionID: String) async throws {}
     public func rename(sessionID: String, name: String) async throws {}

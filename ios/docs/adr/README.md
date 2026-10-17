@@ -19,6 +19,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 | 0045 | [使用量タブをやめ、入力欄の下の残りのリングで見せる](0045-usage-ring-under-the-input-replaces-usage-tab.md) | accepted |
 | 0046 | [色・ロゴ・状態・一覧・新規チャット・入力欄・承認を Mac に揃える](0046-align-ios-with-mac.md) | accepted |
 | 0047 | [UI の確認を XCUITest から描画テストに移し、UI テストのターゲットを消す](0047-replace-xcuitest-with-render-tests.md) | accepted |
+| 0048 | [左上のホームはシステムの戻るボタンの印を家に替えて作り、端スワイプは UIKit のまま使う](0048-home-button-is-the-system-back-button-with-a-house.md) | accepted |
 | 0040 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0040-mobile-terminal-keeps-the-column-grid.md) | superseded（0044） |
 | 0041 | [チャット表示の純関数を ChatRenderKit へ 1 本化し、モバイルにも同じ表示規則を適用する](0041-chat-render-rules-shared-via-chatrenderkit.md) | accepted |
 | 0042 | [実行中の送信ボタンを入力開始で現し、転写のコピーを長押しへ集約する](0042-input-bar-send-reveal-and-transcript-long-press-copy.md) | accepted |

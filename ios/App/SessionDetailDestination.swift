@@ -19,7 +19,6 @@ struct SessionDetailDestination: View {
         _detailVM = State(initialValue: SessionDetailViewModel(session: session, api: api))
         _approvalVM = State(initialValue: ApprovalViewModel(
             sessionID: session.id,
-            agentKind: session.agent,
             api: api
         ))
     }
@@ -30,5 +29,6 @@ struct SessionDetailDestination: View {
             approvalViewModel: approvalVM,
             onDelete: onDelete
         )
+        .toolbarRole(.editor)
     }
 }

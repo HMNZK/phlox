@@ -7,7 +7,7 @@
 #   ./scripts/run-simulator.sh              # デモ（goldenPath・セッション一覧）
 #   ./scripts/run-simulator.sh --live         # 本番 Composition Root（接続設定から）
 #   ./scripts/run-simulator.sh --empty      # 空状態シナリオ
-#   ./scripts/run-simulator.sh --screen spawn # カンプ④ を直接表示
+#   ./scripts/run-simulator.sh --screen sessionDetail # セッション詳細を直接表示
 #   ./scripts/run-simulator.sh --list-screens # 利用可能な --screen 値を表示
 #
 # Environment:
@@ -31,18 +31,14 @@ usage() {
 
 list_screens() {
   cat <<'EOF'
-利用可能な --screen 値（ios-design.html カンプ対応）:
+利用可能な --screen 値:
   connectionSettings   ① 接続設定
   sessionList          ② セッション一覧（既定デモ）
   sessionDetail        ③ セッション詳細・承認
-  spawn                ④ 新規タスク
-  deleteConfirmation   ⑤ 削除確認
-  launchGate           ⑥ 起動ゲート
-  chatAnswer           ⑦ 質問への回答
-  codexApproval        ⑧ Codex 承認 4 択
-  spawnError           ⑨ spawn 失敗
-  unreachable          ⑩ 到達不可
-  empty                ⑪ 空状態
+  deleteConfirmation   ④ 削除確認
+  launchGate           ⑤ 起動ゲート
+  unreachable          ⑥ 到達不可
+  empty                ⑦ 空状態
 EOF
 }
 

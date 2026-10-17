@@ -33,6 +33,11 @@ struct UserQuestionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.m) {
+            if state == .pending {
+                Text("質問待ち")
+                    .font(DSFont.footnote.weight(.semibold))
+                    .foregroundStyle(IOSColor.status.question)
+            }
             ForEach(questions, id: \.question) { question in
                 questionBlock(question)
             }
@@ -52,7 +57,7 @@ struct UserQuestionCard: View {
         }
         .padding(DSSpacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColor.campSurfaceEmphasis, in: cardShape)
+        .background(IOSColor.status.questionBackground, in: cardShape)
         .overlay(cardShape.strokeBorder(borderColor, lineWidth: 1))
         .opacity(state == .expired ? 0.7 : 1)
         .onAppear(perform: seedFromAnswers)
@@ -65,11 +70,11 @@ struct UserQuestionCard: View {
     private var borderColor: Color {
         switch state {
         case .pending:
-            DSColor.statusAwaitingApproval.opacity(0.35)
+            IOSColor.status.question.opacity(0.35)
         case .answered:
-            DSColor.statusRunning.opacity(0.35)
+            IOSColor.status.success.opacity(0.35)
         case .expired:
-            DSColor.border
+            IOSColor.bg.separator
         }
     }
 
@@ -130,15 +135,15 @@ struct UserQuestionCard: View {
         } label: {
             HStack(alignment: .top, spacing: DSSpacing.s) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? DSColor.accent : DSColor.textSecondary)
+                    .foregroundStyle(selected ? IOSColor.accentOnFill : IOSColor.text.secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(option.label)
                         .font(DSFont.subheadline.weight(.semibold))
-                        .foregroundStyle(DSColor.textPrimary)
+                        .foregroundStyle(selected ? IOSColor.accentOnFill : IOSColor.text.primary)
                     if let description = option.description, !description.isEmpty {
                         Text(description)
                             .font(DSFont.caption)
-                            .foregroundStyle(DSColor.textSecondary)
+                            .foregroundStyle(selected ? IOSColor.accentOnFill.opacity(0.78) : IOSColor.text.secondary)
                     }
                 }
                 Spacer(minLength: 0)
@@ -147,11 +152,11 @@ struct UserQuestionCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                    .fill(selected ? DSColor.fillSubtle : DSColor.surfaceElevated)
+                    .fill(selected ? IOSColor.accent : IOSColor.bg.raised)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                    .strokeBorder(selected ? DSColor.accent.opacity(0.5) : DSColor.border, lineWidth: 1)
+                    .strokeBorder(selected ? IOSColor.accent : IOSColor.bg.separator, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

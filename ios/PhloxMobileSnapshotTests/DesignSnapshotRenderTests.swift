@@ -1,9 +1,9 @@
-// ImageRenderer はこの2画面の NavigationStack を描けず黄色の禁止マークになった。
-// 本文の画素検査でこれを拒否し、UIWindow + UIHostingController の drawHierarchy に切り替える。
-// 入力操作は行わず、画面サイズ・配色・文字サイズを指定して描画する。
+// ImageRenderer は NavigationStack を含む画面を正しく描けないため、UIWindow の drawHierarchy を使う。
+// 入力操作は行わず、画面サイズ・安全領域・配色・文字サイズを指定して描画する。
 import SwiftUI
 import UIKit
 import Testing
+import AgentDomain
 import Features
 import PhloxCore
 import DesignSystemIOS
@@ -14,17 +14,9 @@ struct DesignSnapshotRenderTests {
     @Test func renderDesignSnapshots() async throws {
         let variables = ProcessInfo.processInfo.environment
         guard variables["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
-
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let output: URL
-        if let path = variables["PHLOX_SNAPSHOT_DIR"] {
-            try #require(path.hasPrefix("/"), "PHLOX_SNAPSHOT_DIR must be absolute")
-            output = URL(fileURLWithPath: path, isDirectory: true)
-        } else {
-            output = root.appendingPathComponent(".verification/ios-redesign/snapshots", isDirectory: true)
-        }
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let output = try outputDirectory(variables: variables)
+        let iOSMajor = UIDevice.current.systemVersion.split(separator: ".").first ?? "unknown"
+        let osSuffix = "-ios\(iOSMajor)"
 
         let animations = UIView.areAnimationsEnabled
         let preferences = UserDefaults.standard
@@ -43,7 +35,6 @@ struct DesignSnapshotRenderTests {
         for screen in [UITestingSupport.Screen.sessionList, .sessionDetail] {
             let environment = AppEnvironment.uiTesting(scenario: .goldenPath, screen: screen)
             let list = SessionListViewModel(repository: environment.sessionRepository)
-            // 見本の有限ストリーム完了を待つ。固定時間の待機やデータの複製はしない。
             await list.observe()
             try #require(!list.allSessions.isEmpty)
             defer { list.stop() }
@@ -57,7 +48,6 @@ struct DesignSnapshotRenderTests {
                 (375, 667, false, false), (375, 667, true, false),
                 (428, 926, false, true),
             ] {
-                // AppRoot.synchronizeTheme と同じ対応。DSColor は colorScheme ではなくテーマを参照する。
                 let themeID = AppearancePreference.system.themeID(systemColorScheme: dark ? .dark : .light)
                 preferences.set(themeID, forKey: ThemeStore.themeKey)
                 DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
@@ -66,7 +56,7 @@ struct DesignSnapshotRenderTests {
                     if screen == .sessionList {
                         SessionListView(
                             viewModel: list, reachability: .online,
-                            onSelectDetail: { _ in }, onAnswerQuestion: { _ in }, onAddSession: { _ in }
+                            onSelectDetail: { _ in }, onAddSession: { _ in }
                         )
                     } else {
                         SessionDetailView(viewModel: detail, onDelete: {})
@@ -78,30 +68,101 @@ struct DesignSnapshotRenderTests {
                 .environment(\.locale, Locale(identifier: "ja_JP"))
                 .frame(width: size.width, height: size.height)
 
-                let renderer = ImageRenderer(content: content)
-                renderer.scale = 1
-                let image: UIImage
-                if let candidate = renderer.uiImage, hasBodyContent(candidate) {
-                    print("snapshot \(screen.rawValue): ImageRenderer")
-                    image = candidate
-                } else {
-                    print("snapshot \(screen.rawValue): ImageRenderer has no body; using UIWindow")
-                    image = try await windowImage(content, size: size, dark: dark)
-                }
-                try #require(hasBodyContent(image), "Blank or placeholder-only snapshot: \(screen.rawValue)")
-                let name = "\(screen.rawValue)-\(width)x\(height)-\(dark ? "dark" : "light")\(ax5 ? "-ax5" : "").png"
-                let url = output.appendingPathComponent(name)
-                let png = try #require(image.pngData())
-                try png.write(to: url, options: .atomic)
-                #expect(FileManager.default.fileExists(atPath: url.path))
-                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-                #expect((attributes[.size] as? NSNumber)?.intValue ?? 0 > 0)
-                #expect(image.size == size)
+                let safeArea = width == 428
+                    ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
+                    : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+                let scale: CGFloat = width == 428 ? 3 : 2
+                let image = try await windowImage(
+                    content,
+                    size: size,
+                    safeArea: safeArea,
+                    scale: scale,
+                    dark: dark
+                )
+                try writeSnapshot(
+                    image,
+                    name: "\(screen.rawValue)-\(width)x\(height)-\(dark ? "dark" : "light")\(ax5 ? "-ax5" : "").png",
+                    to: output,
+                    expectedSize: size,
+                    expectedScale: scale
+                )
             }
+        }
+
+        for dark in [false, true] {
+            let themeID = AppearancePreference.system.themeID(systemColorScheme: dark ? .dark : .light)
+            preferences.set(themeID, forKey: ThemeStore.themeKey)
+            DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
+            let size = CGSize(width: 428, height: 926)
+            let content = ComponentSnapshotView()
+                .environment(\.colorScheme, dark ? .dark : .light)
+                .environment(\.dynamicTypeSize, .large)
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+                .frame(width: size.width, height: size.height)
+            let image = try await windowImage(
+                content,
+                size: size,
+                safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
+                scale: 3,
+                dark: dark
+            )
+            try writeSnapshot(
+                image,
+                name: "components-428x926-\(dark ? "dark" : "light")\(osSuffix).png",
+                to: output,
+                expectedSize: size,
+                expectedScale: 3
+            )
         }
     }
 
-    private func windowImage(_ content: some View, size: CGSize, dark: Bool) async throws -> UIImage {
+    @Test func dotGothic16FontAndLicenseAreInHostedApp() throws {
+        #expect(UIFont(name: "DotGothic16-Regular", size: 28) != nil)
+        let licenseURL = try #require(Bundle.main.url(forResource: "OFL", withExtension: "txt"))
+        let license = try String(contentsOf: licenseURL, encoding: .utf8)
+        #expect(license.contains("SIL OPEN FONT LICENSE Version 1.1"))
+        #expect(!license.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private func outputDirectory(variables: [String: String]) throws -> URL {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        if let path = variables["PHLOX_SNAPSHOT_DIR"] {
+            try #require(path.hasPrefix("/"), "PHLOX_SNAPSHOT_DIR must be absolute")
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        return root.appendingPathComponent(".verification/ios-redesign/snapshots", isDirectory: true)
+    }
+
+    private func writeSnapshot(
+        _ image: UIImage,
+        name: String,
+        to output: URL,
+        expectedSize: CGSize,
+        expectedScale: CGFloat
+    ) throws {
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try #require(hasBodyContent(image), "Blank or placeholder-only snapshot: \(name)")
+        #expect(image.size == expectedSize)
+        #expect(image.scale == expectedScale)
+        #expect(image.cgImage?.width == Int(expectedSize.width * expectedScale))
+        #expect(image.cgImage?.height == Int(expectedSize.height * expectedScale))
+        let url = output.appendingPathComponent(name)
+        let png = try #require(image.pngData())
+        try png.write(to: url, options: .atomic)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect((attributes[.size] as? NSNumber)?.intValue ?? 0 > 0)
+        print("snapshot: \(url.path)")
+    }
+
+    private func windowImage<Content: View>(
+        _ content: Content,
+        size: CGSize,
+        safeArea: UIEdgeInsets,
+        scale: CGFloat,
+        dark: Bool
+    ) async throws -> UIImage {
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(origin: .zero, size: size)
@@ -109,13 +170,30 @@ struct DesignSnapshotRenderTests {
         let host = UIHostingController(rootView: content)
         window.rootViewController = host
         window.isHidden = false
+        var closed = false
         defer {
-            window.isHidden = true
-            window.rootViewController = nil
+            if !closed {
+                window.isHidden = true
+                window.rootViewController = nil
+            }
         }
 
+        window.layoutIfNeeded()
+        host.view.layoutIfNeeded()
+        let originalInsets = host.view.safeAreaInsets
+        host.additionalSafeAreaInsets = UIEdgeInsets(
+            top: safeArea.top - originalInsets.top,
+            left: safeArea.left - originalInsets.left,
+            bottom: safeArea.bottom - originalInsets.bottom,
+            right: safeArea.right - originalInsets.right
+        )
+        window.layoutIfNeeded()
+        host.view.layoutIfNeeded()
+        #expect(abs(host.view.safeAreaInsets.top - safeArea.top) < 0.5)
+        #expect(abs(host.view.safeAreaInsets.bottom - safeArea.bottom) < 0.5)
+
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
+        format.scale = scale
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let deadline = ContinuousClock.now + .seconds(10)
         repeat {
@@ -125,15 +203,20 @@ struct DesignSnapshotRenderTests {
             let image = renderer.image { _ in
                 drawn = window.drawHierarchy(in: CGRect(origin: .zero, size: size), afterScreenUpdates: true)
             }
-            if drawn && hasBodyContent(image) { return image }
+            if drawn && hasBodyContent(image) {
+                window.isHidden = true
+                try await Task.sleep(for: .milliseconds(100))
+                window.rootViewController = nil
+                closed = true
+                try await Task.sleep(for: .milliseconds(100))
+                return image
+            }
             try await Task.sleep(for: .milliseconds(20))
         } while ContinuousClock.now < deadline
         throw SnapshotError.bodyDidNotRender
     }
 
     // 中央の本文だけを検査し、ナビバーや入力欄だけの描画を成功としない。
-    // 色を粗く量子化し、背景以外の画素が 1.5% 以上・複数行にあることを求める。
-    // 黄色い禁止マークは本文画素に数えない。
     private func hasBodyContent(_ image: UIImage) -> Bool {
         guard let cgImage = image.cgImage else { return false }
         let width = cgImage.width
@@ -173,4 +256,105 @@ struct DesignSnapshotRenderTests {
     }
 
     private enum SnapshotError: Error { case bodyDidNotRender }
+}
+
+private struct ComponentSnapshotView: View {
+    private let statuses: [SessionStatus] = [
+        .starting, .running, .awaitingApproval(prompt: ""), .awaitingUserQuestion,
+        .error(message: ""), .completed(exitCode: 0),
+    ]
+
+    init() {}
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DSSpacing.m) {
+                Text("Agent")
+                    .font(DSFont.footnote.weight(.semibold))
+                    .foregroundStyle(IOSColor.text.secondary)
+                HStack(spacing: DSSpacing.l) {
+                    DSAgentBrandIcon(kind: .claudeCode, size: 40)
+                    DSAgentBrandIcon(kind: .codex, size: 40)
+                    DSAgentBrandIcon(kind: .cursor, size: 40)
+                }
+
+                Text("状態")
+                    .font(DSFont.footnote.weight(.semibold))
+                    .foregroundStyle(IOSColor.text.secondary)
+                VStack(alignment: .leading, spacing: DSSpacing.s) {
+                    ForEach(statuses.indices, id: \.self) { index in
+                        let presentation = IOSStatusVocabulary.presentation(
+                            for: statuses[index], locale: Locale(identifier: "ja_JP")
+                        )
+                        if let label = presentation.label, let color = presentation.color {
+                            Text(label)
+                                .font(DSFont.body.weight(fontWeight(presentation.weight)))
+                                .foregroundStyle(color)
+                        }
+                    }
+                }
+
+                Text("ガラス部品")
+                    .font(DSFont.footnote.weight(.semibold))
+                    .foregroundStyle(IOSColor.text.secondary)
+                VStack(spacing: DSSpacing.s) {
+                    glassExample("対応待ちバー") {
+                        HStack {
+                            Text("承認を待っています")
+                            Spacer()
+                            Image(systemName: "clock")
+                        }
+                        .padding(DSSpacing.m)
+                        .glassSurface(.waitingBar)
+                    }
+                    glassExample("入力欄") {
+                        HStack {
+                            Text("返信を入力…")
+                                .foregroundStyle(IOSColor.text.tertiary)
+                            Spacer()
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundStyle(IOSColor.accent)
+                        }
+                        .padding(DSSpacing.m)
+                        .glassSurface(.inputField)
+                    }
+                    glassExample("承認・質問カード") {
+                        Text("ファイルの変更を許可しますか？")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(DSSpacing.m)
+                            .glassSurface(.card)
+                    }
+                    glassExample("丸いボタン") {
+                        Image(systemName: "plus")
+                            .frame(width: 44, height: 44)
+                            .glassSurface(.roundButton)
+                    }
+                }
+            }
+            .padding(DSSpacing.l)
+        }
+        .background(IOSColor.bg.base.ignoresSafeArea())
+    }
+
+    private func glassExample<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            Text(title)
+                .font(DSFont.caption)
+                .foregroundStyle(IOSColor.text.tertiary)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func fontWeight(_ weight: IOSStatusWeight?) -> Font.Weight {
+        switch weight {
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        case nil: .regular
+        }
+    }
 }

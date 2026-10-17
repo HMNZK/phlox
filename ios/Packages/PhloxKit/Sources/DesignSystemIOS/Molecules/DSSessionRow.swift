@@ -2,12 +2,10 @@ import SwiftUI
 import AgentDomain
 import PhloxCore
 
-/// セッション一覧の通常行（カンプ②「実行中・その他」）。区切り線・角丸エージェントバッジ・
+/// セッション一覧の通常行（カンプ②「実行中・その他」）。区切り線・エージェントロゴ・
 /// 状態チップ・補助行（subtitle · 相対時刻）を表示する。承認待ちは `DSAttentionRow` を使う。
 public struct DSSessionRow: View {
-    /// セッション行アバター寸法（design.md §2.3 / カンプ②）。
-    public static let agentBadgeSize: CGFloat = DSCampAgentBadge.sessionRowSize
-    public static let agentBadgeCornerRadius: CGFloat = DSCampAgentBadge.sessionRowCornerRadius
+    public static let agentLogoSize: CGFloat = 38
 
     let session: Session
     let now: Date
@@ -26,11 +24,6 @@ public struct DSSessionRow: View {
         self.now = now
         self.showsDivider = showsDivider
         self.onTap = onTap
-    }
-
-    /// カンプのモノ略号（CC / Cx / Cu）。
-    public static func campAbbreviation(for kind: AgentKind) -> String {
-        DSCampAgentBadge.abbreviation(for: kind)
     }
 
     /// カンプ準拠の相対時刻。`DSRelativeTime.compact` へ委譲。
@@ -63,11 +56,12 @@ public struct DSSessionRow: View {
     }
 
     private var statusLabel: String {
-        StatusBadge.localizedLabel(for: session.status, locale: locale)
+        IOSStatusVocabulary.presentation(for: session.status, locale: locale).label ?? ""
     }
 
     private var detailLine: String {
-        Self.campDetailLine(
+        guard session.status != .idle else { return "" }
+        return Self.campDetailLine(
             subtitle: session.subtitle,
             statusLabel: statusLabel,
             updatedAt: session.updatedAt,
@@ -78,7 +72,8 @@ public struct DSSessionRow: View {
     public var body: some View {
         Button(action: onTap) {
             HStack(spacing: DSSpacing.m) {
-                DSAgentAvatar(kind: session.agent, size: DSCampAgentBadge.sessionRowSize)
+                DSAgentBrandIcon(kind: session.agent, size: Self.agentLogoSize)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(session.name)
@@ -86,10 +81,12 @@ public struct DSSessionRow: View {
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(1)
 
-                    Text(detailLine)
-                        .font(DSFont.subheadline)
-                        .foregroundStyle(DSColor.textSecondary)
-                        .lineLimit(1)
+                    if !detailLine.isEmpty {
+                        Text(detailLine)
+                            .font(DSFont.subheadline)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer(minLength: DSSpacing.s)
@@ -104,7 +101,7 @@ public struct DSSessionRow: View {
             .overlay(alignment: .bottom) {
                 if showsDivider {
                     Rectangle()
-                        .fill(DSColor.campCardBorder)
+                        .fill(IOSColor.bg.separator)
                         .frame(height: 1)
                 }
             }
@@ -142,7 +139,7 @@ private struct DSSessionRowPreviewHost: View {
             DSSessionRow(
                 session: Session(
                     id: "3", name: "docs: README 更新", agent: .cursor,
-                    status: .idle, subtitle: "待機中",
+                    status: .idle, subtitle: "",
                     updatedAt: now.addingTimeInterval(-1080)
                 ),
                 now: now,

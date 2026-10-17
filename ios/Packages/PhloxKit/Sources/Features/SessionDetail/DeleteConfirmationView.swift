@@ -4,8 +4,9 @@ import PhloxCore
 
 /// カンプ⑤の暗転オーバーレイ不透明度。design.md §5 ⑤ brightness .45。
 enum DeleteConfirmationMetrics {
-    static let backdropBrightness = DSColor.campModalBackdropBrightness
-    static let backdropOverlayOpacity = DSColor.campModalBackdropOpacity
+    private static var isLight: Bool { ThemeStore.active.preferredColorScheme == .light }
+    static var backdropOverlayOpacity: CGFloat { isLight ? 0.28 : 0.45 }
+    static var backdropBrightness: CGFloat { 1 - backdropOverlayOpacity }
 }
 
 /// カンプ⑤の文言（テスト可能なコピー層）。
@@ -38,7 +39,7 @@ public struct DeleteConfirmationView: View {
 
     public var body: some View {
         ZStack {
-            DSColor.campModalBackdrop
+            IOSColor.bg.dim
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
                 .onTapGesture { onCancel() }
@@ -64,7 +65,7 @@ public struct DeleteConfirmationView: View {
 
             cascadeBodyText
                 .font(DSFont.subheadline)
-                .foregroundStyle(DSColor.campTextQuaternary)
+                .foregroundStyle(IOSColor.text.tertiary)
                 .multilineTextAlignment(.center)
 
             if case .failed(let message) = viewModel.state {
@@ -81,13 +82,13 @@ public struct DeleteConfirmationView: View {
 
             Button("キャンセル", action: onCancel)
                 .font(DSFont.headline)
-                .foregroundStyle(DSColor.accent)
+                .foregroundStyle(IOSColor.accent)
                 .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
                 .accessibilityAddTraits(.isButton)
         }
         .padding(DSSpacing.l)
         .background(
-            DSColor.campSurfaceDialog,
+            IOSColor.bg.menu,
             in: RoundedRectangle(cornerRadius: DSRadius.dialog, style: .continuous)
         )
         .shadow(
@@ -101,10 +102,10 @@ public struct DeleteConfirmationView: View {
     private var trashIcon: some View {
         ZStack {
             Circle()
-                .fill(DSColor.campAttention.opacity(0.18))
+                .fill(IOSColor.status.errorBackground)
             Image(systemName: DSIcon.delete)
                 .font(DSFont.title2)
-                .foregroundStyle(DSColor.campAttention)
+                .foregroundStyle(IOSColor.status.error)
         }
         .frame(width: DSTouch.rowMinHeight, height: DSTouch.rowMinHeight)
         .accessibilityHidden(true)

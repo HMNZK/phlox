@@ -29,7 +29,8 @@ public struct DSMarkdownText: View {
         }
     }
 
-    private static let theme = Theme()
+    // テーマ（ライト・ダーク）の切り替えに追従させるため、毎回組み立てる（static let だと最初の色で固まる）。
+    private static var theme: Theme { Theme()
         .text {
             ForegroundColor(DSColor.chatTextPrimary)
         }
@@ -78,6 +79,7 @@ public struct DSMarkdownText: View {
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
 }
 
 /// 表本文のセル内容から、MarkdownUI へ提案する有限の幅を見積もる。

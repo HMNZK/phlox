@@ -6,16 +6,20 @@ import SwiftUI
 /// 配色が変わると落ちる。配置・角丸は MoleculesTests が守る。
 @Suite("DSChat bubble style") @MainActor struct DSChatBubbleStyleTests {
     @Test func userBubbleUsesNeutralSurfaceAndAgentHasNoBackground() {
-        #expect(DSChatBubble.backgroundColor(for: .user) == DSColor.userBubble)
+        #expect(DSChatBubble.backgroundColor(for: .user) == IOSColor.bg.raised)
         #expect(DSChatBubble.backgroundColor(for: .agent) == nil)
     }
 
     @Test(arguments: [DSChatBubble.Role.user, .agent])
-    func brandGradientDisabledForAllRoles(role: DSChatBubble.Role) {
-        #expect(!DSChatBubble.usesBrandGradient(for: role))
+    func messageHighlightUsesNoAgentSpecificColor(role: DSChatBubble.Role) {
+        if role == .agent {
+            #expect(DSChatBubble.highlightColor(for: role) == IOSColor.text.secondary)
+        } else {
+            #expect(DSChatBubble.highlightColor(for: role) == nil)
+        }
     }
 
     @Test func userForegroundUsesPrimaryText() {
-        #expect(DSChatBubble.userMessageForeground == DSColor.textPrimary)
+        #expect(DSChatBubble.userMessageForeground == IOSColor.text.primary)
     }
 }

@@ -10,7 +10,7 @@ public struct SessionDetailScrollFollowState {
 
     public init() {}
 
-    /// 本文（構造化メッセージ or ターミナル出力）が更新されたときに最下部へ寄せるか。
+    /// 構造化メッセージが更新されたときに最下部へ寄せるか。
     ///
     /// - Parameters:
     ///   - hasContent: 描画対象の本文が1件以上あるか（空の通知では初回判定を消費しない）。

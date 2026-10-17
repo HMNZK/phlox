@@ -761,16 +761,16 @@ footer{margin:0;padding-top:var(--s5);border-top:1px solid var(--hairline-2);
 
   <article class="item">
     <label class="item__top" for="m3"><input class="item__box" type="checkbox" id="m3">
-      <span class="item__n">3</span><span class="item__title">iOS アプリのビルドと UI テスト</span><span class="st st--ok">事前確認 済</span></label>
+      <span class="item__n">3</span><span class="item__title">iOS アプリのビルドと描画テスト</span><span class="st st--ok">事前確認 済</span></label>
     <div class="item__body">
       <p class="lbl">手順</p>
       <ol class="steps">
         <li><code>ios/</code> で <code>xcodegen generate</code> → <code>make build</code>。</li>
-        <li><code>make run-ui-test</code> を <b>iOS 26 系と iOS 18 系の両方</b>のシミュレータで実行する。</li>
+        <li><code>make snapshot SNAPSHOT_SIMULATOR_ID=&lt;UDID&gt;</code>（描画テスト。UI テスト（XCUITest）は再設計で消した。ADR 0047）を <b>iOS 26 系と iOS 18 系の両方</b>のシミュレータで実行する。</li>
       </ol>
       <div class="pass"><p class="lbl">合格</p><ul>
         <li><code>BUILD SUCCEEDED</code> が出る</li>
-        <li>UI テスト 25 件が、<b>両方の OS で</b> <code>TEST SUCCEEDED</code>（失敗 0・skip 0）</li>
+        <li>描画テストが、<b>両方の OS で</b> <code>TEST SUCCEEDED</code>（失敗 0・skip 0）</li>
       </ul></div>
     </div>
   </article>

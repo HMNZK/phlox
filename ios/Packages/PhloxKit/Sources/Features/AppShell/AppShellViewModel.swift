@@ -3,21 +3,15 @@ import Foundation
 public enum AppTab: CaseIterable, Equatable, Sendable {
     case sessions
     case settings
-    case usage
 }
 
 @MainActor
 @Observable
 public final class AppShellViewModel {
     public private(set) var selectedTab: AppTab
-    public let overview: SessionsOverviewViewModel
 
-    public init(
-        selectedTab: AppTab = .sessions,
-        overview: SessionsOverviewViewModel
-    ) {
+    public init(selectedTab: AppTab = .sessions) {
         self.selectedTab = selectedTab
-        self.overview = overview
     }
 
     public func selectTab(_ tab: AppTab) {

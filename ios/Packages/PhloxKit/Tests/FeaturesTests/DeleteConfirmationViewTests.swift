@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 import DesignSystemIOS
 @testable import Features
 
@@ -27,13 +28,38 @@ final class DeleteConfirmationViewTests: XCTestCase {
         XCTAssertEqual(DeleteConfirmationCopy.deleteButtonLabel(totalCount: 1), "削除（1件）")
     }
 
-    func testBackdropOverlayOpacityMatchesCampBrightness() {
-        XCTAssertEqual(DeleteConfirmationMetrics.backdropBrightness, 0.45, accuracy: 0.001)
-        XCTAssertEqual(DeleteConfirmationMetrics.backdropOverlayOpacity, 0.55, accuracy: 0.001)
+    func testBackdropMetricsMatchRedesignValuesInLightAndDarkThemes() {
+        let previousTheme = UserDefaults.standard.object(forKey: ThemeStore.themeKey)
+        defer {
+            if let previousTheme {
+                UserDefaults.standard.set(previousTheme, forKey: ThemeStore.themeKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: ThemeStore.themeKey)
+            }
+        }
+
+        UserDefaults.standard.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
+        XCTAssertEqual(DeleteConfirmationMetrics.backdropBrightness, 0.72, accuracy: 0.001)
+        XCTAssertEqual(DeleteConfirmationMetrics.backdropOverlayOpacity, 0.28, accuracy: 0.001)
+
+        UserDefaults.standard.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
+        XCTAssertEqual(DeleteConfirmationMetrics.backdropBrightness, 0.55, accuracy: 0.001)
+        XCTAssertEqual(DeleteConfirmationMetrics.backdropOverlayOpacity, 0.45, accuracy: 0.001)
     }
 
-    func testBackdropMetricsUseDSColorModalBackdropToken() {
-        XCTAssertEqual(DeleteConfirmationMetrics.backdropBrightness, DSColor.campModalBackdropBrightness)
-        XCTAssertEqual(DeleteConfirmationMetrics.backdropOverlayOpacity, DSColor.campModalBackdropOpacity)
+    func testBackdropMetricsUseIOSDimTokenInLightAndDarkThemes() {
+        let previousTheme = UserDefaults.standard.object(forKey: ThemeStore.themeKey)
+        defer {
+            if let previousTheme {
+                UserDefaults.standard.set(previousTheme, forKey: ThemeStore.themeKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: ThemeStore.themeKey)
+            }
+        }
+
+        UserDefaults.standard.set(AppTheme.phloxLight.id, forKey: ThemeStore.themeKey)
+        XCTAssertEqual(IOSColor.bg.dim, Color.black.opacity(DeleteConfirmationMetrics.backdropOverlayOpacity))
+        UserDefaults.standard.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
+        XCTAssertEqual(IOSColor.bg.dim, Color.black.opacity(DeleteConfirmationMetrics.backdropOverlayOpacity))
     }
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// セクション見出し（カンプ①②④ — 12px 太字・大文字・`campTextQuaternary`）。
+/// セクション見出し（12px 太字・大文字）。
 public struct DSSectionLabel: View {
     let title: String
 
@@ -16,7 +16,7 @@ public struct DSSectionLabel: View {
             .font(DSFont.footnote.weight(.bold))
             .kerning(Self.kerning)
             .textCase(.uppercase)
-            .foregroundStyle(DSColor.campTextQuaternary)
+            .foregroundStyle(IOSColor.text.tertiary)
     }
 }
 
@@ -24,6 +24,6 @@ public struct DSSectionLabel: View {
 #Preview("DSSectionLabel") {
     DSSectionLabel("実行中・その他")
         .padding()
-        .background(DSColor.background)
+        .background(IOSColor.bg.base)
 }
 #endif

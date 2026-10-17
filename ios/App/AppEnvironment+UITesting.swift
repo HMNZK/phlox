@@ -50,36 +50,9 @@ extension AppEnvironment {
                 sessionRepository: StubSessionRepository(states: [.offline]),
                 auditLog: InMemoryAuditLog()
             )
-        case .codexApproval:
-            return codexApprovalPath()
-        case .chatAnswer:
-            return chatAnswerPath()
         default:
             return goldenPath()
         }
-    }
-
-    private static func chatAnswerPath() -> AppEnvironment {
-        let sessions = [
-            Session(
-                id: "sess-tulip",
-                name: "add /approvals endpo…",
-                agent: .codex,
-                status: .awaitingApproval(
-                    prompt: "/approvals のレスポンス契約は\nv2（id・session・kind・prompt を含む）で進めますか？\n最小の id だけにしますか？"
-                ),
-                subtitle: "回答待ち: 「v2 契約で進めますか？」",
-                updatedAt: Date()
-            ),
-        ]
-        return AppEnvironment(
-            tokenStore: InMemoryTokenStore(token: "ui-test-token"),
-            authenticator: StubAuthenticator(allows: true),
-            apiClient: UITestPhloxAPI(sessions: sessions, approvals: []),
-            reachability: StubReachability(.online),
-            sessionRepository: StubSessionRepository(states: [.loaded(sessions)]),
-            auditLog: InMemoryAuditLog()
-        )
     }
 
     private static func goldenPath() -> AppEnvironment {
@@ -119,35 +92,6 @@ extension AppEnvironment {
         )
     }
 
-    private static func codexApprovalPath() -> AppEnvironment {
-        let sessions = [
-            Session(
-                id: "sess-codex",
-                name: "Mint",
-                agent: .codex,
-                // 実環境の再現: 承認は保留中でもチャットのポーリング状態は running に戻りうる。
-                status: .running,
-                subtitle: "実行中",
-                updatedAt: Date()
-            ),
-        ]
-        let approvals = [
-            Approval(
-                id: "appr-codex",
-                sessionID: "sess-codex",
-                kind: .codex,
-                prompt: "add /approvals endpoint · Codex"
-            ),
-        ]
-        return AppEnvironment(
-            tokenStore: InMemoryTokenStore(token: "ui-test-token"),
-            authenticator: StubAuthenticator(allows: true),
-            apiClient: UITestPhloxAPI(sessions: sessions, approvals: approvals),
-            reachability: StubReachability(.online),
-            sessionRepository: StubSessionRepository(states: [.loaded(sessions)]),
-            auditLog: InMemoryAuditLog()
-        )
-    }
 }
 
 /// spawn 時に安定 ID を返す UI テスト用 API スタブ。
@@ -158,16 +102,6 @@ private struct UITestPhloxAPI: PhloxAPI {
     func listSessions() async throws -> [Session] { sessions }
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func approvals() async throws -> [Approval] { approvals }
-    func output(sessionID: String) async throws -> String { "› running tests...\nOK" }
-
-    /// Mac が色つきの端末画面を配信できたときの経路。UI テストで実描画を確かめるため、
-    /// SGR 入りの本文と Mac 側の桁数を返す。
-    func terminalScreen(sessionID: String) async throws -> TerminalScreen {
-        TerminalScreen(
-            text: "\u{1B}[0;32m›\u{1B}[0m running tests...\n\u{1B}[0;1;33mOK\u{1B}[0m",
-            cols: 80
-        )
-    }
     /// スクリーンショット・目視確認用の代表的な transcript。
     /// ツール実行グループ（コマンド原文の見出し）・ファイル変更の diff コードビュー・Reasoning を 1 画面に含める。
     func messages(sessionID: String) async throws -> [ChatMessage] {

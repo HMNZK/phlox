@@ -99,7 +99,6 @@ private actor ModelSelectorMockAPI: PhloxAPI, SessionModelSelecting {
     }
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func send(_ request: SendRequest) async throws -> SendResult { SendResult(accepted: true) }
-    func output(sessionID: String) async throws -> String { "" }
     func messages(sessionID: String) async throws -> [ChatMessage] { [] }
     func remove(sessionID: String) async throws {}
     func approvals() async throws -> [Approval] { [] }

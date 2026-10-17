@@ -1,8 +1,10 @@
 import XCTest
+import AgentDomain
+import DesignSystemIOS
 import PhloxCore
 @testable import Features
 
-// DP-4-3 検証。カンプ③のヘッダー・出力・入力バー契約を View 層で保証する。
+// DP-4-3 検証。カンプ③のヘッダー・入力バー契約を View 層で保証する。
 final class SessionDetailViewTests: XCTestCase {
 
     private var calendar: Calendar!
@@ -17,20 +19,15 @@ final class SessionDetailViewTests: XCTestCase {
         locale = Locale(identifier: "ja_JP")
     }
 
-    func testHeaderAgentBadgeSizeMatchesCamp() {
-        XCTAssertEqual(SessionDetailMetrics.headerAgentBadgeSize, 48)
+    @MainActor
+    func testAgentIconUsesSharedBrandBundleAndDetailSize() {
+        let icon = AgentBrandIcon(kind: .claudeCode, size: 48)
+        XCTAssertEqual(icon.size, 48)
+        XCTAssertNotEqual(AgentBrandIcon.assetBundle.bundleURL, Bundle.main.bundleURL)
     }
 
     func testInputPlaceholderMatchesCamp() {
         XCTAssertEqual(SessionDetailCopy.inputPlaceholder, "回答を入力…")
-    }
-
-    func testOutputSectionTitleMatchesCamp() {
-        XCTAssertEqual(SessionDetailCopy.outputSectionTitle, "出力")
-    }
-
-    func testOutputCollapseLineLimitMatchesCamp() {
-        XCTAssertEqual(SessionDetailMetrics.outputCollapseLineLimit, 12)
     }
 
     func testHeaderMetaLineFormatsAgentAndStartTime() {
@@ -52,35 +49,11 @@ final class SessionDetailViewTests: XCTestCase {
         XCTAssertEqual(line, "Claude Code · 開始 14:32")
     }
 
-    func testOutputNeedsToggleWhenExceedsLineLimit() {
-        let text = (1...13).map { "line \($0)" }.joined(separator: "\n")
-        XCTAssertTrue(SessionDetailMetrics.outputNeedsToggle(text: text))
-    }
-
-    func testOutputDoesNotNeedToggleWhenWithinLineLimit() {
-        let text = (1...12).map { "line \($0)" }.joined(separator: "\n")
-        XCTAssertFalse(SessionDetailMetrics.outputNeedsToggle(text: text))
-    }
-
-    func testDisplayedOutputHiddenWhenCollapsedAndLong() {
-        let text = (1...20).map { "line \($0)" }.joined(separator: "\n")
-        XCTAssertNil(SessionDetailMetrics.displayedOutput(text: text, isExpanded: false))
-    }
-
-    func testDisplayedOutputShowsFullTextWhenExpanded() {
-        let text = (1...20).map { "line \($0)" }.joined(separator: "\n")
-        XCTAssertEqual(SessionDetailMetrics.displayedOutput(text: text, isExpanded: true), text)
-    }
-
-    func testDisplayedOutputShowsShortTextWhenCollapsed() {
-        let text = "› running tests...\nOK"
-        XCTAssertEqual(SessionDetailMetrics.displayedOutput(text: text, isExpanded: false), text)
-    }
-
-    func testCampAgentAbbreviationMatchesSessionRow() {
-        XCTAssertEqual(SessionDetailMetrics.campAbbreviation(for: .claudeCode), "CC")
-        XCTAssertEqual(SessionDetailMetrics.campAbbreviation(for: .codex), "Cx")
-        XCTAssertEqual(SessionDetailMetrics.campAbbreviation(for: .cursor), "Cu")
+    @MainActor
+    func testAgentNamesComeFromSharedBrandIcons() {
+        XCTAssertEqual(AgentBrandIcon(kind: .claudeCode, size: 48).descriptor.displayName, "Claude Code")
+        XCTAssertEqual(AgentBrandIcon(kind: .codex, size: 48).descriptor.displayName, "Codex")
+        XCTAssertEqual(AgentBrandIcon(kind: .cursor, size: 48).descriptor.displayName, "Cursor")
     }
 
     func testUsageFormatShowsCostAndContextPercent() {

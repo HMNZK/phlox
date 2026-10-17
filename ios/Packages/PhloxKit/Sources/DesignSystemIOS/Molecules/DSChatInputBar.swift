@@ -38,12 +38,12 @@ public struct DSChatInputBar: View {
             TextField(placeholder, text: $text, axis: .vertical)
                 .font(DSFont.body)
                 .foregroundStyle(DSColor.textPrimary)
-                .tint(DSColor.accent)
+                .tint(IOSColor.accent)
                 .lineLimit(1...4)
                 .padding(.horizontal, DSSpacing.m)
                 .frame(minHeight: Self.minHeight)
-                .background(DSColor.surfaceElevated, in: fieldShape)
-                .overlay(fieldShape.strokeBorder(DSColor.accent, lineWidth: 1))
+                .background(IOSColor.bg.raised, in: fieldShape)
+                .overlay(fieldShape.strokeBorder(IOSColor.accent, lineWidth: 1))
                 .accessibilityLabel(Text(placeholder))
 
             Button(action: submit) {
@@ -51,16 +51,15 @@ public struct DSChatInputBar: View {
                     if isLoading {
                         ProgressView()
                             .controlSize(.small)
-                            .tint(DSColor.textOnBrand)
+                            .tint(IOSColor.accentOnFill)
                     } else {
                         Image(systemName: Self.sendButtonIconName)
                             .font(Self.sendButtonIconFont)
                     }
                 }
-                .foregroundStyle(DSColor.textOnBrand)
+                .foregroundStyle(IOSColor.accentOnFill)
                 .frame(width: Self.minHeight, height: Self.minHeight)
-                .background(DSGradient.brand, in: Circle())
-                .dsShadow(DSShadow.fabGlow)
+                .background(IOSColor.accent, in: Circle())
             }
             .buttonStyle(.plain)
             .disabled(!canSubmit)

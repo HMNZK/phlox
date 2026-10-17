@@ -46,9 +46,9 @@ final class AtomsTests: XCTestCase {
         XCTAssertEqual(toggle.subtitle, "Face ID")
     }
 
-    func testToggleUsesCampStyleTokens() {
-        XCTAssertEqual(DSToggle.titleForegroundToken, DSColor.textPrimary)
-        XCTAssertEqual(DSToggle.onTintToken, DSColor.statusRunning)
+    func testToggleUsesRedesignTextAndSuccessTokens() {
+        XCTAssertEqual(DSToggle.titleForegroundToken, IOSColor.text.primary)
+        XCTAssertEqual(DSToggle.onTintToken, IOSColor.status.success)
     }
 
     func testSectionLabelUsesCampQuaternaryAndKerning() {
@@ -57,181 +57,143 @@ final class AtomsTests: XCTestCase {
         XCTAssertEqual(label.title, "実行中・その他")
     }
 
-    func testApproveVariantUsesStatusRunningAndTextOnBrand() {
-        XCTAssertEqual(DSButton.Variant.approve.backgroundToken, DSColor.statusRunning)
-        XCTAssertEqual(DSButton.Variant.approve.foregroundToken, DSColor.textOnBrand)
+    func testApproveVariantUsesAccentFillAndContrastText() {
+        XCTAssertEqual(DSButton.Variant.approve.backgroundToken, IOSColor.accent)
+        XCTAssertEqual(DSButton.Variant.approve.foregroundToken, IOSColor.accentOnFill)
     }
 
-    func testDeclineOutlineVariantUsesCampAttentionBorder() {
-        XCTAssertEqual(DSButton.Variant.declineOutline.foregroundToken, DSColor.campAttention)
-        XCTAssertEqual(DSButton.Variant.declineOutline.backgroundToken, DSColor.surfaceElevated)
-        XCTAssertEqual(DSButton.Variant.declineOutline.borderToken, DSColor.campAttention)
+    func testDeclineOutlineVariantUsesErrorTextAndBorder() {
+        XCTAssertEqual(DSButton.Variant.declineOutline.foregroundToken, IOSColor.status.error)
+        XCTAssertEqual(DSButton.Variant.declineOutline.backgroundToken, IOSColor.bg.fill)
+        XCTAssertEqual(DSButton.Variant.declineOutline.borderToken, IOSColor.status.error)
     }
 
-    // MARK: - DSStatusChip（6 状態の三重符号化）
+    // MARK: - DSStatusChip
 
-    func testStatusChipResolvesDistinctIconsForAllSixStates() {
+    func testStatusChipUsesCanonicalWordsAndOmitsWaiting() {
         let locale = Locale(identifier: "ja_JP")
         let statuses: [SessionStatus] = [
             .starting, .idle, .running,
-            .awaitingApproval(prompt: "p"), .completed(exitCode: 0), .error(message: "e"),
+            .awaitingApproval(prompt: "p"), .awaitingUserQuestion,
+            .completed(exitCode: 0), .error(message: "e"),
         ]
-        let icons = statuses.map { DSStatusChip.content(for: $0, locale: locale).icon }
-        XCTAssertEqual(Set(icons).count, 6, "6 状態は相異なるアイコンで符号化されること")
+        let labels = statuses.map { DSStatusChip.presentation(for: $0, locale: locale).label }
+        XCTAssertEqual(labels, ["起動中", nil, "実行中", "承認待ち", "質問あり", "完了", "エラー"])
+        XCTAssertEqual(Set(labels.compactMap { $0 }).count, 6)
     }
 
     func testStatusChipLabelsAreLocalized() {
         let ja = Locale(identifier: "ja_JP")
-        XCTAssertEqual(DSStatusChip.content(for: .running, locale: ja).label, "実行中")
-        XCTAssertEqual(DSStatusChip.content(for: .awaitingApproval(prompt: ""), locale: ja).label, "承認待ち")
+        XCTAssertEqual(DSStatusChip.presentation(for: .running, locale: ja).label, "実行中")
+        XCTAssertEqual(DSStatusChip.presentation(for: .awaitingApproval(prompt: ""), locale: ja).label, "承認待ち")
+        XCTAssertEqual(DSStatusChip.presentation(for: .awaitingUserQuestion, locale: ja).label, "質問あり")
 
         let en = Locale(identifier: "en_US")
-        XCTAssertEqual(DSStatusChip.content(for: .running, locale: en).label, "running")
-        XCTAssertEqual(DSStatusChip.content(for: .awaitingApproval(prompt: ""), locale: en).label, "awaiting")
+        XCTAssertEqual(DSStatusChip.presentation(for: .running, locale: en).label, "running")
+        XCTAssertEqual(DSStatusChip.presentation(for: .awaitingApproval(prompt: ""), locale: en).label, "awaiting")
+        XCTAssertEqual(DSStatusChip.presentation(for: .awaitingUserQuestion, locale: en).label, "question")
     }
 
-    func testStatusChipDistinguishesCompletedExitCodes() {
+    func testStatusChipUsesTheSameCompletedStyleForAllExitCodes() {
         let en = Locale(identifier: "en_US")
-        let ok = DSStatusChip.content(for: .completed(exitCode: 0), locale: en)
-        let fail = DSStatusChip.content(for: .completed(exitCode: 1), locale: en)
+        let ok = DSStatusChip.presentation(for: .completed(exitCode: 0), locale: en)
+        let fail = DSStatusChip.presentation(for: .completed(exitCode: 1), locale: en)
         XCTAssertEqual(ok.label, "done")
-        XCTAssertEqual(fail.label, "exited")
-        XCTAssertNotEqual(ok.icon, fail.icon)
+        XCTAssertEqual(fail.label, "done")
+        XCTAssertEqual(ok.color, fail.color)
+        XCTAssertEqual(ok.weight, fail.weight)
     }
 
-    // MARK: - DSCampAgentBadge
+    func testStatusVocabularyDefinesWordColorAndWeightForEveryCurrentState() {
+        let ja = Locale(identifier: "ja_JP")
+        let cases: [(SessionStatus, String?, Color?, IOSStatusWeight?)] = [
+            (.idle, nil, nil, nil),
+            (.starting, "起動中", IOSColor.text.tertiary, .regular),
+            (.running, "実行中", IOSColor.text.secondary, .medium),
+            (.awaitingApproval(prompt: ""), "承認待ち", IOSColor.status.approval, .semibold),
+            (.awaitingUserQuestion, "質問あり", IOSColor.status.question, .semibold),
+            (.error(message: ""), "エラー", IOSColor.status.error, .semibold),
+            (.completed(exitCode: 0), "完了", IOSColor.text.tertiary, .regular),
+        ]
 
-    func testCampAgentBadgeAbbreviationsForPrimaryAgents() {
-        XCTAssertEqual(DSCampAgentBadge.abbreviation(for: .claudeCode), "CC")
-        XCTAssertEqual(DSCampAgentBadge.abbreviation(for: .codex), "Cx")
-        XCTAssertEqual(DSCampAgentBadge.abbreviation(for: .cursor), "Cu")
-    }
-
-    func testCampAgentBadgeSessionRowSizeMatchesCamp() {
-        XCTAssertEqual(DSCampAgentBadge.sessionRowSize, 38)
-        XCTAssertEqual(DSCampAgentBadge.sessionRowCornerRadius, 10)
-    }
-
-    func testCampAgentBadgeChatAvatarSizeMatchesCamp() {
-        XCTAssertEqual(DSCampAgentBadge.chatAvatarSize, 28)
-        XCTAssertEqual(DSCampAgentBadge.chatAvatarCornerRadius, 8)
-    }
-
-    func testCampAgentBadgeStoresKindAndSize() {
-        let badge = DSCampAgentBadge(kind: .codex, size: .chatAvatar)
-        XCTAssertEqual(badge.kind, .codex)
-        XCTAssertEqual(badge.size, .chatAvatar)
-    }
-
-    func testCampAgentBadgeDefaultsToSessionRowSize() {
-        let badge = DSCampAgentBadge(kind: .claudeCode)
-        XCTAssertEqual(badge.size, .sessionRow)
-    }
-
-    // MARK: - DSAgentBadge
-
-    func testAgentBadgeDisplayNames() {
-        XCTAssertEqual(DSAgentBadge(kind: .claudeCode).displayName, "Claude Code")
-        XCTAssertEqual(DSAgentBadge(kind: .codex).displayName, "Codex")
-        XCTAssertEqual(DSAgentBadge(kind: .cursor).displayName, "Cursor")
-    }
-
-    func testAgentBadgeDisplayNamesNonEmptyForAllKinds() {
-        for kind in AgentKind.allCases {
-            XCTAssertFalse(DSAgentBadge(kind: kind).displayName.isEmpty)
+        for (status, label, color, weight) in cases {
+            let presentation = IOSStatusVocabulary.presentation(for: status, locale: ja)
+            XCTAssertEqual(presentation.label, label)
+            XCTAssertEqual(presentation.color, color)
+            XCTAssertEqual(presentation.weight, weight)
         }
     }
 
-    // MARK: - DSTextField
+    // MARK: - AgentBrandIcon
 
-    func testTextFieldMinHeightMeetsTouchTarget() {
-        XCTAssertEqual(DSTextField.minHeight, DSTouch.minSize)
+    func testBrandIconsUseRegistryDisplayNames() {
+        XCTAssertEqual(AgentBrandIcon(kind: .claudeCode, size: 32).descriptor.displayName, "Claude Code")
+        XCTAssertEqual(AgentBrandIcon(kind: .codex, size: 32).descriptor.displayName, "Codex")
+        XCTAssertEqual(AgentBrandIcon(kind: .cursor, size: 32).descriptor.displayName, "Cursor")
     }
 
-    func testTextFieldDefaultsToBodyFontAndNoVisibilityToggle() {
-        let field = DSTextField(text: .constant(""), placeholder: "test")
-        XCTAssertFalse(field.usesCampMono)
-        XCTAssertFalse(field.showsVisibilityToggle)
-        XCTAssertFalse(field.isSecure)
+    func testSessionAgentLogoSizeMatchesRowsAndSkeletons() {
+        XCTAssertEqual(DSSessionRow.agentLogoSize, 38)
+        XCTAssertEqual(DSSkeletonRow.agentLogoSize, 38)
     }
 
-    func testTextFieldSupportsCampMono() {
-        let field = DSTextField(text: .constant(""), placeholder: "test", usesCampMono: true)
-        XCTAssertTrue(field.usesCampMono)
+    func testChatAgentLogoUsesTwentyEightPointSize() {
+        XCTAssertEqual(DSChatBubble.agentLogoSize, 28)
     }
 
-    func testTextFieldSupportsVisibilityToggle() {
-        let field = DSTextField(
-            text: .constant(""),
-            placeholder: "token",
-            showsVisibilityToggle: true
-        )
-        XCTAssertTrue(field.showsVisibilityToggle)
+    func testBrandIconStoresRegistryDescriptorAndSize() {
+        let icon = AgentBrandIcon(kind: .codex, size: 28)
+        XCTAssertEqual(icon.descriptor.displayName, "Codex")
+        XCTAssertEqual(icon.size, 28)
     }
 
-    // MARK: - DSFAB
-
-    func testFABSizeMeetsTouchTarget() {
-        XCTAssertEqual(DSFAB.size, DSTouch.minSize)
-        XCTAssertGreaterThanOrEqual(DSFAB.size, 44)
+    func testBrandIconUsesDesignSystemAssetBundle() {
+        XCTAssertNotEqual(AgentBrandIcon.assetBundle.bundleURL, Bundle.main.bundleURL)
     }
 
-    func testFABUsesIconOnlyStyleWithoutFilledBackground() {
-        XCTAssertFalse(DSFAB.usesFilledCircleBackground)
+    // MARK: - Agent display names
+
+    func testAgentNamesMatchTheSharedRegistry() {
+        XCTAssertEqual(AgentBrandIcon(kind: .claudeCode, size: 24).descriptor.displayName, AgentRegistry.descriptor(for: .claudeCode).displayName)
+        XCTAssertEqual(AgentBrandIcon(kind: .codex, size: 24).descriptor.displayName, AgentRegistry.descriptor(for: .codex).displayName)
+        XCTAssertEqual(AgentBrandIcon(kind: .cursor, size: 24).descriptor.displayName, AgentRegistry.descriptor(for: .cursor).displayName)
     }
 
-    func testFABUsesFullFrameContentShapeForHitTarget() {
-        XCTAssertTrue(DSFAB.usesFullFrameContentShape)
-        XCTAssertEqual(DSFAB.size, DSTouch.minSize)
+    func testAgentNamesAreNonEmptyForAllKinds() {
+        for kind in AgentKind.allCases {
+            XCTAssertFalse(AgentBrandIcon(kind: kind, size: 24).descriptor.displayName.isEmpty)
+        }
     }
 
-    func testFABIconForegroundUsesBrandGradient() {
-        XCTAssertEqual(DSFAB.iconBrandGradientStart, DSGradient.brandStart.color)
-        XCTAssertEqual(DSFAB.iconBrandGradientEnd, DSGradient.brandEnd.color)
+    // MARK: - Primary button
+
+    func testPrimaryButtonMeetsTouchTarget() {
+        XCTAssertEqual(DSButton.minHeight, DSTouch.minSize)
+        XCTAssertGreaterThanOrEqual(DSButton.minHeight, 44)
     }
 
-    func testFABIconIsPlus() {
-        XCTAssertEqual(DSFAB.iconName, "plus")
+    func testPrimaryButtonUsesAccentAndContrastText() {
+        XCTAssertEqual(DSButton.Variant.primary.backgroundToken, IOSColor.accent)
+        XCTAssertEqual(DSButton.Variant.primary.foregroundToken, IOSColor.accentOnFill)
     }
 
-    func testFABStoresAccessibilityLabel() {
-        let fab = DSFAB(accessibilityLabel: "新規タスク") {}
-        XCTAssertEqual(fab.accessibilityLabel, "新規タスク")
+    func testPrimaryButtonUsesSharedCornerRadius() {
+        XCTAssertEqual(DSButton.cornerRadius, DSRadius.m)
     }
 
-    // MARK: - DSGradientButton
-
-    func testGradientButtonHeightMatchesCampPrimaryCTA() {
-        XCTAssertEqual(DSGradientButton.height, 50)
-    }
-
-    func testGradientButtonUsesCtaGlowShadow() {
-        XCTAssertEqual(DSGradientButton.shadowToken, DSShadow.ctaGlow)
-    }
-
-    func testGradientButtonCornerRadiusUsesCampToken() {
-        XCTAssertEqual(DSGradientButton.cornerRadius, DSRadius.card)
-    }
-
-    func testGradientButtonStoresTitleForAccessibility() {
-        let button = DSGradientButton("保存して接続", isEnabled: true) {}
+    func testPrimaryButtonStoresTitleForAccessibility() {
+        let button = DSButton("保存して接続", variant: .primary) {}
         XCTAssertEqual(button.title, "保存して接続")
         XCTAssertTrue(button.isEnabled)
+        XCTAssertEqual(button.variant, .primary)
         XCTAssertFalse(button.isLoading)
     }
 
-    func testGradientButtonDisabledWhenNotEnabled() {
-        let button = DSGradientButton("保存して接続", isEnabled: false) {}
+    func testPrimaryButtonStoresLoadingState() {
+        let button = DSButton("保存して接続", variant: .primary, isLoading: true) {}
+        XCTAssertTrue(button.isLoading)
         XCTAssertFalse(button.isEnabled)
+        XCTAssertEqual(button.title, "保存して接続")
     }
 
-    // MARK: - DSConnectionIndicator (DP-2-4)
-
-    func testConnectionIndicatorLabelIncludesHost() {
-        XCTAssertEqual(DSConnectionIndicator.labelText(host: "100.64.0.1"), "接続済み · 100.64.0.1")
-    }
-
-    func testConnectionIndicatorDotDiameterMatchesCamp() {
-        XCTAssertEqual(DSConnectionIndicator.dotDiameter, 6)
-    }
 }

@@ -68,18 +68,24 @@ struct ModelPickerSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.displayName)
                         .font(DSFont.body)
-                        .foregroundStyle(DSColor.textPrimary)
+                        .foregroundStyle(isSelected ? IOSColor.accentOnFill : IOSColor.text.primary)
                     Text(entry.kind.displayName)
                         .font(DSFont.caption)
-                        .foregroundStyle(DSColor.textTertiary)
+                        .foregroundStyle(isSelected ? IOSColor.accentOnFill.opacity(0.78) : IOSColor.text.tertiary)
                 }
                 Spacer(minLength: DSSpacing.s)
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(DSFont.body.weight(.semibold))
-                        .foregroundStyle(DSColor.accent)
+                        .foregroundStyle(IOSColor.accentOnFill)
                 }
             }
+            .padding(.horizontal, DSSpacing.m)
+            .padding(.vertical, DSSpacing.s)
+            .background(
+                RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+                    .fill(isSelected ? IOSColor.accent : Color.clear)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

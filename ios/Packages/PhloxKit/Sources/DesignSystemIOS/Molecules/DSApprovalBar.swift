@@ -3,7 +3,7 @@ import AgentDomain
 import PhloxCore
 
 /// 承認 / 却下バー（カンプ③⑧の下部アクション）。承認・却下の 2 択を提示する。
-/// Codex 4 択（acceptForSession / cancel 含む）のシートは E4-7 で別途実装する。
+/// 許可と拒否の 2 択を提示する。
 public struct DSApprovalBar: View {
     /// このバーが提示する決定（テスト可能な契約）。
     static let offeredDecisions: [ApprovalDecision] = [.decline, .accept]

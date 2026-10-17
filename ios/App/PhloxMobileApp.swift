@@ -44,7 +44,7 @@ struct PhloxMobileApp: App {
                 pendingPairingURLString: $pendingPairingURLString
             )
             .environment(environment)
-            .tint(DSColor.campAccentBright)
+            .tint(IOSColor.accent)
             .onOpenURL { url in
                 pendingPairingURLString = PairingURLNormalizer.normalizedString(from: url)
             }

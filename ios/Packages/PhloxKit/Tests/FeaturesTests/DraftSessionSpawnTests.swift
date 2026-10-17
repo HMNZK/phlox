@@ -120,11 +120,6 @@ private actor DraftFlowAPI: PhloxAPI {
         return []
     }
 
-    func output(sessionID: String) async throws -> String {
-        pollingReadCount += 1
-        return ""
-    }
-
     func messages(sessionID: String) async throws -> [ChatMessage] {
         pollingReadCount += 1
         return []

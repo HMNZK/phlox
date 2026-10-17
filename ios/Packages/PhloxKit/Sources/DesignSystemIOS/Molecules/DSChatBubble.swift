@@ -2,7 +2,7 @@ import SwiftUI
 import AgentDomain
 
 /// チャットメッセージバブル（カンプ⑦ 質問への回答）。
-/// エージェントは左寄せ・無背景、ユーザーは右寄せ・`DSColor.userBubble` 淡面（macOS 揃え）。
+/// エージェントは左寄せ・無背景、ユーザーは右寄せ・raised 面。
 public struct DSChatBubble: View {
     public enum Role: Sendable {
         case agent
@@ -11,8 +11,7 @@ public struct DSChatBubble: View {
     /// バブル角丸（カンプカード 14px）。
     static let cornerRadius = DSRadius.card
     /// エージェントアバター（カンプ⑦）。
-    static let agentAvatarSize: CGFloat = DSCampAgentBadge.chatAvatarSize
-    static let agentAvatarCornerRadius: CGFloat = DSCampAgentBadge.chatAvatarCornerRadius
+    static let agentLogoSize: CGFloat = 28
 
     let role: Role
     let message: String
@@ -41,15 +40,10 @@ public struct DSChatBubble: View {
         count <= 1 ? "画像" : "画像 ×\(count)"
     }
 
-    /// ブランドグラデ背景は廃止（macOS 揃え · task-2）。
-    static func usesBrandGradient(for role: Role) -> Bool {
-        false
-    }
-
     /// バブル背景色（テスト用契約 · DSChatBubbleStyleTests）。nil = 無背景。
     /// body の実描画もこの関数を単一の正として使う。
     static func backgroundColor(for role: Role) -> Color? {
-        role == .user ? DSColor.userBubble : nil
+        role == .user ? IOSColor.bg.raised : nil
     }
 
     /// 発話者に応じた水平配置。
@@ -58,10 +52,17 @@ public struct DSChatBubble: View {
     }
 
     /// ユーザーバブル内テキスト色（`userBubble` 淡面上 · macOS 揃え）。
-    static let userMessageForeground = DSColor.textPrimary
+    static var userMessageForeground: Color { IOSColor.text.primary }
 
-    static func accessibilitySpeakerLabel(for role: Role) -> String {
-        role == .agent ? "エージェント" : "あなた"
+    static func highlightColor(for role: Role) -> Color? {
+        role == .agent ? IOSColor.text.secondary : nil
+    }
+
+    static func accessibilitySpeakerLabel(for role: Role, agentKind: AgentKind? = nil) -> String {
+        if role == .agent, let agentKind {
+            return AgentRegistry.descriptor(for: agentKind).displayName
+        }
+        return role == .agent ? "エージェント" : "あなた"
     }
 
     public var body: some View {
@@ -69,7 +70,7 @@ public struct DSChatBubble: View {
         case .agent:
             HStack(alignment: .top, spacing: DSSpacing.s) {
                 if let agentKind {
-                    DSAgentAvatar(kind: agentKind, size: Self.agentAvatarSize)
+                    DSAgentBrandIcon(kind: agentKind, size: Self.agentLogoSize)
                 }
                 messageBubble
                     .frame(maxWidth: maxBubbleWidth, alignment: .leading)
@@ -95,8 +96,8 @@ public struct DSChatBubble: View {
     @ViewBuilder
     private var messageBubble: some View {
         Group {
-            if role == .agent, let agentKind {
-                agentMessageContent(message, highlightColor: DSColor.campAgentColor(for: agentKind))
+            if role == .agent {
+                agentMessageContent(message, highlightColor: Self.highlightColor(for: role) ?? IOSColor.text.secondary)
             } else {
                 userMessageContent
             }
@@ -130,13 +131,13 @@ public struct DSChatBubble: View {
         .foregroundStyle(DSColor.textSecondary)
         .padding(.horizontal, DSSpacing.s)
         .padding(.vertical, DSSpacing.xxs)
-        .background(Capsule().fill(DSColor.userBubble))
+        .background(Capsule().fill(IOSColor.bg.raised))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(Self.attachmentBadgeText(count: count)))
     }
 
     private var userAccessibilityLabel: String {
-        "\(Self.accessibilitySpeakerLabel(for: role)): \(message)"
+        "\(Self.accessibilitySpeakerLabel(for: role, agentKind: agentKind)): \(message)"
     }
 
     @ViewBuilder

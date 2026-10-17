@@ -2,7 +2,7 @@ import XCTest
 import PhloxCore
 @testable import Features
 
-// E4-6 / E4-8 検証。出力取得・入力バー有効制御・折りたたみ上限・送信時の入力保持を検証する。
+// E4-6 / E4-8 検証。入力バー有効制御・送信時の入力保持を検証する。
 @MainActor
 final class SessionDetailViewModelTests: XCTestCase {
 
@@ -11,19 +11,6 @@ final class SessionDetailViewModelTests: XCTestCase {
     }
 
     // MARK: - E4-6
-
-    func testLoadOutputReflectsText() async {
-        let vm = SessionDetailViewModel(session: session(.running), api: MockAPI(outputOutcome: .success("hello\nworld")))
-        await vm.loadOutput()
-        XCTAssertEqual(vm.outputText, "hello\nworld")
-        XCTAssertNil(vm.loadError)
-    }
-
-    func testLoadOutputErrorSetsLoadError() async {
-        let vm = SessionDetailViewModel(session: session(.running), api: MockAPI(outputOutcome: .failure(.unreachable)))
-        await vm.loadOutput()
-        XCTAssertNotNil(vm.loadError)
-    }
 
     func testInputEnabledForInteractiveStatuses() {
         XCTAssertTrue(SessionDetailViewModel(session: session(.awaitingApproval(prompt: "p")), api: MockAPI()).inputEnabled)
@@ -37,21 +24,6 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertFalse(SessionDetailViewModel(session: session(.starting), api: MockAPI()).inputEnabled)
     }
 
-    func testTruncateKeepsLastLinesWhenOverLimit() {
-        let text = (1...600).map { "line\($0)" }.joined(separator: "\n")
-        let truncated = SessionDetailViewModel.truncate(text, maxLines: 500)
-        let lines = truncated.split(separator: "\n", omittingEmptySubsequences: false)
-        XCTAssertTrue(truncated.contains("省略"))
-        XCTAssertLessThanOrEqual(lines.count, 501)
-        XCTAssertTrue(truncated.contains("line600"))
-        XCTAssertFalse(truncated.contains("line1\n"))
-    }
-
-    func testTruncateNoOpUnderLimit() {
-        let text = "a\nb\nc"
-        XCTAssertEqual(SessionDetailViewModel.truncate(text, maxLines: 500), text)
-    }
-
     // MARK: - 構造化チャット / フォールバック（CH-4）
 
     func testLoadShowsChatWhenMessagesPresent() async {
@@ -62,26 +34,6 @@ final class SessionDetailViewModelTests: XCTestCase {
         await vm.load()
         XCTAssertTrue(vm.showsChat)
         XCTAssertEqual(vm.chatMessages, [.agent(id: "a1", text: "hi")])
-    }
-
-    func testLoadFallsBackToTerminalWhenMessagesEmpty() async {
-        let vm = SessionDetailViewModel(
-            session: session(.running),
-            api: MockAPI(outputOutcome: .success("terminal text"), messagesOutcome: .success([]))
-        )
-        await vm.load()
-        XCTAssertFalse(vm.showsChat)
-        XCTAssertEqual(vm.outputText, "terminal text")
-    }
-
-    func testLoadFallsBackToTerminalWhenMessagesNotFound() async {
-        let vm = SessionDetailViewModel(
-            session: session(.running),
-            api: MockAPI(outputOutcome: .success("terminal text"), messagesOutcome: .failure(.notFound))
-        )
-        await vm.load()
-        XCTAssertFalse(vm.showsChat)
-        XCTAssertEqual(vm.outputText, "terminal text")
     }
 
     // MARK: - ポーリング更新（refresh）
@@ -109,27 +61,8 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.chatMessages.map(\.id), ["a1"], "既存メッセージを維持")
     }
 
-    func testRefreshClearsLoadErrorWhenOutputRecovers() async {
-        let mock = MockAPI(
-            outputOutcome: .failure(.unreachable),
-            messagesOutcome: .success([])
-        )
-        let vm = SessionDetailViewModel(session: session(.running), api: mock)
-        await vm.load()
-        XCTAssertNotNil(vm.loadError)
-
-        await mock.setOutputOutcome(.success("recovered output"))
-        await vm.refresh()
-
-        XCTAssertNil(vm.loadError, "output 取得が回復したらエラーバナーを消す")
-        XCTAssertEqual(vm.outputText, "recovered output")
-    }
-
     func testRefreshClearsLoadErrorWhenMessagesArrive() async {
-        let mock = MockAPI(
-            outputOutcome: .failure(.unreachable),
-            messagesOutcome: .success([])
-        )
+        let mock = MockAPI(messagesOutcome: .failure(.unreachable))
         let vm = SessionDetailViewModel(session: session(.running), api: mock)
         await vm.load()
         XCTAssertNotNil(vm.loadError)

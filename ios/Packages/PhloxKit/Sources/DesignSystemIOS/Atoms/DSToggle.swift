@@ -3,8 +3,8 @@ import SwiftUI
 /// アクセシビリティラベル付きトグル。タイトル + 任意の補助説明を持つ。
 public struct DSToggle: View {
     /// テスト用スタイル契約（AtomsTests · DS-AUDIT-1）。
-    public static let titleForegroundToken = DSColor.textPrimary
-    public static let onTintToken = DSColor.statusRunning
+    public static var titleForegroundToken: Color { IOSColor.text.primary }
+    public static var onTintToken: Color { IOSColor.status.success }
 
     @Binding var isOn: Bool
     let title: String
@@ -21,15 +21,15 @@ public struct DSToggle: View {
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(DSFont.body)
-                    .foregroundStyle(DSColor.textPrimary)
+                    .foregroundStyle(IOSColor.text.primary)
                 if let subtitle {
                     Text(subtitle)
                         .font(DSFont.footnote)
-                        .foregroundStyle(DSColor.textSecondary)
+                        .foregroundStyle(IOSColor.text.secondary)
                 }
             }
         }
-        .tint(DSColor.statusRunning)
+        .tint(IOSColor.status.success)
         .frame(minHeight: DSTouch.minSize)
         .accessibilityLabel(Text(title))
         .accessibilityHint(Text(subtitle ?? ""))

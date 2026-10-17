@@ -2,7 +2,6 @@ import SwiftUI
 import AgentDomain
 import DesignSystemIOS
 import PhloxCore
-import TerminalScreenIOS
 
 enum ChatRowKind: Equatable {
     case userBubble
@@ -36,7 +35,7 @@ enum ChatRowKind: Equatable {
     }
 }
 
-/// セッション詳細画面（カンプ③）。承認リクエスト + ターミナル出力 + 入力バー。
+/// セッション詳細画面（カンプ③）。承認リクエスト + 会話 + 入力バー。
 public struct SessionDetailView: View {
     @Environment(\.sessionComposeDraft) private var sessionComposeDraft
     @State private var viewModel: SessionDetailViewModel
@@ -89,9 +88,7 @@ public struct SessionDetailView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .coordinateSpace(name: Self.scrollCoordinateSpace)
-                // 端末を出しているときは本文の地も端末の色にする。端末の高さは中身が決めるので、
-                // 中身が短い日は下に余白が残る。地が違う色だと「上半分しか出ていない」ように見える。
-                .background(showsTerminalScreen ? TerminalScreenView.backgroundColor : DSColor.background)
+                .background(DSColor.background)
                 .background(
                     GeometryReader { proxy in
                         Color.clear.preference(
@@ -108,7 +105,6 @@ public struct SessionDetailView: View {
                 }
                 // 本文が初めて届いたときは必ず最下部へ寄せ、以降だけ距離で追従を判定する。
                 .onChange(of: viewModel.chatMessages) { scrollToBottomForContentChange(proxy) }
-                .onChange(of: viewModel.outputText) { scrollToBottomForContentChange(proxy) }
                 .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
                 .onChange(of: pendingTranscriptScrollTarget) { _, target in
                     guard let target else { return }
@@ -266,17 +262,7 @@ public struct SessionDetailView: View {
         }
     }
 
-    /// 本文が「Mac の端末画面そのもの」になっているか（＝地まで端末の色で塗る場面か）。
-    private var showsTerminalScreen: Bool {
-        viewModel.loadError == nil
-            && !viewModel.showsChat
-            && !viewModel.showsInitialLoadingIndicator
-            && viewModel.terminalScreen.isANSI
-            && !viewModel.outputText.isEmpty
-    }
-
-    /// エラー → バナー、構造化チャットあり → チャット、初回データ待ち → 接続表示、
-    /// それ以外 → 従来のターミナル出力、の順で表示する。
+    /// 構造化チャットがあれば表示し、初回データ待ちは接続表示にする。
     @ViewBuilder
     private var transcriptSection: some View {
         if let error = viewModel.loadError {
@@ -288,7 +274,7 @@ public struct SessionDetailView: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: max(320, scrollViewportHeight - DSTouch.minSize - DSSpacing.l * 2))
         } else {
-            outputSection
+            EmptyView()
         }
     }
 
@@ -313,7 +299,8 @@ public struct SessionDetailView: View {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     DSThinkingIndicator(
                         state: activityState,
-                        reasoningPreview: viewModel.recap(now: context.date)
+                        reasoningPreview: viewModel.recap(now: context.date),
+                        status: viewModel.currentStatus
                     )
                 }
             }
@@ -491,82 +478,6 @@ public struct SessionDetailView: View {
             )
     }
 
-    @ViewBuilder
-    private var outputSection: some View {
-        if viewModel.terminalScreen.isANSI, !viewModel.outputText.isEmpty {
-            // Mac が色つきの画面を配信できたときは端末として描き直す。
-            // 端末は「今の画面」そのものなので、見出しにもトグルにも入れず全文をそのまま出す。
-            // 幅は TerminalScreenView が画面に合わせて詰めるので、横スクロールは要らない。
-            // 桁を1桁でも多く見せたいので、本文の左右余白ぶんだけ外へ広げて画面端まで使う。
-            // 高さは中身が決める（縛ると先頭が切れる → ADR 0039）。中身が短いときだけ、
-            // 端末の地が画面いっぱいに見えるよう下限を渡す。
-            TerminalScreenView(
-                screen: viewModel.terminalScreen,
-                minimumHeight: max(320, scrollViewportHeight - DSTouch.minSize - DSSpacing.l * 2)
-            )
-            .padding(.horizontal, -DSSpacing.l)
-        } else if !viewModel.outputText.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                outputSectionHeader
-
-                if let displayed = SessionDetailMetrics.displayedOutput(
-                    text: viewModel.outputText,
-                    isExpanded: viewModel.isOutputExpanded
-                ) {
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        SessionDetailOutputBody(text: displayed)
-                    }
-                    // 横スクロールしてもカード内の余白を保つ。縦余白は末尾を角丸と
-                    // スクロールバーから離し、左右余白は本文・ヘッダの桁を揃える。
-                    .padding(.horizontal, DSSpacing.m)
-                    .padding(.vertical, DSSpacing.m)
-                }
-            }
-            .background(DSColor.campOutputBackground, in: outputCardShape)
-            .clipShape(outputCardShape)
-        }
-    }
-
-    private var outputSectionHeader: some View {
-        Button {
-            if outputNeedsToggle {
-                viewModel.isOutputExpanded.toggle()
-            }
-        } label: {
-            HStack(spacing: DSSpacing.s) {
-                Text(SessionDetailCopy.outputSectionTitle)
-                    .font(DSFont.footnote.weight(.bold))
-                    .textCase(.uppercase)
-                    .foregroundStyle(DSColor.campTextQuaternary)
-
-                Spacer(minLength: 0)
-
-                if outputNeedsToggle {
-                    Image(systemName: viewModel.isOutputExpanded ? "chevron.down" : "chevron.right")
-                        .font(DSFont.footnote.weight(.semibold))
-                        .foregroundStyle(DSColor.campTextQuaternary)
-                }
-            }
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.vertical, DSSpacing.s)
-            .frame(minHeight: DSTouch.minSize)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!outputNeedsToggle)
-        .accessibilityLabel(Text(SessionDetailCopy.outputSectionTitle))
-        .accessibilityValue(Text(viewModel.isOutputExpanded ? "展開" : "折りたたみ"))
-        .accessibilityHint(Text(outputNeedsToggle ? "タップで出力を表示切替" : ""))
-    }
-
-    private var outputNeedsToggle: Bool {
-        SessionDetailMetrics.outputNeedsToggle(text: viewModel.outputText)
-    }
-
-    private var outputCardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DSRadius.card, style: .continuous)
-    }
-
     private static let bottomAnchorID = "session-detail-bottom"
     private static let scrollCoordinateSpace = "session-detail-scroll"
 
@@ -587,8 +498,7 @@ public struct SessionDetailView: View {
             hasPerformedInitialScroll: scrollFollowState.hasPerformedInitialScroll
         )
         let hasContent = Self.hasRenderableContent(
-            visibleMessages: viewModel.visibleMessages,
-            outputText: viewModel.outputText
+            visibleMessages: viewModel.visibleMessages
         )
         guard scrollFollowState.onContentChanged(
             hasContent: hasContent,
@@ -598,8 +508,8 @@ public struct SessionDetailView: View {
     }
 
     /// 初回スクロールのトリガーとなる、実際に画面へ描画できる本文があるか。
-    static func hasRenderableContent(visibleMessages: [ChatMessage], outputText: String) -> Bool {
-        !visibleMessages.isEmpty || !outputText.isEmpty
+    static func hasRenderableContent(visibleMessages: [ChatMessage]) -> Bool {
+        !visibleMessages.isEmpty
     }
 
     /// 初回だけ位置を即時に確定し、以後の追従だけをアニメーションするか。
@@ -611,22 +521,6 @@ public struct SessionDetailView: View {
     private func scrollToBottomIfFollowing(_ proxy: ScrollViewProxy) {
         guard ChatAutoFollowPolicy.shouldFollowBottom(distanceFromBottom: distanceFromBottom) else { return }
         scrollToBottom(proxy)
-    }
-}
-
-/// ターミナル出力の等幅テキスト本体。横 ScrollView 内で、外側の縦 ScrollView からは
-/// 幅固定・高さ未指定で測られる。
-struct SessionDetailOutputBody: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            // 出力は情報密度優先: 小さめ(caption=12pt)・字間を詰める(CJK のワイド描画対策)。
-            .font(DSFont.campMonoCaption)
-            .tracking(-0.5)
-            .foregroundStyle(DSColor.textSecondary)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: true, vertical: true)
     }
 }
 
@@ -771,12 +665,10 @@ private struct SessionDetailNavigationChromeModifier<Menu: View>: ViewModifier {
                             prompt: "ControlServer.swift を削除して続行しますか？"
                         ),
                     ],
-                    outputText: "› rm ControlServer.swift\n⏵ cascade: 3 descendants"
                 )
             ),
             approvalViewModel: ApprovalViewModel(
                 sessionID: "s1",
-                agentKind: .claudeCode,
                 api: StubPhloxAPI(
                     approvals: [
                         Approval(

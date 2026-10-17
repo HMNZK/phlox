@@ -29,7 +29,7 @@ public struct DSConnectingIndicator: View {
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
                 let maxR = min(canvasSize.width, canvasSize.height) / 2
-                let accent = DSColor.campAccentBright
+                let accent = IOSColor.text.tertiary
 
                 // レーダー状の同心リング（3本・位相差で連続的に外へ広がりながらフェード）。
                 for i in 0..<3 {
@@ -63,13 +63,13 @@ public struct DSConnectingIndicator: View {
     private var staticIndicator: some View {
         ZStack {
             Circle()
-                .stroke(DSColor.campAccentBright.opacity(0.22), lineWidth: 2)
+                .stroke(IOSColor.text.tertiary.opacity(0.22), lineWidth: 2)
                 .frame(width: size * 0.82, height: size * 0.82)
             Circle()
-                .stroke(DSColor.campAccentBright.opacity(0.5), lineWidth: 2)
+                .stroke(IOSColor.text.tertiary.opacity(0.5), lineWidth: 2)
                 .frame(width: size * 0.5, height: size * 0.5)
             Circle()
-                .fill(DSColor.campAccentBright.opacity(0.9))
+                .fill(IOSColor.text.tertiary.opacity(0.9))
                 .frame(width: size * 0.18, height: size * 0.18)
         }
     }

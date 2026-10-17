@@ -10,6 +10,7 @@ public struct SessionListView: View {
     @Bindable var viewModel: SessionListViewModel
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.usageViewModel) private var usageViewModel
     @State private var isScrolledPastTitle = false
     @State private var expandedGroupIDs: Set<String>
     @State private var expandedSessionIDs: Set<String>
@@ -65,7 +66,12 @@ public struct SessionListView: View {
                     .frame(minHeight: geometry.size.height, alignment: .top)
                 }
                 .background(IOSColor.bg.base)
-                .refreshable { await viewModel.refresh() }
+                .refreshable {
+                    await SessionPullRefresh.perform(
+                        sessionList: viewModel,
+                        usage: usageViewModel
+                    )
+                }
                 .modifier(
                     ScrolledPastTitleReporter(
                         threshold: SessionListMetrics.titleCollapseThreshold,

@@ -36,8 +36,9 @@ final class MoleculesTests: XCTestCase {
         XCTAssertTrue(DSInputBar.canSubmit(text: "hello", isLoading: false))
     }
 
-    func testInputBarMinHeightMeetsTouchTarget() {
-        XCTAssertEqual(DSInputBar.minHeight, DSTouch.minSize)
+    func testInputBarChipAppearanceAndTouchTarget() {
+        XCTAssertEqual(DSInputBar.chipVisualHeight, 34)
+        XCTAssertEqual(DSInputBar.chipTouchTargetSize, 44)
     }
 
     // MARK: - DSApprovalBar
@@ -120,12 +121,12 @@ final class MoleculesTests: XCTestCase {
         XCTAssertEqual(DSRelativeTime.compact(from: now.addingTimeInterval(-172800), now: now), "2日前")
     }
 
-    func testSubmitBarLogicSharedBetweenInputBars() {
+    func testSubmitBarLogicAndSessionInputBarUseSameEligibility() {
         XCTAssertTrue(DSSubmitBarLogic.canSubmit(text: "hello", isLoading: false))
         XCTAssertFalse(DSSubmitBarLogic.canSubmit(text: "", isLoading: false))
         XCTAssertEqual(
             DSInputBar.canSubmit(text: "x", isLoading: false),
-            DSChatInputBar.canSubmit(text: "x", isLoading: false)
+            DSSubmitBarLogic.canSubmit(text: "x", isLoading: false)
         )
     }
 
@@ -162,33 +163,6 @@ final class MoleculesTests: XCTestCase {
 
     func testChatBubbleAgentLogoUsesTwentyEightPointSize() {
         XCTAssertEqual(DSChatBubble.agentLogoSize, 28)
-    }
-
-    // MARK: - DSChatInputBar (DP-2-6 / カンプ⑦)
-
-    func testChatInputBarCannotSubmitWhenEmptyOrWhitespace() {
-        XCTAssertFalse(DSChatInputBar.canSubmit(text: "", isLoading: false))
-        XCTAssertFalse(DSChatInputBar.canSubmit(text: "   \n", isLoading: false))
-    }
-
-    func testChatInputBarCannotSubmitWhileLoading() {
-        XCTAssertFalse(DSChatInputBar.canSubmit(text: "hello", isLoading: true))
-    }
-
-    func testChatInputBarCanSubmitWithText() {
-        XCTAssertTrue(DSChatInputBar.canSubmit(text: "hello", isLoading: false))
-    }
-
-    func testChatInputBarMinHeightMeetsTouchTarget() {
-        XCTAssertEqual(DSChatInputBar.minHeight, DSTouch.minSize)
-    }
-
-    func testChatInputBarFieldCornerRadiusMatchesCampPill() {
-        XCTAssertEqual(DSChatInputBar.fieldCornerRadius, DSRadius.dialog)
-    }
-
-    func testChatInputBarSendButtonUsesArrowUpIcon() {
-        XCTAssertEqual(DSChatInputBar.sendButtonIconName, "arrow.up")
     }
 
 }

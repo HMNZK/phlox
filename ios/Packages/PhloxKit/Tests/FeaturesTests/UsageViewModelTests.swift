@@ -1,134 +1,214 @@
 import Foundation
 import Testing
+import AgentDomain
 import PhloxCore
 @testable import Features
 
-/// Usage リミット画面の ViewModel: 取得（成功・失敗・空）、利用不可の判定、表示写像。
 @MainActor
-@Suite("Usage view model") struct UsageViewModelTests {
-    @Test func loadFetchesCliUsageAndPopulatesAgents() async {
-        let fixture: [CLIUsage] = [
-            CLIUsage(
-                kind: .claudeCode,
-                state: .ok,
-                buckets: [UsageBucket(id: "5h", label: "5-hour", usedPercent: 42.0, resetsAt: nil)],
-                updatedAt: nil,
-                dataAsOf: nil
-            ),
+@Suite("使用量リング")
+struct UsageViewModelTests {
+    private let asOf = Self.date(day: 17, hour: 16, minute: 12)
+
+    @Test("使用量から残りを丸め、0% に最小の弧を残す")
+    func remainingPercentAndRingFraction() {
+        #expect(UsageRingPresentation.remainingPercent(usedPercent: 28) == 72)
+        #expect(UsageRingPresentation.remainingPercent(usedPercent: 42.4) == 58)
+        #expect(UsageRingPresentation.remainingPercent(usedPercent: 42.6) == 57)
+        #expect(UsageRingPresentation.remainingPercent(usedPercent: -5) == 100)
+        #expect(UsageRingPresentation.remainingPercent(usedPercent: 150) == 0)
+        #expect(UsageRingPresentation.remainingFraction(usedPercent: 0) == 1)
+        #expect(UsageRingPresentation.remainingFraction(usedPercent: 100) == 0.02)
+    }
+
+    @Test("残り20%未満だけ注意色になる")
+    func cautionThresholdUsesRemainingPercent() {
+        #expect(!UsageRingPresentation.isLowRemaining(usedPercent: 80))
+        #expect(UsageRingPresentation.isLowRemaining(usedPercent: 80.01))
+        #expect(UsageRingPresentation.isLowRemaining(usedPercent: 100))
+    }
+
+    @Test("エージェント順と枠の並び、Claude だけの短い表示")
+    func agentsAreOrderedAndHaveExpectedSlots() {
+        let agents = UsageRingPresentation.agents(from: [
+            agent(.cursor, buckets: [bucket("api", "API", used: 5)]),
+            agent(.codex, buckets: [bucket("weekly", "週次", used: 15)]),
+            agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 28)]),
+        ])
+
+        #expect(agents.map(\.kind) == [.claudeCode, .codex, .cursor])
+        #expect(agents[0].buckets.map(\.id) == ["5h", "weekly"])
+        #expect(agents[0].buckets.map(\.ringLabel) == ["5h", "7d"])
+        #expect(agents[1].buckets.map(\.ringLabel) == [nil, nil])
+        #expect(agents[2].buckets.map(\.id) == ["auto", "api"])
+        #expect(agents[2].buckets.map(\.ringLabel) == [nil, nil])
+        #expect(agents[0].buckets[1].remainingPercent == nil)
+        #expect(agents[0].buckets[1].remainingFraction == nil)
+        #expect(agents[0].buckets[1].isLow == false)
+        #expect(agents[0].buckets[1].label == "週次")
+    }
+
+    @Test("取得できないエージェントと欠けた枠を分けて表す")
+    func unavailableAndMissingBucketsAreDistinct() {
+        let agents = UsageRingPresentation.agents(from: [
+            CLIUsage(kind: .claudeCode, state: .ok, buckets: [], updatedAt: nil, dataAsOf: nil),
             CLIUsage(kind: .codex, state: .unavailable, buckets: [], updatedAt: nil, dataAsOf: nil),
-        ]
-        let stub = UsageStubAPI(usageOutcome: .success(fixture))
+        ])
+
+        #expect(!agents[0].isUnavailable)
+        #expect(agents[0].buckets.allSatisfy { $0.value == nil })
+        #expect(agents[1].isUnavailable)
+        #expect(agents[1].buckets.allSatisfy { $0.value == nil })
+        #expect(agents[2].isUnavailable)
+        #expect(UsageRingPresentation.valueText(for: agents[0].buckets[0]) == "値なし")
+    }
+
+    @Test("5時間枠は残り時間、週次は日時、Cursor はリセットなし")
+    func resetTextMatchesUsagePopoverFormat() {
+        let now = Self.date(day: 17, hour: 16, minute: 12)
+        let fiveHour = bucket("5h", "5時間", used: 28, resetsAt: Self.date(day: 17, hour: 19, minute: 24))
+        let weekly = bucket("weekly", "週次", used: 60, resetsAt: Self.date(day: 20, hour: 14, minute: 0))
+        let cursor = bucket("auto", "Auto", used: 20, resetsAt: Self.date(day: 20, hour: 14, minute: 0))
+        let claude = UsageRingPresentation.agents(from: [
+            agent(.claudeCode, buckets: [fiveHour, weekly]),
+        ])[0]
+
+        #expect(UsageRingPresentation.resetText(for: claude.buckets[0], agent: .claudeCode, now: now, timeZone: japanTimeZone) == "03:12")
+        #expect(UsageRingPresentation.resetText(for: claude.buckets[1], agent: .claudeCode, now: now, timeZone: japanTimeZone) == "10/20 14:00")
+        #expect(UsageRingPresentation.resetText(for: UsageRingPresentation.agents(from: [agent(.cursor, buckets: [cursor])])[2].buckets[0], agent: .cursor, now: now, timeZone: japanTimeZone) == nil)
+    }
+
+    @Test("行の状態文言は更新中を優先し、古い値には取得時刻を出す")
+    func statusTextShowsRefreshingAndStaleTime() {
+        #expect(UsageRingPresentation.statusText(isRefreshing: true, isStale: true, asOf: asOf, timeZone: japanTimeZone) == "更新中…")
+        #expect(UsageRingPresentation.statusText(isRefreshing: false, isStale: true, asOf: asOf, timeZone: japanTimeZone) == "16:12 時点")
+        #expect(UsageRingPresentation.statusText(isRefreshing: false, isStale: false, asOf: asOf, timeZone: japanTimeZone) == nil)
+        #expect(UsageRingPresentation.staleNotice(asOf: asOf, timeZone: japanTimeZone) == "16:12 時点の値です。更新できませんでした。一覧を引っ張ると取り直します")
+        #expect(UsageRingPresentation.popoverColumnHeaders == ["枠", "残り", "リセット"])
+        #expect(UsageRingPresentation.unavailableText == "取得できません")
+        #expect(UsageRingPresentation.rowAccessibilityHint == "使用量の詳細を表示")
+    }
+
+    @Test("VoiceOver の通常・注意・値なし・取得不可・古い値・更新中")
+    func accessibilityLabelCoversUsageStates() {
+        let normal = UsageRingPresentation.agents(from: [
+            agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 28), bucket("weekly", "週次", used: 60)]),
+            agent(.codex, buckets: [bucket("5h", "5時間", used: 1), bucket("weekly", "週次", used: 15)]),
+            agent(.cursor, buckets: [bucket("auto", "Auto", used: 20), bucket("api", "API", used: 5)]),
+        ])
+        #expect(UsageRingPresentation.accessibilityLabel(agents: normal, isRefreshing: false, isStale: false, asOf: nil, timeZone: japanTimeZone)
+            == "使用量。Claude 5時間 残り 72%、週次 残り 40%。Codex 5時間 残り 99%、週次 残り 85%。Cursor Auto 残り 80%、API 残り 95%。")
+        #expect(UsageRingPresentation.valueText(for: normal[0].buckets[0]) == "残り 72%")
+
+        let low = UsageRingPresentation.agents(from: [agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 88), bucket("weekly", "週次", used: 82)])])
+        #expect(UsageRingPresentation.accessibilityLabel(agents: low, isRefreshing: false, isStale: false, asOf: nil, timeZone: japanTimeZone)
+            == "使用量。Claude 5時間 残り 12%、残りわずか、週次 残り 18%、残りわずか。Codex 取得できません。Cursor 取得できません。")
+        #expect(UsageRingPresentation.valueText(for: low[0].buckets[0]) == "残り 12%")
+
+        let unavailable = UsageRingPresentation.agents(from: [
+            agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 28)]),
+            CLIUsage(kind: .codex, state: .unavailable, buckets: [], updatedAt: nil, dataAsOf: nil),
+        ])
+        #expect(UsageRingPresentation.accessibilityLabel(agents: unavailable, isRefreshing: false, isStale: false, asOf: nil, timeZone: japanTimeZone)
+            == "使用量。Claude 5時間 残り 72%、週次 値なし。Codex 取得できません。Cursor 取得できません。")
+        #expect(UsageRingPresentation.accessibilityLabel(agents: normal, isRefreshing: false, isStale: true, asOf: asOf, timeZone: japanTimeZone)
+            == "16時12分時点の値。更新できませんでした。使用量。Claude 5時間 残り 72%、週次 残り 40%。Codex 5時間 残り 99%、週次 残り 85%。Cursor Auto 残り 80%、API 残り 95%。")
+        #expect(UsageRingPresentation.accessibilityLabel(agents: normal, isRefreshing: true, isStale: false, asOf: asOf, timeZone: japanTimeZone)
+            == "更新中。使用量。Claude 5時間 残り 72%、週次 残り 40%。Codex 5時間 残り 99%、週次 残り 85%。Cursor Auto 残り 80%、API 残り 95%。")
+    }
+
+    @Test("初回取得前・0件・失敗で前の値なしは行を出さない")
+    func rowIsHiddenUntilAValueExists() async {
+        let stub = UsageStubAPI(outcomes: [.success([]), .failure(.server(status: 500, message: "boom"))])
         let vm = UsageViewModel(api: stub)
 
+        #expect(!vm.shouldShowRow)
         await vm.load()
-
-        #expect(vm.agents == fixture)
         #expect(vm.state == .loaded)
-        let callCount = await stub.cliUsageCallCount
-        #expect(callCount == 1)
-    }
-
-    @Test func okStateExposesBucketsAndUnavailableStateFlagsUnavailable() async {
-        let okBuckets = [UsageBucket(id: "5h", label: "5-hour", usedPercent: 10.0, resetsAt: nil)]
-        let fixture: [CLIUsage] = [
-            CLIUsage(kind: .claudeCode, state: .ok, buckets: okBuckets, updatedAt: nil, dataAsOf: nil),
-            CLIUsage(kind: .codex, state: .unavailable, buckets: [], updatedAt: nil, dataAsOf: nil),
-        ]
-        let stub = UsageStubAPI(usageOutcome: .success(fixture))
-        let vm = UsageViewModel(api: stub)
+        #expect(vm.agents.isEmpty)
+        #expect(!vm.shouldShowRow)
         await vm.load()
-
-        let claude = vm.agents.first { $0.kind == .claudeCode }
-        let codex = vm.agents.first { $0.kind == .codex }
-
-        #expect(claude?.buckets == okBuckets)
-        #expect(UsageViewModel.isUnavailable(claude!) == false)
-        #expect(UsageViewModel.isUnavailable(codex!) == true)
+        #expect(vm.state == .failed)
+        #expect(!vm.shouldShowRow)
     }
 
-    @Test func loadFailureSetsFailedState() async {
-        let stub = UsageStubAPI(usageOutcome: .failure(.server(status: 500, message: "boom")))
-        let vm = UsageViewModel(api: stub)
+    @Test("取得に失敗したら前の値を古い値として残す")
+    func failedRefreshRetainsLastSuccessfulUsage() async {
+        let values = [agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 28)])]
+        let stub = UsageStubAPI(outcomes: [.success(values), .failure(.server(status: 500, message: "boom"))])
+        let fixedAsOf = asOf
+        let vm = UsageViewModel(
+            api: stub,
+            agents: [],
+            state: .idle,
+            lastSuccessfulAt: nil,
+            now: { fixedAsOf }
+        )
 
+        await vm.load()
+        #expect(vm.shouldShowRow)
+        #expect(vm.asOfDate == asOf)
         await vm.load()
 
         #expect(vm.state == .failed)
-        #expect(vm.agents.isEmpty)
+        #expect(vm.agents == values)
+        #expect(vm.shouldShowRow)
+        #expect(vm.isStale)
+        #expect(vm.asOfDate == asOf)
+        let count = await stub.cliUsageCallCount
+        #expect(count == 2)
     }
 
-    @Test func isEmptyOnlyWhenLoadedWithNoAgents() async {
-        let stub = UsageStubAPI(usageOutcome: .success([]))
-        let vm = UsageViewModel(api: stub)
+    @Test("取得中は前の値を保持し、重複取得しない")
+    func loadingRetainsValuesAndCoalescesRequests() async {
+        let values = [agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 28)])]
+        let stub = UsageStubAPI(outcomes: [.success(values)], pausesNextRequest: true)
+        let vm = UsageViewModel(api: stub, agents: values, state: .loaded, lastSuccessfulAt: asOf)
+        let request = Task { await vm.load() }
+        await stub.waitUntilPausedRequest()
 
-        #expect(vm.isEmpty == false)
-
+        #expect(vm.state == .loading)
+        #expect(vm.isRefreshing)
+        #expect(vm.shouldShowRow)
+        #expect(vm.agents == values)
         await vm.load()
-
+        let count = await stub.cliUsageCallCount
+        #expect(count == 1)
+        await stub.resumePausedRequest()
+        await request.value
         #expect(vm.state == .loaded)
-        #expect(vm.agents.isEmpty)
-        #expect(vm.isEmpty == true)
+        #expect(vm.agents == values)
     }
 
-    @Test func isEmptyFalseWhenLoadedWithAgents() async {
-        let fixture = [
-            CLIUsage(kind: .claudeCode, state: .ok, buckets: [], updatedAt: nil, dataAsOf: nil),
-        ]
-        let stub = UsageStubAPI(usageOutcome: .success(fixture))
-        let vm = UsageViewModel(api: stub)
+    private static var japanTimeZone: TimeZone { TimeZone(secondsFromGMT: 9 * 60 * 60)! }
 
-        await vm.load()
+    private var japanTimeZone: TimeZone { Self.japanTimeZone }
 
-        #expect(vm.isEmpty == false)
+    private func agent(_ kind: AgentKind, buckets: [UsageBucket]) -> CLIUsage {
+        CLIUsage(kind: kind, state: .ok, buckets: buckets, updatedAt: asOf, dataAsOf: nil)
     }
 
-    @Test func formattedUsedPercentClampsAndRounds() {
-        #expect(UsageViewModel.formattedUsedPercent(0) == "0%")
-        #expect(UsageViewModel.formattedUsedPercent(42.4) == "42%")
-        #expect(UsageViewModel.formattedUsedPercent(42.6) == "43%")
-        #expect(UsageViewModel.formattedUsedPercent(100) == "100%")
-        #expect(UsageViewModel.formattedUsedPercent(-5) == "0%")
-        #expect(UsageViewModel.formattedUsedPercent(150) == "100%")
+    private func bucket(_ id: String, _ label: String, used: Double, resetsAt: Date? = nil) -> UsageBucket {
+        UsageBucket(id: id, label: label, usedPercent: used, resetsAt: resetsAt)
     }
 
-    @Test func resetsAtLabelNilForMissingDate() {
-        let now = Date(timeIntervalSince1970: 0)
-        #expect(UsageViewModel.resetsAtLabel(for: nil, now: now) == nil)
-    }
-
-    @Test func resetsAtLabelRelativeWithin24Hours() {
-        let now = Date(timeIntervalSince1970: 0)
-        let inTwoHours = Date(timeIntervalSince1970: 7200)
-        #expect(UsageViewModel.resetsAtLabel(for: inTwoHours, now: now) == "あと2時間")
-    }
-
-    @Test func resetsAtLabelAbsoluteBeyond24Hours() {
+    private static func date(day: Int, hour: Int, minute: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 0)
-        let inThreeDays = Date(timeIntervalSince1970: 86_400 * 3 + 3600)
-        #expect(
-            UsageViewModel.resetsAtLabel(
-                for: inThreeDays,
-                now: now,
-                calendar: calendar
-            ) == "リセット 1/4 01:00"
-        )
-    }
-
-    @Test func resetsAtLabelPastShowsResetDone() {
-        let now = Date(timeIntervalSince1970: 100)
-        let past = Date(timeIntervalSince1970: 50)
-        #expect(UsageViewModel.resetsAtLabel(for: past, now: now) == "リセット済み")
+        calendar.timeZone = Self.japanTimeZone
+        return calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
     }
 }
 
-/// cliUsage() の結果を差し替え可能にし、呼び出し回数を記録する PhloxAPI スタブ。
 private actor UsageStubAPI: PhloxAPI {
-    let usageOutcome: Result<[CLIUsage], PhloxError>
+    private var outcomes: [Result<[CLIUsage], PhloxError>]
+    private var pausesNextRequest: Bool
+    private var pausedContinuation: CheckedContinuation<[CLIUsage], Error>?
+    private var pausedOutcome: Result<[CLIUsage], PhloxError>?
+    private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var cliUsageCallCount = 0
 
-    init(usageOutcome: Result<[CLIUsage], PhloxError>) {
-        self.usageOutcome = usageOutcome
+    init(outcomes: [Result<[CLIUsage], PhloxError>], pausesNextRequest: Bool = false) {
+        self.outcomes = outcomes
+        self.pausesNextRequest = pausesNextRequest
     }
 
     func listSessions() async throws -> [Session] { [] }
@@ -141,8 +221,29 @@ private actor UsageStubAPI: PhloxAPI {
     func remove(sessionID: String) async throws {}
     func approvals() async throws -> [Approval] { [] }
     func respond(approvalID: String, decision: ApprovalDecision) async throws {}
+
     func cliUsage() async throws -> [CLIUsage] {
         cliUsageCallCount += 1
-        return try usageOutcome.get()
+        let outcome = outcomes.isEmpty ? .success([]) : outcomes.removeFirst()
+        guard pausesNextRequest else { return try outcome.get() }
+        pausesNextRequest = false
+        pausedOutcome = outcome
+        return try await withCheckedThrowingContinuation { continuation in
+            pausedContinuation = continuation
+            pauseWaiters.forEach { $0.resume() }
+            pauseWaiters.removeAll()
+        }
+    }
+
+    func waitUntilPausedRequest() async {
+        if pausedContinuation != nil { return }
+        await withCheckedContinuation { pauseWaiters.append($0) }
+    }
+
+    func resumePausedRequest() {
+        let outcome = pausedOutcome ?? .success([])
+        pausedContinuation?.resume(with: outcome.mapError { $0 as Error })
+        pausedContinuation = nil
+        pausedOutcome = nil
     }
 }

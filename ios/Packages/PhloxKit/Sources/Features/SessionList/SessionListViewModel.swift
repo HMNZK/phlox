@@ -15,8 +15,6 @@ public final class SessionListViewModel {
     public private(set) var lastFetchedAt: Date?
     public private(set) var projectOrder: [ProjectSummary]?
     public private(set) var projectOrderError: PhloxError?
-    public private(set) var cliUsage: [CLIUsage]?
-    public private(set) var cliUsageError: PhloxError?
     /// 直近に取得できたセッション群。`.loading`/`.offline`/`.error` 等の一時的な非 loaded 状態でも
     /// ナビゲーション先（詳細）が消えないよう、id 解決のフォールバックに使う。
     public private(set) var lastKnownSessions: [Session] = []
@@ -100,7 +98,6 @@ public final class SessionListViewModel {
             state = .error(.transport(WrappedError(error)))
         }
         await refreshProjectOrder()
-        await refreshCLIUsage()
     }
 
     private func refreshProjectOrder() async {
@@ -114,18 +111,6 @@ public final class SessionListViewModel {
         } catch {
             projectOrder = nil
             projectOrderError = .transport(WrappedError(error))
-        }
-    }
-
-    private func refreshCLIUsage() async {
-        guard let api else { return }
-        do {
-            cliUsage = try await api.cliUsage()
-            cliUsageError = nil
-        } catch let error as PhloxError {
-            cliUsageError = error
-        } catch {
-            cliUsageError = .transport(WrappedError(error))
         }
     }
 

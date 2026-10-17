@@ -12,6 +12,7 @@ import Foundation
 import Testing
 @testable import DesignSystemIOS
 
+@MainActor
 @Suite("task-3: 入力バーの添付番号とカーソル公開")
 struct InputBarAttachmentNumberingAcceptanceTests {
 
@@ -53,15 +54,13 @@ struct InputBarAttachmentNumberingAcceptanceTests {
     }
 
     @Test
-    func inputBar_keepsExistingContracts() {
-        // 入力欄の作り替えで既存の契約・見た目が変わっていないことの非退行ピン。
+    func inputBar_usesTwoRowsAndDesignTouchTargets() {
         #expect(DSInputBar.usesFocusState)
-        #expect(DSInputBar.providesPillChrome)
-        #expect(!DSInputBar.providesCardChrome)
-        #expect(DSInputBar.providesInlineModelSelectorSlot)
-        #expect(!DSInputBar.providesKeyboardDismissToolbar)
-        #expect(DSInputBar.usesNeutralFocusBorder)
-        #expect(DSInputBar.maximumTextLineCount == 4)
+        #expect(DSInputBar.providesCursorAwareInput)
+        #expect(DSInputBar.maximumTextLineCount == 5)
+        #expect(DSInputBar.attachmentThumbnailSize == 56)
+        #expect(DSInputBar.chipVisualHeight == 34)
+        #expect(DSInputBar.chipTouchTargetSize == 44)
         #expect(DSInputBar.sendAccessibilityLabel == "送信")
         #expect(DSInputBar.stopAccessibilityLabel == "停止")
         #expect(DSInputBar.canSubmit(text: "hello", isLoading: false))

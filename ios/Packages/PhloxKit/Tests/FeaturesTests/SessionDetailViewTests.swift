@@ -27,7 +27,8 @@ final class SessionDetailViewTests: XCTestCase {
     }
 
     func testInputPlaceholderMatchesCamp() {
-        XCTAssertEqual(SessionDetailCopy.inputPlaceholder, "回答を入力…")
+        XCTAssertEqual(SessionDetailCopy.inputPlaceholder(isAnsweringSelectionlessQuestion: false), "やりたいことを入力")
+        XCTAssertEqual(SessionDetailCopy.inputPlaceholder(isAnsweringSelectionlessQuestion: true), "回答を入力")
     }
 
     func testHeaderMetaLineFormatsAgentAndStartTime() {

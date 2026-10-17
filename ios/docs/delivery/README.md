@@ -33,3 +33,4 @@ last-verified: 2026-07-30
 - `delivery/0021-ios-redesign-stage1-worklog.md` … 再設計の段階 1（土台の部品と、廃止する機能の削除）の作業記録
 - `delivery/0022-ios-redesign-stage2-worklog.md` … 再設計の段階 2（API の配線とサブエージェント詳細の廃止）の作業記録
 - `delivery/0023-ios-redesign-stage3-worklog.md` … 再設計の段階 3 前半（下部ナビゲーション）の作業記録
+- `delivery/0024-ios-redesign-stage4-worklog.md` … 再設計の段階 4（入力欄・セッション設定・使用量リング）の作業記録

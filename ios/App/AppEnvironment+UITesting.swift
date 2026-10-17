@@ -337,6 +337,7 @@ private struct UITestPhloxAPI: PhloxAPI {
     func listSessions() async throws -> [Session] { sessions }
     func agentSettings(kind: AgentKind) async throws -> AgentSettings? { nil }
     func projects() async throws -> [ProjectSummary]? { projectList }
+    func cliUsage() async throws -> [CLIUsage] { UITestUsageFixtures.values(for: .normal) }
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func approvals() async throws -> [Approval] { approvals }
     /// スクリーンショット・目視確認用の代表的な transcript。
@@ -392,5 +393,88 @@ private struct UITestPhloxAPI: PhloxAPI {
             subtitle: request.workspace,
             updatedAt: Date()
         )
+    }
+}
+
+enum UITestUsageFixtures {
+    enum Style {
+        case normal
+        case low
+        case unavailable
+    }
+
+    static let asOfDate = date(day: 17, hour: 16, minute: 12)
+
+    static func values(for style: Style) -> [CLIUsage] {
+        let asOf = asOfDate
+        let fiveHourReset = date(day: 17, hour: 19, minute: 24)
+        let claudeWeeklyReset = date(day: 20, hour: 14, minute: 0)
+        let codexFiveHourReset = date(day: 17, hour: 20, minute: 17)
+        let codexWeeklyReset = date(day: 23, hour: 9, minute: 0)
+
+        switch style {
+        case .normal:
+            return [
+                agent(.claudeCode, asOf: asOf, buckets: [
+                    bucket("5h", "5時間", used: 28, resetsAt: fiveHourReset),
+                    bucket("weekly", "週次", used: 60, resetsAt: claudeWeeklyReset),
+                ]),
+                agent(.codex, asOf: asOf, buckets: [
+                    bucket("5h", "5時間", used: 1, resetsAt: codexFiveHourReset),
+                    bucket("weekly", "週次", used: 15, resetsAt: codexWeeklyReset),
+                ]),
+                agent(.cursor, asOf: asOf, buckets: [
+                    bucket("auto", "Auto", used: 20),
+                    bucket("api", "API", used: 5),
+                ]),
+            ]
+        case .low:
+            return [
+                agent(.claudeCode, asOf: asOf, buckets: [
+                    bucket("5h", "5時間", used: 88, resetsAt: fiveHourReset),
+                    bucket("weekly", "週次", used: 82, resetsAt: claudeWeeklyReset),
+                ]),
+                agent(.codex, asOf: asOf, buckets: [
+                    bucket("5h", "5時間", used: 1, resetsAt: codexFiveHourReset),
+                    bucket("weekly", "週次", used: 15, resetsAt: codexWeeklyReset),
+                ]),
+                agent(.cursor, asOf: asOf, buckets: [
+                    bucket("auto", "Auto", used: 85),
+                    bucket("api", "API", used: 96),
+                ]),
+            ]
+        case .unavailable:
+            return [
+                agent(.claudeCode, asOf: asOf, buckets: [
+                    bucket("5h", "5時間", used: 28, resetsAt: fiveHourReset),
+                ]),
+                unavailableAgent(.codex, asOf: asOf),
+                unavailableAgent(.cursor, asOf: asOf),
+            ]
+        }
+    }
+
+    private static func agent(_ kind: AgentKind, asOf: Date, buckets: [UsageBucket]) -> CLIUsage {
+        CLIUsage(kind: kind, state: .ok, buckets: buckets, updatedAt: asOf, dataAsOf: nil)
+    }
+
+    private static func unavailableAgent(_ kind: AgentKind, asOf: Date) -> CLIUsage {
+        CLIUsage(kind: kind, state: .unavailable, buckets: [], updatedAt: asOf, dataAsOf: nil)
+    }
+
+    private static func bucket(_ id: String, _ label: String, used: Double, resetsAt: Date? = nil) -> UsageBucket {
+        UsageBucket(id: id, label: label, usedPercent: used, resetsAt: resetsAt)
+    }
+
+    private static func date(day: Int, hour: Int, minute: Int) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 9 * 60 * 60) ?? .current
+        return calendar.date(from: DateComponents(
+            year: 2026,
+            month: 10,
+            day: day,
+            hour: hour,
+            minute: minute
+        )) ?? Date(timeIntervalSince1970: 0)
     }
 }

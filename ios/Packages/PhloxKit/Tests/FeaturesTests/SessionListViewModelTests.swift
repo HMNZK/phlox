@@ -112,13 +112,28 @@ final class SessionListViewModelTests: XCTestCase {
         let api = MockAPI()
         await api.setProjectsOutcome(.success([ProjectSummary(id: "p", name: "P")]))
         let vm = SessionListViewModel(repository: StubSessionRepository(states: [.loaded([session("s1", attention: false)])]), api: api)
+        let usage = UsageViewModel(api: api)
 
-        await vm.refresh()
+        await SessionPullRefresh.perform(sessionList: vm, usage: usage)
 
         let projectsCount = await api.projectsCount
         let usageCount = await api.cliUsageCount
         XCTAssertEqual(projectsCount, 1)
         XCTAssertEqual(usageCount, 1)
-        XCTAssertEqual(vm.cliUsage, [])
+        XCTAssertEqual(usage.state, .loaded)
+        XCTAssertFalse(usage.shouldShowRow)
+    }
+
+    func testThreeSecondSessionObservationDoesNotFetchUsage() async {
+        let api = MockAPI()
+        let vm = SessionListViewModel(
+            repository: StubSessionRepository(states: [.loaded([session("s1", attention: false)])]),
+            api: api
+        )
+
+        await vm.observe(interval: .seconds(3))
+
+        let usageCount = await api.cliUsageCount
+        XCTAssertEqual(usageCount, 0)
     }
 }

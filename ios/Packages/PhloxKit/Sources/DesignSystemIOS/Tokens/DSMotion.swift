@@ -9,4 +9,8 @@ public enum DSMotion {
     public static let easeOut = Animation.easeOut(duration: 0.20)
     /// バナー等の素早い出現。
     public static let quick = Animation.easeInOut(duration: 0.15)
+    /// 押している間のボタン反応。
+    public static let tapPress = Animation.easeOut(duration: 0.1)
+    /// 指を離した後のボタン復帰。
+    public static let tapRelease = Animation.easeOut(duration: 0.2)
 }

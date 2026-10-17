@@ -38,6 +38,7 @@ enum ChatRowKind: Equatable {
 /// セッション詳細画面（カンプ③）。承認リクエスト + 会話 + 入力バー。
 public struct SessionDetailView: View {
     @Environment(\.sessionComposeDraft) private var sessionComposeDraft
+    @Environment(\.usageViewModel) private var usageViewModel
     @State private var viewModel: SessionDetailViewModel
     @State private var distanceFromBottom: CGFloat = 0
     @State private var scrollFollowState = SessionDetailScrollFollowState()
@@ -63,12 +64,7 @@ public struct SessionDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: DSSpacing.m) {
-                        approvalSection
                         transcriptSection
-                        if case .failed(let message) = viewModel.sendState {
-                            DSResultBanner(message: message, isError: true)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
                         // 末尾アンカー: 新着メッセージ/出力で最下部へスクロールするため。
                         Color.clear
                             .frame(height: 1)
@@ -128,9 +124,7 @@ public struct SessionDetailView: View {
                 .onAppear { scrollToBottomForContentChange(proxy) }
             }
 
-            if viewModel.isInputBarEnabled || (viewModel.currentStatus == .running && viewModel.canInterrupt) {
-                inputBarSection
-            }
+            replyArea
         }
         .sheet(isPresented: $viewModel.isModelSheetPresented) {
             modelSelectorSheet
@@ -149,6 +143,10 @@ public struct SessionDetailView: View {
         }
         .task(id: viewModel.session.id) {
             await viewModel.startPolling(composeDraft: sessionComposeDraft)
+        }
+        .task(id: shouldShowInputBar) {
+            guard shouldShowInputBar else { return }
+            await usageViewModel?.load()
         }
         .task(id: approvalViewModel?.sessionID) {
             await approvalViewModel?.load()
@@ -173,46 +171,179 @@ public struct SessionDetailView: View {
     }
 
     private var inputBarSection: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            if let usageLine = SessionDetailUsageFormat.line(for: viewModel.turnUsage) {
-                Text(usageLine)
-                    .font(DSFont.caption)
-                    .foregroundStyle(DSColor.textTertiary)
-                    .padding(.horizontal, DSSpacing.m)
-            }
-
+        VStack(spacing: 0) {
             DSInputBar(
                 text: $viewModel.inputText,
                 cursorUTF16: $viewModel.inputCursorUTF16,
-                placeholder: SessionDetailCopy.inputPlaceholder,
+                placeholder: SessionDetailCopy.inputPlaceholder(isAnsweringSelectionlessQuestion: pendingPlainQuestion != nil),
                 isLoading: viewModel.isSending,
                 attachmentStrip: viewModel.attachmentItems.map {
                     DSAttachmentStripItem(id: $0.id, number: $0.number, previewData: $0.previewData)
                 },
-                attachmentError: viewModel.attachmentError,
                 contextLabel: viewModel.inputContextDisplayName,
                 onAddAttachments: { candidates in
                     Task { await viewModel.addAttachmentsFromPicker(candidates) }
                 },
                 onRemoveAttachment: { viewModel.removeAttachment(at: $0) },
+                onAttachmentLimitReached: { viewModel.attachmentLimitReached() },
+                onAttachmentLoadFailure: { viewModel.attachmentLoadFailed() },
                 isRunning: viewModel.showsStopButton,
                 onStop: {
                     Task { await viewModel.stop() }
                 },
-                modelSelector: {
-                    if viewModel.showsModelSelectorChip,
-                       let name = viewModel.selectedModelDisplayName {
-                        modelSelectorChip(name: name)
-                    }
-                }
+                model: inputModel,
+                onSelectModel: { viewModel.beginModelSelection() },
+                settings: inputBarSettings
             ) {
-                Task { await viewModel.sendMessage(composeDraft: sessionComposeDraft) }
+                submitInput()
             }
-            .padding(.horizontal, DSSpacing.m)
-            .padding(.bottom, DSSpacing.m)
             .onChange(of: viewModel.inputText) { oldValue, newValue in
                 viewModel.syncAttachmentsWithTextEdit(oldText: oldValue, newText: newValue)
             }
+        }
+    }
+
+    /// 送信失敗 → 承認 → 質問 → 入力欄の順で下端に積む。
+    private var replyArea: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.s) {
+            if case .failed(let message) = viewModel.sendState,
+               message != viewModel.attachmentError {
+                errorLine(message)
+            }
+            if let settingsError = viewModel.settingsChangeError { errorLine(settingsError) }
+            if let attachmentError = viewModel.attachmentError { errorLine(attachmentError) }
+
+            approvalSection
+                .padding(.horizontal, DSSpacing.l)
+
+            ForEach(pendingQuestions) { question in
+                UserQuestionCard(
+                    requestId: question.requestId,
+                    questions: question.questions,
+                    answers: question.answers,
+                    state: question.state,
+                    usesInputBarForFreeText: question.usesInputBarForFreeText,
+                    onSubmit: { requestId, answers in
+                        await viewModel.answerQuestion(requestId: requestId, answers: answers)
+                    }
+                )
+                .padding(.horizontal, DSSpacing.l)
+                .id(question.id)
+            }
+
+            if showsStartingBanner {
+                Text("セッションを起動しています。準備ができると入力できます")
+                    .font(DSFont.subheadline)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DSSpacing.m)
+                    .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+                    .padding(.horizontal, 12)
+            } else if shouldShowInputBar {
+                inputBarSection
+                if let usageViewModel, usageViewModel.shouldShowRow {
+                    UsageRingRow(viewModel: usageViewModel)
+                        .padding(.horizontal, DSSpacing.xl)
+                }
+            }
+        }
+        .padding(.top, DSSpacing.s)
+        .padding(.bottom, DSSpacing.m)
+    }
+
+    private func errorLine(_ message: String) -> some View {
+        Text(message)
+            .font(DSFont.captionStrong)
+            .foregroundStyle(IOSColor.status.error)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 12)
+            .accessibilityAddTraits(.isStaticText)
+    }
+
+    private var showsStartingBanner: Bool {
+        viewModel.currentStatus == .starting && !viewModel.isAwaitingInitialSpawn
+    }
+
+    private var shouldShowInputBar: Bool {
+        !showsStartingBanner && (viewModel.inputEnabled
+            || (viewModel.currentStatus == .running && viewModel.canInterrupt))
+    }
+
+    private struct PendingQuestion: Identifiable {
+        let id: String
+        let requestId: String
+        let questions: [UserQuestionItem]
+        let answers: [String: [String]]?
+        let state: UserQuestionState
+
+        var usesInputBarForFreeText: Bool {
+            state == .pending && questions.count == 1 && questions.first?.options.isEmpty == true
+        }
+    }
+
+    private var pendingQuestions: [PendingQuestion] {
+        viewModel.visibleMessages.compactMap { message in
+            guard case let .userQuestion(id, requestId, questions, answers, state) = message,
+                  state == .pending else { return nil }
+            return PendingQuestion(id: id, requestId: requestId, questions: questions, answers: answers, state: state)
+        }
+    }
+
+    private var pendingPlainQuestion: PendingQuestion? {
+        pendingQuestions.first(where: \.usesInputBarForFreeText)
+    }
+
+    private var transcriptMessages: [ChatMessage] {
+        viewModel.visibleMessages.filter { message in
+            if case let .userQuestion(_, _, _, _, state) = message, state == .pending { return false }
+            return true
+        }
+    }
+
+    private var inputModel: (kind: AgentKind, displayName: String)? {
+        guard viewModel.showsModelSelectorChip,
+              let displayName = viewModel.selectedModelDisplayName else { return nil }
+        return (viewModel.session.agent, displayName)
+    }
+
+    private var inputBarSettings: DSInputBarSettings? {
+        guard let settings = viewModel.modelSettings else { return nil }
+        return DSInputBarSettings(
+            agentName: viewModel.session.agent.displayName,
+            effortOptions: settings.availableEfforts.map {
+                DSInputBarSettingOption(value: $0.value, displayName: $0.displayName)
+            },
+            selectedEffort: settings.selectedEffort,
+            permissionOptions: settings.availablePermissions.map {
+                DSInputBarSettingOption(value: $0.value, displayName: $0.displayName)
+            },
+            selectedPermission: settings.selectedPermission,
+            planMode: settings.planMode,
+            planModeAvailable: settings.planModeAvailable,
+            isUpdatingEffort: viewModel.settingsChangeInFlight == .effort,
+            isUpdatingPermission: viewModel.settingsChangeInFlight == .permission,
+            isUpdatingPlanMode: viewModel.settingsChangeInFlight == .planMode,
+            onSelectEffort: { value in Task { await viewModel.selectEffort(value) } },
+            onSelectPermission: { value in Task { await viewModel.selectPermission(value) } },
+            onSelectPlanMode: { value in Task { await viewModel.selectPlanMode(value) } }
+        )
+    }
+
+    private func submitInput() {
+        if let question = pendingPlainQuestion {
+            let answer = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !answer.isEmpty else { return }
+            Task {
+                if await viewModel.answerQuestion(
+                    requestId: question.requestId,
+                    answers: [question.questions[0].question: [answer]]
+                ) {
+                    viewModel.inputText = ""
+                }
+            }
+        } else {
+            Task { await viewModel.sendMessage(composeDraft: sessionComposeDraft) }
         }
     }
 
@@ -220,33 +351,17 @@ public struct SessionDetailView: View {
         ModelPickerSheet(
             entries: viewModel.modelPickerEntries,
             selectedEntryID: viewModel.selectedModelPickerEntryID,
+            agentName: viewModel.session.agent.displayName,
+            defaultEntryID: viewModel.defaultModelPickerEntryID,
+            isChangingModelID: viewModel.modelSelectionInFlightID,
+            failureMessage: viewModel.modelSelectionError,
             onSelect: { entryID in
-                viewModel.isModelSheetPresented = false
                 Task { await viewModel.selectModelPickerEntry(entryID: entryID) }
             },
             onDismiss: { viewModel.isModelSheetPresented = false }
         )
-        .presentationDetents([.medium, .large])
-    }
-
-    private func modelSelectorChip(name: String) -> some View {
-        Button {
-            viewModel.beginModelSelection()
-        } label: {
-            HStack(spacing: DSSpacing.xs) {
-                Text(name)
-                    .font(DSFont.caption.weight(.semibold))
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(DSFont.footnote.weight(.semibold))
-            }
-            .foregroundStyle(DSColor.textSecondary)
-            .padding(.horizontal, DSSpacing.s)
-            .padding(.vertical, DSSpacing.xs)
-            .background(DSColor.fillSubtle, in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("モデルを変更: \(name)")
+        .presentationDetents([.height(680)])
+        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
@@ -274,10 +389,10 @@ public struct SessionDetailView: View {
 
     private var chatSection: some View {
         let slice = SessionDetailTranscriptSlice(
-            messages: viewModel.visibleMessages,
+            messages: transcriptMessages,
             window: transcriptWindow
         )
-        let lastTranscriptID = viewModel.visibleMessages.last?.id
+        let lastTranscriptID = transcriptMessages.last?.id
         return VStack(alignment: .leading, spacing: DSSpacing.m) {
             if slice.hiddenCount > 0 {
                 loadEarlierMessagesButton(hiddenCount: slice.hiddenCount)

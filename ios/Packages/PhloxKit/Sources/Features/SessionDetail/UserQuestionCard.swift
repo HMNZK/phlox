@@ -8,6 +8,7 @@ struct UserQuestionCard: View {
     let questions: [UserQuestionItem]
     let answers: [String: [String]]?
     let state: UserQuestionState
+    let usesInputBarForFreeText: Bool
     let onSubmit: (String, [String: [String]]) async -> Bool
 
     @State private var form: UserQuestionFormState
@@ -19,12 +20,14 @@ struct UserQuestionCard: View {
         questions: [UserQuestionItem],
         answers: [String: [String]]?,
         state: UserQuestionState,
+        usesInputBarForFreeText: Bool = false,
         onSubmit: @escaping (String, [String: [String]]) async -> Bool
     ) {
         self.requestId = requestId
         self.questions = questions
         self.answers = answers
         self.state = state
+        self.usesInputBarForFreeText = usesInputBarForFreeText
         self.onSubmit = onSubmit
         _form = State(initialValue: UserQuestionFormState(questions: questions))
     }
@@ -41,7 +44,7 @@ struct UserQuestionCard: View {
             ForEach(questions, id: \.question) { question in
                 questionBlock(question)
             }
-            if state == .pending {
+            if state == .pending && !usesInputBarForFreeText {
                 DSButton(
                     "回答する",
                     variant: .primary,
@@ -105,7 +108,7 @@ struct UserQuestionCard: View {
                 optionButton(question: question, option: option)
             }
 
-            if isInteractive {
+            if isInteractive && (!usesInputBarForFreeText || !question.options.isEmpty) {
                 TextField(
                     "自由入力",
                     text: freeTextBinding(for: question.question),

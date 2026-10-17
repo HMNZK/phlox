@@ -83,19 +83,45 @@ import PhloxNetworking
         #expect(vm.modelSettings?.selectedModel == "m2")
         #expect(vm.selectedModelDisplayName == "Opus")
     }
+
+    @Test func nilSelectedModelUsesMacDefaultModelForChipAndSheetMarker() async {
+        let settings = SessionModelSettings(
+            selectedModel: nil,
+            availableModels: [
+                SessionModelOption(id: "m1", displayName: "Sonnet"),
+                SessionModelOption(id: "m2", displayName: "Opus"),
+            ]
+        )
+        let api = ModelSelectorMockAPI(settingsOutcome: .success(settings), defaultModelID: "m2")
+        let vm = SessionDetailViewModel(session: makeSession(), api: api)
+
+        await vm.loadModelSettings()
+
+        #expect(vm.selectedModelDisplayName == "Opus")
+        #expect(vm.defaultModelPickerEntryID == vm.modelPickerEntries.first(where: { $0.modelID == "m2" })?.id)
+        #expect(vm.selectedModelPickerEntryID == vm.defaultModelPickerEntryID)
+    }
 }
 
 private actor ModelSelectorMockAPI: PhloxAPI, SessionModelSelecting {
     let settingsOutcome: Result<SessionModelSettings, PhloxError>
+    private let defaultModelID: String?
+    private var currentSettings: SessionModelSettings?
     private(set) var setModelLog: [(String, String)] = []
 
-    init(settingsOutcome: Result<SessionModelSettings, PhloxError>) {
+    init(settingsOutcome: Result<SessionModelSettings, PhloxError>, defaultModelID: String? = nil) {
         self.settingsOutcome = settingsOutcome
+        self.defaultModelID = defaultModelID
+        self.currentSettings = try? settingsOutcome.get()
     }
 
     func listSessions() async throws -> [Session] { [] }
     func spawn(_ request: SpawnRequest) async throws -> Session {
         Session(id: "x", name: "x", agent: .claudeCode, status: .starting, subtitle: "", updatedAt: .init())
+    }
+    func agentModels(kind: AgentKind) async throws -> AgentModels {
+        let settings = try currentSettings ?? settingsOutcome.get()
+        return AgentModels(models: settings.availableModels, defaultModel: defaultModelID)
     }
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func send(_ request: SendRequest) async throws -> SendResult { SendResult(accepted: true) }
@@ -105,10 +131,22 @@ private actor ModelSelectorMockAPI: PhloxAPI, SessionModelSelecting {
     func respond(approvalID: String, decision: ApprovalDecision) async throws {}
 
     func sessionSettings(sessionID: String) async throws -> SessionModelSettings {
-        try settingsOutcome.get()
+        try currentSettings ?? settingsOutcome.get()
     }
 
     func setModel(sessionID: String, model: String) async throws {
         setModelLog.append((sessionID, model))
+        if let settings = currentSettings {
+            currentSettings = SessionModelSettings(
+                selectedModel: model,
+                availableModels: settings.availableModels,
+                selectedEffort: settings.selectedEffort,
+                availableEfforts: settings.availableEfforts,
+                selectedPermission: settings.selectedPermission,
+                availablePermissions: settings.availablePermissions,
+                planMode: settings.planMode,
+                planModeAvailable: settings.planModeAvailable
+            )
+        }
     }
 }

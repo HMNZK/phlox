@@ -18,6 +18,7 @@ struct AppRoot: View {
     @State private var setupRouter = NavigationRouter()
     @State private var settingsRouter = NavigationRouter()
     @State private var listVM: SessionListViewModel?
+    @State private var usageViewModel: UsageViewModel?
     @State private var selectedTab: AppTab? = .sessions
     @State private var scrollToTopRequest = 0
     @State private var qrScanInitialPayload: String?
@@ -51,6 +52,7 @@ struct AppRoot: View {
 
     var body: some View {
         rootContent
+            .environment(\.usageViewModel, usageViewModel)
             .overlay { connectingOverlay }
             .animation(.easeInOut(duration: 0.2), value: model.isConnecting)
             .id(activeThemeID)
@@ -62,6 +64,9 @@ struct AppRoot: View {
                         repository: environment.sessionRepository,
                         api: environment.apiClient
                     )
+                }
+                if usageViewModel == nil {
+                    usageViewModel = UsageViewModel(api: environment.apiClient)
                 }
                 if UITestingSupport.isEnabled {
                     if let listVM {
@@ -81,6 +86,9 @@ struct AppRoot: View {
                 }
                 if phase == .active, let pushRegistrationService {
                     Task { await pushRegistrationService.retryIfNeeded() }
+                }
+                if phase == .active, let usageViewModel {
+                    Task { await usageViewModel.load() }
                 }
             }
             .onChange(of: appSettings.faceIDEnabled) { _, enabled in

@@ -71,6 +71,17 @@ public final class SessionDetailViewModel {
     public private(set) var attachmentError: String?
     /// task-6: モデル選択チップ用の設定。取得失敗・空一覧は nil（チップ非表示）。
     public private(set) var modelSettings: SessionModelSettings?
+    /// GET /agents/{kind}/models から得るエージェント既定モデル。選択モデルが nil のときに使う。
+    public private(set) var defaultSessionModelID: String?
+    public enum SettingsChangeKind: Equatable {
+        case effort
+        case permission
+        case planMode
+    }
+    public private(set) var settingsChangeInFlight: SettingsChangeKind?
+    public private(set) var settingsChangeError: String?
+    public private(set) var modelSelectionInFlightID: String?
+    public private(set) var modelSelectionError: String?
     private enum MenuPresentation {
         case modelPicker
         case rename
@@ -99,6 +110,10 @@ public final class SessionDetailViewModel {
     }
     public private(set) var modelPickerEntries: [ModelPickerEntry] = []
     public private(set) var selectedModelPickerEntryID: String?
+    public var defaultModelPickerEntryID: String? {
+        guard let defaultSessionModelID else { return nil }
+        return modelPickerEntries.first(where: { $0.modelID == defaultSessionModelID })?.id
+    }
     /// ドラフトでユーザーが選んだエージェント種別とモデル。表示用 ID と切り離して保持し、
     /// カタログの一時的な欠落で別 kind へ選択が移ることを防ぐ。
     private struct DraftModelSelection: Equatable {
@@ -165,6 +180,7 @@ public final class SessionDetailViewModel {
 
     /// モデル選択シートを開く。別のメニュー presentation があれば置き換える。
     public func beginModelSelection() {
+        modelSelectionError = nil
         menuPresentation = .modelPicker
     }
 
@@ -209,6 +225,14 @@ public final class SessionDetailViewModel {
     /// 元画像と小さいプレビューを保持し、形式変換は送信前に行う。
     public func addAttachments(_ candidates: [SendAttachment]) {
         appendAttachments(candidates, previews: nil)
+    }
+
+    public func attachmentLimitReached() {
+        attachmentError = ImageAttachmentLimits.countMessage
+    }
+
+    public func attachmentLoadFailed() {
+        attachmentError = "画像を読み込めませんでした"
     }
 
     /// Pickerからの画像はプレビューもメインスレッド外で作る。
@@ -493,7 +517,12 @@ public final class SessionDetailViewModel {
            let match = modelSettings.availableModels.first(where: { $0.id == selected }) {
             return match.displayName
         }
-        return modelSettings.availableModels.first?.displayName
+        if modelSettings.selectedModel == nil,
+           let defaultSessionModelID,
+           let match = modelSettings.availableModels.first(where: { $0.id == defaultSessionModelID }) {
+            return match.displayName
+        }
+        return modelSettings.selectedModel == nil ? "既定" : modelSettings.availableModels.first?.displayName
     }
 
     /// 構造化チャットを表示するか（メッセージが1件以上ある場合）。
@@ -543,45 +572,191 @@ public final class SessionDetailViewModel {
         if showsChat { return }
     }
 
-    /// task-6: モデル一覧を取得する。404/オフライン等はチップ非表示に留め画面は壊さない。
+    /// モデル・設定の一覧を取得する。古い Mac や一時的な取得失敗では現在値を保つ。
     public func loadModelSettings() async {
         guard let modelAPI = api as? any SessionModelSelecting else {
             modelSettings = nil
+            modelPickerEntries = []
+            selectedModelPickerEntryID = nil
             return
         }
         do {
             let settings = try await modelAPI.sessionSettings(sessionID: session.id)
-            modelSettings = settings.availableModels.isEmpty ? nil : settings
+            let catalog = try? await api.agentModels(kind: session.agent)
+            modelSettings = settings
+            defaultSessionModelID = catalog?.defaultModel
             modelPickerEntries = settings.availableModels.map {
                 ModelPickerEntry(kind: session.agent, modelID: $0.id, displayName: $0.displayName)
             }
             if let selected = settings.selectedModel,
                let entry = modelPickerEntries.first(where: { $0.modelID == selected }) {
                 selectedModelPickerEntryID = entry.id
+            } else if let defaultSessionModelID,
+                      let entry = modelPickerEntries.first(where: { $0.modelID == defaultSessionModelID }) {
+                selectedModelPickerEntryID = entry.id
             } else {
-                selectedModelPickerEntryID = modelPickerEntries.first?.id
+                selectedModelPickerEntryID = nil
             }
-        } catch {
+        } catch PhloxError.server(status: 400, message: _),
+                PhloxError.server(status: 404, message: _) {
             modelSettings = nil
+            defaultSessionModelID = nil
             modelPickerEntries = []
             selectedModelPickerEntryID = nil
+        } catch { }
+    }
+
+    /// モデルを選んだ時点で反映する。失敗時は現在値を保ち、シート内に知らせる。
+    public func selectModel(_ modelID: String) async {
+        guard let modelAPI = api as? any SessionModelSelecting else { return }
+        guard modelSettings?.availableModels.contains(where: { $0.id == modelID }) == true,
+              modelSelectionInFlightID == nil else { return }
+        let currentName = selectedModelDisplayName ?? "現在のモデル"
+        let requestedName = modelPickerEntries.first(where: { $0.modelID == modelID })?.displayName ?? modelID
+        modelSelectionError = nil
+        modelSelectionInFlightID = modelID
+        defer { modelSelectionInFlightID = nil }
+        do {
+            try await retryAfterSessionReady {
+                try await modelAPI.setModel(sessionID: session.id, model: modelID)
+            }
+            if let modelSettings {
+                self.modelSettings = SessionModelSettings(
+                    selectedModel: modelID,
+                    availableModels: modelSettings.availableModels,
+                    selectedEffort: modelSettings.selectedEffort,
+                    availableEfforts: modelSettings.availableEfforts,
+                    selectedPermission: modelSettings.selectedPermission,
+                    availablePermissions: modelSettings.availablePermissions,
+                    planMode: modelSettings.planMode,
+                    planModeAvailable: modelSettings.planModeAvailable
+                )
+            }
+            selectedModelPickerEntryID = modelPickerEntries.first(where: { $0.modelID == modelID })?.id
+            await loadModelSettings()
+            isModelSheetPresented = false
+        } catch {
+            modelSelectionError = "\(requestedName) に変更できませんでした。\(currentName) のままです。"
         }
     }
 
-    /// task-6: モデルを切り替え、成功時にチップ表示を更新する。
-    public func selectModel(_ modelID: String) async {
-        guard let modelAPI = api as? any SessionModelSelecting else { return }
-        let availableModels = modelSettings?.availableModels ?? []
-        guard availableModels.contains(where: { $0.id == modelID }) else { return }
+    public var showsEffortSelectorChip: Bool {
+        Self.shouldShowEffortSelectorChip(for: modelSettings)
+    }
+
+    public var showsPermissionSelectorChip: Bool {
+        Self.shouldShowPermissionSelectorChip(for: modelSettings)
+    }
+
+    public var selectedEffortDisplayName: String {
+        guard let modelSettings else { return "" }
+        return modelSettings.availableEfforts.first(where: { $0.value == modelSettings.selectedEffort })?.displayName
+            ?? (modelSettings.selectedEffort == nil ? "既定" : modelSettings.availableEfforts.first?.displayName ?? "")
+    }
+
+    public var selectedPermissionDisplayName: String {
+        guard let modelSettings else { return "" }
+        if modelSettings.planMode { return "Plan" }
+        return modelSettings.availablePermissions.first(where: { $0.value == modelSettings.selectedPermission })?.displayName
+            ?? "既定"
+    }
+
+    static func shouldShowEffortSelectorChip(for settings: SessionModelSettings?) -> Bool {
+        !(settings?.availableEfforts.isEmpty ?? true)
+    }
+
+    static func shouldShowPermissionSelectorChip(for settings: SessionModelSettings?) -> Bool {
+        !(settings?.availablePermissions.isEmpty ?? true)
+    }
+
+    public func selectEffort(_ effort: String?) async {
+        guard let effort,
+              modelSettings?.availableEfforts.contains(where: { $0.value == effort }) == true,
+              modelSettings?.selectedEffort != effort else { return }
+        await updateSettings(
+            kind: .effort,
+            update: SessionSettingsUpdate(effort: effort)
+        )
+    }
+
+    public func selectPermission(_ permission: String?) async {
+        guard let options = modelSettings?.availablePermissions,
+              options.contains(where: { $0.value == permission }),
+              modelSettings?.selectedPermission != permission || modelSettings?.planMode == true else { return }
+        await updateSettings(
+            kind: .permission,
+            update: SessionSettingsUpdate(permission: .some(permission))
+        )
+    }
+
+    public func selectPlanMode(_ isEnabled: Bool) async {
+        guard modelSettings?.planModeAvailable == true,
+              modelSettings?.planMode != isEnabled else { return }
+        await updateSettings(
+            kind: .planMode,
+            update: SessionSettingsUpdate(planMode: isEnabled)
+        )
+    }
+
+    private func updateSettings(kind: SettingsChangeKind, update: SessionSettingsUpdate) async {
+        guard let modelAPI = api as? any SessionModelSelecting,
+              settingsChangeInFlight == nil else { return }
+        settingsChangeError = nil
+        settingsChangeInFlight = kind
+        defer { settingsChangeInFlight = nil }
         do {
-            try await modelAPI.setModel(sessionID: session.id, model: modelID)
-            modelSettings = SessionModelSettings(
-                selectedModel: modelID,
-                availableModels: availableModels
-            )
-            selectedModelPickerEntryID = modelPickerEntries.first(where: { $0.modelID == modelID })?.id
+            try await retryAfterSessionReady {
+                try await modelAPI.updateSessionSettings(sessionID: session.id, update: update)
+            }
+            applySessionSettingsUpdateLocally(update)
+            await loadModelSettings()
         } catch {
-            // 失敗時は現状維持（エラーバナーは出さない）。
+            settingsChangeError = settingsChangeFailureMessage(for: kind)
+        }
+    }
+
+    private func applySessionSettingsUpdateLocally(_ update: SessionSettingsUpdate) {
+        guard let current = modelSettings else { return }
+        var selectedPermission = current.selectedPermission
+        var planMode = current.planMode
+        if let permission = update.permission {
+            selectedPermission = permission
+            planMode = false
+        }
+        if let requestedPlanMode = update.planMode {
+            planMode = requestedPlanMode
+        }
+        modelSettings = SessionModelSettings(
+            selectedModel: current.selectedModel,
+            availableModels: current.availableModels,
+            selectedEffort: update.effort ?? current.selectedEffort,
+            availableEfforts: current.availableEfforts,
+            selectedPermission: selectedPermission,
+            availablePermissions: current.availablePermissions,
+            planMode: planMode,
+            planModeAvailable: current.planModeAvailable
+        )
+    }
+
+    private func settingsChangeFailureMessage(for kind: SettingsChangeKind) -> String {
+        switch kind {
+        case .effort:
+            "思考の強さを変更できませんでした。今の強さ（\(selectedEffortDisplayName)）のままです。もう一度選んでください"
+        case .permission:
+            "権限を変更できませんでした。今の権限（\(selectedPermissionDisplayName)）のままです。もう一度選んでください"
+        case .planMode:
+            "Plan モードを変更できませんでした。今の状態のままです。もう一度選んでください"
+        }
+    }
+
+    private func retryAfterSessionReady<T>(_ operation: () async throws -> T) async throws -> T {
+        do {
+            return try await operation()
+        } catch PhloxError.server(status: 425, message: _) {
+            guard try await api.waitUntilReady(sessionID: session.id) else {
+                throw PhloxError.server(status: 425, message: "session not ready")
+            }
+            return try await operation()
         }
     }
 

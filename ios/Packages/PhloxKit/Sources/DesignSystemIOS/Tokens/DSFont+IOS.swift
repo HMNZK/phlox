@@ -5,9 +5,41 @@ import UIKit
 #endif
 
 /// iOS 向けの Dynamic Type スタイルを共有 `DSFont` に追加する。
-/// すべて `Font.TextStyle` ベース（固定サイズ `.system(size:)` を使わない）で、
-/// ユーザーの文字サイズ設定に追従する。
+/// 入力欄は見本の段階ごとの字面サイズをここで選び、呼び出し側に固定値を散らさない。
 public extension DSFont {
+    /// 入力欄の見本に合わせた通常／Dynamic Type 最大の字面サイズ。
+    enum InputBarRole {
+        case textField
+        case chip
+        case error
+        case caption
+        case addSymbol
+        case sendSymbol
+        case chipSymbol
+        case chevron
+        case moreSymbol
+        case stopSymbol
+        case removeSymbol
+    }
+
+    static func inputBar(_ role: InputBarRole, for dynamicTypeSize: DynamicTypeSize) -> Font {
+        let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
+        let size: CGFloat = switch role {
+        case .textField: isAccessibilitySize ? 40 : 17
+        case .chip: isAccessibilitySize ? 26 : 13
+        case .error: isAccessibilitySize ? 20 : 13
+        case .caption: isAccessibilitySize ? 20 : 12
+        case .addSymbol: isAccessibilitySize ? 26 : 14
+        case .sendSymbol: isAccessibilitySize ? 26 : 17
+        case .chipSymbol: isAccessibilitySize ? 26 : 14
+        case .chevron: isAccessibilitySize ? 20 : 11
+        case .moreSymbol: isAccessibilitySize ? 26 : 16
+        case .stopSymbol: isAccessibilitySize ? 22 : 13
+        case .removeSymbol: 10
+        }
+        return .system(size: size, design: .default)
+    }
+
     /// 新規チャットの DotGothic16 見出し。仕様の Dynamic Type 段階に合わせて固定サイズを選ぶ。
     static func displayDot(for dynamicTypeSize: DynamicTypeSize) -> Font {
         .custom("DotGothic16-Regular", size: displayDotSize(for: dynamicTypeSize))
@@ -37,12 +69,16 @@ public extension DSFont {
     static let headline = Font.headline
     /// 補助情報。
     static let subheadline = Font.subheadline
+    /// 小さな補助情報。
+    static let iosCaption = Font.caption
+    /// 最小サイズの補助情報（使用量リングの枠ラベル等）。
+    static let iosCaption2 = Font.caption2
     /// 最小補助テキスト（タイムスタンプ等）。
     static let footnote = Font.footnote
 
     /// FAB（＋）内 SF Symbol。カンプ右上 FAB の視認性（`title2` + semibold）。
     static let iconFAB = Font.title2.weight(.semibold)
-    /// 送信丸ボタン内矢印（`DSInputBar` / `DSChatInputBar`）。`title3` + semibold。
+    /// 入力欄の送信丸ボタン内の矢印。`title3` + semibold。
     static let iconSend = Font.title3.weight(.semibold)
 
     /// 技術値（IP・ポート・HTTP 等）用モノスペース。JetBrains Mono がバンドルされていれば優先。

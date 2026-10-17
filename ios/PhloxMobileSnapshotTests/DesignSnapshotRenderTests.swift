@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 import Testing
 import AgentDomain
-import Features
+@testable import Features
 import PhloxCore
 import DesignSystemIOS
 @testable import PhloxMobile
@@ -320,6 +320,182 @@ struct DesignSnapshotRenderTests {
                 expectedScale: 3
             )
         }
+
+        let inputScenarios: [InputBarSnapshotScenario] = [
+            .init(name: "ReplyEmpty"),
+            .init(name: "ReplyTyping", text: "ProxyRouterTests の失敗 3 件を先に直して。\n直したら swift test をもう一度流して、結果だけ教えて"),
+            .init(name: "ReplyRunEmpty", isRunning: true),
+            .init(name: "ReplyRunText", text: "ProxyRouterTests の失敗 3 件を先に直して。\n直したら swift test をもう一度流して、結果だけ教えて", isRunning: true),
+            .init(name: "ReplySending", isSending: true),
+            .init(name: "ReplyStarting", isStarting: true),
+            .init(name: "ReplyPermDanger", permission: "bypassPermissions"),
+            .init(name: "ReplyPermFail", permission: "manual", settingsError: "権限を変更できませんでした。今の権限（Manual）のままです。もう一度選んでください"),
+            .init(name: "ReplyMore", width: 375, height: 667),
+            .init(name: "ReplyHaiku", modelName: "Haiku 5.5", showsEffort: false),
+            .init(name: "ReplyDT", isAccessibilitySize: true),
+            .init(name: "ReplyAttach", text: "この2枚の502の画面を見て原因を探して [Image #1] [Image #2]", attachmentCount: 2),
+            .init(
+                name: "ReplyAttachErr",
+                text: "ログの画面 [Image #1] [Image #2] [Image #3] [Image #4]",
+                attachmentCount: 4,
+                attachmentError: "画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。"
+            ),
+            .init(name: "ReplyDark", dark: true),
+            .init(name: "UsageNormal"),
+            .init(name: "UsageLow", usageStyle: .low),
+            .init(name: "UsageNa", usageStyle: .unavailable),
+            .init(name: "UsageStale", usageState: .failed),
+            .init(name: "UsageRefresh", usageState: .loading),
+            .init(name: "UsageNormalDT", isAccessibilitySize: true),
+            .init(name: "UsageNormalDark", dark: true),
+            .init(name: "UsagePop", showsUsagePopover: true),
+            .init(name: "UsagePopDark", dark: true, showsUsagePopover: true),
+        ]
+
+        let attachmentPreviews = [
+            snapshotAttachmentData(color: UIColor(red: 0.82, green: 0.82, blue: 0.87, alpha: 1)),
+            snapshotAttachmentData(color: UIColor(red: 0.55, green: 0.75, blue: 0.63, alpha: 1)),
+            snapshotAttachmentData(color: UIColor(red: 0.88, green: 0.73, blue: 0.62, alpha: 1)),
+            snapshotAttachmentData(color: UIColor(red: 0.56, green: 0.67, blue: 0.82, alpha: 1)),
+        ]
+        for scenario in inputScenarios {
+            let themeID = AppearancePreference.system.themeID(systemColorScheme: scenario.dark ? .dark : .light)
+            preferences.set(themeID, forKey: ThemeStore.themeKey)
+            DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
+            let size = CGSize(width: scenario.width, height: scenario.height)
+            let safeArea = scenario.width == 428
+                ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
+                : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+            let content: AnyView
+            if scenario.isStarting {
+                content = AnyView(
+                    ZStack(alignment: .bottom) {
+                        snapshotTranscript(for: scenario)
+                            .frame(width: size.width, height: size.height)
+                        HStack(spacing: DSSpacing.s) {
+                            ProgressView().controlSize(.small)
+                            Text("セッションを起動しています。準備ができると入力できます")
+                                .font(DSFont.subheadline)
+                                .foregroundStyle(IOSColor.text.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(DSSpacing.m)
+                        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, DSSpacing.m)
+                    }
+                    .frame(width: size.width, height: size.height)
+                    .background(DSColor.background)
+                )
+            } else {
+                let attachments = (0..<scenario.attachmentCount).map { index in
+                    let number = index + 1
+                    return DSAttachmentStripItem(
+                        id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", number))!,
+                        number: number,
+                        previewData: attachmentPreviews[index % attachmentPreviews.count]
+                    )
+                }
+                let settings = inputBarSettings(
+                    permission: scenario.permission,
+                    showsEffort: scenario.showsEffort
+                )
+                let inputBar = DSInputBar(
+                    text: .constant(scenario.text),
+                    placeholder: "やりたいことを入力",
+                    isLoading: scenario.isSending,
+                    attachmentStrip: attachments,
+                    attachmentError: scenario.attachmentError,
+                    settingsError: scenario.settingsError,
+                    contextLabel: "Phlox",
+                    onAddAttachments: { _ in },
+                    onRemoveAttachment: { _ in },
+                    isRunning: scenario.isRunning,
+                    onStop: {},
+                    model: (kind: .claudeCode, displayName: scenario.modelName),
+                    settings: settings,
+                    onSubmit: {}
+                )
+                let usageViewModel = UsageViewModel(
+                    api: UITestSnapshotUsageAPI(),
+                    agents: UITestUsageFixtures.values(for: scenario.usageStyle),
+                    state: scenario.usageState,
+                    lastSuccessfulAt: scenario.usageLastSuccessfulAt,
+                    now: { UITestUsageFixtures.asOfDate }
+                )
+                let usageRow = UsageRingRow(
+                    viewModel: usageViewModel,
+                    isPopoverPresented: scenario.showsUsagePopover
+                )
+                .padding(.horizontal, DSSpacing.xl)
+                content = AnyView(
+                    ZStack(alignment: .bottom) {
+                        snapshotTranscript(for: scenario)
+                            .frame(width: size.width, height: size.height)
+                        VStack(spacing: DSSpacing.s) {
+                            inputBar
+                            usageRow
+                        }
+                        .padding(.bottom, DSSpacing.m)
+                    }
+                    .frame(width: size.width, height: size.height)
+                    .background(DSColor.background)
+                    .environment(\.colorScheme, scenario.dark ? .dark : .light)
+                    .environment(\.dynamicTypeSize, scenario.isAccessibilitySize ? .accessibility5 : .large)
+                    .environment(\.locale, Locale(identifier: "ja_JP"))
+                )
+            }
+
+            let scale: CGFloat = scenario.width == 428 ? 3 : 2
+            let image = try await windowImage(
+                content,
+                size: size,
+                safeArea: safeArea,
+                scale: scale,
+                dark: scenario.dark
+            )
+            try writeSnapshot(
+                image,
+                name: "\(scenario.name)-\(Int(scenario.width))x\(Int(scenario.height))-\(scenario.dark ? "dark" : "light")\(scenario.isAccessibilitySize ? "-ax5" : "")\(osSuffix).png",
+                to: output,
+                expectedSize: size,
+                expectedScale: scale
+            )
+        }
+
+        let modelEntries = [
+            SessionDetailViewModel.ModelPickerEntry(kind: .claudeCode, modelID: "opus", displayName: "Opus (1M context)"),
+            SessionDetailViewModel.ModelPickerEntry(kind: .claudeCode, modelID: "sonnet", displayName: "Sonnet 5"),
+            SessionDetailViewModel.ModelPickerEntry(kind: .claudeCode, modelID: "haiku", displayName: "Haiku 5.5"),
+        ]
+        let modelThemeID = AppearancePreference.system.themeID(systemColorScheme: .light)
+        preferences.set(modelThemeID, forKey: ThemeStore.themeKey)
+        DSNavigationChrome.installUIKitAppearanceIfNeeded(for: modelThemeID)
+        let selectedModelID = modelEntries[1].id
+        let modelSheetContent = ModelPickerSnapshotHost(
+            entries: modelEntries,
+            selectedEntryID: selectedModelID,
+            agentName: AgentKind.claudeCode.displayName,
+            defaultEntryID: modelEntries[0].id
+        )
+        .environment(\.colorScheme, .light)
+        .environment(\.dynamicTypeSize, .large)
+        .environment(\.locale, Locale(identifier: "ja_JP"))
+        .frame(width: 428, height: 926)
+        let modelImage = try await windowImage(
+            modelSheetContent,
+            size: CGSize(width: 428, height: 926),
+            safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
+            scale: 3,
+            dark: false
+        )
+        try writeSnapshot(
+            modelImage,
+            name: "ReplyModel-428x926-light\(osSuffix).png",
+            to: output,
+            expectedSize: CGSize(width: 428, height: 926),
+            expectedScale: 3
+        )
     }
 
     @Test func dotGothic16FontAndLicenseAreInHostedApp() throws {
@@ -397,6 +573,10 @@ struct DesignSnapshotRenderTests {
         host.view.layoutIfNeeded()
         #expect(abs(host.view.safeAreaInsets.top - safeArea.top) < 0.5)
         #expect(abs(host.view.safeAreaInsets.bottom - safeArea.bottom) < 0.5)
+        await Task.yield()
+        try await Task.sleep(for: .milliseconds(20))
+        window.layoutIfNeeded()
+        host.view.layoutIfNeeded()
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
@@ -470,14 +650,208 @@ struct DesignSnapshotRenderTests {
                 foreground += 1
                 rows.insert(y / 16)
             }
-            if Double(foreground) / Double(max(1, samples.count)) > 0.015 && rows.count >= 4 {
+            if Double(foreground) / Double(max(1, samples.count)) > 0.01 && rows.count >= 4 {
                 return true
             }
         }
         return false
     }
 
+    private func inputBarSettings(
+        permission: String,
+        showsEffort: Bool
+    ) -> DSInputBarSettings {
+        DSInputBarSettings(
+            agentName: "Claude Code",
+            effortOptions: showsEffort ? [
+                DSInputBarSettingOption(value: "low", displayName: "低"),
+                DSInputBarSettingOption(value: "medium", displayName: "中"),
+                DSInputBarSettingOption(value: "high", displayName: "高"),
+            ] : [],
+            selectedEffort: showsEffort ? "high" : nil,
+            permissionOptions: [
+                DSInputBarSettingOption(value: "manual", displayName: "Manual"),
+                DSInputBarSettingOption(value: "acceptEdits", displayName: "Accept Edits"),
+                DSInputBarSettingOption(value: "auto", displayName: "Auto"),
+                DSInputBarSettingOption(value: "bypassPermissions", displayName: "Bypass Permissions"),
+            ],
+            selectedPermission: permission,
+            planModeAvailable: true
+        )
+    }
+
+    private func snapshotTranscript(for scenario: InputBarSnapshotScenario) -> some View {
+        let usageBoard = scenario.name.hasPrefix("Usage")
+        let runningBoard = scenario.name == "ReplyRunText"
+        let command = usageBoard
+            ? "コマンド  $ swiftlint lint --strict"
+            : "コマンド  $ swift test --package-path mobile …\(runningBoard ? " 実行中" : " exit 0")"
+        let assistantText = usageBoard
+            ? "lint の指摘 3 件を直しました。テストと lint はすべて通っています。"
+            : runningBoard
+                ? "ProxyRouter を追加しました。テストを実行します。"
+                : "テストは 50 件すべて成功しました。次は何をしますか？"
+
+        return VStack(alignment: .leading, spacing: DSSpacing.l) {
+            Spacer(minLength: 0)
+            HStack(spacing: DSSpacing.s) {
+                Image(systemName: "chevron.right")
+                    .font(DSFont.captionStrong)
+                    .foregroundStyle(DSColor.textSecondary)
+                Text(command)
+                    .font(.system(size: 14, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(DSSpacing.m)
+            .background(DSColor.chatCard, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+            Text(assistantText)
+                .font(DSFont.body)
+                .foregroundStyle(DSColor.textPrimary)
+            if usageBoard {
+                Text("$0.42 · 入力 18.2k · 出力 1.9k · コンテキスト 22%")
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            if runningBoard {
+                Text("実行中…  swift test を実行中 · 38 秒")
+                    .font(DSFont.body)
+                    .foregroundStyle(DSColor.textSecondary)
+            }
+            Spacer(minLength: 150)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func snapshotAttachmentData(color: UIColor) -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).pngData { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        }
+    }
+
     private enum SnapshotError: Error { case bodyDidNotRender }
+}
+
+private struct ModelPickerSnapshotHost: View {
+    let entries: [SessionDetailViewModel.ModelPickerEntry]
+    let selectedEntryID: String?
+    let agentName: String
+    let defaultEntryID: String?
+
+    @State private var isPresented = false
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                Spacer()
+                Text("テストの出力を確認しています")
+                    .font(DSFont.body)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DSColor.background)
+        }
+        .sheet(isPresented: $isPresented) {
+            ModelPickerSheet(
+                entries: entries,
+                selectedEntryID: selectedEntryID,
+                agentName: agentName,
+                defaultEntryID: defaultEntryID,
+                isChangingModelID: nil,
+                failureMessage: nil,
+                onSelect: { _ in },
+                onDismiss: {}
+            )
+            .presentationDetents([.height(680)])
+            .presentationDragIndicator(.visible)
+        }
+        .task {
+            await Task.yield()
+            isPresented = true
+        }
+    }
+}
+
+private struct InputBarSnapshotScenario {
+    let name: String
+    let width: CGFloat
+    let height: CGFloat
+    let dark: Bool
+    let isAccessibilitySize: Bool
+    let text: String
+    let isRunning: Bool
+    let isSending: Bool
+    let isStarting: Bool
+    let modelName: String
+    let permission: String
+    let showsEffort: Bool
+    let attachmentCount: Int
+    let attachmentError: String?
+    let settingsError: String?
+    let usageStyle: UITestUsageFixtures.Style
+    let usageState: UsageViewModel.State
+    let usageLastSuccessfulAt: Date?
+    let showsUsagePopover: Bool
+
+    init(
+        name: String,
+        width: CGFloat = 428,
+        height: CGFloat = 926,
+        dark: Bool = false,
+        isAccessibilitySize: Bool = false,
+        text: String = "",
+        isRunning: Bool = false,
+        isSending: Bool = false,
+        isStarting: Bool = false,
+        modelName: String = "Sonnet 5",
+        permission: String = "acceptEdits",
+        showsEffort: Bool = true,
+        attachmentCount: Int = 0,
+        attachmentError: String? = nil,
+        settingsError: String? = nil,
+        usageStyle: UITestUsageFixtures.Style = .normal,
+        usageState: UsageViewModel.State = .loaded,
+        usageLastSuccessfulAt: Date? = UITestUsageFixtures.asOfDate,
+        showsUsagePopover: Bool = false
+    ) {
+        self.name = name
+        self.width = width
+        self.height = height
+        self.dark = dark
+        self.isAccessibilitySize = isAccessibilitySize
+        self.text = text
+        self.isRunning = isRunning
+        self.isSending = isSending
+        self.isStarting = isStarting
+        self.modelName = modelName
+        self.permission = permission
+        self.showsEffort = showsEffort
+        self.attachmentCount = attachmentCount
+        self.attachmentError = attachmentError
+        self.settingsError = settingsError
+        self.usageStyle = usageStyle
+        self.usageState = usageState
+        self.usageLastSuccessfulAt = usageLastSuccessfulAt
+        self.showsUsagePopover = showsUsagePopover
+    }
+}
+
+private struct UITestSnapshotUsageAPI: PhloxAPI {
+    func listSessions() async throws -> [Session] { [] }
+    func spawn(_ request: SpawnRequest) async throws -> Session {
+        Session(id: "snapshot", name: "snapshot", agent: request.agent, status: .starting, subtitle: "", updatedAt: .distantPast)
+    }
+    func waitUntilReady(sessionID: String) async throws -> Bool { true }
+    func send(_ request: SendRequest) async throws -> SendResult { SendResult(accepted: true) }
+    func messages(sessionID: String) async throws -> [ChatMessage] { [] }
+    func remove(sessionID: String) async throws {}
+    func approvals() async throws -> [Approval] { [] }
+    func respond(approvalID: String, decision: ApprovalDecision) async throws {}
+    func cliUsage() async throws -> [CLIUsage] { UITestUsageFixtures.values(for: .normal) }
 }
 
 private struct ComponentSnapshotView: View {

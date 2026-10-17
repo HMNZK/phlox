@@ -186,11 +186,11 @@ last-verified: 2026-10-17
 
 ### 6.2 モデル・思考の強さ・権限
 
-- AC-6-7: セッション画面のモデルのシートはそのエージェントのモデルだけ（`ReplyModel`、`Dialogs` M1〜M4）。行を押した時点で反映し、反映中は行にスピナー、失敗はシート内の赤い帯で元のまま。
+- AC-6-7: セッション画面のモデルのシートはそのエージェントのモデルだけ（`ReplyModel`、`Dialogs` M1〜M4）。行を押した時点で `setModel` を呼び、反映中は行にスピナー、失敗はシート内の赤い帯で元のまま。成功後は設定を取り直す。
 - AC-6-8: 思考の強さのメニューは見出し「思考の強さ」、選択中に ✓、既定に「既定」、注記「モデルを変えると、そのモデルの既定の強さに戻ります」。選択肢は Mac から届いたもの（新規は `GET /agents/{kind}/settings`、実行中は `GET /sessions/{id}/settings`。契約 §8.2・§8.3）。選択肢が空のモデル（Haiku など）ではチップを出さない（`ReplyEffort`・`ReplyHaiku`・`DraftEffort`）。
 - AC-6-9: 権限のメニューは見出し「権限 · {エージェント名}」、選択肢は Mac から届いたもの（見本の例: Claude Code「Manual・Accept Edits・Auto・Bypass Permissions・Don't Ask・Plan」、Codex「Read Only・Default・Full Access・Plan」、Cursor「既定・Ask・Plan」）。Plan は `planMode` で別に扱う（契約 §8 共通）。注記「確認なしで全部を許す権限は、選ぶときに確認します。実行中に変えたときは次の指示から効きます」（`ReplyPerm`・`DraftPerm`・`DraftPermCodex`・`DraftPermCursor`）。
-- AC-6-10: 強い権限（Bypass Permissions・Full Access）はメニューで赤い文字に「確認あり」を添え、選ぶと OS 標準のアラート（`Dialogs` P1・P2）。題「確認なしで全部を許可しますか？」、ボタン「キャンセル」（既定・太字）と「{権限名} にする」（赤）。選んだ後のチップは赤い文字（`DraftPermDanger`・`DraftPermDangerCodex`・`ReplyPermDanger`）。VoiceOver「権限、Bypass Permissions。確認なしで全部を許可しています」。
-- AC-6-11: 変更に失敗したら、チップは元の値のまま、入力欄の上に赤い 1 行「権限を変更できませんでした。今の権限（{元の権限}）のままです。もう一度選んでください」（`ReplyPermFail`。14 章 C-7）。`409 settings update in progress` も同じ扱い。
+- AC-6-10: 強い権限（値が `bypassPermissions` または `:danger-full-access` の選択肢）は表示名で判定せず、メニューで赤い文字に「確認あり」を添え、選ぶと OS 標準のアラート（`Dialogs` P1・P2）。題「確認なしで全部を許可しますか？」、ボタン「キャンセル」（既定・太字）と「{権限名} にする」（赤）。選んだ後のチップは赤い文字（`DraftPermDanger`・`DraftPermDangerCodex`・`ReplyPermDanger`）。VoiceOver「権限、Bypass Permissions。確認なしで全部を許可しています」。
+- AC-6-11: 思考の強さ・権限・Plan の変更は、選んだ時点でセッション設定を PATCH する。失敗したら値を元のままにし、入力欄の上に赤い 1 行で知らせる。思考の強さは「思考の強さを変更できませんでした。今の強さ（{元の強さ}）のままです。もう一度選んでください」、権限は「権限を変更できませんでした。今の権限（{元の権限}）のままです。もう一度選んでください」（`ReplyPermFail`。14 章 C-7）、Plan は「Plan モードを変更できませんでした。今の状態のままです。もう一度選んでください」。`409 settings update in progress` は同じ扱い。`425`（準備前）は準備待ちを待ってから 1 回再試行し、待機できない場合は失敗として知らせる。成功後は設定を取り直す。
 - AC-6-12: 古い Mac（設定の取得口が 404・400）では、思考の強さ・権限のチップを出さない（契約 §8.6）。
 
 ### 6.3 狭いとき
@@ -198,7 +198,7 @@ last-verified: 2026-10-17
 - AC-6-13: 2 段目が入らないときは (1) 思考の強さと権限を「…」1 つにまとめる → (2) プロジェクトを印だけにする → (3) 2 段目を折り返す、の順。モデル名と送信は省かない。幅は文字の量から決める（`DraftSpec`、`ReplyMore`・`DraftMoreSE`・`DraftMoreDT`）。
 - AC-6-14: 「…」を押すと「思考の強さ　{現在値} ›」「権限　{現在値} ›」の 2 行（Haiku では権限の 1 行）。各行から個別のメニューを開く（`ReplyEffortSE`・`ReplyPermSE`）。
 - AC-6-15: 強い権限を選んでいるときは、権限を「…」に入れず赤いチップのまま見せる（「…」には思考の強さだけ）。
-- AC-6-16: 盤面の幅の計算（`Draft`・`Reply` の `cmpVals`）と同じ結果になる: 428pt のセッション画面で Sonnet＋Manual・Accept Edits はまとめない、375pt で Accept Edits はまとめる、Dynamic Type 最大は最初からまとめる、新規チャットの 428pt で Accept Edits はまとめる（単体テストで確かめる）。
+- AC-6-16: 盤面の幅の計算（`Draft`・`Reply` の `cmpVals`）と同じ結果になる: 428pt のセッション画面で Sonnet＋Manual・Accept Edits はまとめない、375pt で Accept Edits はまとめる、Dynamic Type 最大は最初からまとめる、新規チャットの 428pt で Accept Edits はまとめる（単体テストで確かめる）。判定が「まとめない」のときは、本文あり・実行中でもチップの文字を省略せず、余白と送信／停止ボタンを含めて収める。
 
 ### 6.4 添付
 

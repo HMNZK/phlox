@@ -27,6 +27,12 @@ import Testing
         #expect(state == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: false))
     }
 
+    @Test func sendingEmptyNonRunningInputKeepsDisabledSpinnerSlot() {
+        let state = DSInputBar.actionState(text: "", isLoading: true, isRunning: false)
+
+        #expect(state == DSInputBarActionState(showsStop: false, showsSend: true, sendIsEnabled: false))
+    }
+
     @Test func runningRevealsSendOnlyWhenTextEntered() {
         #expect(
             DSInputBar.actionState(text: "", isLoading: false, isRunning: true)

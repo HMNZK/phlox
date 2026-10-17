@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Testing
+import AgentDomain
 import StructuredChatKit
 @testable import SessionFeature
 
@@ -13,6 +14,134 @@ import StructuredChatKit
 @MainActor
 @Suite("UserQuestionCell: 実際に描かれた画面")
 struct UserQuestionCellTests {
+    @Test(arguments: [CGFloat(320), 500, 900], [1, 4])
+    func 長い質問と選択肢は全体をスクロールでき送信ボタンは枠内に残る(width: CGFloat, count: Int) throws {
+        let questions = (0..<count).map { index in
+            ChatUserQuestion(
+                question: "質問 \(index): " + String(repeating: "長い質問の本文を最後まで読めることを確認します。", count: 30),
+                header: "質問 \(index)",
+                options: (0..<8).map { ChatUserQuestionOption(label: "選択肢 \($0)", description: "選択肢の説明です。") },
+                multiSelect: false, id: "q\(index)"
+            )
+        }
+        let cell = UserQuestionCell(
+            itemId: "long", requestId: "r", questions: questions, answers: nil,
+            state: .pending, timestamp: Date(), onRespond: { _, _ in true }, onDismiss: {}
+        ).environment(\.replySubjectMaxHeight, 160)
+        let hosting = NSHostingView(rootView: cell)
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: width, height: 400),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap { scrollViews(in: $0) }
+        }
+        let scrolls = scrollViews(in: hosting)
+        let scroll = try #require(scrolls.first { ($0.documentView?.frame.height ?? 0) > $0.contentSize.height })
+        // 本文だけのスクロールでは、選択肢と複数の質問がカードを画面外へ押し出す。
+        #expect(scrolls.count == 1)
+        #expect(scroll.frame.height <= 160.5)
+        #expect(hosting.fittingSize.height <= 220)
+        let document = try #require(scroll.documentView)
+        let start = scroll.contentView.bounds.origin
+        let endY = document.bounds.maxY - scroll.contentSize.height
+        scroll.contentView.scroll(to: CGPoint(x: 0, y: endY))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        #expect(scroll.contentView.bounds.origin.y > start.y)
+        scroll.contentView.scroll(to: start)
+        scroll.reflectScrolledClipView(scroll.contentView)
+        #expect(abs(scroll.contentView.bounds.origin.y - start.y) < 1)
+    }
+
+    @Test func 短い質問は高さ上限まで引き伸ばさない() {
+        let previous = NSApplication.shared.accessibilityAttributeValue(NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        defer { NSApplication.shared.accessibilitySetValue(previous, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")) }
+        let hosted = host(question(isSecret: false))
+        defer { hosted.window.close() }
+        #expect(hosted.hosting.fittingSize.height < 200)
+    }
+
+    @Test(arguments: [false, true], [CGFloat(320), 600])
+    func 単体とグリッドで質問の先頭と末尾と操作ボタンへ到達できる(grid: Bool, width: CGFloat) async throws {
+        let previous = NSApplication.shared.accessibilityAttributeValue(NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        defer { NSApplication.shared.accessibilitySetValue(previous, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")) }
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        let client = LayoutQuestionClient()
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+                                      approvalBroker: ChatApprovalBroker(), workingDirectory: FileManager.default.currentDirectoryPath)
+        try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+        let questions = (0..<4).map { index in
+            ChatUserQuestion(question: "質問 \(index): " + String(repeating: "質問の説明が長くても最後まで読めます。", count: 8),
+                             header: "確認 \(index)", options: (0..<5).map { ChatUserQuestionOption(label: "候補 \(index)-\($0)") },
+                             multiSelect: false, id: "q\(index)")
+        }
+        client.continuation.yield(.userQuestionRequested(requestId: "layout", questions: questions))
+        for _ in 0..<100 where !ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript))
+        let surface = grid ? AnyView(GridChatColumn(viewModel: vm, onFocusGained: {})) : AnyView(ChatSessionView(viewModel: vm))
+        let hosting = NSHostingView(rootView: surface.environment(\.locale, Locale(identifier: "ja_JP")))
+        let window = NSWindow(contentRect: CGRect(x: -10000, y: -10000, width: width, height: 480),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = hosting
+        for _ in 0..<5 {
+            hosting.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        func elements(_ object: AnyObject) -> [AnyObject] {
+            [object] + (object.accessibilityChildren() ?? []).flatMap { elements($0 as AnyObject) }
+        }
+        let buttons = elements(hosting).filter { $0.accessibilityRole() == .button }
+        let send = try #require(buttons.first { ($0.accessibilityLabel() ?? "").hasPrefix("回答を送信") })
+        let close = try #require(buttons.first { ($0.accessibilityLabel() ?? "") == "回答せずに閉じる" })
+        let windowFrame = window.convertToScreen(hosting.bounds)
+        for button in [send, close] {
+            #expect(windowFrame.contains(button.accessibilityFrame()), "操作ボタンが会話欄からはみ出している")
+        }
+
+        func allScrollViews(_ view: NSView) -> [NSScrollView] {
+            ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap(allScrollViews)
+        }
+        // 質問カードは入力欄の手前にある最後の、縦にあふれるスクロール領域。
+        let scroll = try #require(allScrollViews(hosting).last { ($0.documentView?.frame.height ?? 0) > $0.contentSize.height })
+        #expect(scroll.frame.height <= ApprovalCard.subjectMaxHeight(availableHeight: 480) + 1)
+        #expect(hosting.bounds.contains(scroll.convert(scroll.bounds, to: hosting)))
+        let document = try #require(scroll.documentView)
+        let first = scroll.contentView.bounds.origin
+        try snapshot(hosting, name: "\(grid ? "grid" : "single")-\(Int(width))-top")
+        scroll.contentView.scroll(to: CGPoint(x: 0, y: document.bounds.maxY - scroll.contentSize.height))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        hosting.layoutSubtreeIfNeeded()
+        #expect(scroll.contentView.bounds.origin.y > first.y)
+        let lastField = try #require(elements(hosting).last { ($0.accessibilityIdentifier() ?? "") == "UserQuestionCell.freeText.q3" })
+        let viewport = window.convertToScreen(scroll.contentView.convert(scroll.contentView.bounds, to: nil))
+        #expect(viewport.contains(lastField.accessibilityFrame()), "末尾の自由入力欄へ到達できない")
+        for button in [send, close] {
+            #expect(windowFrame.contains(button.accessibilityFrame()), "スクロール後に操作ボタンが見切れている")
+        }
+        try snapshot(hosting, name: "\(grid ? "grid" : "single")-\(Int(width))-bottom")
+        scroll.contentView.scroll(to: first)
+        scroll.reflectScrolledClipView(scroll.contentView)
+        #expect(abs(scroll.contentView.bounds.origin.y - first.y) < 1)
+        await vm.terminate()
+    }
+
+    private func snapshot(_ hosting: NSView, name: String) throws {
+        guard let directory = ProcessInfo.processInfo.environment["PHLOX_QUESTION_SNAPSHOTS"] else { return }
+        let bitmap = try #require(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+        let data = try #require(bitmap.representation(using: .png, properties: [:]))
+        try data.write(to: URL(fileURLWithPath: directory).appendingPathComponent(name + ".png"))
+    }
+
     private struct Hosted {
         let window: NSWindow
         let hosting: NSHostingView<AnyView>
@@ -152,4 +281,16 @@ struct UserQuestionCellTests {
         let typed = editor?.string ?? field.stringValue
         #expect(typed == "120", "自由入力欄で数字が入らない（カードの 1〜9 の選択に横取りされる）: \(typed)")
     }
+}
+
+private struct LayoutQuestionClient: StructuredAgentClient {
+    let events: AsyncStream<NormalizedChatEvent>
+    let continuation: AsyncStream<NormalizedChatEvent>.Continuation
+
+    init() { (events, continuation) = AsyncStream.makeStream() }
+    func start() async {}
+    func turnStart(_ input: [ChatInput]) async throws {}
+    func resume(sessionRef: String) async throws {}
+    func interrupt() async throws {}
+    func close() async { continuation.finish() }
 }

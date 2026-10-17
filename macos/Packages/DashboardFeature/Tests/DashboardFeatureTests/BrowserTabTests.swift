@@ -572,7 +572,8 @@ struct BrowserTabTests {
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let root = package.appendingPathComponent(".build/browser-tests/\(UUID())", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
+        // 検証用 .build がリンクでも、ファイル URL と WebKit の読み取り許可を同じ実体パスにする。
+        return root.resolvingSymlinksInPath()
     }
 
     private func removeFixture(_ root: URL) {

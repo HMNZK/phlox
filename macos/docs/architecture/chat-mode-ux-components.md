@@ -10,6 +10,11 @@ last-verified: 2026-09-14
 
 ## ファイル構成（ChatSessionView の分割後）
 
+質問カードは、単体表示・グリッド共通で質問文・選択肢・自由入力欄を一つのスクロール領域にまとめる。
+領域の高さは親から渡す `replySubjectMaxHeight`（会話欄の高さの 25%、60〜360pt）を上限とし、
+短い質問では内容に合わせて縮める。送信・閉じるボタンはスクロール領域の外に置く。
+質問ごとの高さ制限だけでは複数の質問が積み上がって画面の上へはみ出すため、カード内の本文全体を制限する。
+
 `Packages/SessionFeature/Sources/SessionFeature/`（R1 task-27 で DashboardFeature/Session/ から SessionFeature パッケージへ抽出済み）:
 
 | ファイル | 責務 |

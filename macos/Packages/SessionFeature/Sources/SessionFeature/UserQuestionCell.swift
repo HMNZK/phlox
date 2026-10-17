@@ -115,9 +115,17 @@ struct UserQuestionCell: View {
     private func card(scale: CGFloat) -> some View {
         // 角丸 10・余白 11/13/12・間隔 9（PhloxReply.dc.html の qStyle。フォーカスは承認カードと同じ外の 3pt の輪）。
         VStack(alignment: .leading, spacing: 9) {
-            ForEach(questions, id: \.question) { question in
-                questionBlock(question, scale: scale)
+            // 質問文だけでなく選択肢も含めて制限し、複数の質問でもカードが画面上端を越えないようにする。
+            ScrollView {
+                VStack(alignment: .leading, spacing: 9) {
+                    ForEach(questions, id: \.question) { question in
+                        questionBlock(question, scale: scale)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxHeight: subjectMaxHeight)
+            .fixedSize(horizontal: false, vertical: true)
             if isInteractive {
                 footerRow(scale: scale)
             }
@@ -308,16 +316,11 @@ struct UserQuestionCell: View {
                     .foregroundStyle(DSColor.textSecondary)
             }
 
-            // 会話欄が低いとカードが押し縮められて質問が 1 行に切れる。承認カードの対象と同じく、
-            // 高さに上限を付けて越える分は中でスクロールする（全文を必ず読める）。
-            ScrollView {
-                Text(question.question)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(DSColor.chatTextPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: subjectMaxHeight)
-            .fixedSize(horizontal: false, vertical: true)
+            Text(question.question)
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundStyle(DSColor.chatTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             if state == .answered, let selected = answers?[question.answerKey], !selected.isEmpty {
                 answeredLabels(selected, question: question, scale: scale)

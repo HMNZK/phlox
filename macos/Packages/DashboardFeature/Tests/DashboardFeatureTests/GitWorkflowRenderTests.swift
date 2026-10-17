@@ -5,6 +5,7 @@ import Testing
 @testable import DashboardFeature
 
 /// 実アプリを起動せず、Git と「変更」タブの実部品を画面外で描画する。
+extension ThemeRenderingTests {
 @Suite("Git ワークフローの描画", .serialized) @MainActor
 struct GitWorkflowRenderTests {
     @Test func 主要状態の比較画像を書き出す() async throws {
@@ -123,6 +124,7 @@ struct GitWorkflowRenderTests {
         try png.write(to: output.appendingPathComponent(name + ".png"))
         #expect(image.pixelsWide > 0 && image.pixelsHigh > 0)
     }
+}
 }
 
 /// ステージ済みと作業ツリーの差分を同一ファイルに保持する実リポジトリ。

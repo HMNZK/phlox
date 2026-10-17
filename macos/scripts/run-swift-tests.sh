@@ -18,6 +18,7 @@
 #   SWIFT_TEST_GIT_SUITES       実 git を起動するスイート。DashboardFeature の別パスで走らせる
 #   SWIFT_TEST_OUTPUT           compact（成功時は要約）または full（全ログ）。既定 compact
 #   SWIFT_TEST_CONFIGURATION    debug または release。既定 debug。テストと資源の事前ビルドに共通。
+#   SWIFT_TEST_SCRATCH_ROOT     絶対パス。指定時は配下の <package>/ にビルド・テスト成果物を分離する。
 #   SWIFT_TEST_FILTER           空白区切りで swift test --filter に渡す（スイート名・テスト名・正規表現）。
 #                               作業中に失敗したテストだけを回すためのもの。指定すると実 git の別パス分けを
 #                               せず 1 回で走らせ、**全件の合格にはならない**（完了の判定は未指定の全件で行う）。
@@ -31,6 +32,11 @@ TEST_CONFIGURATION="${SWIFT_TEST_CONFIGURATION-debug}"
 case "$TEST_CONFIGURATION" in
   debug|release) ;;
   *) echo "run-swift-tests: SWIFT_TEST_CONFIGURATION は debug または release を指定してください: ${TEST_CONFIGURATION}" >&2; exit 1 ;;
+esac
+SCRATCH_ROOT="${SWIFT_TEST_SCRATCH_ROOT-}"
+case "$SCRATCH_ROOT" in
+  ""|/*) ;;
+  *) echo "run-swift-tests: SWIFT_TEST_SCRATCH_ROOT は絶対パスを指定してください: $SCRATCH_ROOT" >&2; exit 1 ;;
 esac
 
 MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -109,7 +115,8 @@ run_swift_test() {
   echo "=== swift test --package-path Packages/${pkg} $* [${label}] ==="
   COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
     COMPACT_COMMAND_SUMMARY_PATTERN='^(✔ Test run with|[[:space:]]*Executed [0-9]+ tests)' \
-    "$COMPACT_COMMAND" "${pkg} / ${label}" swift test --configuration "$TEST_CONFIGURATION" --package-path "Packages/$pkg" "$@"
+    "$COMPACT_COMMAND" "${pkg} / ${label}" swift test --configuration "$TEST_CONFIGURATION" --package-path "Packages/$pkg" \
+    ${scratch_args[@]+"${scratch_args[@]}"} "$@"
 }
 
 # SwiftPM は xcassets をコンパイルしないので、DesignSystem のロゴ（Icons.xcassets）を描くテストの
@@ -120,11 +127,13 @@ prepare_asset_catalog() {  # <package>
   if [ "$TEST_CONFIGURATION" = release ]; then testability_args=(-Xswiftc -enable-testing); fi
   COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
     "$COMPACT_COMMAND" "$1 / 資源の事前ビルド" \
-    swift build --build-tests ${testability_args[@]+"${testability_args[@]}"} --configuration "$TEST_CONFIGURATION" --package-path "Packages/$1" || return 1
+    swift build --build-tests ${testability_args[@]+"${testability_args[@]}"} --configuration "$TEST_CONFIGURATION" --package-path "Packages/$1" \
+    ${scratch_args[@]+"${scratch_args[@]}"} || return 1
   local bin_path bundle
-  bin_path="$(swift build --show-bin-path --configuration "$TEST_CONFIGURATION" --package-path "Packages/$1")" || return 1
+  bin_path="$(swift build --show-bin-path --configuration "$TEST_CONFIGURATION" --package-path "Packages/$1" \
+    ${scratch_args[@]+"${scratch_args[@]}"})" || return 1
   bundle="$bin_path/DesignSystem_DesignSystem.bundle"
-  if [ ! -d "$bundle/Icons.xcassets" ] || [ -f "$bundle/Assets.car" ]; then return 0; fi
+  if [ ! -d "$bundle/Icons.xcassets" ]; then return 0; fi
   COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
     "$COMPACT_COMMAND" "$1 / 資源カタログ" \
     xcrun actool --compile "$bundle" --platform macosx --minimum-deployment-target 14.0 \
@@ -135,6 +144,8 @@ cd "$MACOS_DIR" || { echo "run-swift-tests: macos ディレクトリが無い: $
 
 failed=""
 for pkg in $PACKAGES; do
+  scratch_args=()
+  if [ -n "$SCRATCH_ROOT" ]; then scratch_args=(--scratch-path "$SCRATCH_ROOT/$pkg"); fi
   if [ ! -f "Packages/$pkg/Package.swift" ]; then
     echo "run-swift-tests: パッケージが見つからない: Packages/$pkg" >&2
     failed="$failed $pkg(missing)"

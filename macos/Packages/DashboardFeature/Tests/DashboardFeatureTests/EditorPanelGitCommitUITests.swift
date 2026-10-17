@@ -291,20 +291,18 @@ struct EditorPanelGitCommitUITests {
     private func withAccessibilityHost(_ content: some View, width: CGFloat = 340, check: (NSView) async throws -> Void) async throws {
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
-        let defaults = UserDefaults.standard
+        let suiteName = "EditorPanelGitCommitUITests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let key = "phlox.inspector.git.changesExpanded"
-        let previousExpansion = defaults.object(forKey: key)
         defaults.set(true, forKey: key)
-        defer {
-            if let previousExpansion { defaults.set(previousExpansion, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
-        }
         let getter = NSSelectorFromString("accessibilityAttributeValue:")
         let setter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
         let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
         NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
         defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
-        let host = NSHostingView(rootView: content.environment(\.locale, Locale(identifier: "ja")).frame(width: width, height: 520))
+        let host = NSHostingView(rootView: content.defaultAppStorage(defaults)
+            .environment(\.locale, Locale(identifier: "ja")).frame(width: width, height: 520))
         let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: 520),
             styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false

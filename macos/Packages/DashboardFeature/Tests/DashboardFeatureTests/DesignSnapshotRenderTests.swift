@@ -31,6 +31,7 @@ private final class Stage8SnapshotClients: @unchecked Sendable {
 }
 
 /// 実画面を表示せず、比較用の部品画像を明示指定時だけ書き出す。
+extension ThemeRenderingTests {
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
     @Test func bottomPanelSnapshots() async throws {
@@ -1874,6 +1875,7 @@ struct DesignSnapshotRenderTests {
         while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
         guard condition() else { throw Unavailable(reason: "画面外描画の準備が時間内に完了しなかった") }
     }
+}
 }
 
 

@@ -13,13 +13,11 @@ struct GitDisplayRegressionTests {
         let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
         NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
         defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
-        let defaults = UserDefaults.standard
-        let original = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-        var settings = original
-        settings["phlox.inspector.git.changesExpanded"] = true
-        for section in GitHistorySection.allCases { settings[section.storageKey] = true }
-        defaults.setVolatileDomain(settings, forName: UserDefaults.argumentDomain)
-        defer { defaults.setVolatileDomain(original, forName: UserDefaults.argumentDomain) }
+        let suiteName = "GitDisplayRegressionTests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: "phlox.inspector.git.changesExpanded")
+        for section in GitHistorySection.allCases { defaults.set(true, forKey: section.storageKey) }
         let model = EditorPanelViewModel(service: nil)
         model.acceptSnapshot(.init(branch: "main", changes: [], lineCounts: [:]))
         let commit = GitHistoryCommit(id: "abcdef123456", parents: ["parent"], summary: "共通コミット", author: "Tester",
@@ -30,7 +28,7 @@ struct GitDisplayRegressionTests {
         model.loadedHistorySections = Set(GitHistorySection.allCases)
         let source = WorkingTreeSource.commit(commit.id)
         model.historyFiles[source] = [.init(path: "a.txt", kind: .modified, isBinary: false)]
-        let host = NSHostingView(rootView: GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in })
+        let host = NSHostingView(rootView: GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in }, defaults: defaults)
             .environment(\.colorScheme, .dark).frame(width: 340, height: 1500))
         let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 340, height: 1500),
                               styleMask: [.borderless], backing: .buffered, defer: false)

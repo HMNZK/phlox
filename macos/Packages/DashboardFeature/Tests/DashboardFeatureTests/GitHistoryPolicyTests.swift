@@ -96,21 +96,11 @@ struct GitHistoryPolicyTests {
     @Test @MainActor func キー操作の対象は開いた区画と開いた履歴行のファイルだけ() async throws {
         let fixture = try GitHistoryFixture()
         defer { fixture.remove() }
-        let defaults = UserDefaults.standard
-        let savedCommits = defaults.object(forKey: GitHistorySection.commits.storageKey)
-        let savedBranches = defaults.object(forKey: GitHistorySection.branches.storageKey)
-        let original = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-        var settings = original
-        for section in GitHistorySection.allCases { settings[section.storageKey] = false }
-        settings["phlox.inspector.git.changesExpanded"] = false
-        defaults.setVolatileDomain(settings, forName: UserDefaults.argumentDomain)
-        defer {
-            defaults.setVolatileDomain(original, forName: UserDefaults.argumentDomain)
-            if let savedCommits { defaults.set(savedCommits, forKey: GitHistorySection.commits.storageKey) }
-            else { defaults.removeObject(forKey: GitHistorySection.commits.storageKey) }
-            if let savedBranches { defaults.set(savedBranches, forKey: GitHistorySection.branches.storageKey) }
-            else { defaults.removeObject(forKey: GitHistorySection.branches.storageKey) }
-        }
+        let suiteName = "GitHistoryPolicyTests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        for section in GitHistorySection.allCases { defaults.set(false, forKey: section.storageKey) }
+        defaults.set(false, forKey: "phlox.inspector.git.changesExpanded")
         let model = fixture.model()
         await model.refresh()
         await model.setHistorySection(.commits, expanded: true)
@@ -118,7 +108,8 @@ struct GitHistoryPolicyTests {
         let commit = try #require(model.historyCommits.first)
         var opened: [GitChangeSelection] = []
         let view = GitInspectorView(model: model, workingDirectory: fixture.root.path,
-            openChanges: { path, source, _ in if let path { opened.append(.init(path: path, source: source)) } }, openFile: { _ in })
+            openChanges: { path, source, _ in if let path { opened.append(.init(path: path, source: source)) } }, openFile: { _ in },
+            defaults: defaults)
         #expect(view.visibleRows.isEmpty)
         view.activateHistoryRow(.commit(commit.id, graph: false))
         #expect(model.expandedHistoryRows.isEmpty)

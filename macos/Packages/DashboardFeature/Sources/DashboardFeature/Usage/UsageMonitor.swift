@@ -21,6 +21,7 @@ public final class UsageMonitor {
         .map(\.kind)
 
     private let providers: [AgentKind: any UsageProvider]
+    private let defaults: UserDefaults
     private let stalenessInterval: TimeInterval
     @ObservationIgnored private let now: () -> Date
     private var refreshTask: Task<Void, Never>?
@@ -31,9 +32,11 @@ public final class UsageMonitor {
 
     public init(
         environment: AppEnvironment,
+        defaults: UserDefaults = .phloxDefaults(),
         connections: @escaping @MainActor () -> [ClaudeUsageConnection] = { [] }
     ) {
         self.providers = Self.makeProviders(environment: environment)
+        self.defaults = defaults
         self.stalenessInterval = Self.defaultStalenessInterval
         self.now = Date.init
         self.usages = [:]
@@ -57,12 +60,14 @@ public final class UsageMonitor {
     init(
         providers: [AgentKind: any UsageProvider],
         stalenessInterval: TimeInterval = defaultStalenessInterval,
+        defaults: UserDefaults = .phloxDefaults(),
         now: @escaping () -> Date = Date.init
     ) {
         self.providers = Dictionary(uniqueKeysWithValues: AgentRegistry.allDescriptors.map { descriptor in
             (descriptor.kind, providers[descriptor.kind] ?? EmptyUsageProvider(kind: descriptor.kind))
         })
         self.stalenessInterval = stalenessInterval
+        self.defaults = defaults
         self.now = now
         self.usages = [:]
         self.lastSuccessfulUsages = [:]
@@ -71,7 +76,7 @@ public final class UsageMonitor {
 
     public func start() {
         guard refreshTask == nil else { return }
-        claudeRefresh?.start(enabled: Self.claudeEnabled, automatic: Self.autoRefreshEnabled)
+        claudeRefresh?.start(enabled: claudeEnabled, automatic: autoRefreshEnabled)
         settingsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { [weak self] _ in
             Task { @MainActor [weak self] in self?.usageSettingsChanged() }
         }
@@ -119,7 +124,7 @@ public final class UsageMonitor {
     public func claudeConnectionsChanged() { claudeRefresh?.connectionsChanged() }
 
     public func usageSettingsChanged() {
-        claudeRefresh?.updateSettings(enabled: Self.claudeEnabled, automatic: Self.autoRefreshEnabled)
+        claudeRefresh?.updateSettings(enabled: claudeEnabled, automatic: autoRefreshEnabled)
     }
 
     var currentDate: Date { now() }
@@ -200,7 +205,7 @@ public final class UsageMonitor {
         var isFirstPass = true
 
         while !Task.isCancelled {
-            if isFirstPass || Self.autoRefreshEnabled {
+            if isFirstPass || autoRefreshEnabled {
                 isFirstPass = false
                 var kinds: [AgentKind] = []
                 if codexCursorTick == 0 {
@@ -222,16 +227,15 @@ public final class UsageMonitor {
         }
     }
 
-    private static var autoRefreshEnabled: Bool {
-        let defaults = UserDefaults.phloxDefaults()
+    private var autoRefreshEnabled: Bool {
         guard defaults.object(forKey: "phlox.usage.autoRefresh") != nil else {
             return true
         }
         return defaults.bool(forKey: "phlox.usage.autoRefresh")
     }
 
-    private static var claudeEnabled: Bool {
-        UserDefaults.phloxDefaults().object(forKey: "phlox.usage.claudeScrape") as? Bool != false
+    private var claudeEnabled: Bool {
+        defaults.object(forKey: "phlox.usage.claudeScrape") as? Bool != false
     }
 
     private static func makeProviders(environment: AppEnvironment) -> [AgentKind: any UsageProvider] {

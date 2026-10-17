@@ -22,6 +22,7 @@ shift
 configuration=""
 testability="absent"
 package=""
+scratch=""
 mode="$command_name"
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -31,6 +32,9 @@ while [ "$#" -gt 0 ]; do
       shift 2 ;;
     --configuration=*) configuration="${1#--configuration=}"; shift ;;
     --package-path=*) package="${1#--package-path=}"; shift ;;
+    --scratch-path)
+      [ "$#" -ge 2 ] || { echo 'missing scratch path' >&2; exit 2; }
+      scratch="$2"; shift 2 ;;
     -Xswiftc)
       [ "$#" -ge 2 ] || { echo 'missing compiler argument' >&2; exit 2; }
       if [ "$2" = "-enable-testing" ]; then testability=enabled; fi
@@ -43,11 +47,27 @@ done
 if [ -n "${FAKE_SWIFT_CALLS:-}" ]; then
   printf '%s %s %s %s\n' "$mode" "$configuration" "$package" "$testability" >> "$FAKE_SWIFT_CALLS"
 fi
+if [ -n "${FAKE_SWIFT_SCRATCH_CALLS:-}" ]; then
+  printf '%s\t%s\t%s\n' "$mode" "$package" "$scratch" >> "$FAKE_SWIFT_SCRATCH_CALLS"
+fi
+if [ -n "${FAKE_SWIFT_ASSET_ROOT:-}" ]; then
+  bundle="$FAKE_SWIFT_ASSET_ROOT/DesignSystem_DesignSystem.bundle"
+  if [ "$mode" = build-tests ]; then mkdir -p "$bundle/Icons.xcassets"; fi
+  if [ "$mode" = bin-path ]; then printf '%s\n' "$FAKE_SWIFT_ASSET_ROOT"; exit 0; fi
+  if [ "$mode" = test ] && [ ! -f "$bundle/Assets.car" ]; then echo 'assets were not prepared before tests' >&2; exit 24; fi
+fi
 echo "build noise"
 echo "✔ Test run with 3 tests in 1 suite passed after 0.001 seconds."
 if [ "${FAKE_SWIFT_FAIL:-0}" = "1" ]; then echo "failure detail"; exit 1; fi
 SWIFT
 chmod +x "$TEMP_DIR/bin/swift"
+cat > "$TEMP_DIR/bin/xcrun" <<'XCRUN'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = actool ] && [ "$2" = --compile ] || exit 25
+printf 'compiled\n' > "$3/Assets.car"
+XCRUN
+chmod +x "$TEMP_DIR/bin/xcrun"
 
 plain="$("$COMPACT_RUNNER" demo printf 'verbose output\n')"
 [[ "$plain" = "demo: OK（要約未対応）" ]] || { echo "unexpected compact output: $plain" >&2; exit 1; }
@@ -123,5 +143,35 @@ assert_exit "$bad_configuration_exit" 1
 assert_contains "$bad_configuration" "debug または release"
 [ ! -s "$FAKE_SWIFT_CALLS" ] || { echo 'invalid configuration reached swift' >&2; exit 1; }
 unset FAKE_SWIFT_CALLS
+
+# ビルド・素材の出力先検索・テストが、空白を含む同じ専用領域を使う。
+# 素材が無い初回と素材が更新された再実行の両方で、テストより前にactoolが終わる。
+export FAKE_SWIFT_SCRATCH_CALLS="$TEMP_DIR/scratch-calls"
+export FAKE_SWIFT_ASSET_ROOT="$TEMP_DIR/asset output"
+scratch_root="$TEMP_DIR/scratch output"
+for pass in first updated; do
+  : > "$FAKE_SWIFT_SCRATCH_CALLS"
+  if [ "$pass" = updated ]; then
+    printf 'stale\n' > "$FAKE_SWIFT_ASSET_ROOT/DesignSystem_DesignSystem.bundle/Assets.car"
+  fi
+  PATH="$TEMP_DIR/bin:$PATH" SWIFT_TEST_SCRATCH_ROOT="$scratch_root" \
+    SWIFT_TEST_FILTER=SuiteA "$RUNNER" DashboardFeature > "$TEMP_DIR/scratch-output"
+  for mode in build-tests bin-path test; do
+    expected="$(printf '%s\tPackages/DashboardFeature\t%s/DashboardFeature' "$mode" "$scratch_root")"
+    grep -Fxq "$expected" "$FAKE_SWIFT_SCRATCH_CALLS" || { echo "missing scratch route: $mode" >&2; exit 1; }
+  done
+  [ "$(cat "$FAKE_SWIFT_ASSET_ROOT/DesignSystem_DesignSystem.bundle/Assets.car")" = compiled ] || {
+    echo 'asset catalog was not refreshed' >&2; exit 1;
+  }
+done
+: > "$FAKE_SWIFT_SCRATCH_CALLS"
+set +e
+bad_scratch="$(PATH="$TEMP_DIR/bin:$PATH" SWIFT_TEST_SCRATCH_ROOT=relative "$RUNNER" AgentDomain 2>&1)"
+bad_scratch_exit=$?
+set -e
+assert_exit "$bad_scratch_exit" 1
+assert_contains "$bad_scratch" "絶対パス"
+[ ! -s "$FAKE_SWIFT_SCRATCH_CALLS" ] || { echo 'invalid scratch reached swift' >&2; exit 1; }
+unset FAKE_SWIFT_SCRATCH_CALLS FAKE_SWIFT_ASSET_ROOT
 
 echo "run-swift-tests-output.test: OK"

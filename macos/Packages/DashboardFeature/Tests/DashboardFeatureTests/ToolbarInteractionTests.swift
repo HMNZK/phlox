@@ -5,6 +5,7 @@ import DesignSystem
 import Testing
 @testable import DashboardFeature
 
+extension ThemeRenderingTests {
 @Suite("ヘッダーの開閉操作") @MainActor
 struct ToolbarInteractionTests {
     @Test("開閉操作は日英で独立した名前と選択状態を持つ", arguments: ["ja", "en"], [false, true])
@@ -81,6 +82,7 @@ struct ToolbarInteractionTests {
         try press("inspector-toggle")
         try await check(bottom: false, inspector: false)
     }
+}
 }
 
 @MainActor enum IntegrationFixAccessibility {

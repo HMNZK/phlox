@@ -89,20 +89,17 @@ struct GitInspectorTests {
         }
     }
 
-    @Test @MainActor func changesExpansionIsRestoredWhenViewIsRecreated() {
+    @Test @MainActor func changesExpansionIsRestoredWhenViewIsRecreated() throws {
         let key = "phlox.inspector.git.changesExpanded"
-        let defaults = UserDefaults.standard
-        let previous = defaults.object(forKey: key)
-        defer {
-            if let previous { defaults.set(previous, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
-        }
+        let suiteName = "GitInspectorTests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let model = EditorPanelViewModel(service: nil)
         defaults.removeObject(forKey: key)
-        let first = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in })
+        let first = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in }, defaults: defaults)
         #expect(first.changesExpanded)
         first.changesExpanded = false
-        let restored = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in })
+        let restored = GitInspectorView(model: model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in }, defaults: defaults)
         #expect(!restored.changesExpanded)
         #expect(!defaults.bool(forKey: key))
     }

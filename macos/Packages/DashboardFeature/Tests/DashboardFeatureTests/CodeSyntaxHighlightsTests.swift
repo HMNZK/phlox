@@ -4,6 +4,7 @@ import SwiftUI
 import Testing
 @testable import DashboardFeature
 
+extension ThemeRenderingTests {
 @Suite(.serialized)
 @MainActor
 struct CodeSyntaxHighlightsTests {
@@ -617,4 +618,5 @@ struct CodeSyntaxHighlightsTests {
         #expect(try pixels(view) != light)
     }
 
+}
 }

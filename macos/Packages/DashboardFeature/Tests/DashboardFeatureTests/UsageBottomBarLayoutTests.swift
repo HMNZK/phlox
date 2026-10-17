@@ -15,6 +15,7 @@ private struct FixedUsageProvider: UsageProvider {
     }
 }
 
+extension ThemeRenderingTests {
 @Suite("使用量バーの縦中央", .serialized)
 @MainActor
 struct UsageBottomBarLayoutTests {
@@ -24,18 +25,10 @@ struct UsageBottomBarLayoutTests {
     ])
     func logoAndTextAreCentered(width: Double, appearance: (light: Bool, style: UsageSettings.BottomBarStyle)) async throws {
         let light = appearance.light
-        // swift test は xcassets をコンパイルしないため、実ロゴを描く前に actool を通す。
+        // 他の描画が欠落画像を参照する前に、標準テスト入口で素材を準備する。
         let resources = try #require(AgentBrandIcon.assetBundle.resourceURL)
-        if !FileManager.default.fileExists(atPath: resources.appendingPathComponent("Assets.car").path) {
-            let compiler = Process()
-            compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            compiler.arguments = ["actool", "--compile", resources.path, "--platform", "macosx",
-                                  "--minimum-deployment-target", "14.0",
-                                  resources.appendingPathComponent("Icons.xcassets").path]
-            try compiler.run()
-            compiler.waitUntilExit()
-            try #require(compiler.terminationStatus == 0)
-        }
+        try #require(FileManager.default.fileExists(atPath: resources.appendingPathComponent("Assets.car").path),
+                     "macos/scripts/run-swift-tests.sh で描画前に画像素材を準備してください")
         let defaults = UserDefaults.standard
         let saved = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
         var arguments = saved
@@ -84,4 +77,5 @@ struct UsageBottomBarLayoutTests {
                     "幅 \(width)、light=\(light)、\(appearance.style)、範囲 \(range): 描画の縦中央 \(center)")
         }
     }
+}
 }

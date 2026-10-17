@@ -13,10 +13,12 @@ public final class TerminalPanelSession {
 
     private var outputToken: UUID?
     private let localizationBundle: Bundle
+    private let defaults: UserDefaults
 
-    public init(controller: UserTerminalController, localizationBundle: Bundle = .main) {
+    public init(controller: UserTerminalController, localizationBundle: Bundle = .main, defaults: UserDefaults = .standard) {
         self.controller = controller
         self.localizationBundle = localizationBundle
+        self.defaults = defaults
         let coordinator = TerminalCoordinator()
         coordinator.applyFontSize(TerminalFontSettings.currentSize())
         self.terminalCoordinator = coordinator
@@ -28,7 +30,7 @@ public final class TerminalPanelSession {
                 do {
                     try await controller.send(input)
                 } catch {
-                    coordinator?.feed(Data("\r\n\(AppLocalizedString.string("[ターミナル入力を送信できませんでした]", locale: Self.displayLocale, bundle: localizationBundle))\r\n".utf8))
+                    coordinator?.feed(Data("\r\n\(AppLocalizedString.string("[ターミナル入力を送信できませんでした]", locale: Self.displayLocale(defaults: defaults), bundle: localizationBundle))\r\n".utf8))
                 }
             }
         }
@@ -40,7 +42,7 @@ public final class TerminalPanelSession {
                     try await controller.resize(cols: cols, rows: rows)
                 } catch {
                     // 07 D7: 赤（#FF8A8D）の 1 行。端末は常に暗い面なので色は固定。
-                    let message = String(format: AppLocalizedString.string("[Phlox] シェルのサイズ変更に失敗しました（%@）。", locale: TerminalPanelSession.displayLocale, bundle: localizationBundle), error.localizedDescription)
+                    let message = String(format: AppLocalizedString.string("[Phlox] シェルのサイズ変更に失敗しました（%@）。", locale: Self.displayLocale(defaults: defaults), bundle: localizationBundle), error.localizedDescription)
                     coordinator?.feed(Data("\r\n\u{1B}[38;2;255;138;141m\(message)\u{1B}[0m\r\n".utf8))
                 }
             }
@@ -56,7 +58,11 @@ public final class TerminalPanelSession {
 
     /// 端末に流す文言の表示言語（App の `LanguageSettings` と同じキー。未設定・"system" は OS に従う）。
     static var displayLocale: Locale {
-        guard let code = UserDefaults.standard.string(forKey: "phlox.appLanguage"), code != "system" else { return .autoupdatingCurrent }
+        displayLocale(defaults: .standard)
+    }
+
+    private static func displayLocale(defaults: UserDefaults) -> Locale {
+        guard let code = defaults.string(forKey: "phlox.appLanguage"), code != "system" else { return .autoupdatingCurrent }
         return Locale(identifier: code)
     }
 
@@ -65,7 +71,7 @@ public final class TerminalPanelSession {
         do {
             try await controller.ensureStarted()
         } catch {
-            terminalCoordinator.feed(Data("\r\n\(AppLocalizedString.string("[シェルを開始できませんでした]", locale: Self.displayLocale, bundle: localizationBundle))\r\n".utf8))
+            terminalCoordinator.feed(Data("\r\n\(AppLocalizedString.string("[シェルを開始できませんでした]", locale: Self.displayLocale(defaults: defaults), bundle: localizationBundle))\r\n".utf8))
         }
     }
 
@@ -81,7 +87,7 @@ public final class TerminalPanelSession {
         do {
             try await controller.restart()
         } catch {
-            terminalCoordinator.feed(Data("\r\n\(AppLocalizedString.string("[シェルを開始できませんでした]", locale: Self.displayLocale, bundle: localizationBundle))\r\n".utf8))
+            terminalCoordinator.feed(Data("\r\n\(AppLocalizedString.string("[シェルを開始できませんでした]", locale: Self.displayLocale(defaults: defaults), bundle: localizationBundle))\r\n".utf8))
         }
     }
 

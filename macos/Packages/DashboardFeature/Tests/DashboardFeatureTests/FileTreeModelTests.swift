@@ -178,9 +178,11 @@ struct FileTreeModelTests {
             var count = 0
         }
         let received = Received()
+        let expectedRoot = root.path
         let token = NotificationCenter.default.addObserver(forName: .fileTreeFileSaved, object: nil, queue: nil) { notification in
             let root = notification.userInfo?["root"] as? String
             let path = notification.userInfo?["path"] as? String
+            guard root == expectedRoot, path == "dir/a.txt" else { return }
             MainActor.assumeIsolated {
                 received.root = root
                 received.path = path
@@ -188,6 +190,12 @@ struct FileTreeModelTests {
             }
         }
         defer { NotificationCenter.default.removeObserver(token) }
+        // 別の文書の保存通知は、この文書の保存回数に含めない。
+        NotificationCenter.default.post(name: .fileTreeFileSaved, object: nil,
+                                        userInfo: ["root": expectedRoot + "/other", "path": "dir/a.txt"])
+        NotificationCenter.default.post(name: .fileTreeFileSaved, object: nil,
+                                        userInfo: ["root": expectedRoot, "path": "other.txt"])
+        #expect(received.count == 0)
         try Data().write(to: directory.appendingPathComponent("new.txt"))
         #expect(try await document.save() == .saved)
         #expect(received.count == 1)

@@ -6,12 +6,13 @@ import Testing
 @testable import DashboardFeature
 
 /// 表示中のアプリや入力ソースを操作せず、実物の View と responder を描画する。
+extension ThemeRenderingTests {
 @Suite("一覧と端末の外枠の描画", .serialized) @MainActor
 struct FocusBorderRenderTests {
     @Test("クリック後にポインタを外しても選択を塗り、Return はその行を変更する",
           arguments: [false, true])
     func clickedSelection(folder: Bool) async throws {
-        try await withAppearance {
+        try await withAppearance { _ in
             let root = try fixtureDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             try FileManager.default.createDirectory(at: root.appendingPathComponent("docs"), withIntermediateDirectories: true)
@@ -56,7 +57,7 @@ struct FocusBorderRenderTests {
     @Test("入力先のある一覧・差分・下部端末の外周にフォーカス枠を描かない",
           arguments: ["files", "git-list", "git-diff", "terminal"])
     func focusedPerimeter(target: String) async throws {
-        try await withAppearance {
+        try await withAppearance { defaults in
             let root = try fixtureDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let window: NSWindow
@@ -85,7 +86,7 @@ struct FocusBorderRenderTests {
                     window = makeWindow(EditorPanelView(viewModel: model, workingDirectory: fixture.root.path, focusRequest: 1))
                 } else {
                     window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
-                        openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1))
+                        openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1, defaults: defaults))
                 }
             }
             let host = try #require(window.contentView)
@@ -166,19 +167,7 @@ struct FocusBorderRenderTests {
     }
 
     @Test func 折りたたむと見出しへ入力先が移りキーでindexを変えない() async throws {
-        try await withAppearance {
-            // 共通の撮影設定の argumentDomain は保存値より優先され、開閉を固定してしまう。
-            let defaults = UserDefaults.standard
-            let expansionKey = "phlox.inspector.git.changesExpanded"
-            var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-            arguments.removeValue(forKey: expansionKey)
-            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
-            let previous = defaults.object(forKey: expansionKey)
-            defaults.set(true, forKey: expansionKey)
-            defer {
-                if let previous { defaults.set(previous, forKey: expansionKey) }
-                else { defaults.removeObject(forKey: expansionKey) }
-            }
+        try await withAppearance { defaults in
             let root = try fixtureDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let fixture = try GitWorkflowRenderFixture(parent: root)
@@ -188,7 +177,7 @@ struct FocusBorderRenderTests {
             let before = try await WorkingTreeService(repositoryRoot: fixture.root).snapshot()
             let index = try await WorkingTreeService(repositoryRoot: fixture.root).fileContents("Sources/Workflow.swift", source: .staged)
             let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
-                openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1))
+                openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1, defaults: defaults))
             defer { close(window) }
             let host = try #require(window.contentView)
             try await settle(host)
@@ -208,15 +197,12 @@ struct FocusBorderRenderTests {
     }
 
     @Test func 履歴の開いた区画だけを上下キーで移動する() async throws {
-        try await withAppearance {
-            let defaults = UserDefaults.standard
-            var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-            arguments["phlox.inspector.git.commitsExpanded"] = true
-            arguments["phlox.inspector.git.branchesExpanded"] = false
-            arguments["phlox.inspector.git.remotesExpanded"] = false
-            arguments["phlox.inspector.git.stashesExpanded"] = false
-            arguments["phlox.inspector.git.graphExpanded"] = false
-            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        try await withAppearance { defaults in
+            defaults.set(true, forKey: "phlox.inspector.git.commitsExpanded")
+            defaults.set(false, forKey: "phlox.inspector.git.branchesExpanded")
+            defaults.set(false, forKey: "phlox.inspector.git.remotesExpanded")
+            defaults.set(false, forKey: "phlox.inspector.git.stashesExpanded")
+            defaults.set(false, forKey: "phlox.inspector.git.graphExpanded")
             let fixture = try GitHistoryFixture()
             defer { fixture.remove() }
             let model = fixture.model()
@@ -224,7 +210,7 @@ struct FocusBorderRenderTests {
             await model.setHistorySection(.commits, expanded: true)
             let commit = try #require(model.historyCommits.first)
             let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
-                openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1))
+                openChanges: { _, _, _ in }, openFile: { _ in }, focusRequest: 1, defaults: defaults))
             defer { close(window) }
             let host = try #require(window.contentView)
             try await settle(host)
@@ -253,7 +239,7 @@ struct FocusBorderRenderTests {
     }
 
     @Test func 選択行のControlReturnで行メニューを開く() async throws {
-        try await withAppearance {
+        try await withAppearance { defaults in
             let root = try fixtureDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let fixture = try GitWorkflowRenderFixture(parent: root)
@@ -261,7 +247,8 @@ struct FocusBorderRenderTests {
             await model.refresh()
             await model.select("Sources/Workflow.swift", source: .worktree)
             let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
-                openChanges: { _, _, _ in Issue.record("ControlReturn が差分を開いた") }, openFile: { _ in }, focusRequest: 1))
+                openChanges: { _, _, _ in Issue.record("ControlReturn が差分を開いた") }, openFile: { _ in }, focusRequest: 1,
+                defaults: defaults))
             defer { close(window) }
             let host = try #require(window.contentView)
             try await settle(host)
@@ -276,7 +263,7 @@ struct FocusBorderRenderTests {
     }
 
     @Test func コミット欄のCommandReturnだけがコミットする() async throws {
-        try await withAppearance {
+        try await withAppearance { defaults in
             let root = try fixtureDirectory()
             defer { try? FileManager.default.removeItem(at: root) }
             let fixture = try GitWorkflowRenderFixture(parent: root)
@@ -285,7 +272,7 @@ struct FocusBorderRenderTests {
             model.commitMessage = "キーからのコミット"
             model.requestCommitFocus()
             let window = makeWindow(GitInspectorView(model: model, workingDirectory: fixture.root.path,
-                openChanges: { _, _, _ in }, openFile: { _ in }))
+                openChanges: { _, _, _ in }, openFile: { _ in }, defaults: defaults))
             let host = try #require(window.contentView)
             try await settle(host)
             #expect(model.commitMessageFocused)
@@ -321,7 +308,11 @@ struct FocusBorderRenderTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
-    private func withAppearance(_ body: () async throws -> Void) async throws {
+    private func withAppearance(_ body: @MainActor (UserDefaults) async throws -> Void) async throws {
+        let suiteName = "FocusBorderRenderTests-\(UUID())"
+        let gitDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { gitDefaults.removePersistentDomain(forName: suiteName) }
+        gitDefaults.set(true, forKey: "phlox.inspector.git.changesExpanded")
         _ = NSApplication.shared
         let originalClass: AnyClass = try #require(object_getClass(NSApp))
         try #require(class_getInstanceSize(originalClass) == class_getInstanceSize(FocusRenderApplication.self))
@@ -335,7 +326,6 @@ struct FocusBorderRenderTests {
         let appearance = NSApp.appearance
         var dark = arguments
         dark[ThemeStore.themeKey] = AppTheme.phlox.id
-        dark["phlox.inspector.git.changesExpanded"] = true
         defaults.setVolatileDomain(dark, forName: UserDefaults.argumentDomain)
         NSApp.appearance = NSAppearance(named: .darkAqua)
         defer {
@@ -345,7 +335,7 @@ struct FocusBorderRenderTests {
             defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
             NSApp.appearance = appearance
         }
-        try await body()
+        try await body(gitDefaults)
     }
     private func makeWindow(_ content: some View) -> NSWindow {
         let host = NSHostingView(rootView: content.frame(width: 320, height: 420)
@@ -400,6 +390,7 @@ struct FocusBorderRenderTests {
         window.sendEvent(event)
     }
     private func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+}
 }
 
 @MainActor private final class FocusRenderWindow: NSWindow {

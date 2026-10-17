@@ -17,3 +17,42 @@ public struct AgentModels: Sendable, Equatable, Decodable {
         self.defaultModel = defaultModel
     }
 }
+
+/// A setting value and the display name supplied by the Mac. `nil` means the agent's default.
+public struct AgentSettingOption: Sendable, Equatable, Decodable {
+    public let value: String?
+    public let displayName: String
+
+    public init(value: String?, displayName: String) {
+        self.value = value
+        self.displayName = displayName
+    }
+}
+
+/// Settings supported when starting a session for an agent.
+public struct AgentSettings: Sendable, Equatable, Decodable {
+    public let availableEfforts: [String: [AgentSettingOption]]
+    public let availablePermissions: [AgentSettingOption]
+    public let planModeAvailable: Bool
+
+    public init(
+        availableEfforts: [String: [AgentSettingOption]],
+        availablePermissions: [AgentSettingOption],
+        planModeAvailable: Bool
+    ) {
+        self.availableEfforts = availableEfforts
+        self.availablePermissions = availablePermissions
+        self.planModeAvailable = planModeAvailable
+    }
+}
+
+/// One Mac project returned by `GET /projects`.
+public struct ProjectSummary: Sendable, Equatable, Identifiable, Decodable {
+    public let id: String
+    public let name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+}

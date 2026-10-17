@@ -297,6 +297,54 @@ import SessionFeature
         #expect(sessions.first?["workspace"] as? String == "ws-0")
     }
 
+    @Test func listSessionsPassesDisplayMetadataAndUTCDate() async throws {
+        let dashboard = DashboardStub()
+        let parentID = SessionID()
+        let childID = SessionID()
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-10-17T14:12:00+09:00"))
+        dashboard.controlSessionSummaries = [
+            ControlSessionSummary(
+                id: childID, name: "child", agentID: "claudeCode", status: .running, workspaceName: "repo",
+                projectID: "P-123", projectName: "My Repo", backend: .appServer,
+                isStalled: true, hasUnseenCompletion: true, parentSessionID: parentID, statusEnteredAt: date
+            ),
+            ControlSessionSummary(
+                id: parentID, name: "terminal", agentID: "shell", status: .idle, workspaceName: "repo", backend: .pty
+            ),
+        ]
+        let response = await makeHandler(dashboard).handle(request(.listSessions))
+        #expect(response.statusCode == 200)
+        let sessions = try #require(bodyJSON(response)["sessions"] as? [[String: Any]])
+        #expect(sessions.count == 2)
+        #expect(sessions[0]["id"] as? String == childID.rawValue.uuidString)
+        #expect(sessions[0]["projectId"] as? String == "P-123")
+        #expect(sessions[0]["projectName"] as? String == "My Repo")
+        #expect(sessions[0]["status"] as? String == "running")
+        #expect(sessions[0]["backend"] as? String == SessionBackend.appServer.rawValue)
+        #expect(sessions[0]["isStalled"] as? Bool == true)
+        #expect(sessions[0]["hasUnseenCompletion"] as? Bool == true)
+        #expect(sessions[0]["parentSessionId"] as? String == parentID.rawValue.uuidString)
+        #expect(sessions[0]["statusEnteredAt"] as? String == "2026-10-17T05:12:00Z")
+        #expect(sessions[1]["backend"] as? String == SessionBackend.pty.rawValue)
+        #expect(sessions[1]["status"] as? String == "idle")
+        #expect(sessions[1]["isStalled"] as? Bool == false)
+        #expect(sessions[1]["hasUnseenCompletion"] as? Bool == false)
+        #expect(sessions[1]["parentSessionId"] == nil)
+        #expect(sessions[1]["statusEnteredAt"] == nil)
+    }
+
+    @Test func sessionSummariesFollowSidebarThenPreserveUnlistedOrder() {
+        let sessions = (0..<5).map { index in
+            ControlSessionSummary(id: SessionID(), name: "session-\(index)", agentID: "codex", status: .idle, workspaceName: "repo")
+        }
+        let ordered = ControlSessionSummary.orderedForSidebar(
+            sessions, sessionIDs: [sessions[3].id, SessionID(), sessions[1].id, sessions[4].id]
+        )
+        #expect(ordered.map(\.id) == [3, 1, 4, 0, 2].map { sessions[$0].id })
+        #expect(ControlSessionSummary.orderedForSidebar(sessions, sessionIDs: []).map(\.id) == sessions.map(\.id))
+        #expect(ControlSessionSummary.orderedForSidebar([], sessionIDs: sessions.map(\.id)).isEmpty)
+    }
+
     // MARK: - messages（GET /sessions/{id}/messages）
 
     @Test func messagesReturns404WhenSessionIsNotStructured() async throws {

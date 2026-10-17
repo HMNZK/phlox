@@ -31,46 +31,6 @@ struct APIExtensionsAcceptanceTests {
         }
     }
 
-    // MARK: - §2 subagents 一覧
-
-    @Test("subAgents は一覧 JSON をドメインへ写す")
-    func subAgentsDecodesContract() async throws {
-        let fixture = #"""
-        {"sessionId":"s1","subAgents":[
-          {"id":"sa-1","name":"explore-map","status":"running","messageCount":12,"markerMessageId":"msg-42"},
-          {"id":"sa-2","name":"reviewer","status":"weird-future-status","messageCount":0}
-        ]}
-        """#
-        let harness = Harness(outcomes: [(200, Data(fixture.utf8))])
-        let list = try await harness.client.subAgents(sessionID: "s1")
-        #expect(harness.lastRequest?.url?.path == "/sessions/s1/subagents")
-        #expect(list == [
-            SubAgentSummary(id: "sa-1", name: "explore-map", status: .running,
-                            messageCount: 12, markerMessageID: "msg-42"),
-            SubAgentSummary(id: "sa-2", name: "reviewer", status: .unknown,
-                            messageCount: 0, markerMessageID: nil),
-        ], "未知 status は unknown へ写す・markerMessageId 欠落は nil")
-    }
-
-    // MARK: - §3 subagent メッセージ
-
-    @Test("subAgentMessages は既存 /messages と同じメッセージ形状を写す")
-    func subAgentMessagesDecodesContract() async throws {
-        let fixture = #"""
-        {"sessionId":"s1","subAgentId":"sa-1","messages":[
-          {"id":"m1","type":"agent","text":"探索中"},
-          {"id":"m2","type":"command","command":"ls","output":"a.txt"}
-        ]}
-        """#
-        let harness = Harness(outcomes: [(200, Data(fixture.utf8))])
-        let messages = try await harness.client.subAgentMessages(sessionID: "s1", subAgentID: "sa-1")
-        #expect(harness.lastRequest?.url?.path == "/sessions/s1/subagents/sa-1/messages")
-        #expect(messages == [
-            .agent(id: "m1", text: "探索中"),
-            .command(id: "m2", command: "ls", output: "a.txt"),
-        ])
-    }
-
     // MARK: - §4 usage
 
     @Test("usage は turn の値をドメインへ写す")

@@ -49,7 +49,7 @@ lint はリポジトリ全体ではなく `Packages/PhloxKit` スコープで実
 1. **集約グループの開閉キーがグループ先頭 message の id と同一** — 単独グループではヘッダと唯一の行の開閉状態が共有される。
    2件以上の先頭行でも変更前から存在する既存挙動で実害なしと判断。恒久対策は開閉キーの別名前空間化（→ ADR 0026「既知の残課題」）。
 2. **`SessionDetailView.chatRow(for:)` の `.command` 分岐が transcript 経路から到達不能** — `switch` の網羅性に必要で
-   `SubAgentDetailView` では今も使うため削除しない。
+   この作業時点では `SubAgentDetailView` でも使うため削除しなかった。サブエージェント詳細は後の再設計の段階 2 で廃止（U-21、[作業記録 0022](0022-ios-redesign-stage2-worklog.md)）。
 3. **`ios/App/AppRoot.swift` の既存 lint 違反**（上記）。
 4. **デモ経路にチャット transcript のモックデータが無い**（`AppEnvironment+UITesting` の `messages(sessionID:)` が空配列を返す）ため、
    シミュレータのデモ画面ではツールコール行を目視できない。今回は `ImageRenderer` で代替した。

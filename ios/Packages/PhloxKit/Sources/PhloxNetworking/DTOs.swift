@@ -16,6 +16,32 @@ struct SessionDTO: Decodable {
     let workspace: String?
     let projectId: String?
     let projectName: String?
+    let backend: String
+    let isStalled: Bool
+    let hasUnseenCompletion: Bool
+    let parentSessionId: String?
+    let statusEnteredAt: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, kind, status, workspace, projectId, projectName
+        case backend, isStalled, hasUnseenCompletion, parentSessionId, statusEnteredAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        kind = try container.decode(String.self, forKey: .kind)
+        status = try container.decode(String.self, forKey: .status)
+        workspace = try container.decodeIfPresent(String.self, forKey: .workspace)
+        projectId = try container.decodeIfPresent(String.self, forKey: .projectId)
+        projectName = try container.decodeIfPresent(String.self, forKey: .projectName)
+        backend = try container.decodeIfPresent(String.self, forKey: .backend) ?? "appServer"
+        isStalled = try container.decodeIfPresent(Bool.self, forKey: .isStalled) ?? false
+        hasUnseenCompletion = try container.decodeIfPresent(Bool.self, forKey: .hasUnseenCompletion) ?? false
+        parentSessionId = try container.decodeIfPresent(String.self, forKey: .parentSessionId)
+        statusEnteredAt = try container.decodeIfPresent(String.self, forKey: .statusEnteredAt)
+    }
 
     /// Domain へ変換。未知 kind（カスタム CLI 等）は MVP では nil（呼び出し側で除外）。
     func toDomain(now: Date = Date()) -> Session? {
@@ -28,8 +54,18 @@ struct SessionDTO: Decodable {
             subtitle: workspace ?? "",
             projectId: projectId,
             projectName: projectName,
+            backend: backend,
+            isStalled: isStalled,
+            hasUnseenCompletion: hasUnseenCompletion,
+            parentSessionId: parentSessionId,
+            statusEnteredAt: parsedStatusEnteredAt(),
             updatedAt: now
         )
+    }
+
+    private func parsedStatusEnteredAt() -> Date? {
+        guard let statusEnteredAt else { return nil }
+        return ISO8601DateFormatter().date(from: statusEnteredAt)
     }
 }
 
@@ -156,13 +192,17 @@ struct UserQuestionItemDTO: Decodable {
     let header: String
     let multiSelect: Bool
     let options: [UserQuestionOptionDTO]
+    let toolName: String?
+    let toolDetail: String?
 
     func toDomain() -> UserQuestionItem {
         UserQuestionItem(
             question: question,
             header: header,
             options: options.map { $0.toDomain() },
-            multiSelect: multiSelect
+            multiSelect: multiSelect,
+            toolName: toolName,
+            toolDetail: toolDetail
         )
     }
 }
@@ -193,6 +233,9 @@ struct SpawnRequestDTO: Encodable {
     let backend: String
     let model: String?
     let projectId: String?
+    let effort: String?
+    let permission: String?
+    let planMode: Bool?
 }
 
 /// `POST /sessions`（spawn）のレスポンス。Mac は新規セッション **id のみ**返す（`{"id": …}`）。
@@ -239,28 +282,6 @@ struct SendAttachmentDTO: Encodable {
 }
 
 // MARK: - API 拡張契約 v1（docs/specs/mobile-api-extensions-contract.md）
-
-struct SubAgentsListDTO: Decodable {
-    let subAgents: [SubAgentDTO]
-}
-
-struct SubAgentDTO: Decodable {
-    let id: String
-    let name: String
-    let status: String
-    let messageCount: Int
-    let markerMessageId: String?
-
-    func toDomain() -> SubAgentSummary {
-        SubAgentSummary(
-            id: id,
-            name: name,
-            status: SubAgentStatus(rawValue: status) ?? .unknown,
-            messageCount: messageCount,
-            markerMessageID: markerMessageId
-        )
-    }
-}
 
 struct UsageDTO: Decodable {
     let turn: TurnUsageDTO?
@@ -315,24 +336,75 @@ struct RespondToQuestionRequestDTO: Encodable {
 
 // MARK: - Model selection (task-6 / PhloxModelWireContract)
 
+struct AgentSettingsResponseDTO: Decodable {
+    let availableEfforts: [String: [AgentSettingOption]]
+    let availablePermissions: [AgentSettingOption]
+    let planModeAvailable: Bool
+
+    func toDomain() -> AgentSettings {
+        AgentSettings(
+            availableEfforts: availableEfforts,
+            availablePermissions: availablePermissions,
+            planModeAvailable: planModeAvailable
+        )
+    }
+}
+
+struct ProjectsResponseDTO: Decodable {
+    let projects: [ProjectSummary]
+}
+
 public struct SessionModelSettings: Sendable, Equatable {
     public let selectedModel: String?
     public let availableModels: [SessionModelOption]
+    public let selectedEffort: String?
+    public let availableEfforts: [AgentSettingOption]
+    public let selectedPermission: String?
+    public let availablePermissions: [AgentSettingOption]
+    public let planMode: Bool
+    public let planModeAvailable: Bool
 
-    public init(selectedModel: String?, availableModels: [SessionModelOption]) {
+    public init(
+        selectedModel: String?,
+        availableModels: [SessionModelOption],
+        selectedEffort: String? = nil,
+        availableEfforts: [AgentSettingOption] = [],
+        selectedPermission: String? = nil,
+        availablePermissions: [AgentSettingOption] = [],
+        planMode: Bool = false,
+        planModeAvailable: Bool = false
+    ) {
         self.selectedModel = selectedModel
         self.availableModels = availableModels
+        self.selectedEffort = selectedEffort
+        self.availableEfforts = availableEfforts
+        self.selectedPermission = selectedPermission
+        self.availablePermissions = availablePermissions
+        self.planMode = planMode
+        self.planModeAvailable = planModeAvailable
     }
 }
 
 struct SessionModelSettingsDTO: Decodable {
     let selectedModel: String?
     let availableModels: [SessionModelOptionDTO]
+    let selectedEffort: String?
+    let availableEfforts: [AgentSettingOption]?
+    let selectedPermission: String?
+    let availablePermissions: [AgentSettingOption]?
+    let planMode: Bool?
+    let planModeAvailable: Bool?
 
     func toDomain() -> SessionModelSettings {
         SessionModelSettings(
             selectedModel: selectedModel,
-            availableModels: availableModels.map { $0.toDomain() }
+            availableModels: availableModels.map { $0.toDomain() },
+            selectedEffort: selectedEffort,
+            availableEfforts: availableEfforts ?? [],
+            selectedPermission: selectedPermission,
+            availablePermissions: availablePermissions ?? [],
+            planMode: planMode ?? false,
+            planModeAvailable: planModeAvailable ?? false
         )
     }
 }
@@ -348,6 +420,23 @@ struct SessionModelOptionDTO: Decodable {
 
 struct SetModelRequestDTO: Encodable {
     let model: String
+}
+
+struct SetSessionSettingsRequestDTO: Encodable {
+    let update: SessionSettingsUpdate
+
+    private enum CodingKeys: String, CodingKey {
+        case effort, permission, planMode
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(update.effort, forKey: .effort)
+        if let permission = update.permission {
+            try container.encode(permission, forKey: .permission)
+        }
+        try container.encodeIfPresent(update.planMode, forKey: .planMode)
+    }
 }
 
 extension SessionStatus {

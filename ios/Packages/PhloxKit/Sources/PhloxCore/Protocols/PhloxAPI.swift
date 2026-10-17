@@ -2,7 +2,7 @@ import Foundation
 
 /// Mac（Phlox プロキシ）への HTTP API 窓口（DI シーム）。
 ///
-/// 実体は `actor PhloxAPIClient`（PhloxNetworking / E3-1）。全 7 エンドポイントの論理操作を提供する。
+/// 実体は `actor PhloxAPIClient`（PhloxNetworking / E3-1）。Mac REST API の論理操作を提供する。
 /// wire DTO・エンドポイントパス・PhloxError 正規化は PhloxNetworking 側に閉じ、戻り値は PhloxCore の
 /// 集約モデル（`Session` / `Approval`、E1-3）で表現する。
 public protocol PhloxAPI: Sendable {
@@ -12,6 +12,10 @@ public protocol PhloxAPI: Sendable {
     func spawn(_ request: SpawnRequest) async throws -> Session
     /// GET /agents/{kind}/models（起動前に選択可能なモデル一覧）
     func agentModels(kind: AgentKind) async throws -> AgentModels
+    /// GET /agents/{kind}/settings。未対応の古い Mac は nil。
+    func agentSettings(kind: AgentKind) async throws -> AgentSettings?
+    /// GET /projects。未対応の古い Mac は nil。
+    func projects() async throws -> [ProjectSummary]?
     /// GET /usage（エージェント別のアカウント使用量）
     func cliUsage() async throws -> [CLIUsage]
     /// GET /sessions/{id}/ready（入力受付可能になるまで Mac 側でロングポーリング待機）。ready 値を返す。
@@ -36,10 +40,6 @@ public protocol PhloxAPI: Sendable {
 
     /// POST /sessions/{id}/interrupt（実行中ターンの停止。契約 §1）
     func interrupt(sessionID: String) async throws
-    /// GET /sessions/{id}/subagents（契約 §2）
-    func subAgents(sessionID: String) async throws -> [SubAgentSummary]
-    /// GET /sessions/{id}/subagents/{subAgentId}/messages（契約 §3）
-    func subAgentMessages(sessionID: String, subAgentID: String) async throws -> [ChatMessage]
     /// GET /sessions/{id}/usage（契約 §4。ターンが無ければ nil）
     func usage(sessionID: String) async throws -> TurnUsage?
     /// GET /sessions/{id}/messages?since=…&wait=…（契約 §6。差分取得）
@@ -62,16 +62,12 @@ public extension PhloxAPI {
         throw PhloxError.server(status: 501, message: "cliUsage: 未実装")
     }
 
+    func agentSettings(kind: AgentKind) async throws -> AgentSettings? { nil }
+
+    func projects() async throws -> [ProjectSummary]? { nil }
+
     func interrupt(sessionID: String) async throws {
         throw PhloxError.server(status: 501, message: "interrupt: 未実装（task-7）")
-    }
-
-    func subAgents(sessionID: String) async throws -> [SubAgentSummary] {
-        throw PhloxError.server(status: 501, message: "subAgents: 未実装（task-7）")
-    }
-
-    func subAgentMessages(sessionID: String, subAgentID: String) async throws -> [ChatMessage] {
-        throw PhloxError.server(status: 501, message: "subAgentMessages: 未実装（task-7）")
     }
 
     func usage(sessionID: String) async throws -> TurnUsage? {

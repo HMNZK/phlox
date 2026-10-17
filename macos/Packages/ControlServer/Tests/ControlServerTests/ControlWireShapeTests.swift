@@ -40,6 +40,38 @@ import Testing
         #expect(sessions[1]["projectName"] == nil)
     }
 
+    @Test("一覧の表示用項目は常に出し、親と状態の時刻は nil ならキーを省略する")
+    func sessionListDisplayMetadataWireShape() throws {
+        let response = ControlSessionListResponse(sessions: [
+            ControlSessionListItem(
+                id: "child", name: "Claude", kind: "claudeCode", status: "running", workspace: "repo",
+                backend: "appServer", isStalled: true, hasUnseenCompletion: true,
+                parentSessionId: "parent", statusEnteredAt: "2026-10-17T05:12:00Z"
+            ),
+            ControlSessionListItem(
+                id: "terminal", name: "Shell", kind: "shell", status: "idle", workspace: "repo",
+                backend: "pty"
+            ),
+            ControlSessionListItem(id: "legacy", name: "Codex", kind: "codex", status: "idle", workspace: "repo"),
+        ])
+        let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(response)) as? [String: Any])
+        let sessions = try #require(object["sessions"] as? [[String: Any]])
+        #expect(sessions.count == 3)
+        #expect(sessions[0]["backend"] as? String == "appServer")
+        #expect(sessions[0]["isStalled"] as? Bool == true)
+        #expect(sessions[0]["hasUnseenCompletion"] as? Bool == true)
+        #expect(sessions[0]["parentSessionId"] as? String == "parent")
+        #expect(sessions[0]["statusEnteredAt"] as? String == "2026-10-17T05:12:00Z")
+        #expect(sessions[1]["backend"] as? String == "pty")
+        #expect(sessions[2]["backend"] as? String == "appServer")
+        for session in sessions.dropFirst() {
+            #expect(session["isStalled"] as? Bool == false)
+            #expect(session["hasUnseenCompletion"] as? Bool == false)
+            #expect(session["parentSessionId"] == nil)
+            #expect(session["statusEnteredAt"] == nil)
+        }
+    }
+
     @Test("CLI usage は agents/buckets 形と nullable 日付を産出する")
     func cliUsageWireShape() throws {
         let response = ControlCLIUsageResponse(agents: [

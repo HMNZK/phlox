@@ -45,6 +45,8 @@ public struct StubPhloxAPI: PhloxAPI {
     }
 
     public func listSessions() async throws -> [Session] { sessions }
+    public func agentSettings(kind: AgentKind) async throws -> AgentSettings? { nil }
+    public func projects() async throws -> [ProjectSummary]? { nil }
     public func waitUntilReady(sessionID: String) async throws -> Bool { true }
     public func approvals() async throws -> [Approval] { approvals }
     public func messages(sessionID: String) async throws -> [ChatMessage] { chatMessages }

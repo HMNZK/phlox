@@ -70,3 +70,14 @@ iPhone の入力欄を Mac の新規チャットと揃える（iOS 再設計）�
    - 表示名ではなく固定の語で返す。Mac の見出しの文言は翻訳を通るため、値として送ると iPhone で比較できない。
    - 棄却案: `prompt` の文字列から推測する。Mac の文言の変更で壊れる。
    - Claude Code の許可はこの一覧に載らない（追記 5 の質問カード）ので対象外。
+
+## 追記（2026-10-17）: 一覧の無応答・未読・親子・端末と、許可の質問の印
+
+8. **`GET /sessions` の各要素に `backend`・`isStalled`・`hasUnseenCompletion`・`parentSessionId`・`statusEnteredAt` を足し、並びを Mac のサイドバーの順にする**（契約 §8.10。iOS 再設計の U-2・U-3・U-6）。
+   - iPhone の一覧を Mac のサイドバーと同じ規則で描くため。表示の状態は値を送るのではなく、元の値を送って iPhone も共有の `SessionDisplayState.resolve` で決める。規則を 2 か所に持たない。
+   - `status` は変えない。Phlox CLI の `wait` などが今の意味で使っている。背景作業中の昇格（`displayStatus`）は一覧の見た目のための値で、CLI の完了判定に混ぜると待ちが変わる。
+   - 「終了」は足さない。Mac の `SessionStatus` に無く、端末のプロセスが終わると完了（終了コード 0）かエラーになる。新しい状態を作るのは Mac の挙動を変えることになり、iPhone の再設計の範囲を超える。
+   - 端末かどうかは `backend`（spawn の `backend` と同じ語）。iPhone は端末のセッションを会話の形で読めないので「表示できません」を出す（iOS ADR 0044）。
+   - 棄却案: 表示用の状態の語（「無応答」「未読」）を Mac が文字列で返す。表示言語に依存し、iPhone で比較できない。
+9. **質問に `toolName`・`toolDetail` を足す**（契約 §8.11。U-8）。Claude Code のツール使用の許可の質問を、iPhone が Mac と同じく承認のカードで出すため。`allowsSessionScope` は false のときにキーが省かれるので、許可の質問かどうかの印にならなかった。出所は `ChatUserQuestion.permission`。
+   - 棄却案: 形（選択肢が Allow・Deny の 1 問）から iPhone で見分ける。Mac の文言の変更で壊れる。

@@ -1,6 +1,7 @@
 import SwiftUI
 import AgentDomain
 import DesignSystem
+import PhloxCore
 
 public enum IOSStatusWeight: Equatable, Sendable {
     case regular
@@ -36,55 +37,41 @@ public enum IOSStatusVocabulary {
         for status: SessionStatus,
         locale: Locale = .current
     ) -> IOSStatusPresentation {
-        switch status {
+        presentation(for: SessionDisplayState.resolve(status), locale: locale)
+    }
+
+    public static func presentation(
+        for state: SessionDisplayState,
+        locale: Locale = .current
+    ) -> IOSStatusPresentation {
+        switch state {
         case .idle:
             IOSStatusPresentation(label: nil, color: nil, weight: nil)
         case .starting:
-            IOSStatusPresentation(
-                label: localizedLabel(for: status, locale: locale),
-                color: IOSColor.text.tertiary,
-                weight: .regular
-            )
+            IOSStatusPresentation(label: state.localizedLabel(locale: locale), color: IOSColor.text.tertiary, weight: .regular)
         case .running:
-            IOSStatusPresentation(
-                label: localizedLabel(for: status, locale: locale),
-                color: IOSColor.text.secondary,
-                weight: .medium
-            )
-        case .awaitingApproval:
-            IOSStatusPresentation(
-                label: localizedLabel(for: status, locale: locale),
-                color: IOSColor.status.approval,
-                weight: .semibold
-            )
-        case .awaitingUserQuestion:
-            IOSStatusPresentation(
-                label: localizedLabel(for: status, locale: locale),
-                color: IOSColor.status.question,
-                weight: .semibold
-            )
+            IOSStatusPresentation(label: state.localizedLabel(locale: locale), color: IOSColor.text.secondary, weight: .medium)
+        case .approval:
+            IOSStatusPresentation(label: state.localizedLabel(locale: locale), color: IOSColor.status.approval, weight: .semibold)
+        case .question:
+            IOSStatusPresentation(label: state.localizedLabel(locale: locale), color: IOSColor.status.question, weight: .semibold)
         case .error:
-            IOSStatusPresentation(
-                label: localizedLabel(for: status, locale: locale),
-                color: IOSColor.status.error,
-                weight: .semibold
-            )
-        case .completed:
-            IOSStatusPresentation(
-                label: localizedLabel(for: status, locale: locale),
-                color: IOSColor.text.tertiary,
-                weight: .regular
-            )
+            IOSStatusPresentation(label: state.localizedLabel(locale: locale), color: IOSColor.status.error, weight: .semibold)
+        case .stalled:
+            IOSStatusPresentation(label: state.localizedLabel(locale: locale), color: IOSColor.status.stalled, weight: .semibold)
+        case .doneUnread, .done:
+            IOSStatusPresentation(label: state.localizedLabel(locale: locale), color: IOSColor.text.tertiary, weight: .regular)
         }
     }
+}
 
-    private static func localizedLabel(for status: SessionStatus, locale: Locale) -> String {
-        if locale.language.languageCode?.identifier == "ja" {
-            return StatusBadge.label(for: status)
-        }
-        if case .completed = status {
-            return "done"
-        }
-        return StatusBadge.englishLabel(for: status)
+public extension Session {
+    /// Resolve list status with the shared DesignSystem rule used by macOS.
+    var displayState: SessionDisplayState {
+        SessionDisplayState.resolve(
+            status,
+            hasUnseenCompletion: hasUnseenCompletion,
+            isStalled: isStalled
+        )
     }
 }

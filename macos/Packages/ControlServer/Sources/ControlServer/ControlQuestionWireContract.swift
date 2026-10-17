@@ -25,6 +25,8 @@ public enum ControlQuestionWireContract {
     public static let headerKey = "header"
     public static let multiSelectKey = "multiSelect"
     public static let allowsSessionScopeKey = "allowsSessionScope"
+    public static let toolNameKey = "toolName"
+    public static let toolDetailKey = "toolDetail"
     public static let allowForSessionAnswer = "AllowForSession"
     public static let optionsKey = "options"
     public static let optionLabelKey = "label"

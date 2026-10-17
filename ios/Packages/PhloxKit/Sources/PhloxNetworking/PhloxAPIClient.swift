@@ -59,7 +59,10 @@ public actor PhloxAPIClient: PhloxAPI {
                 kind: request.agent.rawValue,
                 backend: "appServer",
                 model: request.model,
-                projectId: request.projectID
+                projectId: request.projectID,
+                effort: request.effort,
+                permission: request.permission,
+                planMode: request.planMode
             )
         )
         // Mac は新規セッション id のみ返す（{id}）。name はサーバー採番で、一覧ポーリングが反映する。
@@ -77,6 +80,29 @@ public actor PhloxAPIClient: PhloxAPI {
 
     public func agentModels(kind: AgentKind) async throws -> AgentModels {
         try await getDecoded(AgentModels.self, path: "agents/\(kind.rawValue)/models")
+    }
+
+    public func agentSettings(kind: AgentKind) async throws -> AgentSettings? {
+        do {
+            let dto = try await getDecoded(
+                AgentSettingsResponseDTO.self,
+                path: "agents/\(kind.rawValue)/\(PhloxModelWireContract.settingsPathSuffix)"
+            )
+            return dto.toDomain()
+        } catch PhloxError.notFound {
+            // Old Macs do not implement this endpoint. The caller can omit the settings chips.
+            return nil
+        }
+    }
+
+    public func projects() async throws -> [ProjectSummary]? {
+        do {
+            let dto = try await getDecoded(ProjectsResponseDTO.self, path: PhloxModelWireContract.projectsPath)
+            return dto.projects
+        } catch PhloxError.notFound {
+            // Old Macs do not implement this endpoint. The caller can rebuild projects from sessions.
+            return nil
+        }
     }
 
     public func cliUsage() async throws -> [CLIUsage] {
@@ -99,26 +125,6 @@ public actor PhloxAPIClient: PhloxAPI {
             bodyData: nil,
             retry: false
         )
-    }
-
-    public func subAgents(sessionID: String) async throws -> [SubAgentSummary] {
-        let dto = try await getDecoded(
-            SubAgentsListDTO.self,
-            path: Self.sessionsPath(sessionID: sessionID, suffix: "subagents")
-        )
-        return dto.subAgents.map { $0.toDomain() }
-    }
-
-    public func subAgentMessages(sessionID: String, subAgentID: String) async throws -> [ChatMessage] {
-        let encodedSubAgentID = Self.percentEncodedPathSegment(subAgentID)
-        let dto = try await getDecoded(
-            ChatMessagesDTO.self,
-            path: Self.sessionsPath(
-                sessionID: sessionID,
-                suffix: "subagents/\(encodedSubAgentID)/messages"
-            )
-        )
-        return dto.messages.compactMap { $0.toDomain() }
     }
 
     public func usage(sessionID: String) async throws -> TurnUsage? {
@@ -222,6 +228,24 @@ public actor PhloxAPIClient: PhloxAPI {
             )
         )
         return dto.toDomain()
+    }
+
+    public func updateSessionSettings(sessionID: String, update: SessionSettingsUpdate) async throws {
+        let body = try encode(SetSessionSettingsRequestDTO(update: update))
+        do {
+            _ = try await data(
+                method: "PATCH",
+                path: Self.sessionsPath(
+                    sessionID: sessionID,
+                    suffix: PhloxModelWireContract.settingsPathSuffix
+                ),
+                bodyData: body,
+                retry: false
+            )
+        } catch PhloxError.server(status: 400, message: nil) {
+            // The older route answers this unsupported PATCH with an empty 400 response.
+            throw PhloxError.unsupported
+        }
     }
 
     public func setModel(sessionID: String, model: String) async throws {
@@ -440,6 +464,18 @@ public enum PhloxModelWireContract {
     public static let modelIDKey = "id"
     public static let modelDisplayNameKey = "displayName"
     public static let modelKey = "model"
+    public static let projectsPath = "projects"
+    public static let availableEffortsKey = "availableEfforts"
+    public static let selectedEffortKey = "selectedEffort"
+    public static let selectedPermissionKey = "selectedPermission"
+    public static let availablePermissionsKey = "availablePermissions"
+    public static let planModeKey = "planMode"
+    public static let planModeAvailableKey = "planModeAvailable"
+    public static let effortKey = "effort"
+    public static let permissionKey = "permission"
+    public static let projectsKey = "projects"
+    public static let projectIDKey = "id"
+    public static let projectNameKey = "name"
     public static let implemented = true
 }
 
@@ -468,6 +504,8 @@ public enum PhloxQuestionWireContract {
     public static let headerKey = "header"
     public static let multiSelectKey = "multiSelect"
     public static let allowsSessionScopeKey = "allowsSessionScope"
+    public static let toolNameKey = "toolName"
+    public static let toolDetailKey = "toolDetail"
     public static let allowForSessionAnswer = "AllowForSession"
     public static let optionsKey = "options"
     public static let optionLabelKey = "label"
@@ -482,6 +520,13 @@ public enum PhloxQuestionWireContract {
 public protocol SessionModelSelecting: Sendable {
     func sessionSettings(sessionID: String) async throws -> SessionModelSettings
     func setModel(sessionID: String, model: String) async throws
+    func updateSessionSettings(sessionID: String, update: SessionSettingsUpdate) async throws
+}
+
+public extension SessionModelSelecting {
+    func updateSessionSettings(sessionID: String, update: SessionSettingsUpdate) async throws {
+        throw PhloxError.server(status: 501, message: "updateSessionSettings: 未実装")
+    }
 }
 
 extension PhloxAPIClient: SessionModelSelecting {}

@@ -14,7 +14,7 @@ last-verified: 2026-10-17
 - **確かめ方**: アプリにホストした単体テスト `ios/PhloxMobileSnapshotTests/NavigationBackSwipeProbeTests.swift` で、1 段 push した画面の `interactivePopGestureRecognizer` の有効・`gestureRecognizerShouldBegin`・バーの項目・戻るの印・pop→push 後を見た。XCUITest・入力・操作の合成は使っていない。
 - **結果**: iOS 26.2（`Phlox ios-redesign 26`）・iOS 18.3.1（`Phlox ios-redesign 18`）とも 1/1 pass・exit 0。4 つの作り方の表は ADR 0048。決めた作り方では、開始の判断は true、家の印は pop→push の後も残った。
 - **確かめていないこと**: 指での端スワイプ、家の印を押したとき、戻った後の一覧の大タイトル（ADR 0033 で実機だけに出た不具合）。**実機での確認をユーザーに頼む**（段階 6 のセッション画面の作り替えの後）。
-- **見本との差**: サブエージェント詳細で家の印を押すと親のセッションへ戻る（見本は一覧へ）。仕様書 15 章 U-21。
+- **見本との差（段階 1 時点）**: サブエージェント詳細で家の印を押すと親のセッションへ戻った（見本は一覧へ）。段階 2 で詳細自体を廃止した（仕様書 15 章 U-21、[作業記録 0022](0022-ios-redesign-stage2-worklog.md)）。
 
 ## 1. 消した機能と、一緒に消したテスト
 

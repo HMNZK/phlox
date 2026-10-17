@@ -7,19 +7,42 @@ public struct SpawnRequest: Sendable, Equatable {
     public let projectID: String?
     public let prompt: String?
     public let model: String?
+    public let effort: String?
+    public let permission: String?
+    public let planMode: Bool?
 
     public init(
         agent: AgentKind,
         workspace: String,
         projectID: String? = nil,
         prompt: String? = nil,
-        model: String? = nil
+        model: String? = nil,
+        effort: String? = nil,
+        permission: String? = nil,
+        planMode: Bool? = nil
     ) {
         self.agent = agent
         self.workspace = workspace
         self.projectID = projectID
         self.prompt = prompt
         self.model = model
+        self.effort = effort
+        self.permission = permission
+        self.planMode = planMode
+    }
+}
+
+/// PATCH /sessions/{id}/settings. The outer optional on `permission` distinguishes omission
+/// from an explicit `null` value that selects the agent default.
+public struct SessionSettingsUpdate: Sendable, Equatable {
+    public let effort: String?
+    public let permission: String??
+    public let planMode: Bool?
+
+    public init(effort: String? = nil, permission: String?? = nil, planMode: Bool? = nil) {
+        self.effort = effort
+        self.permission = permission
+        self.planMode = planMode
     }
 }
 

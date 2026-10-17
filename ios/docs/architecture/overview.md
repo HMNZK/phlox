@@ -14,7 +14,7 @@ last-verified: 2026-07-26
 
 | モジュール | 役割 |
 |---|---|
-| `PhloxCore` | ドメイン型（`Session`・`ChatMessage`・`SubAgentSummary`・`TurnUsage`・`MessagesDelta`・`SendRequest`/`SendAttachment`・`AgentModels`/`SessionModelOption`・`CLIUsage`/`UsageBucket`/`CLIUsageState`・`PhloxError` 等）と `PhloxAPI` プロトコル。UI・ネットワークに非依存。`Shared/` サブディレクトリに `SharedSessionStore`/`SharedSessionWriter`（App Group 経由でウィジェット拡張と状態共有、→ [共有ストレージとウィジェット拡張](#共有ストレージとウィジェット拡張-phloxwidget)） |
+| `PhloxCore` | ドメイン型（`Session`・`ChatMessage`・`TurnUsage`・`MessagesDelta`・`SendRequest`/`SendAttachment`・`AgentModels`/`SessionModelOption`・`CLIUsage`/`UsageBucket`/`CLIUsageState`・`PhloxError` 等）と `PhloxAPI` プロトコル。UI・ネットワークに非依存。`Shared/` サブディレクトリに `SharedSessionStore`/`SharedSessionWriter`（App Group 経由でウィジェット拡張と状態共有、→ [共有ストレージとウィジェット拡張](#共有ストレージとウィジェット拡張-phloxwidget)） |
 | `PhloxNetworking` | `PhloxAPIClient`（`PhloxAPI` の HTTP 実装）・`HostTrustPolicy`・DTO ↔ ドメイン変換 |
 | `DesignSystemIOS` | 再利用 UI 部品（チャットバブル・マークダウン・ロゴ・トークン）。色は `IOSColor`、状態の語は `IOSStatusVocabulary`、Liquid Glass と iOS 18 の描き分けは `glassSurface(_:)`、左上のホームは `navigationStackHomeBackButton()`（→ [ADR 0043](../adr/0043-liquid-glass-with-ios18-opaque-fallback.md)・[ADR 0048](../adr/0048-home-button-is-the-system-back-button-with-a-house.md)） |
 | `Features` | 画面ごとの `@Observable` ViewModel と SwiftUI View |
@@ -54,7 +54,7 @@ last-verified: 2026-07-26
 
 ## ネットワーク層（`PhloxNetworking`）
 
-`PhloxAPIClient` が `PhloxAPI` プロトコルを実装する。エンドポイントは Mac 側 Phlox サーバーの REST。動的パスセグメント（sessionID・subAgentID・approvalID）は `percentEncodedPathSegment` で個別にエンコードしてから `components.percentEncodedPath` へ組み立てる（二重エンコードと不正文字での `percentEncodedPath` setter クラッシュを回避）。
+`PhloxAPIClient` が `PhloxAPI` プロトコルを実装する。エンドポイントは Mac 側 Phlox サーバーの REST。動的パスセグメント（sessionID・approvalID）は `percentEncodedPathSegment` で個別にエンコードしてから `components.percentEncodedPath` へ組み立てる（二重エンコードと不正文字での `percentEncodedPath` setter クラッシュを回避）。
 
 主要エンドポイント（`sessions/{id}` 基点。API 拡張分は契約 v1 — [../specs/mobile-api-extensions-contract.md](../specs/mobile-api-extensions-contract.md)）:
 
@@ -65,16 +65,17 @@ last-verified: 2026-07-26
 | `messages` | GET | `sessions/{id}/messages` |
 | `messagesDelta` | GET | `sessions/{id}/messages?since=<cursor>&wait=<ms>` |
 | `interrupt` | POST | `sessions/{id}/interrupt` |
-| `subAgents` | GET | `sessions/{id}/subagents` |
-| `subAgentMessages` | GET | `sessions/{id}/subagents/{subAgentID}/messages` |
 | `usage` | GET | `sessions/{id}/usage` |
 | `waitUntilReady` / `remove` | GET / DELETE | `sessions/{id}/ready` `sessions/{id}` |
 | `approvals` / `respond` | GET / POST | `approvals` `approvals/{id}` |
-| `sessionSettings` / `setModel` | GET / POST | `sessions/{id}/settings` `sessions/{id}/model`（契約 §6・モデル選択） |
+| `agentSettings` / `projects` | GET | `agents/{kind}/settings` `projects`（契約 §8.2・§8.5。旧 Mac の 404 は非対応として nil） |
+| `sessionSettings` / `updateSessionSettings` / `setModel` | GET / PATCH / POST | `sessions/{id}/settings` `sessions/{id}/model`（契約 §6・§8.3〜§8.4） |
 | `agentModels(kind:)` | GET | `agents/{kind}/models`（契約 §7.3・spawn 前モデル一覧） |
 | `cliUsage()` | GET | `usage`（契約 §7.4・アカウント単位使用量） |
 
-**前方互換**: `messages` 系はメッセージ DTO の未知 `type` を `toDomain` が `nil` にし `compactMap` で除外する。`subAgents` の未知ステータスは `unknown` へ写像（サーバーが `failed` を送っても壊れない）。差分ポーリングで 404/501 を受けたら `messages()` 全量取得へフォールバックする（旧サーバー互換）。
+`GET /sessions` は Mac が返す配列順を保持し、`backend`・無応答・未読・親子・状態変更時刻を `Session` に写す。状態語は共有 `SessionDisplayState.resolve` を通す。新規セッションの `effort`・`permission`・`planMode` は未指定なら body から省略する。旧 Mac で未対応の agent settings / projects は nil、設定更新の旧 Mac 応答は `PhloxError.unsupported` として呼び出し側へ返す。
+
+**前方互換**: `messages` 系はメッセージ DTO の未知 `type` を `toDomain` が `nil` にし `compactMap` で除外する。差分ポーリングで 404/501 を受けたら `messages()` 全量取得へフォールバックする（旧サーバー互換）。
 
 **信頼ポリシー**: `HostTrustPolicy` が `*.ts.net`（Tailscale MagicDNS、ラベル境界を検証）とプライベート IP レンジ（IPv4 は4オクテット厳密パース＋CIDR ビット境界）にのみ `Authorization` ヘッダを付与する。平文 HTTP でのトークン露出を信頼済みネットワークに限定する（→ [doc/adr/0003-plaintext-http-tailscale-client-guard.md](../adr/0003-plaintext-http-tailscale-client-guard.md)）。
 
@@ -87,7 +88,7 @@ last-verified: 2026-07-26
 - **送信**: `SendRequest`（text＋`[SendAttachment]`）。送信完了バナー（旧 `SendState.sent`）は廃止。
 - **停止**: `canInterrupt` が真のとき `stop()` が `interrupt` を呼ぶ。409（既に停止/完了）はボタン無効化で吸収。
 - **usage**: セッションが running→idle へ遷移した時に `usage()` を取得し `turnUsage`（コスト・コンテキスト使用量）を表示。
-- **サブエージェント解決**: `resolveSubAgentID(forMessageID:)` が `subAgents` の `markerMessageID` から行タップ対象の subAgentID を引く。
+- **サブエージェントの行は押せない（U-21）**: `ChatMessage.subAgent` を `DSSubAgentRow` で表示する。詳細画面・一覧と詳細会話の取得・遷移用の ID 解決は廃止した。VoiceOver はラベルと本文を1要素として読み上げ、ボタンの特性・詳細への案内・「›」は付けない。Mac の API（契約 §2・§3）は残す。
 - **モデル選択**: `sessionSettings()` が `availableModels` を返した時だけモデルチップ（選択中モデルの表示名）を出し、タップでモデル選択シート（`ModelPickerSheet`）を開いて `setModel` を呼ぶ。非対応セッション（codex 等）・取得失敗時はチップ非表示に劣化（画面全体は壊さない）。チップは **入力欄内（`DSInputBar` の `modelSelector` スロット）と右上メニューの2箇所**から到達できる（wave-4 で入力欄チップを復活 → [ADR 0010](../adr/0010-restore-inline-model-selector-chip.md)）。
 - **添付**: `addAttachments()` が最大4枚・各20MB・合計80MB を検証（超過はバッチ全体を拒否）、`normalizeAttachment` が magic-byte で実体判定し 元画像を保持する。送信前に共有ImageAttachmentKitをメインスレッド外で実行し、HEIC等の形式変換・解像度を保つ容量の調整を行う（送信用は各3.75MB・合計15MB）。プレビューは一度だけ downsample して `previewData` にキャッシュ。送信した添付は、送信テキストで送信後スナップショットのユーザーメッセージへ突き合わせ（`SessionAttachmentReconciler`）、message.id 起点の side-map（`attachmentCountsByMessageID`）に保持してチャット吹き出しにバッジ表示する（サーバ/ワイヤ不変・クライアント完結 → [ADR 0020](../adr/0020-chat-attachment-badge-client-side.md)）。
 - **右上メニューの presentation**（wave-5）: モデル変更シート・rename アラートは `SessionDetailViewModel` の `private enum MenuPresentation { case modelPicker, rename }` を単一ソースとして排他管理する（`isModelSheetPresented`/`isRenamePresented` はこの enum への computed property）。`.sheet` は `.alert` とは別の View 階層（チャットスクロール＋`inputBarSection` を含む内側 VStack）に付与され、同一 View への複数 presentation 併置を避ける（→ [ADR 0013](../adr/0013-session-detail-menu-presentation-single-source.md)）。
@@ -96,11 +97,11 @@ last-verified: 2026-07-26
   - **器**は `DSChatCodeCard`（枠線・角丸・背景・クリップのみ）。ツール実行グループ自体は器を持たず、見出しと展開状態だけを持つ（入れ子で枠が二重にならないため）。
   - **ファイル変更**は `SessionDetailFileChangeCard` が `SessionDetailDiffCodeViewData`（純関数）から描く。行番号は根拠があるときだけ出し（1 つも確定しないなら番号列の幅 0）、hunk 行・`---`/`+++`・no-newline 注記は表示しない（採番のデータとしては保持）。既定は折りたたみ（行数に依存しない）、見出しは `<動詞> <ファイル名> +A -D`、カード内にフルパス 1 行。**コピーは元の diff 全文**。長い行は**横スクロール**で到達でき、パス見出しは横スクロールの外に置く。
   - **Reasoning** は見出しと本文が同一なら開閉トグルを出さず 1 行で描く。
-  - **行の種類**は `ChatRowKind.forMessage(_:)` に 1 本化し、セッション詳細とサブエージェント詳細の両方がこれで分岐する（`default:` を置かず、メッセージ種別の追加はコンパイルエラーになる）。
+  - **行の種類**は `ChatRowKind.forMessage(_:)` に 1 本化し、セッション詳細がこれで分岐する（`default:` を置かず、メッセージ種別の追加はコンパイルエラーになる）。
   - markdown のコードブロック用ハイライタ（`DesignSystemIOS.CodeHighlighter.tokens(for:language:)`）は据え置きで、`ChatRenderKit` の Swift トークナイザとは別実装（意図的な二重。→ ADR 0041）。
 - **ツールコールの集約行**（→ [ADR 0026](../adr/0026-ios-single-toolcall-grouped-row.md) / [ADR 0038](../adr/0038-command-group-cost-bounding.md)）: `SessionDetailToolCallGrouping`（純関数）が transcript を描画単位 `SessionDetailChatBlock`（`single` / `commandGroup`）へ畳む。**連続する `.command` は1件以上で必ず `commandGroup`**（id = グループ先頭 message の id・順序保存）になり、`.command` 以外はグループ境界かつ `single`。`commandGroup` は `SessionDetailToolCallGroupRow` が**最後のコマンド原文**の見出し 1 行（＋タイトル直後のシェブロン。器は持たない）として描画し、タップで各コマンド行を `SessionDetailCommandCard`（ツール名ラベル＋`$ <コマンド>`＋出力・枠線付き）として展開する。見出しがコマンド原文でなく `"ツール実行 ×N"` になるのは、コマンドが 1 件も無いグループのフォールバックだけ（→ [ADR 0041](../adr/0041-chat-render-rules-shared-via-chatrenderkit.md)）。展開部の行は「出力が空かつ実行中でない」ものを除外するが、**`items.count == 1` のときは除外しない**（唯一の行を消すとどのコマンドが走ったか分からなくなるため）。全件空出力かつ非実行中の**複数件**グループはカード自体を描画しない。`scrollTargetID` は個別 message の id をその所属グループの id へ解決する。**窓境界は必ずブロック境界に来るため部分ブロックは生じない**（ADR 0037 で旧・境界分割処理は削除）。macOS も ADR 0127 で1件以上の集約へ揃ったため、かつての意図的な差異は解消している。
   - 窓がブロック単位になり1グループが数千件を抱えうるため、**ヘッダと行データを型で分けてある**（ADR 0038）: `SessionDetailCommandGroupHeader`（`title` / `isRunning` / `shouldRender`・行データを保持しない）を閉状態で使い、`SessionDetailCommandGroupRowWindow.slice(...)` は `if isExpanded` の内側でだけ呼ぶ。展開時の行は末尾 `defaultLimit = 50` 件で、残りは `hiddenRowCount` として「残り N 件を表示」（`expandStep = 50`）で段階展開する。コピー用テキストも押下時にだけ生成する（`ChatMessageDeferredCopyText`。転写のコピーは行ごとのボタンではなく長押し `contextMenu` で提供する → [ADR 0042](../adr/0042-input-bar-send-reveal-and-transcript-long-press-copy.md)）。コピー可否の判定と文字列生成はどちらも `ChatMessageCopyText.commandGroupCopyablePart(for:)` 1本を通す。
-- **チャット履歴の末尾ウィンドウ描画**（→ [ADR 0022](../adr/0022-ios-transcript-tail-window.md) / [ADR 0037](../adr/0037-transcript-window-counts-blocks.md)）: 上記の per-message 折りたたみとは別に、チャット履歴全体を**末尾 N ブロックのみ描画**して初回オープンの eager 描画コストを有界化する。**N が数えるのはトップレベルに描画されるブロック数**であって message 数ではない（ADR 0037）——連続するツール実行のまとまりは中に何件入っていても1枠。`TranscriptWindow`（純粋値型・`defaultLimit = 50` / `expandStep = 50`）が totalCount のみから末尾スライスと隠れ件数を返し、`SessionDetailToolCallGrouping.visibleSlice(from:blockLimit:)` が末尾 `blockLimit` ブロックと `hiddenBlockCount` を返す。`SessionDetailTranscriptSlice`（`SessionDetailView` が `@State` で持つ窓から生成）は `visibleMessages` を**可視ブロック列から導く**（id の逆引きはしない＝ id 一意を前提にしない）。超過時のみ先頭に「以前のメッセージを表示（残り k 件）」ボタンを出し、**拡張契機はボタン押下のみ**（+50）。セッション切替で `reset()`。展開時は押下前の先頭可視ブロックをアンカーに保持（`SessionDetailTranscriptExpansionPolicy`・世代ガード付き scrollTo・末尾追従は選ばない）。macOS の非 Lazy VStack + 件数制限（ADR 0030/0051/0127）を単一文脈へ簡約移植したもので、LazyVStack は再導入しない。**サブエージェント詳細の窓（`SubAgentDetailViewModel`）はグルーピング非適用で、従来どおり message 件数を数える。**
+- **チャット履歴の末尾ウィンドウ描画**（→ [ADR 0022](../adr/0022-ios-transcript-tail-window.md) / [ADR 0037](../adr/0037-transcript-window-counts-blocks.md)）: 上記の per-message 折りたたみとは別に、チャット履歴全体を**末尾 N ブロックのみ描画**して初回オープンの eager 描画コストを有界化する。**N が数えるのはトップレベルに描画されるブロック数**であって message 数ではない（ADR 0037）——連続するツール実行のまとまりは中に何件入っていても1枠。`TranscriptWindow`（純粋値型・`defaultLimit = 50` / `expandStep = 50`）が totalCount のみから末尾スライスと隠れ件数を返し、`SessionDetailToolCallGrouping.visibleSlice(from:blockLimit:)` が末尾 `blockLimit` ブロックと `hiddenBlockCount` を返す。`SessionDetailTranscriptSlice`（`SessionDetailView` が `@State` で持つ窓から生成）は `visibleMessages` を**可視ブロック列から導く**（id の逆引きはしない＝ id 一意を前提にしない）。超過時のみ先頭に「以前のメッセージを表示（残り k 件）」ボタンを出し、**拡張契機はボタン押下のみ**（+50）。セッション切替で `reset()`。展開時は押下前の先頭可視ブロックをアンカーに保持（`SessionDetailTranscriptExpansionPolicy`・世代ガード付き scrollTo・末尾追従は選ばない）。macOS の非 Lazy VStack + 件数制限（ADR 0030/0051/0127）を単一文脈へ簡約移植したもので、LazyVStack は再導入しない。
 - **初回ロード中の接続表示**（→ [ADR 0023](../adr/0023-ios-initial-load-connecting-indicator.md)）: 初回 `load()` が解決するまで `isInitialLoading` を true とし、表示ゲート `showsInitialLoadingIndicator = isInitialLoading && !isAwaitingInitialSpawn && chatMessages 空` の間だけ中央に既存 `DSConnectingIndicator` を表示する。終了保証は `load()` の `defer`。閉じ判定は到達性でなく実データのロード完了に紐付け（ADR 0021 の教訓）、ドラフト作成画面（`load()` を呼ばない）は `!isAwaitingInitialSpawn` で除外して永久スピナーを防ぐ。
 - **入力欄の有効条件**（→ [ADR 0028](../adr/0028-input-bar-enabled-on-completed-and-error.md)）: `inputEnabled` が false になるのは `starting` **だけ**。`completed` / `error` で停止したセッションでも入力欄は出したままにする（送信で respawn して復帰できるため）。`isAwaitingInitialSpawn` の間も有効。
 - **AskUserQuestion カードの排他**（→ [macOS ADR 0124](../../../macos/docs/adr/0124-user-question-free-text-exclusive.md)・[ADR 0024](../adr/0024-user-question-card-mirror.md)）: 選択状態は View の `@State` 辞書ではなく値型 `UserQuestionFormState`（`selections` / `freeText` / `canSubmit` / `answers` / `seed(from:)`）が持つ。自由入力欄へフォーカスが入ると `freeTextDidFocus(question:)` がその質問の選択肢を解除し、選択肢を触ると自由入力をクリアする（どちらか一方だけが回答になる状態を画面上でも保つ）。自由入力欄は `axis: .vertical` + `lineLimit(1...4)` で右端折り返し。
@@ -124,14 +125,6 @@ last-verified: 2026-07-26
 - 初回送信（`sendMessage(composeDraft:)`）で **`spawn(kind, model) → waitUntilReady → send` を1回の操作内で順序実行**する。
   `spawn` の応答 `Session` は `listSessions` の反映を待たず `session = spawned` として直渡しで採用し、一覧非同期反映との
   レースを避ける（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)）。
-
-### サブエージェント詳細（`SubAgentDetailViewModel`）
-
-解決済み subAgentID の会話を `subAgentMessages` で取得し、本体と同じチャット描画で表示・3秒ポーリング（画面離脱の `.task` キャンセルで停止）。描画コストは**二段で有界化**する（→ [ADR 0029](../adr/0029-subagent-window-and-render-budget.md)）。
-
-- **件数窓**: 本体 transcript と同じ `TranscriptWindow`（末尾 50 件・`expandStep = 50`）。`hiddenMessageCount > 0` のとき「以前のメッセージを読む（N件）」ボタンを出し `expandVisibleWindow()` で広げる。
-- **1メッセージあたりの描画バイト上限**: `maxRenderedBytesPerMessage`（16 KiB）。`renderedBody(_:)` が UTF-8 バイト数で切り詰めた `RenderedBody { head, tail, omittedBytes }` を返し、View は**全 case**（user / agent / reasoning / subAgent / command / fileChange / error）でこれを通してから SwiftUI へ渡す。先頭と末尾をほぼ半分ずつ残すため、実行の文脈と稼働中サブエージェントの最新出力の両方が読める。切り詰めは `Character` 単位で進めるのでマルチバイト文字を壊さない。省略時は head と tail の間に「表示を省略しました（N バイト）」を挟み、**コピー（`ChatMessageCopyText`）は切り詰め前の元メッセージから作る**ので無損失。
-- **初回ロード中**は `DSConnectingIndicator(size: 96)` を出す（`isInitialLoading`・`load()` の `defer` で終了保証）。
 
 ## UI 部品（`DesignSystemIOS`）
 

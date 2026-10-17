@@ -17,7 +17,16 @@ public struct Session: Identifiable, Sendable, Equatable {
     public let subtitle: String
     public let projectId: String?
     public let projectName: String?
+    /// `"pty"` for terminal sessions, `"appServer"` for structured conversations.
+    public let backend: String
+    public let isStalled: Bool
+    public let hasUnseenCompletion: Bool
+    public let parentSessionId: String?
+    public let statusEnteredAt: Date?
     public let updatedAt: Date
+
+    /// Whether this session runs in the terminal backend.
+    public var isPTY: Bool { backend == "pty" }
 
     /// 全フィールドを明示するイニシャライザ。
     /// `needsAttention` をテスト等で意図的に上書きしたい場合に使う。
@@ -30,6 +39,11 @@ public struct Session: Identifiable, Sendable, Equatable {
         subtitle: String,
         projectId: String? = nil,
         projectName: String? = nil,
+        backend: String = "appServer",
+        isStalled: Bool = false,
+        hasUnseenCompletion: Bool = false,
+        parentSessionId: String? = nil,
+        statusEnteredAt: Date? = nil,
         updatedAt: Date
     ) {
         self.id = id
@@ -40,6 +54,11 @@ public struct Session: Identifiable, Sendable, Equatable {
         self.subtitle = subtitle
         self.projectId = projectId
         self.projectName = projectName
+        self.backend = backend
+        self.isStalled = isStalled
+        self.hasUnseenCompletion = hasUnseenCompletion
+        self.parentSessionId = parentSessionId
+        self.statusEnteredAt = statusEnteredAt
         self.updatedAt = updatedAt
     }
 
@@ -53,6 +72,11 @@ public struct Session: Identifiable, Sendable, Equatable {
         subtitle: String = "",
         projectId: String? = nil,
         projectName: String? = nil,
+        backend: String = "appServer",
+        isStalled: Bool = false,
+        hasUnseenCompletion: Bool = false,
+        parentSessionId: String? = nil,
+        statusEnteredAt: Date? = nil,
         updatedAt: Date
     ) {
         self.init(
@@ -64,6 +88,11 @@ public struct Session: Identifiable, Sendable, Equatable {
             subtitle: subtitle,
             projectId: projectId,
             projectName: projectName,
+            backend: backend,
+            isStalled: isStalled,
+            hasUnseenCompletion: hasUnseenCompletion,
+            parentSessionId: parentSessionId,
+            statusEnteredAt: statusEnteredAt,
             updatedAt: updatedAt
         )
     }

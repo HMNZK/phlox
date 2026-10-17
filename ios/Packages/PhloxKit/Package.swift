@@ -81,7 +81,14 @@ let package = Package(
         .testTarget(name: "PhloxNetworkingTests", dependencies: ["PhloxNetworking", "PhloxCore"]),
         .testTarget(name: "PhloxSecurityTests", dependencies: ["PhloxSecurity", "PhloxCore"]),
         .testTarget(name: "PhloxReachabilityTests", dependencies: ["PhloxReachability", "PhloxCore"]),
-        .testTarget(name: "DesignSystemIOSTests", dependencies: ["DesignSystemIOS", "PhloxCore"]),
+        .testTarget(
+            name: "DesignSystemIOSTests",
+            dependencies: [
+                "DesignSystemIOS",
+                "PhloxCore",
+                .product(name: "DesignSystem", package: "DesignSystem"),
+            ]
+        ),
         .testTarget(name: "FeaturesTests", dependencies: ["Features", "PhloxCore", "PhloxNetworking"]),
         .testTarget(name: "E2ETests", dependencies: ["PhloxNetworking", "PhloxCore"]),
     ],

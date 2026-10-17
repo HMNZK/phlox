@@ -26,6 +26,8 @@ public enum PhloxError: Error, Sendable, Equatable {
     case spawnRejected(reason: String)
     /// 404。
     case notFound
+    /// 接続先の Mac がこの取得口・操作に対応していない。
+    case unsupported
     /// その他 5xx/4xx。
     case server(status: Int, message: String?)
     /// デコード失敗。

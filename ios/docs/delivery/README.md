@@ -31,3 +31,4 @@ last-verified: 2026-07-30
 - `delivery/0019-mobile-chat-parity-worklog.md` … デスクトップのチャット表示刷新（コードカード・ツール実行の見出し・diff コードビュー）をモバイルへ適用した作業ログ
 - `delivery/0020-ios-redesign-plan.md` … iOS アプリを再設計の見本（2026-10 の Claude Design）どおりに作り直す実装計画
 - `delivery/0021-ios-redesign-stage1-worklog.md` … 再設計の段階 1（土台の部品と、廃止する機能の削除）の作業記録
+- `delivery/0022-ios-redesign-stage2-worklog.md` … 再設計の段階 2（API の配線とサブエージェント詳細の廃止）の作業記録

@@ -371,28 +371,6 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertEqual(images?.count, 1)
     }
 
-    // MARK: - task-10 サブエージェント解決
-
-    func testResolveSubAgentIDByMarkerMessageID() async {
-        let api = MockAPI()
-        await api.setSubAgentsOutcome(.success([
-            SubAgentSummary(id: "sa1", name: "explore", status: .running, messageCount: 1, markerMessageID: "m1")
-        ]))
-        let vm = SessionDetailViewModel(session: session(.idle), api: api)
-        let resolved = await vm.resolveSubAgentID(forMessageID: "m1")
-        XCTAssertEqual(resolved, "sa1")
-        XCTAssertEqual(vm.subAgentID(forMessageID: "m1"), "sa1")
-    }
-
-    func testResolveSubAgentIDReturnsNilOnOldServer() async {
-        let api = MockAPI()
-        await api.setSubAgentsOutcome(.failure(.server(status: 501, message: "未対応")))
-        let vm = SessionDetailViewModel(session: session(.idle), api: api)
-        let resolved = await vm.resolveSubAgentID(forMessageID: "m1")
-        XCTAssertNil(resolved)
-        XCTAssertNil(vm.loadError)
-    }
-
     func testDetectImageWireFormatPNGAndJPEG() {
         let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])
         let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0])
@@ -444,15 +422,6 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertFalse(vm.attachmentItems[0].previewData.isEmpty)
         XCTAssertLessThan(vm.attachmentItems[0].previewData.count, png.count)
         #endif
-    }
-
-        func testRefreshSubAgentIndexDoesNotSetLoadErrorOnOldServer() async {
-        let api = MockAPI(messagesOutcome: .success([.agent(id: "a1", text: "hi")]))
-        await api.setSubAgentsOutcome(.failure(.server(status: 501, message: "未対応")))
-        let vm = SessionDetailViewModel(session: session(.running), api: api)
-        await vm.refresh()
-        XCTAssertNil(vm.loadError)
-        XCTAssertNil(vm.subAgentID(forMessageID: "m1"))
     }
 }
 

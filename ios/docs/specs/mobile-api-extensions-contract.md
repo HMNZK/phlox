@@ -21,6 +21,8 @@ Phlox 本体（サーバー側、`feature/mobile-api-extensions`）と Phlox-mob
 
 ## 2. GET /sessions/{id}/subagents — サブエージェント一覧
 
+> 2026-10-17: iOS はサブエージェント詳細を廃止し、§2・§3 を呼ばなくなった（iOS 再設計の U-21。Mac でもサブエージェントの行は押せない）。Mac 側の取得口は残す（Phlox CLI など他のクライアントのため）。
+
 - 成功: 200
 ```json
 {
@@ -418,3 +420,42 @@ body は次のうち**1 つ以上**（モデルの変更は従来どおり §6 `
 - 古い iOS は知らないキーを無視するので影響しない。古い Mac は `actionKind` を返さない（上と同じく「種類なし」）。
 - 表示の文言は iOS 側で持つ（値は 3 つの固定の語で、Mac の表示言語に依存しない）。
 - Claude Code の許可は `/approvals` に載らない（§8.7 の質問カード）。質問の `header` にツール名（`Bash` など）が入っている。
+
+### 8.10 GET /sessions（list）— 無応答・未読・親子・端末・状態の時刻と、並び（2026-10-17 追加）
+
+iPhone の一覧を Mac のサイドバーと同じ規則で描くため（iOS 再設計の U-2・U-3・U-6）、各要素に**省略可**の項目を足し、並びを Mac のサイドバーに揃える:
+```json
+{ "sessions": [
+  { "id": "…", "name": "…", "kind": "claudeCode", "status": "running",
+    "workspace": "my-repo", "projectId": "P-123", "projectName": "My Repo",
+    "backend": "appServer", "isStalled": false, "hasUnseenCompletion": false,
+    "parentSessionId": "…", "statusEnteredAt": "2026-10-17T05:12:00Z" }
+] }
+```
+| キー | 型 | 出所（Mac） | 省略 |
+|---|---|---|---|
+| `backend` | `"pty"`・`"appServer"` | `SessionNode` の case（`SessionBackend` と同じ語。§7.1 の spawn の `backend` と同じ値） | 常に付ける |
+| `isStalled` | Bool | `SessionNode.isStalled`（Mac のサイドバーの「無応答」と同じ判定。端末のセッションは常に false） | 常に付ける |
+| `hasUnseenCompletion` | Bool | `SessionNode.hasUnseenCompletion`（Mac で開くと消える） | 常に付ける |
+| `parentSessionId` | String | `parentSessionID`（`id` と同じ形） | 親が無いときはキーを省く |
+| `statusEnteredAt` | String（ISO 8601、UTC） | `statusEnteredAt`（今の状態に入った時刻。無応答なら無応答になった時刻） | 記録が無いときはキーを省く |
+
+- **表示の状態は iOS が Mac と同じ関数で決める**: `status`・`hasUnseenCompletion`・`isStalled` を共有の `DesignSystem` の `SessionDisplayState.resolve` に通す（「未読」は待機・完了のときだけ、「無応答」は実行中のときだけ）。iOS で別の規則を持たない。
+- `status` の意味・値は変えない（Phlox CLI の `wait` などが使っているため。背景作業中の昇格 `displayStatus` には替えない）。
+- **並び**: Mac のサイドバーの順（`sidebarOrderedSessionIDs`: プロジェクトの順 → プロジェクトの中の順 → 未割当）。サイドバーに出ないセッション（内部セッションなど）は、その後ろに今までの順で付ける。要素は今までどおり全セッション。
+- 「終了」の状態は無い（`SessionStatus` は 7 つのまま）。
+- 古い iOS は知らないキーを無視する。古い Mac はキーを返さない: iOS は `backend` 欠落を `appServer`（会話の画面）、`isStalled`・`hasUnseenCompletion` 欠落を false、`parentSessionId` 欠落を親なしとして扱う。
+
+### 8.11 質問カード — ツール使用の許可の印（`toolName`・`toolDetail`。2026-10-17 追加）
+
+`GET /sessions/{id}/messages` の `type == "userQuestion"` の `questions[]` の各要素に、**省略可**の `toolName`・`toolDetail`（String）を足す（iOS 再設計の U-8）:
+```json
+{ "question": "Allow Bash? swift build", "header": "Bash", "multiSelect": false,
+  "options": [ { "label": "Allow" }, { "label": "Deny" } ],
+  "allowsSessionScope": true, "toolName": "Bash", "toolDetail": "swift build 2>&1 | tail -20" }
+```
+- 出所は Mac の `ChatUserQuestion.permission`（`ChatToolPermission.toolName`・`detail`）。Mac の返答エリアが承認カードとして出す質問にだけ付く。**`toolName` があれば、その質問はツール使用の許可**（iOS は承認のカードで出す）。
+- `toolDetail` はコマンド・パス・URL などの全文（Mac の承認カードの対象と同じ）。
+- 通常の質問（AskUserQuestion など）・古い保存データ・古い Mac ではキー自体を省く。iOS は欠落を「通常の質問」として扱う（古い Mac では、許可の質問も今までどおり質問のカードで出る）。
+- §8.7 の `allowsSessionScope` は今までどおり質問の直下に置く（包み直さない）。
+- 返し方は §8.7 と同じ（`"Allow"`・`"AllowForSession"`・`"Deny"`。キャンセルは `POST /sessions/{id}/interrupt`）。

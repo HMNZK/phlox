@@ -42,7 +42,6 @@ public struct SessionDetailView: View {
     @State private var distanceFromBottom: CGFloat = 0
     @State private var scrollFollowState = SessionDetailScrollFollowState()
     @State private var scrollViewportHeight: CGFloat = 0
-    @State private var selectedSubAgentID: String?
     @State private var transcriptWindow = TranscriptWindow()
     @State private var pendingTranscriptScrollTarget: SessionDetailTranscriptScrollTarget?
     @State private var transcriptScrollGeneration = 0
@@ -153,11 +152,6 @@ public struct SessionDetailView: View {
         }
         .task(id: approvalViewModel?.sessionID) {
             await approvalViewModel?.load()
-        }
-        .navigationDestination(item: $selectedSubAgentID) { subAgentID in
-            SubAgentDetailView(
-                viewModel: viewModel.makeSubAgentDetailViewModel(subAgentID: subAgentID)
-            )
         }
     }
 
@@ -394,16 +388,9 @@ public struct SessionDetailView: View {
                 }
             }
         case .subAgent:
-            if case let .subAgent(id, text) = message {
-                let linkedSubAgentID = viewModel.subAgentID(forMessageID: id)
+            if case let .subAgent(_, text) = message {
                 chatRowWithCopy(copyText: copyText) {
-                    DSSubAgentRow(
-                        text: text,
-                        isTappable: linkedSubAgentID != nil,
-                        onTap: linkedSubAgentID.map { subAgentID in
-                            { selectedSubAgentID = subAgentID }
-                        }
-                    )
+                    DSSubAgentRow(text: text)
                 }
             }
         case .commandCard:

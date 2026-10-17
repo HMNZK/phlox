@@ -14,10 +14,14 @@ enum ControlDashboardSupport {
 /// 型もプロトコルも他モジュール由来のため retroactive 適合（合成は App 層の責務）。
 extension DashboardViewModel: @retroactive ControlActionDashboard {
     public var controlSessionSummaries: [ControlSessionSummary] {
-        sessionNodes.map { node in
+        let summaries = sessionNodes.map { node in
             let session = node.controllable
             let project = node.projectID.flatMap { projectID in
                 projects.first { $0.id == projectID }
+            }
+            let backend: SessionBackend = switch node {
+            case .pty: .pty
+            case .appServer: .appServer
             }
             return ControlSessionSummary(
                 id: session.id,
@@ -26,9 +30,15 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
                 status: session.status,
                 workspaceName: node.workspaceName,
                 projectID: project?.id.description,
-                projectName: project?.name
+                projectName: project?.name,
+                backend: backend,
+                isStalled: node.isStalled,
+                hasUnseenCompletion: node.hasUnseenCompletion,
+                parentSessionID: session.parentSessionID,
+                statusEnteredAt: node.statusEnteredAt
             )
         }
+        return ControlSessionSummary.orderedForSidebar(summaries, sessionIDs: sidebarOrderedSessionIDs)
     }
 
     /// Control API の要求元とセッションツリー上の親を DashboardFeature 側で分類する。

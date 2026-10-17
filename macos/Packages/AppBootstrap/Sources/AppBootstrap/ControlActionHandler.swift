@@ -15,6 +15,11 @@ public struct ControlSessionSummary: Sendable {
     public let workspaceName: String
     public let projectID: String?
     public let projectName: String?
+    public let backend: SessionBackend
+    public let isStalled: Bool
+    public let hasUnseenCompletion: Bool
+    public let parentSessionID: SessionID?
+    public let statusEnteredAt: Date?
 
     public init(
         id: SessionID,
@@ -23,7 +28,12 @@ public struct ControlSessionSummary: Sendable {
         status: SessionStatus,
         workspaceName: String,
         projectID: String? = nil,
-        projectName: String? = nil
+        projectName: String? = nil,
+        backend: SessionBackend = .appServer,
+        isStalled: Bool = false,
+        hasUnseenCompletion: Bool = false,
+        parentSessionID: SessionID? = nil,
+        statusEnteredAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -32,6 +42,23 @@ public struct ControlSessionSummary: Sendable {
         self.workspaceName = workspaceName
         self.projectID = projectID
         self.projectName = projectName
+        self.backend = backend
+        self.isStalled = isStalled
+        self.hasUnseenCompletion = hasUnseenCompletion
+        self.parentSessionID = parentSessionID
+        self.statusEnteredAt = statusEnteredAt
+    }
+
+    /// サイドバー外のセッションも、元の相対順を保って末尾に残す。
+    public static func orderedForSidebar(
+        _ sessions: [ControlSessionSummary], sessionIDs: [SessionID]
+    ) -> [ControlSessionSummary] {
+        let ranks = Dictionary(sessionIDs.enumerated().map { ($0.element, $0.offset) }, uniquingKeysWith: min)
+        return sessions.enumerated().sorted {
+            let left = ranks[$0.element.id] ?? sessionIDs.count
+            let right = ranks[$1.element.id] ?? sessionIDs.count
+            return left == right ? $0.offset < $1.offset : left < right
+        }.map(\.element)
     }
 }
 
@@ -230,6 +257,7 @@ public final class ControlActionHandler {
     }
 
     private func handleListSessions(_ dashboard: any ControlActionDashboard) -> ControlResponse {
+        let formatter = ISO8601DateFormatter()
         let items = dashboard.controlSessionSummaries.map { s in
             ControlSessionListItem(
                 id: s.id.rawValue.uuidString,
@@ -238,7 +266,12 @@ public final class ControlActionHandler {
                 status: Self.statusString(s.status),
                 workspace: s.workspaceName,
                 projectId: s.projectID,
-                projectName: s.projectName
+                projectName: s.projectName,
+                backend: s.backend.rawValue,
+                isStalled: s.isStalled,
+                hasUnseenCompletion: s.hasUnseenCompletion,
+                parentSessionId: s.parentSessionID?.rawValue.uuidString,
+                statusEnteredAt: s.statusEnteredAt.map(formatter.string(from:))
             )
         }
         return .json(200, ControlSessionListResponse(sessions: items))
@@ -925,6 +958,8 @@ private struct UserQuestionWireDTO: Encodable {
     let multiSelect: Bool
     let options: [UserQuestionOptionWireDTO]
     let allowsSessionScope: Bool?
+    let toolName: String?
+    let toolDetail: String?
 
     static func from(_ question: ChatUserQuestion) -> UserQuestionWireDTO {
         UserQuestionWireDTO(
@@ -932,7 +967,9 @@ private struct UserQuestionWireDTO: Encodable {
             header: question.header,
             multiSelect: question.multiSelect,
             options: question.options.map(UserQuestionOptionWireDTO.from),
-            allowsSessionScope: question.permission?.allowsSessionScope
+            allowsSessionScope: question.permission?.allowsSessionScope,
+            toolName: question.permission?.toolName,
+            toolDetail: question.permission?.detail
         )
     }
 
@@ -943,6 +980,8 @@ private struct UserQuestionWireDTO: Encodable {
         try container.encode(multiSelect, forKey: .init(ControlQuestionWireContract.multiSelectKey))
         try container.encode(options, forKey: .init(ControlQuestionWireContract.optionsKey))
         try container.encodeIfPresent(allowsSessionScope, forKey: .init(ControlQuestionWireContract.allowsSessionScopeKey))
+        try container.encodeIfPresent(toolName, forKey: .init(ControlQuestionWireContract.toolNameKey))
+        try container.encodeIfPresent(toolDetail, forKey: .init(ControlQuestionWireContract.toolDetailKey))
     }
 }
 

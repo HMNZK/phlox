@@ -8,6 +8,8 @@ actor MockAPI: PhloxAPI {
     let spawnOutcome: Result<Session, PhloxError>
     let sendOutcome: Result<SendResult, PhloxError>
     var messagesOutcome: Result<[ChatMessage], PhloxError>
+    var agentSettingsOutcome: Result<AgentSettings?, PhloxError> = .success(nil)
+    var projectsOutcome: Result<[ProjectSummary]?, PhloxError> = .success(nil)
     let removeError: PhloxError?
     let respondError: PhloxError?
 
@@ -46,12 +48,6 @@ actor MockAPI: PhloxAPI {
     }
     /// 直近の spawn リクエスト（projectID の伝搬検証用）。
     private(set) var lastSpawnRequest: SpawnRequest?
-    /// subAgents の結果と呼び出し回数。
-    var subAgentsOutcome: Result<[SubAgentSummary], PhloxError> = .success([])
-    private(set) var subAgentsCount = 0
-    /// subAgentMessages の結果と、渡された (sessionID, subAgentID) の記録。
-    var subAgentMessagesOutcome: Result<[ChatMessage], PhloxError> = .success([])
-    private(set) var subAgentMessagesLog: [(String, String)] = []
 
     static let defaultSession = Session(
         id: "new", name: "New", agent: .claudeCode, status: .starting,
@@ -77,6 +73,12 @@ actor MockAPI: PhloxAPI {
     }
 
     func listSessions() async throws -> [Session] { sessions }
+    func agentSettings(kind: AgentKind) async throws -> AgentSettings? {
+        try agentSettingsOutcome.get()
+    }
+    func projects() async throws -> [ProjectSummary]? {
+        try projectsOutcome.get()
+    }
 
     func spawn(_ request: SpawnRequest) async throws -> Session {
         spawnCount += 1
@@ -143,22 +145,12 @@ actor MockAPI: PhloxAPI {
         messagesDeltaScript = script
     }
 
-    func setSubAgentsOutcome(_ outcome: Result<[SubAgentSummary], PhloxError>) {
-        subAgentsOutcome = outcome
+    func setAgentSettingsOutcome(_ outcome: Result<AgentSettings?, PhloxError>) {
+        agentSettingsOutcome = outcome
     }
 
-    func setSubAgentMessagesOutcome(_ outcome: Result<[ChatMessage], PhloxError>) {
-        subAgentMessagesOutcome = outcome
-    }
-
-    func subAgents(sessionID: String) async throws -> [SubAgentSummary] {
-        subAgentsCount += 1
-        return try subAgentsOutcome.get()
-    }
-
-    func subAgentMessages(sessionID: String, subAgentID: String) async throws -> [ChatMessage] {
-        subAgentMessagesLog.append((sessionID, subAgentID))
-        return try subAgentMessagesOutcome.get()
+    func setProjectsOutcome(_ outcome: Result<[ProjectSummary]?, PhloxError>) {
+        projectsOutcome = outcome
     }
 
     func interrupt(sessionID: String) async throws {

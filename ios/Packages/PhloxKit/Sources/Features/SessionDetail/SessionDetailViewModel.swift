@@ -62,8 +62,6 @@ public final class SessionDetailViewModel {
 
     /// messagesDelta の since 引き渡し用 cursor（差分ポーリング）。
     private var messagesCursor: String?
-    /// markerMessageID → subAgentID（行タップ可否の判定用。取得失敗時は空のまま）。
-    private var subAgentMarkerIndex: [String: String] = [:]
 
     /// task-10: 送信に添付する画像（最大4枚・1枚4MiB・計8MiB）とストリップ用プレビュー。
     public private(set) var attachmentItems: [SessionAttachmentItem] = []
@@ -338,19 +336,6 @@ public final class SessionDetailViewModel {
         inputCursorUTF16 = min(inputCursorUTF16, inputText.utf16.count)
     }
 
-    /// api.subAgents の markerMessageID で行→サブエージェントを解決する。
-    /// 解決不能（不一致・旧サーバー 404/501）は nil を返す（クラッシュしない）。
-    public func resolveSubAgentID(forMessageID messageID: String) async -> String? {
-        guard let summaries = try? await api.subAgents(sessionID: session.id) else { return nil }
-        updateSubAgentMarkerIndex(from: summaries)
-        return summaries.first(where: { $0.markerMessageID == messageID })?.id
-    }
-
-    /// キャッシュ済み index から同期的に subAgentID を引く（行のタップ可否表示用）。
-    public func subAgentID(forMessageID messageID: String) -> String? {
-        subAgentMarkerIndex[messageID]
-    }
-
     /// AskUserQuestion の回答送信（task-0 契約。実装は task-4）。
     /// 戻り値: API が回答を受理し、ローカルの質問カードを answered へ更新したら true。
     public func answerQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
@@ -393,11 +378,6 @@ public final class SessionDetailViewModel {
 
     public func attachmentImageCount(forMessageID id: String) -> Int? {
         attachmentCountsByMessageID[id]
-    }
-
-    /// サブエージェント詳細画面用 ViewModel を生成する（api を View に漏らさない）。
-    public func makeSubAgentDetailViewModel(subAgentID: String) -> SubAgentDetailViewModel {
-        SubAgentDetailViewModel(session: session, subAgentID: subAgentID, api: api)
     }
 
     /// 生成中インジケータの表示条件: チャット表示中 かつ currentStatus == .running。
@@ -522,7 +502,6 @@ public final class SessionDetailViewModel {
     /// 詳細表示時のロード入口。構造化チャットを取得する。
     public func load() async {
         defer { isInitialLoading = false }
-        await refreshSubAgentIndex()
         await loadModelSettings()
         if await adoptNonEmptyMessages(updateOnlyIfChanged: false) { return }
         chatMessages = []
@@ -559,7 +538,6 @@ public final class SessionDetailViewModel {
     /// - チャット表示中の失敗/空は現状維持。
     public func refresh() async {
         await refreshCurrentStatus()
-        await refreshSubAgentIndex()
         await loadModelSettings()
         if await adoptMessagesFromDelta(updateOnlyIfChanged: true) { return }
         if showsChat { return }
@@ -906,21 +884,6 @@ public final class SessionDetailViewModel {
     private func fetchTurnUsageIfAvailable() async {
         guard let usage = try? await api.usage(sessionID: session.id) else { return }
         turnUsage = usage
-    }
-
-    /// 旧サーバー（404/501）でも黙って劣化。エラーバナーは出さない。
-    private func refreshSubAgentIndex() async {
-        guard let summaries = try? await api.subAgents(sessionID: session.id) else { return }
-        updateSubAgentMarkerIndex(from: summaries)
-    }
-
-    private func updateSubAgentMarkerIndex(from summaries: [SubAgentSummary]) {
-        subAgentMarkerIndex = Dictionary(
-            uniqueKeysWithValues: summaries.compactMap { summary in
-                guard let marker = summary.markerMessageID else { return nil }
-                return (marker, summary.id)
-            }
-        )
     }
 
     private func reconcileAttachments() {

@@ -16,9 +16,7 @@ public struct SharedSessionWriter {
 
     public func write(sessions: [Session]) throws {
         guard let store else { throw SharedSessionWriterError.appGroupUnavailable }
-        let summaries = sessions
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .map(Self.summary(for:))
+        let summaries = sessions.map(Self.summary(for:))
         try store.write(summaries)
 
         #if canImport(WidgetKit)

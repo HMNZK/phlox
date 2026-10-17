@@ -51,28 +51,6 @@ final class APIExtensionsClientTests: XCTestCase {
         XCTAssertEqual(PhloxAPIClient.percentEncodedPathSegment("sa-1"), "sa-1")
     }
 
-    func testSubAgentMessagesPercentEncodesSlashInRequestPath() async throws {
-        NetStubURLProtocol.outcomes = [
-            .status(200, Data(#"{"sessionId":"s1","subAgentId":"a/b","messages":[]}"#.utf8), [:]),
-        ]
-        _ = try await makeClient().subAgentMessages(sessionID: "s1", subAgentID: "a/b")
-        let url = try XCTUnwrap(NetStubURLProtocol.lastRequest?.url)
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
-        XCTAssertEqual(components.percentEncodedPath, "/sessions/s1/subagents/a%2Fb/messages")
-        XCTAssertFalse(url.absoluteString.contains("%252F"), "二重エンコードされていないこと")
-    }
-
-    func testSubAgentMessagesPercentEncodesSpaceAndHashInRequestPath() async throws {
-        NetStubURLProtocol.outcomes = [
-            .status(200, Data(#"{"sessionId":"s1","subAgentId":"a b#c","messages":[]}"#.utf8), [:]),
-        ]
-        _ = try await makeClient().subAgentMessages(sessionID: "s1", subAgentID: "a b#c")
-        let url = try XCTUnwrap(NetStubURLProtocol.lastRequest?.url)
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
-        XCTAssertEqual(components.percentEncodedPath, "/sessions/s1/subagents/a%20b%23c/messages")
-        XCTAssertFalse(url.absoluteString.contains("%2520"), "二重エンコードされていないこと")
-    }
-
     func testRespondPercentEncodesSpaceInApprovalID() async throws {
         NetStubURLProtocol.outcomes = [.status(200, Data(), [:])]
         try await makeClient().respond(approvalID: "ap 1", decision: .accept)

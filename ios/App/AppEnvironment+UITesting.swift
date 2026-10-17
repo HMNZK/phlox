@@ -100,6 +100,8 @@ private struct UITestPhloxAPI: PhloxAPI {
     let approvals: [Approval]
 
     func listSessions() async throws -> [Session] { sessions }
+    func agentSettings(kind: AgentKind) async throws -> AgentSettings? { nil }
+    func projects() async throws -> [ProjectSummary]? { nil }
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func approvals() async throws -> [Approval] { approvals }
     /// スクリーンショット・目視確認用の代表的な transcript。

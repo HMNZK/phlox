@@ -60,6 +60,11 @@ public struct ControlSessionListItem: Encodable, Equatable, Sendable {
     public let workspace: String
     public let projectId: String?
     public let projectName: String?
+    public let backend: String
+    public let isStalled: Bool
+    public let hasUnseenCompletion: Bool
+    public let parentSessionId: String?
+    public let statusEnteredAt: String?
 
     public init(
         id: String,
@@ -68,7 +73,12 @@ public struct ControlSessionListItem: Encodable, Equatable, Sendable {
         status: String,
         workspace: String,
         projectId: String? = nil,
-        projectName: String? = nil
+        projectName: String? = nil,
+        backend: String = "appServer",
+        isStalled: Bool = false,
+        hasUnseenCompletion: Bool = false,
+        parentSessionId: String? = nil,
+        statusEnteredAt: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -77,6 +87,11 @@ public struct ControlSessionListItem: Encodable, Equatable, Sendable {
         self.workspace = workspace
         self.projectId = projectId
         self.projectName = projectName
+        self.backend = backend
+        self.isStalled = isStalled
+        self.hasUnseenCompletion = hasUnseenCompletion
+        self.parentSessionId = parentSessionId
+        self.statusEnteredAt = statusEnteredAt
     }
 }
 

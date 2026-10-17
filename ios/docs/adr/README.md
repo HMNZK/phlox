@@ -33,7 +33,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 | 0032 | [ナビゲーションバーを隠した画面の端スワイプは、ガード付きデリゲートへ差し替えて復活させる](0032-interactive-pop-gesture-on-hidden-navigation-bar.md) | superseded |
 | 0031 | [本文の折り返しはテーマで、表は幅を見積もって横スクロールで読ませる](0031-chat-body-readability-wrapping-and-table-scroll.md) | accepted |
 | 0030 | [ドラフトのモデル選択は表示用 ID 文字列ではなく `(kind, modelID?)` で保持する](0030-draft-model-selection-kind-and-id.md) | accepted |
-| 0029 | [サブエージェント画面は件数窓＋1メッセージあたりの描画バイト上限（先頭＋末尾を残す）で止める](0029-subagent-window-and-render-budget.md) | accepted |
+| 0029 | [サブエージェント画面は件数窓＋1メッセージあたりの描画バイト上限（先頭＋末尾を残す）で止める](0029-subagent-window-and-render-budget.md) | superseded（サブエージェント詳細の廃止。仕様書 U-21） |
 | 0028 | [セッションが completed / error でも入力欄を有効のままにする（無効は starting だけ）](0028-input-bar-enabled-on-completed-and-error.md) | accepted |
 | 0027 | [セッション一覧のオフライン画面は到達性の判定が済んで失敗したときだけ出す](0027-session-list-probe-before-offline.md) | accepted |
 | 0026 | [ツールコールは1件でも「ツール実行 ×N」の集約行に畳む（macOS とは意図的に異なる契約）](0026-ios-single-toolcall-grouped-row.md) | active |

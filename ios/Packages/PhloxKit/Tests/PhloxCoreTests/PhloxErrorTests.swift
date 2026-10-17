@@ -26,6 +26,7 @@ final class PhloxErrorTests: XCTestCase {
             .rateLimited(retryAfter: 10),
             .spawnRejected(reason: "depth exceeded"),
             .notFound,
+            .unsupported,
             .server(status: 503, message: nil),
             .decoding(WrappedError(description: "bad json")),
             .transport(WrappedError(description: "lost")),

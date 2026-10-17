@@ -82,7 +82,9 @@ iPhone アプリの UI を、Claude Design で作った再設計の見本（版 
 
 ### 段階 2 — API の配線（M）
 
-- 先に Mac 側の追加を行う（仕様書 U-3・U-8）: `GET /sessions` に無応答・終了・未読・親子関係、質問にツール使用の許可であることとツール名。省略可の項目にして古いクライアント互換を保ち、契約 §8 と ADR 0216 に追記する。
+- 先に Mac 側の追加を行う（仕様書 U-2・U-3・U-6・U-8。契約 §8.10・§8.11）: `GET /sessions` に `backend`（端末か会話か）・`isStalled`（無応答）・`hasUnseenCompletion`（未読）・`parentSessionId`（親子）・`statusEnteredAt`（経過時間の起点）を足し、並びを Mac のサイドバーの順にする。質問にツール使用の許可の印 `toolName`・`toolDetail`。どれも省略可で古いクライアント互換を保ち、ADR 0216 に追記する。「終了」は Mac に無いので足さない（U-3）。
+- サブエージェント詳細の廃止（U-21。2026-10-17 ユーザー決定）: `SubAgentDetailView`・`SubAgentDetailViewModel`・行の押下と遷移・iOS 側の `PhloxAPI.subAgents`／`subAgentMessages` とクライアント・DTO を消し、会話のサブエージェントの行は押せない表示にする（Mac の `SubAgentMarkerCell` と同じ）。消したテストは作業記録 0022 に列挙する。Mac の API は触らない。
+- iOS の一覧のモデルに上の項目を読み込み、表示の状態は共有の `SessionDisplayState.resolve` で決める（画面の作り替えは段階 3）。
 
 - `GET /projects`、`GET /agents/{kind}/settings`、`GET`・`PATCH /sessions/{id}/settings` の追加項目、`POST /sessions` の `effort`・`permission`・`planMode`、質問の `allowsSessionScope`（回答 `"AllowForSession"`）。
 - 409（変更中）・425（準備前）・404・400 の扱い。古い Mac では非対応として隠す。
@@ -123,7 +125,7 @@ iPhone アプリの UI を、Claude Design で作った再設計の見本（版 
   | 見出しの操作の種類 | 今は届かない（D2） | 許可の質問に載るツール名から作れるかを、この段階の最初に確かめる |
 
 - 今の iOS は Claude の許可を質問のカード（`UserQuestionCard`）で出している。この経路を承認のカードへ移す。
-- 表示できない会話の画面。
+- 表示できない会話の画面（`backend` が `"pty"` のセッション。U-2）。
 - `SessionDetailViewModel`（1030 行）は画面に結び付いた処理が多いので、この段階で表示用の状態と通信の処理を分ける。
 - 完了: Detail*・Chat*・Reply*（承認・質問）の盤面と一致する。
 

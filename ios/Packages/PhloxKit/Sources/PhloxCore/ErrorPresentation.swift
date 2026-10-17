@@ -49,6 +49,12 @@ public extension PhloxError {
                 message: "対象のセッションは削除されたか存在しません。",
                 recoveryAction: "一覧に戻る"
             )
+        case .unsupported:
+            return ErrorPresentation(
+                title: "Mac の更新が必要です",
+                message: "接続先の Mac はこの設定に対応していません。",
+                recoveryAction: nil
+            )
         case .server(let status, let message):
             return ErrorPresentation(
                 title: "サーバエラー (\(status))",

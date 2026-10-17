@@ -54,12 +54,26 @@ public struct UserQuestionItem: Sendable, Equatable {
     public let header: String
     public let options: [UserQuestionOption]
     public let multiSelect: Bool
+    public let toolName: String?
+    public let toolDetail: String?
 
-    public init(question: String, header: String, options: [UserQuestionOption], multiSelect: Bool) {
+    /// A tool name marks this question as a tool-use permission request.
+    public var isToolPermission: Bool { toolName != nil }
+
+    public init(
+        question: String,
+        header: String,
+        options: [UserQuestionOption],
+        multiSelect: Bool,
+        toolName: String? = nil,
+        toolDetail: String? = nil
+    ) {
         self.question = question
         self.header = header
         self.options = options
         self.multiSelect = multiSelect
+        self.toolName = toolName
+        self.toolDetail = toolDetail
     }
 }
 

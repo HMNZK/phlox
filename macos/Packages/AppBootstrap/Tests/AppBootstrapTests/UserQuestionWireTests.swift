@@ -239,6 +239,14 @@ import AppBootstrap
         if allowsSessionScope == nil { #expect(wireQuestions[0]["allowsSessionScope"] == nil) }
         #expect(wireQuestions[1]["allowsSessionScope"] == nil)
         #expect(wireQuestions[2]["allowsSessionScope"] == nil)
+        #expect(ControlQuestionWireContract.toolNameKey == "toolName")
+        #expect(ControlQuestionWireContract.toolDetailKey == "toolDetail")
+        #expect(wireQuestions[0]["toolName"] as? String == "Bash")
+        #expect(wireQuestions[0]["toolDetail"] as? String == "pwd")
+        for question in wireQuestions.dropFirst() {
+            #expect(question["toolName"] == nil)
+            #expect(question["toolDetail"] == nil)
+        }
         for question in wireQuestions {
             let wireOptions = try #require(question["options"] as? [[String: Any]])
             #expect(wireOptions.compactMap { $0["label"] as? String } == ["Allow", "Deny"])

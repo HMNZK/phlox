@@ -841,7 +841,7 @@ enum ComposerSuggestionSources {
 
     private static func commandNames(in directory: URL) -> [String] {
         let entries = (try? FileManager.default.contentsOfDirectory(
-            at: directory,
+            at: directory.resolvingSymlinksInPath(),
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         )) ?? []
@@ -853,7 +853,7 @@ enum ComposerSuggestionSources {
 
     private static func skillEntries(in directory: URL) -> [SkillEntry] {
         let entries = (try? FileManager.default.contentsOfDirectory(
-            at: directory,
+            at: directory.resolvingSymlinksInPath(),
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         )) ?? []

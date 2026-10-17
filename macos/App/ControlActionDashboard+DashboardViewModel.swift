@@ -39,14 +39,16 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         from: SessionID?,
         backend: SessionBackend,
         workingDirectory: String?,
-        projectID: ProjectID?
+        projectID: ProjectID?,
+        initialSettings: CodexAppServerSessionSettings?
     ) async throws -> SessionID {
         try await spawnNewSessionFromControlAPI(
             ref: ref,
             requester: from,
             backend: backend,
             workingDirectory: workingDirectory,
-            projectID: projectID
+            projectID: projectID,
+            initialSettings: initialSettings
         )
     }
 
@@ -92,19 +94,40 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
     }
 
     public func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings? {
-        guard let settings = controlModelSettings(for: id) else {
+        guard let settings = controlComposerSettings(for: id, languageCode: controlLanguageCode) else {
             return nil
         }
         return ControlSessionModelSettings(
             selectedModel: settings.selectedModel,
             availableModels: settings.availableModels.map {
                 ControlModelOption(id: $0.id, displayName: $0.displayName)
-            }
+            },
+            selectedEffort: settings.selectedEffort,
+            availableEfforts: settings.availableEfforts.map {
+                ControlSettingOption(value: $0, displayName: composerEffortTitle($0, languageCode: controlLanguageCode))
+            },
+            selectedPermission: settings.selectedPermission,
+            availablePermissions: settings.availablePermissions.map { ControlSettingOption(value: $0.value, displayName: $0.title) },
+            planMode: settings.planMode,
+            planModeAvailable: settings.planModeAvailable
         )
     }
 
     public func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome {
         await controlSetModel(model, for: id)
+    }
+
+    public var controlLanguageCode: String {
+        let language = AppLanguage(rawValue: UserDefaults.standard.string(forKey: LanguageSettings.languageKey) ?? "system") ?? .system
+        return language.locale.language.languageCode?.identifier ?? language.locale.identifier
+    }
+
+    public var controlProjects: [ControlProject] {
+        projects.map { ControlProject(id: $0.id.description, name: $0.name) }
+    }
+
+    public func setSessionSettings(_ settings: ControlSettingsUpdate, for id: SessionID) async -> ControlSettingsApplyOutcome {
+        await controlSetSettings(settings, for: id)
     }
 
     public var controlCLIUsages: [AgentKind: CLIUsage] {

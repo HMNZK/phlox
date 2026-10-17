@@ -123,6 +123,7 @@ public struct ControlModelChoice: Equatable, Sendable {
 /// Control API からのモデル適用結果。呼び出し側（Control 層）が HTTP status へ写像する。
 public enum ControlModelApplyOutcome: Equatable, Sendable {
     case applied
+    case busy
     /// 候補一覧に無いモデル ID。
     case unknownModel
     /// codex の thread 未開始（wait-ready 前）。
@@ -208,4 +209,14 @@ extension JSONValue {
         }
         return nil
     }
+}
+
+public enum ControlSettingsApplyOutcome: Equatable, Sendable {
+    case applied
+    case invalidValue(String)
+    case unsupported(String)
+    case busy
+    case notReady
+    case notFound
+    case failed
 }

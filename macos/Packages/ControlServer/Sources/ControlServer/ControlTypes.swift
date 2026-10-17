@@ -23,7 +23,7 @@ public struct ControlRequest: Sendable {
     public enum Action: Sendable {
         case listSessions
         case sendText(to: Recipient, text: String, submit: Bool, inReplyTo: UUID?, images: [ControlImageAttachment])
-        case spawn(ref: AgentRef, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?)
+        case spawn(ref: AgentRef, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?)
         case remove(id: SessionID)
         case rename(id: SessionID, name: String)
         case output(id: SessionID, mode: OutputMode, format: OutputFormat)
@@ -43,6 +43,9 @@ public struct ControlRequest: Sendable {
         case sessionSettings(id: SessionID)
         case setModel(id: SessionID, model: String)
         case agentModels(kind: AgentKind)
+        case agentSettings(kind: AgentKind)
+        case setSettings(id: SessionID, settings: ControlSettingsUpdate)
+        case listProjects
         case cliUsage
     }
 }
@@ -267,7 +270,7 @@ public enum ControlModelWireContract {
     // these frozen keys; SessionModelSettingsTests verifies the serialized wire shape.
     /// GET /sessions/{id}/settings → 200 {"selectedModel": String?, "availableModels": [{"id","displayName"}]}
     public static let settingsPathSuffix = "/settings"
-    /// POST /sessions/{id}/model  body {"model": String} → 200 / 404 / 400
+    /// POST /sessions/{id}/model  body {"model": String} → 200 / 400 / 404 / 409（変更中） / 425（Codex thread 開始前） / 500
     public static let modelPathSuffix = "/model"
     public static let selectedModelKey = "selectedModel"
     public static let availableModelsKey = "availableModels"
@@ -282,13 +285,35 @@ public struct ControlSessionModelSettings: Encodable, Equatable, Sendable {
     public let selectedModel: String?
     public let availableModels: [ControlModelOption]
 
-    public init(selectedModel: String?, availableModels: [ControlModelOption]) {
+    public var selectedEffort: String?
+    public var availableEfforts: [ControlSettingOption]
+    public var selectedPermission: String?
+    public var availablePermissions: [ControlSettingOption]
+    public var planMode: Bool
+    public var planModeAvailable: Bool
+
+    public init(selectedModel: String?, availableModels: [ControlModelOption],
+                selectedEffort: String? = nil, availableEfforts: [ControlSettingOption] = [],
+                selectedPermission: String? = nil, availablePermissions: [ControlSettingOption] = [],
+                planMode: Bool = false, planModeAvailable: Bool = false) {
+        self.selectedEffort = selectedEffort
+        self.availableEfforts = availableEfforts
+        self.selectedPermission = selectedPermission
+        self.availablePermissions = availablePermissions
+        self.planMode = planMode
+        self.planModeAvailable = planModeAvailable
         self.selectedModel = selectedModel
         self.availableModels = availableModels
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: ControlModelCodingKey.self)
+        try container.encode(selectedEffort, forKey: .init("selectedEffort"))
+        try container.encode(availableEfforts, forKey: .init("availableEfforts"))
+        try container.encode(selectedPermission, forKey: .init("selectedPermission"))
+        try container.encode(availablePermissions, forKey: .init("availablePermissions"))
+        try container.encode(planMode, forKey: .init("planMode"))
+        try container.encode(planModeAvailable, forKey: .init("planModeAvailable"))
         let selectedKey = ControlModelCodingKey(ControlModelWireContract.selectedModelKey)
         if let selectedModel {
             try container.encode(selectedModel, forKey: selectedKey)
@@ -317,4 +342,27 @@ private struct ControlModelCodingKey: CodingKey {
     init?(intValue: Int) {
         return nil
     }
+}
+
+public struct ControlSettingOption: Encodable, Equatable, Sendable {
+    public let value: String?
+    public let displayName: String
+
+    public init(value: String?, displayName: String) {
+        self.value = value
+        self.displayName = displayName
+    }
+
+    enum CodingKeys: String, CodingKey { case value, displayName }
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(value, forKey: .value)
+        try container.encode(displayName, forKey: .displayName)
+    }
+}
+
+public struct ControlProject: Encodable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public init(id: String, name: String) { self.id = id; self.name = name }
 }

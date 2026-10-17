@@ -60,6 +60,20 @@ private final class ConfirmingPermissionClient: StructuredAgentClient, SpawnAgen
         throw ChatSettingsUpdateError.spawnSettingsUpdateInProgress
     }
 
+    @Test func modelChangeDuringPermissionUpdateIsBusy() async throws {
+        let client = ConfirmingPermissionClient()
+        let vm = try await makeVM(client)
+        let selectedModel = vm.selectedModel
+        let change = Task { await vm.setSpawnAgentPermission("bypassPermissions") }
+        try await waitForChange(vm)
+        #expect(await vm.applyControlModel("default") == .busy)
+        #expect(vm.selectedModel == selectedModel)
+        client.gate.continuation.finish()
+        await change.value
+        #expect(await vm.applyControlModel("default") == .applied)
+        await vm.terminate()
+    }
+
     @Test func displayedAndSavedPermissionWaitForConfirmation() async throws {
         let client = ConfirmingPermissionClient()
         let vm = try await makeVM(client)
@@ -69,7 +83,7 @@ private final class ConfirmingPermissionClient: StructuredAgentClient, SpawnAgen
         try await waitForChange(vm)
         #expect(vm.selectedPermissionProfile == "manual")
         #expect(saved.isEmpty)
-        #expect(await vm.applyControlModel("default") == .failed)
+        #expect(await vm.applyControlModel("default") == .busy)
         client.gate.continuation.yield(())
         await change.value
         #expect(vm.selectedPermissionProfile == "bypassPermissions")
@@ -167,5 +181,74 @@ private final class ConfirmingPermissionClient: StructuredAgentClient, SpawnAgen
         await vm.setSpawnAgentPermission("bypassPermissions")
         #expect(vm.selectedPermissionProfile == "bypassPermissions")
         await client.close()
+    }
+}
+
+@MainActor @Suite struct ControlSettingsPermissionTests {
+    @Test func permissionDuringSendIsBusyAndDoesNotApplyLaterFields() async throws {
+        let client = ConfirmingPermissionClient()
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: nil,
+            spawnAgentPermissionOverride: "manual", spawnAgentModelsProvider: { ["opus"] })
+        try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+        let turn = AsyncStream<Void>.makeStream()
+        client.turnBarrier = turn.stream
+        let send = Task { try await vm.sendText("hello", submit: true) }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while client.sentTurns == 0 && ContinuousClock.now < deadline { await Task.yield() }
+        #expect(client.sentTurns == 1)
+        let oldEffort = vm.selectedEffort
+        let outcome = await vm.applyControlSettings(.init(effort: "low", permission: .some("auto"), planMode: true))
+        #expect(outcome == .busy)
+        #expect(vm.selectedPermissionProfile == "manual")
+        #expect(vm.selectedEffort == oldEffort)
+        #expect(!vm.isPlanMode)
+        turn.continuation.finish()
+        try await send.value
+        await vm.terminate()
+    }
+
+    @Test func effortDuringPermissionUpdateIsBusy() async throws {
+        let client = ConfirmingPermissionClient()
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: nil,
+            spawnAgentModelsProvider: { ["opus"] })
+        try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+        let change = Task { await vm.setSpawnAgentPermission("manual") }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !vm.isApplyingSpawnAgentPermission && ContinuousClock.now < deadline { await Task.yield() }
+        #expect(vm.isApplyingSpawnAgentPermission)
+        #expect(await vm.applyControlSettings(.init(effort: "low")) == .busy)
+        client.gate.continuation.finish()
+        await change.value
+        await vm.terminate()
+    }
+
+    @Test func cursorDefaultPermissionIsValidAndClearsPlan() async throws {
+        let client = ConfirmingPermissionClient()
+        client.gate.continuation.finish()
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.cursor), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: nil)
+        try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+        try await vm.setPlanMode(true)
+        #expect(vm.isPlanMode)
+        #expect(await vm.applyControlSettings(.init(permission: .some(nil))) == .applied)
+        #expect(!vm.isPlanMode)
+        #expect(vm.selectedPermissionProfile == nil)
+        #expect(await vm.applyControlSettings(.init(effort: "high")) == .unsupported("effort"))
+        await vm.terminate()
+    }
+
+    @Test func unknownFieldValidatesBeforeAnyPermissionChange() async throws {
+        let client = ConfirmingPermissionClient()
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: nil,
+            spawnAgentPermissionOverride: "manual", spawnAgentModelsProvider: { ["opus"] })
+        try await vm.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+        #expect(await vm.applyControlSettings(.init(effort: "unknown", permission: .some("auto"))) == .invalidValue("effort"))
+        #expect(vm.selectedPermissionProfile == "manual")
+        #expect(!vm.isApplyingSpawnAgentPermission)
+        #expect(await vm.applyControlSettings(.init(permission: .some(nil))) == .invalidValue("permission"))
+        await vm.terminate()
     }
 }

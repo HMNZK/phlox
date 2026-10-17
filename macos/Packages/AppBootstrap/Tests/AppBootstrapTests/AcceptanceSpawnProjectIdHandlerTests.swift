@@ -41,7 +41,7 @@ import SessionFeature
             from: SessionID?,
             backend: SessionBackend,
             workingDirectory: String?,
-            projectID: ProjectID?
+            projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?
         ) async throws -> SessionID {
             spawnCallCount += 1
             receivedProjectID = projectID
@@ -81,7 +81,7 @@ import SessionFeature
                 ref: .builtin(.claudeCode),
                 backend: .appServer,
                 workingDirectory: workingDirectory,
-                projectID: projectID
+                projectID: projectID, initialSettings: nil
             )
         )
     }

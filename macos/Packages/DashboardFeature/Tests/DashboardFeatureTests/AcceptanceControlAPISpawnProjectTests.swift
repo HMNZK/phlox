@@ -47,7 +47,7 @@ func controlAPISpawn_withProjectID_assignsToThatProject() async throws {
         requester: nil,
         backend: .pty,
         workingDirectory: nil,
-        projectID: projectID
+        projectID: projectID, initialSettings: nil
     )
 
     let spawned = try #require(dashboard.sessionNode(id: spawnedID))
@@ -79,7 +79,7 @@ func controlAPISpawn_withoutProjectID_staysUnassigned() async throws {
         requester: nil,
         backend: .pty,
         workingDirectory: nil,
-        projectID: nil
+        projectID: nil, initialSettings: nil
     )
 
     let spawned = try #require(dashboard.sessionNode(id: spawnedID))
@@ -106,7 +106,7 @@ func controlAPISpawn_withUnknownProjectID_throwsAndCreatesNothing() async throws
             requester: nil,
             backend: .pty,
             workingDirectory: nil,
-            projectID: ProjectID()
+            projectID: ProjectID(), initialSettings: nil
         )
     }
 
@@ -143,7 +143,7 @@ func controlAPISpawn_workingDirectoryTakesPrecedenceOverProjectDirectory() async
         requester: nil,
         backend: .pty,
         workingDirectory: overrideURL.path,
-        projectID: projectID
+        projectID: projectID, initialSettings: nil
     )
 
     let spawned = try #require(dashboard.sessionNode(id: spawnedID))

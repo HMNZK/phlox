@@ -585,7 +585,7 @@ func worktreeIsolation_controlAPIAndChildUseExistingDirectory() async throws {
     let dashboard = DashboardViewModel(environment: environment)
     await dashboard.start()
     let parent = try await dashboard.spawnNewSessionFromControlAPI(
-        ref: .builtin(.codex), requester: nil, backend: .pty, workingDirectory: repository.path, projectID: project.id
+        ref: .builtin(.codex), requester: nil, backend: .pty, workingDirectory: repository.path, projectID: project.id, initialSettings: nil
     )
     let child = try await dashboard.spawnNewSession(kind: .codex, projectID: project.id, from: parent)
     #expect(pty.spawnCalls.map(\.workingDirectory) == [repository.path, repository.path])

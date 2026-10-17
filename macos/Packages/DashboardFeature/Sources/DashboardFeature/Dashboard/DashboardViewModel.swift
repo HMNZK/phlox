@@ -1492,7 +1492,8 @@ public final class DashboardViewModel {
         requester: SessionID?,
         backend: SessionBackend,
         workingDirectory: String?,
-        projectID: ProjectID?
+        projectID: ProjectID?,
+        initialSettings: CodexAppServerSessionSettings?
     ) async throws -> SessionID {
         try await spawnNewSessionFromControlAPI(
             ref: ref,
@@ -1500,6 +1501,7 @@ public final class DashboardViewModel {
             backend: backend,
             workingDirectory: workingDirectory,
             projectID: projectID,
+            initialSettings: initialSettings,
             afterOriginResolution: {}
         )
     }
@@ -1511,6 +1513,7 @@ public final class DashboardViewModel {
         backend: SessionBackend,
         workingDirectory: String?,
         projectID: ProjectID?,
+        initialSettings: CodexAppServerSessionSettings?,
         afterOriginResolution: @MainActor () async -> Void
     ) async throws -> SessionID {
         if let projectID, !projects.contains(where: { $0.id == projectID }) {
@@ -1529,6 +1532,7 @@ public final class DashboardViewModel {
             backend: backend,
             launchContext: origin.launchContext,
             workingDirectoryOverride: workingDirectory,
+            initialSettings: initialSettings,
             spawnLimitSource: .controlRequester(requester)
         )
     }

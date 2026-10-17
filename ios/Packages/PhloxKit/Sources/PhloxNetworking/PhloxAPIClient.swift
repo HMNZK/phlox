@@ -450,7 +450,7 @@ extension PhloxAPIClient: DeviceTokenRegistering {
 public enum PhloxModelWireContract {
     /// GET sessions/{id}/settings → 200 {"selectedModel": String?, "availableModels": [{"id","displayName"}]}
     public static let settingsPathSuffix = "settings"
-    /// POST sessions/{id}/model  body {"model": String} → 200 / 404 / 400
+    /// POST /sessions/{id}/model  body {"model": String} → 200 / 400 / 404 / 409（変更中） / 425（Codex thread 開始前） / 500
     public static let modelPathSuffix = "model"
     public static let selectedModelKey = "selectedModel"
     public static let availableModelsKey = "availableModels"
@@ -468,11 +468,12 @@ public enum PhloxModelWireContract {
 /// メッセージ側（GET sessions/{id}/messages の ChatMessageDTO）:
 ///   type == "userQuestion" のとき追加フィールド
 ///   {"requestId": String, "state": "pending"|"answered"|"expired",
-///    "questions": [{"question","header","multiSelect","options":[{"label","description"?}]}],
+///    "questions": [{"question","header","multiSelect","options":[{"label","description"?}],"allowsSessionScope": Bool?}],
 ///    "answers": {"<question文>": [String]}? }
 /// 回答側:
 ///   POST sessions/{id}/question  body {"requestId": String, "answers": {"<question文>": [String]}}
 ///   → 200（受理）/ 404（セッション or pending 質問なし）/ 400（body 不正）
+///   セッション中の許可は answers に ["AllowForSession"] を返す（options には追加しない）。
 public enum PhloxQuestionWireContract {
     public static let messageType = "userQuestion"
     public static let questionPathSuffix = "question"
@@ -483,6 +484,8 @@ public enum PhloxQuestionWireContract {
     public static let questionKey = "question"
     public static let headerKey = "header"
     public static let multiSelectKey = "multiSelect"
+    public static let allowsSessionScopeKey = "allowsSessionScope"
+    public static let allowForSessionAnswer = "AllowForSession"
     public static let optionsKey = "options"
     public static let optionLabelKey = "label"
     public static let optionDescriptionKey = "description"

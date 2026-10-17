@@ -5,7 +5,7 @@ import Testing
 
 /// 契約（wire-contract.md §1・§2）: POST /sessions の body に省略可能な `projectId` を
 /// 追加する。パース層は UUID 形式だけを検証し、成功時のみ `ProjectID` にして
-/// `Action.spawn(ref:backend:workingDirectory:projectID:)` に載せる。
+/// `Action.spawn(ref:backend:workingDirectory:projectID:initialSettings:)` に載せる。
 /// UUID として parse できない値は 400 で spawn 自体を行わない（存在検査はハンドラ層の責務）。
 private actor ProjectIDHandlerStub {
     private(set) var lastRequest: ControlRequest?
@@ -39,7 +39,7 @@ private actor ProjectIDHandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(let ref, let backend, _, let projectID)? = last?.action else {
+        guard case .spawn(let ref, let backend, _, let projectID, _)? = last?.action else {
             Issue.record("expected spawn, got \(String(describing: last?.action))")
             return
         }
@@ -63,7 +63,7 @@ private actor ProjectIDHandlerStub {
         )
 
         #expect(status == 200)
-        guard case .spawn(let ref, let backend, _, _)? = await stub.lastRequest?.action else {
+        guard case .spawn(let ref, let backend, _, _, _)? = await stub.lastRequest?.action else {
             Issue.record("expected PTY spawn request")
             return
         }
@@ -87,7 +87,7 @@ private actor ProjectIDHandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(_, _, _, let projectID)? = last?.action else {
+        guard case .spawn(_, _, _, let projectID, _)? = last?.action else {
             Issue.record("expected spawn, got \(String(describing: last?.action))")
             return
         }
@@ -111,7 +111,7 @@ private actor ProjectIDHandlerStub {
         #expect(status == 200)
 
         let last = await stub.lastRequest
-        guard case .spawn(_, _, let workingDirectory, let projectID)? = last?.action else {
+        guard case .spawn(_, _, let workingDirectory, let projectID, _)? = last?.action else {
             Issue.record("expected spawn, got \(String(describing: last?.action))")
             return
         }

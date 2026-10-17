@@ -5,7 +5,7 @@ import ControlServer
 import DashboardFeature
 import StructuredChatKit
 import AppBootstrap
-import SessionFeature
+@testable import SessionFeature
 
 // control API の userQuestion 配線（ControlQuestionWireContract）: messages の出力形と respondQuestion の転送。
 
@@ -44,7 +44,7 @@ import SessionFeature
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?, projectID: ProjectID?
+            workingDirectory: String?, projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?
         ) async throws -> SessionID { SessionID() }
         func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool { true }
         func removeSession(_ id: SessionID) async -> Bool { true }
@@ -212,6 +212,52 @@ import SessionFeature
         #expect(dashboard.respondQuestionCalls.first?.id == sessionID)
         #expect(dashboard.respondQuestionCalls.first?.requestId == "req-1")
         #expect(dashboard.respondQuestionCalls.first?.answers == ["デプロイ先は?": ["staging"]])
+    }
+
+    @Test(arguments: [true, false, nil] as [Bool?])
+    func permissionQuestionEmitsOptionalSessionScope(allowsSessionScope: Bool?) async throws {
+        let dashboard = QuestionDashboardStub()
+        let options = [ChatUserQuestionOption(label: "Allow"), ChatUserQuestionOption(label: "Deny")]
+        let questions = [
+            ChatUserQuestion(question: "Bash?", header: "Permission", options: options, multiSelect: false,
+                permission: ChatToolPermission(toolName: "Bash", detail: "pwd", allowsSessionScope: allowsSessionScope)),
+            ChatUserQuestion(question: "Normal?", header: "Question", options: options, multiSelect: false),
+            ChatUserQuestion(question: "Legacy?", header: "Question", options: options, multiSelect: false, permission: nil),
+        ]
+        dashboard.deltaResponse = TranscriptDelta(
+            items: [.userQuestion(id: "q", requestId: "req", questions: questions, answers: nil, state: .pending, timestamp: Self.ts)],
+            cursor: "c", isSnapshot: false
+        )
+        let response = await makeHandler(dashboard).handle(
+            ControlRequest(requester: nil, action: .messages(id: SessionID(), since: nil, wait: nil))
+        )
+        #expect(response.statusCode == 200)
+        let message = try #require((try bodyJSON(response)["messages"] as? [[String: Any]])?.first)
+        let wireQuestions = try #require(message["questions"] as? [[String: Any]])
+        #expect(wireQuestions.count == 3)
+        #expect(wireQuestions[0]["allowsSessionScope"] as? Bool == allowsSessionScope)
+        if allowsSessionScope == nil { #expect(wireQuestions[0]["allowsSessionScope"] == nil) }
+        #expect(wireQuestions[1]["allowsSessionScope"] == nil)
+        #expect(wireQuestions[2]["allowsSessionScope"] == nil)
+        for question in wireQuestions {
+            let wireOptions = try #require(question["options"] as? [[String: Any]])
+            #expect(wireOptions.compactMap { $0["label"] as? String } == ["Allow", "Deny"])
+        }
+    }
+
+    @Test func sessionPermissionAnswerForwardsUnchanged() async throws {
+        #expect(ControlQuestionWireContract.allowForSessionAnswer == ChatSessionViewModel.allowForSessionAnswer)
+        let dashboard = QuestionDashboardStub()
+        let id = SessionID()
+        let answers = ["Bash?": ["AllowForSession"]]
+        let response = await makeHandler(dashboard).handle(ControlRequest(
+            requester: nil, action: .respondQuestion(id: id, requestId: "req", answers: answers)
+        ))
+        #expect(response.statusCode == 200)
+        #expect(dashboard.respondQuestionCalls.count == 1)
+        #expect(dashboard.respondQuestionCalls.first?.id == id)
+        #expect(dashboard.respondQuestionCalls.first?.requestId == "req")
+        #expect(dashboard.respondQuestionCalls.first?.answers == answers)
     }
 
     @Test func respondQuestionRejectedByDashboardReturns404() async throws {

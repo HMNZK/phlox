@@ -1669,7 +1669,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// Control API からのモデル適用。throws を outcome へ写像し、失敗理由を握りつぶさない。
     public func applyControlModel(_ model: String) async -> ControlModelApplyOutcome {
-        guard !isApplyingSpawnAgentPermission else { return .failed }
+        guard !isApplyingSpawnAgentPermission else { return .busy }
         if canApplySpawnAgentSettings {
             guard availableSpawnAgentModels.contains(model) else { return .unknownModel }
             await setSpawnAgentModel(model)
@@ -1687,6 +1687,67 @@ public final class ChatSessionViewModel: Identifiable {
             return .notReady
         } catch ChatSettingsUpdateError.codexSettingsUnavailable {
             return .unsupported
+        } catch {
+            return .failed
+        }
+    }
+
+    public var controlSettingsAvailable: Bool {
+        if case .failed = restoreState { return false }
+        guard launchFailure == nil else { return false }
+        return canApplySpawnAgentSettings || codexClient != nil
+    }
+
+    public func controlPermissionOptions(languageCode: String) -> [ComposerModeOption] {
+        guard controlSettingsAvailable else { return [] }
+        return composerModeOptions(for: agentRef, codexProfileIDs: permissionProfiles.map(\.id), languageCode: languageCode)
+            .filter { !$0.isPlan }
+    }
+
+    public var controlSelectedPermission: String? {
+        agentRef == .builtin(.codex) ? selectedCodexPermissionPreset : selectedPermissionProfile
+    }
+
+    public func applyControlSettings(_ settings: ControlSettingsUpdate) async -> ControlSettingsApplyOutcome {
+        if agentRef == .builtin(.codex), threadId == nil { return .notReady }
+        let efforts = controlSettingsAvailable ? cyclableEfforts : []
+        let permissions = controlPermissionOptions(languageCode: "ja")
+        if let effort = settings.effort {
+            guard !efforts.isEmpty else { return .unsupported("effort") }
+            guard efforts.contains(effort) else { return .invalidValue("effort") }
+        }
+        if let permission = settings.permission {
+            guard !permissions.isEmpty else { return .unsupported("permission") }
+            guard permissions.contains(where: { $0.value == permission }) else { return .invalidValue("permission") }
+        }
+        if settings.planMode != nil, !controlSettingsAvailable || !isPlanModeAvailable {
+            return .unsupported("planMode")
+        }
+        do {
+            if let permission = settings.permission {
+                if isSpawnAgent {
+                    try await changeSpawnAgentPermission(permission)
+                } else if let permission {
+                    let wasPlanMode = isPlanMode
+                    try await setPermissionProfile(id: permission)
+                    if wasPlanMode { try await setPlanMode(false) }
+                }
+            }
+            if let planMode = settings.planMode { try await setPlanMode(planMode) }
+            if let effort = settings.effort {
+                guard !isApplyingSpawnAgentPermission else { return .busy }
+                if isSpawnAgent {
+                    await setSpawnAgentEffort(effort)
+                } else {
+                    guard let model = selectedCodexModel else { return .failed }
+                    try await setModel(model: model.id, effort: effort)
+                }
+            }
+            return .applied
+        } catch ChatSettingsUpdateError.spawnSettingsUpdateInProgress {
+            return .busy
+        } catch ChatSettingsUpdateError.threadNotStarted {
+            return .notReady
         } catch {
             return .failed
         }

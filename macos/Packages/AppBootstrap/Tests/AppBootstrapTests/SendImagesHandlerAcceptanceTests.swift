@@ -38,7 +38,7 @@ import SessionFeature
             ref: AgentRef,
             from: SessionID?,
             backend: SessionBackend,
-            workingDirectory: String?, projectID: ProjectID?
+            workingDirectory: String?, projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?
         ) async throws -> SessionID { SessionID() }
         func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool { true }
         func removeSession(_ id: SessionID) async -> Bool { true }

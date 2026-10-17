@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-10-15
+last-verified: 2026-10-17
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,6 +12,7 @@ last-verified: 2026-10-15
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0216 | [入力欄の設定（推論の深さ・権限・Plan）とプロジェクト一覧を Control API に載せる](0216-mobile-composer-settings-and-projects-wire.md) | accepted |
 | 0214 | [Claude使用量を通知優先・1分補完・専用プロセスで取得する](0214-claude-usage-notifications-and-refresh.md) | accepted |
 | 0213 | [Metal 描画の切り替えを見送る](0213-terminal-metal-renderer-trial.md) | rejected（見送り・計測結果を記録） |
 | 0212 | [Option＋左右矢印を限定して割り当て、端末応答の要求を区別する](0212-terminal-option-arrows-and-query-responses.md) | accepted |

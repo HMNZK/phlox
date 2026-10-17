@@ -53,7 +53,8 @@ public protocol ControlActionDashboard: AnyObject {
         from: SessionID?,
         backend: SessionBackend,
         workingDirectory: String?,
-        projectID: ProjectID?
+        projectID: ProjectID?,
+        initialSettings: CodexAppServerSessionSettings?
     ) async throws -> SessionID
     func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool
     func removeSession(_ id: SessionID) async -> Bool
@@ -92,10 +93,16 @@ public protocol ControlActionDashboard: AnyObject {
     func sessionUsage(for id: SessionID) -> ControlSessionUsage?
     func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings?
     func setSessionModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome
+    var controlLanguageCode: String { get }
+    var controlProjects: [ControlProject] { get }
+    func setSessionSettings(_ settings: ControlSettingsUpdate, for id: SessionID) async -> ControlSettingsApplyOutcome
     var controlCLIUsages: [AgentKind: CLIUsage] { get }
 }
 
 extension ControlActionDashboard {
+    public var controlLanguageCode: String { "ja" }
+    public var controlProjects: [ControlProject] { [] }
+    public func setSessionSettings(_ settings: ControlSettingsUpdate, for id: SessionID) async -> ControlSettingsApplyOutcome { .notFound }
     /// 既定は「端末画面を持たない」。実体（DashboardViewModel）だけが上書きする。
     public func sessionAnsiScreen(for id: SessionID) -> AnsiScreen? { nil }
     public func persistSessionRole(id: SessionID, role: String) {}
@@ -142,7 +149,7 @@ public final class ControlActionHandler {
                 inReplyTo: inReplyTo,
                 images: images
             )
-        case let .spawn(ref, backend, workingDirectory, projectID):
+        case let .spawn(ref, backend, workingDirectory, projectID, initialSettings):
             return await handleSpawn(
                 dashboard,
                 ref: ref,
@@ -150,7 +157,8 @@ public final class ControlActionHandler {
                 backend: backend,
                 workingDirectory: workingDirectory,
                 projectID: projectID,
-                model: ControlSpawnContext.model
+                model: ControlSpawnContext.model,
+                initialSettings: initialSettings
             )
         case let .remove(id):
             return await handleRemove(dashboard, id: id, requester: request.requester)
@@ -194,6 +202,12 @@ public final class ControlActionHandler {
             return await handleSetModel(dashboard, id: id, model: model)
         case let .agentModels(kind):
             return handleAgentModels(kind: kind)
+        case let .agentSettings(kind):
+            return .json(200, newChatSettingsOptions(for: kind, languageCode: dashboard.controlLanguageCode))
+        case let .setSettings(id, settings):
+            return await handleSetSettings(dashboard, id: id, settings: settings)
+        case .listProjects:
+            return .json(200, ProjectsDTO(projects: dashboard.controlProjects))
         case .cliUsage:
             return handleCLIUsage(dashboard)
         case .registerDeviceToken:
@@ -261,6 +275,8 @@ public final class ControlActionHandler {
             return .json(425, ErrorDTO(error: "session not ready"))
         case .unsupported, .notFound:
             return .status(404)
+        case .busy:
+            return .json(409, ErrorDTO(error: "settings update in progress"))
         case .failed:
             return .status(500)
         }
@@ -327,6 +343,21 @@ public final class ControlActionHandler {
         return mapSendOutcome(outcome)
     }
 
+    private func handleSetSettings(_ dashboard: any ControlActionDashboard, id: SessionID, settings: ControlSettingsUpdate) async -> ControlResponse {
+        switch await dashboard.setSessionSettings(settings, for: id) {
+        case .applied: return .status(200)
+        case .notFound: return .status(404)
+        case .notReady: return .json(425, ErrorDTO(error: "session not ready"))
+        case .busy: return .json(409, ErrorDTO(error: "settings update in progress"))
+        case let .invalidValue(field):
+            let value = field == "effort" ? settings.effort : settings.permission ?? nil
+            return .json(400, ErrorDTO(error: "unknown \(field): \(value ?? "null")"))
+        case let .unsupported(field):
+            return .json(409, ErrorDTO(error: field == "planMode" ? "plan mode unavailable" : "\(field) unsupported"))
+        case .failed: return .status(500)
+        }
+    }
+
     private func handleSpawn(
         _ dashboard: any ControlActionDashboard,
         ref: AgentRef,
@@ -334,10 +365,29 @@ public final class ControlActionHandler {
         backend: SessionBackend,
         workingDirectory: String?,
         projectID: ProjectID?,
-        model: String?
+        model: String?,
+        initialSettings: CodexAppServerSessionSettings?
     ) async -> ControlResponse {
         guard Self.isValidWorkingDirectory(workingDirectory) else {
             return .json(400, ErrorDTO(error: "invalid workingDirectory"))
+        }
+
+        if let settings = initialSettings {
+            guard backend == .appServer else { return .json(400, ErrorDTO(error: "settings require appServer backend")) }
+            let kind = ref.builtinKind
+            let options = newChatSettingsOptions(for: kind, languageCode: dashboard.controlLanguageCode)
+            let model = settings.selectedModel ?? AgentModelCatalog.defaultModel(for: kind) ?? ""
+            if let effort = settings.selectedEffort,
+               !(options.availableEfforts[model] ?? []).contains(where: { $0.value == effort }) {
+                return .json(400, ErrorDTO(error: "unknown effort: \(effort)"))
+            }
+            if let permission = settings.selectedPermissionProfile,
+               !options.availablePermissions.contains(where: { $0.value == permission }) {
+                return .json(400, ErrorDTO(error: "unknown permission: \(permission)"))
+            }
+            if settings.isPlanMode == true, !options.planModeAvailable {
+                return .json(400, ErrorDTO(error: "plan mode unavailable"))
+            }
         }
 
         do {
@@ -346,17 +396,20 @@ public final class ControlActionHandler {
                 from: requester,
                 backend: backend,
                 workingDirectory: workingDirectory,
-                projectID: projectID
+                projectID: projectID,
+                initialSettings: initialSettings
             )
-            // spawn 直後の適用は1回だけ試す（リトライも待機もしない）。codex は thread 未開始で
-            // .notReady になるのが通常で、その場合は wait-ready 後の POST /sessions/{id}/model を使う。
-            let modelApplied = await ControlSpawnModelApplier.apply(model, to: id) { model, sessionID in
-                await dashboard.setSessionModel(model, for: sessionID) == .applied
-            }
-            if modelApplied == false {
-                Self.logger.warning(
-                    "Spawned session \(id.rawValue.uuidString, privacy: .private) but model application failed"
-                )
+            if initialSettings == nil {
+                // spawn 直後の適用は1回だけ試す（リトライも待機もしない）。codex は thread 未開始で
+                // .notReady になるのが通常で、その場合は wait-ready 後の POST /sessions/{id}/model を使う。
+                let modelApplied = await ControlSpawnModelApplier.apply(model, to: id) { model, sessionID in
+                    await dashboard.setSessionModel(model, for: sessionID) == .applied
+                }
+                if modelApplied == false {
+                    Self.logger.warning(
+                        "Spawned session \(id.rawValue.uuidString, privacy: .private) but model application failed"
+                    )
+                }
             }
             if let role = ControlSpawnContext.role {
                 dashboard.persistSessionRole(id: id, role: role)
@@ -630,6 +683,8 @@ public final class ControlActionHandler {
 
     private func mapSpawnError(_ error: Error) -> ControlResponse {
         switch error {
+        case ChatLaunchError.settingsNotApplied:
+            return .json(422, ErrorDTO(error: "settings not applied"))
         case AgentSpawnError.spawnRateLimited:
             return .json(429, ErrorDTO(error: "spawn rate limited"))
         case AgentSpawnError.depthLimitExceeded:
@@ -869,13 +924,15 @@ private struct UserQuestionWireDTO: Encodable {
     let header: String
     let multiSelect: Bool
     let options: [UserQuestionOptionWireDTO]
+    let allowsSessionScope: Bool?
 
     static func from(_ question: ChatUserQuestion) -> UserQuestionWireDTO {
         UserQuestionWireDTO(
             question: question.question,
             header: question.header,
             multiSelect: question.multiSelect,
-            options: question.options.map(UserQuestionOptionWireDTO.from)
+            options: question.options.map(UserQuestionOptionWireDTO.from),
+            allowsSessionScope: question.permission?.allowsSessionScope
         )
     }
 
@@ -885,6 +942,7 @@ private struct UserQuestionWireDTO: Encodable {
         try container.encode(header, forKey: .init(ControlQuestionWireContract.headerKey))
         try container.encode(multiSelect, forKey: .init(ControlQuestionWireContract.multiSelectKey))
         try container.encode(options, forKey: .init(ControlQuestionWireContract.optionsKey))
+        try container.encodeIfPresent(allowsSessionScope, forKey: .init(ControlQuestionWireContract.allowsSessionScopeKey))
     }
 }
 
@@ -1022,3 +1080,5 @@ private struct TurnUsageWireDTO: Encodable {
         try container.encodeIfPresent(contextWindowTokens, forKey: .contextWindowTokens)
     }
 }
+
+private struct ProjectsDTO: Encodable { let projects: [ControlProject] }

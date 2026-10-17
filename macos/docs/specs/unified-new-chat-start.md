@@ -378,6 +378,7 @@ AI が既定値で決めた事項（異論があれば変える）:
 ### 8.4 影響しない（確認済み）
 
 - Control API `POST /sessions` と CLI `spawn` の受け付け項目、モバイル API の形、iOS アプリのコード（iOS は自前の下書き画面を持つ）。ただし起動場所は FR-18 のとおり変わる。
+  - 2026-10-17 追記: その後、iOS 再設計のために `POST /sessions` へ推論の深さ・権限・Plan（省略可）を足し、この画面の選択肢を `GET /agents/{kind}/settings` で返すようにした（[ADR 0216](../adr/0216-mobile-composer-settings-and-projects-wire.md)、契約は `ios/docs/specs/mobile-api-extensions-contract.md` §8）。選択肢の一覧はこの画面と共用する。起動場所は引き続き FR-18 のとおり。
 - 子タブの「このセッションにタブを追加」（`NewTabChooser`）。セッション作成とは別物。
 - 既存セッションのチャット画面の入力欄（部品を共用するだけで見た目と動きは変えない）。
 - worktree の中止（ADR 0170）・後始末。作成時の起点は WS-1〜5・ADR 0203 により選択値を渡す。

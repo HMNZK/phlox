@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-08-02
+last-verified: 2026-10-17
 ---
 
 # モバイル連携（MobileProxy・ControlServer）
@@ -141,7 +141,7 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 | 操作 | メソッド | パス | リクエスト | 成功時 | ハンドラ |
 |---|---|---|---|---|---|
 | **list** | `GET` | `/sessions` | — | `200` + `{ "sessions":[…] }`（既存包装を維持。各要素に `projectId`/`projectName` が付与。wave-2） | `handleListSessions` |
-| **spawn** | `POST` | `/sessions` | JSON: `{ "kind", "backend"?, "workingDirectory"?, "model"?, "projectId"? }`。`backend` 省略時 `.pty`。モバイルは `"appServer"` を送る例あり（`ControlServer.swift:255`）。`model`（任意・wave-2）は spawn 後に既存 setSessionModel 経路でベストエフォート適用。`projectId`（任意・ProjectID の UUID 文字列）は所属プロジェクトの指定 | `201` + `{ "id" }` / 形式不正の `projectId` は `400` / 未知の `projectId` は `422` | `ControlActionHandler.handleSpawn` |
+| **spawn** | `POST` | `/sessions` | JSON: `{ "kind", "backend"?, "workingDirectory"?, "model"?, "projectId"? }`。`backend` 省略時 `.pty`。モバイルは `"appServer"` を送る例あり（`ControlServer.swift:255`）。`model`（任意・wave-2）は spawn 後に既存 setSessionModel 経路でベストエフォート適用。`projectId`（任意・ProjectID の UUID 文字列）は所属プロジェクトの指定。`effort`/`permission`/`planMode`（任意・ADR 0216）はどれかがあると `model` と一緒に初期設定として起動時に適用 | `201` + `{ "id" }` / 形式不正の `projectId`・不正な新項目は `400` / 未知の `projectId`・初期設定の適用失敗は `422` | `ControlActionHandler.handleSpawn` |
 | **send** | `POST` | `/send` | JSON: `{ "to", "text", "submit"?, "inReplyTo"?, "images"? }`。`to` は SessionID UUID または名前。`images` は下記参照 | `200` 他（404/409/413/425 等） | `handleSendText` |
 | **approve** | `POST` | `/approvals/{id}` | JSON: `{ "decision" }`（`ApprovalDecision` rawValue） | `200` / 未知 id は `404` | `handleRespondApproval` |
 | **messages** | `GET` | `/sessions/{id}/messages?since=<cursor>&wait=<秒>` | `since`/`wait` とも省略可（下記「差分取得」参照） | 構造化: `200` + `{ messages, cursor, snapshot? }`。非構造化/不在: `404` | `handleMessagesDelta` |
@@ -153,8 +153,11 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 | **rename** | `PATCH` | `/sessions/{id}` | JSON: `{ "name" }` | `200` / 認可失敗: `403` | `handleRename` |
 | **remove** | `DELETE` | `/sessions/{id}` | — | `200` / 認可失敗: `403` / 不在: `404` | `handleRemove` |
 | **agent models** | `GET` | `/agents/{kind}/models` | `{kind}` は AgentKind rawValue | `200` + `{ "models":[…], "defaultModel" }`（未知 kind: `404`。wave-2） | `handleAgentModels` |
+| **agent settings** | `GET` | `/agents/{kind}/settings` | `{kind}` は AgentKind rawValue | `200` + `{ "availableEfforts":{<model>:[…]}, "availablePermissions":[…], "planModeAvailable" }`（新規チャットの選択肢。未知 kind: `404`。ADR 0216） | `handleAgentSettings` |
+| **session settings** | `GET` / `PATCH` | `/sessions/{id}/settings` | PATCH: JSON `{ "effort"?, "permission"?, "planMode"? }`（1 つ以上） | GET: `200` + モデル・推論の深さ・権限・Plan の現在値と選択肢。PATCH: `200` / `400` / `404` / `409` / `425` / `500`（契約 §8.4。ADR 0216） | `handleSessionSettings` / `handleUpdateSessionSettings` |
+| **projects** | `GET` | `/projects` | — | `200` + `{ "projects":[{ "id", "name" }] }`（ADR 0216） | `handleListProjects` |
 | **usage (account)** | `GET` | `/usage` | — | `200` + `{ "agents":[…] }`（wave-2） | `handleCLIUsage` |
-| **question** | `POST` | `/sessions/{id}/question` | JSON: `{ "requestId", "answers": {"<question文>": [String]} }` | `200`（受理）/ セッション or pending 質問なし: `404` / body 不正: `400` | `handleRespondQuestion` |
+| **question** | `POST` | `/sessions/{id}/question` | JSON: `{ "requestId", "answers": {"<question文>": [String]} }` | `200`（受理）/ セッション or pending 質問なし: `404` / body 不正: `400`。Claude のツール使用許可の質問は `questions[].allowsSessionScope`（省略可）が true なら回答 `"AllowForSession"` で「このセッション中は許可」（ADR 0216 追記） | `handleRespondQuestion` |
 
 **approve の一覧取得**（操作の前提）: `GET /approvals` → `handleListApprovals`（`ControlServer.swift:180-184`, `ControlActionHandler.swift:278-281`）。
 

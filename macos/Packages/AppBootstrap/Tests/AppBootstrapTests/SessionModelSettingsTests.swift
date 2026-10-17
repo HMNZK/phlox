@@ -59,7 +59,7 @@ private final class ControllingSpawnClient: StructuredAgentClient, SpawnAgentSet
 
         var controlSessionSummaries: [ControlSessionSummary] = []
         func sendMessage(to: Recipient, text: String, submit: Bool, from: SessionID?, inReplyTo: UUID?, images: [ControlImageAttachment]) async -> DashboardViewModel.SendOutcome { .sent }
-        func spawnSession(ref: AgentRef, from: SessionID?, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?) async throws -> SessionID { SessionID() }
+        func spawnSession(ref: AgentRef, from: SessionID?, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?) async throws -> SessionID { SessionID() }
         func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool { true }
         func removeSession(_ id: SessionID) async -> Bool { true }
         func renameSession(_ id: SessionID, to name: String) {}
@@ -143,6 +143,16 @@ private final class ControllingSpawnClient: StructuredAgentClient, SpawnAgentSet
         #expect(dashboard.appliedModels.count == 1)
         #expect(dashboard.appliedModels.first?.0 == id)
         #expect(dashboard.appliedModels.first?.1 == "fable")
+    }
+
+    @Test func modelApplicationWhileBusyReturns409() async throws {
+        let id = SessionID()
+        let dashboard = DashboardStub()
+        dashboard.modelResults[id] = .busy
+        let response = await makeHandler(dashboard).handle(request(.setModel(id: id, model: "opus")))
+        #expect(response.statusCode == 409)
+        let body = try #require(JSONSerialization.jsonObject(with: response.body) as? [String: String])
+        #expect(body == ["error": "settings update in progress"])
     }
 
     @Test func modelApplicationForUnknownOrUnsupportedSessionReturns404() async {

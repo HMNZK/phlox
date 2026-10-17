@@ -190,7 +190,7 @@ private final class E2EControlDashboard: ControlActionDashboard {
     from: SessionID?,
     backend: SessionBackend,
     workingDirectory: String?,
-    projectID: ProjectID?
+    projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?
   ) async throws -> SessionID {
     try await dashboard.spawnNewSession(
       ref: ref,

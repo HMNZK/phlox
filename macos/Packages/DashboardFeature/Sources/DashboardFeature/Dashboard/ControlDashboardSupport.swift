@@ -13,6 +13,7 @@ public enum ControlInterruptOutcome: Equatable, Sendable {
 /// Control API のモデル適用結果（AppBootstrap 側で HTTP status へ写像する）。
 public enum ControlSetModelOutcome: Equatable, Sendable {
     case applied
+    case busy
     /// 候補一覧に無いモデル ID（→400）。
     case unknownModel
     /// codex の thread 未開始（→425。wait-ready 後に再送する）。
@@ -49,6 +50,12 @@ public struct DashboardControlModelOption: Equatable, Sendable {
 public struct DashboardControlModelSettings: Equatable, Sendable {
     public let selectedModel: String?
     public let availableModels: [DashboardControlModelOption]
+    public var selectedEffort: String?
+    public var availableEfforts: [String] = []
+    public var selectedPermission: String?
+    public var availablePermissions: [ComposerModeOption] = []
+    public var planMode = false
+    public var planModeAvailable = false
 
     public init(selectedModel: String?, availableModels: [DashboardControlModelOption]) {
         self.selectedModel = selectedModel
@@ -117,6 +124,28 @@ extension DashboardViewModel {
         )
     }
 
+    public func controlComposerSettings(for id: SessionID, languageCode: String) -> DashboardControlModelSettings? {
+        guard var settings = controlModelSettings(for: id),
+              let appServer = sessionNodes.first(where: { $0.id == id })?.appServer,
+              appServer.controlSettingsAvailable else { return controlModelSettings(for: id) }
+        settings.selectedEffort = appServer.selectedEffort
+        settings.availableEfforts = appServer.cyclableEfforts
+        settings.availablePermissions = appServer.controlPermissionOptions(languageCode: languageCode)
+        let selected = appServer.controlSelectedPermission
+        settings.selectedPermission = settings.availablePermissions.contains(where: { $0.value == selected }) ? selected : nil
+        settings.planMode = appServer.isPlanMode
+        settings.planModeAvailable = appServer.isPlanModeAvailable
+        return settings
+    }
+
+    public func controlSetSettings(_ settings: ControlSettingsUpdate, for id: SessionID) async -> ControlSettingsApplyOutcome {
+        guard let node = sessionNodes.first(where: { $0.id == id }) else { return .notFound }
+        guard let appServer = node.appServer else {
+            return .unsupported(settings.effort != nil ? "effort" : settings.permission != nil ? "permission" : "planMode")
+        }
+        return await appServer.applyControlSettings(settings)
+    }
+
     /// spawn 型（Claude/Cursor）は CLI フラグ差し替え、codex は app-server の
     /// updateThreadSettings。分岐は `ChatSessionViewModel.applyControlModel` に閉じている。
     public func controlSetModel(_ model: String, for id: SessionID) async -> ControlSetModelOutcome {
@@ -124,6 +153,7 @@ extension DashboardViewModel {
         guard let appServer = node.appServer else { return .unsupported }
         switch await appServer.applyControlModel(model) {
         case .applied: return .applied
+        case .busy: return .busy
         case .unknownModel: return .unknownModel
         case .notReady: return .notReady
         case .unsupported: return .unsupported

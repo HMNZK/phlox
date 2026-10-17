@@ -31,7 +31,7 @@ import SessionFeature
             from: SessionID?,
             backend: SessionBackend,
             workingDirectory: String?,
-            projectID: ProjectID?
+            projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?
         ) async throws -> SessionID {
             spawnCallCount += 1
             receivedWorkingDirectory = workingDirectory
@@ -74,7 +74,7 @@ import SessionFeature
     private func spawnRequest(workingDirectory: String?) -> ControlRequest {
         ControlRequest(
             requester: nil,
-            action: .spawn(ref: .builtin(.claudeCode), backend: .pty, workingDirectory: workingDirectory, projectID: nil)
+            action: .spawn(ref: .builtin(.claudeCode), backend: .pty, workingDirectory: workingDirectory, projectID: nil, initialSettings: nil)
         )
     }
 

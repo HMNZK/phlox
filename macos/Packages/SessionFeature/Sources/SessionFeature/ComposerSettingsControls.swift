@@ -15,11 +15,11 @@ enum ComposerControlKind: Equatable, CaseIterable {
     case mode
 }
 
-struct ComposerModeOption: Hashable {
-    let value: String?
-    let title: String
-    let explanation: String
-    let isPlan: Bool
+public struct ComposerModeOption: Hashable, Sendable {
+    public let value: String?
+    public let title: String
+    public let explanation: String
+    public let isPlan: Bool
 }
 
 /// agentRef ごとに表示する設定コントロール集合（単一表示・グリッド表示の共通真実源）。
@@ -34,7 +34,7 @@ func composerControls(for agentRef: AgentRef) -> [ComposerControlKind] {
     }
 }
 
-func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String], languageCode: String = "en") -> [ComposerModeOption] {
+public func composerModeOptions(for agentRef: AgentRef, codexProfileIDs: [String], languageCode: String = "en") -> [ComposerModeOption] {
     switch agentRef {
     case .builtin(.codex):
         codexProfileIDs.map {

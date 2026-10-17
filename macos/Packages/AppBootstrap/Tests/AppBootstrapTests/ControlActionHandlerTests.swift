@@ -43,7 +43,7 @@ import SessionFeature
             from: SessionID?,
             backend: SessionBackend,
             workingDirectory: String?,
-            projectID: ProjectID?
+            projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?
         ) async throws -> SessionID {
             try spawnResult.get()
         }
@@ -148,7 +148,7 @@ import SessionFeature
             from: SessionID?,
             backend: SessionBackend,
             workingDirectory: String?,
-            projectID: ProjectID?
+            projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?
         ) async throws -> SessionID { try spawnResult.get() }
         func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool { isAuthorized }
         func removeSession(_ id: SessionID) async -> Bool { removeExisted }
@@ -441,7 +441,7 @@ import SessionFeature
             ref: .builtin(.claudeCode),
             backend: .pty,
             workingDirectory: nil,
-            projectID: nil
+            projectID: nil, initialSettings: nil
         )))
 
         #expect(response.statusCode == 201)
@@ -462,7 +462,7 @@ import SessionFeature
             ref: .builtin(.claudeCode),
             backend: .pty,
             workingDirectory: nil,
-            projectID: nil
+            projectID: nil, initialSettings: nil
         )))
 
         #expect(response.statusCode == expected)

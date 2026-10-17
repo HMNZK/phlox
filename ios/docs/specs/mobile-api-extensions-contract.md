@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-30
+last-verified: 2026-10-17
 ---
 
 # Phlox ⇔ Phlox-mobile API 拡張契約（凍結版 v1）
@@ -147,6 +147,7 @@ func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -
   model/permission/effort のフルスナップショット適用で、permission-mode を失わない）
 - 未知 id・モデル選択非対応セッション: 404
 - body 不正（model 欠落・空文字）: 400
+- 2026-10-17 改版（§8.8）: Mac が変更を受け付けない状態（権限の切り替え中）は **409** `{"error":"settings update in progress"}`（以前は 500）。Codex の thread 開始前は 425（従来どおり）。本当の適用失敗は 500 のまま。
 
 ## 7. wave-2 ワイヤ拡張（spawn 前モデル選択・プロジェクト情報・アカウント使用量。2026-07-15 追加・実装済み）
 
@@ -259,3 +260,146 @@ func cliUsage() async throws -> [CLIUsage]
 - **task-2（iOS PhloxKit）**: 上記 JSON をフィクスチャに decode 契約テスト化する（凍結:
   `DomainModelTests` / `ProjectCatalogUsageClientTests`）。
 - **統合（フェーズ4）**: 両者を突き合わせ、実サーバーに対する疎通で確認する。
+
+## 8. 入力欄の設定（推論の深さ・権限・Plan）とプロジェクト一覧（2026-10-17 追加）
+
+iPhone の入力欄を Mac の新規チャットと揃えるための拡張。決定理由は
+[macos/docs/adr/0216](../../../macos/docs/adr/0216-mobile-composer-settings-and-projects-wire.md)。
+すべて**追加のみ**で、既存の項目・応答の意味は変えない（古い iOS は今までどおり動く）。
+
+共通:
+- 選択肢は `{"value": String|null, "displayName": String}` の配列で返す。`value` を送り、`displayName` をそのまま表示する。
+- `displayName` は **Mac の表示言語**（アプリの言語設定）で返す。iOS 側で訳さない。
+- **Plan は権限の選択肢に含めない**。`planMode`（Bool）で別に扱う。`"plan"` を権限の値として送ると 400。
+- `value: null` は「既定」（Cursor の「既定」）。送らないのと同じ意味。
+
+### 8.1 POST /sessions（spawn）— effort / permission / planMode 追加
+
+既存 body に、**どれも省略可**の 3 項目を追加する:
+```json
+{ "kind": "claudeCode", "backend": "appServer", "model": "opus",
+  "projectId": "6C2F0E2A-1111-4222-8333-444455556666",
+  "effort": "high", "permission": "acceptEdits", "planMode": false }
+```
+
+| 条件 | 応答 |
+|---|---|
+| 3 項目とも省略 | 従来と完全に同じ（`model` は spawn 後のベストエフォート適用。不正な `model` は黙って無視） |
+| いずれかを指定し、すべて選択肢の中 | `201`。Mac の新規チャットと同じ「初期設定」として起動時に適用する。`model` もこのとき初期設定に入れ、spawn 後の別適用はしない |
+| 型が違う（例 `"planMode": "yes"`） | `400`（body 不正） |
+| `effort` / `permission` が空文字・制御文字入り・長すぎ | `400 {"error":"invalid effort"}` / `400 {"error":"invalid permission"}` |
+| 実際の起動方式が `appServer` でないのに、いずれかを指定 | `400 {"error":"settings require appServer backend"}` |
+| `effort` が §8.2 の `availableEfforts[<model>]` に無い | `400 {"error":"unknown effort: <値>"}`。`<model>` は指定の `model`（省略・不正ならその kind の既定モデル） |
+| `permission` が §8.2 の `availablePermissions` の非 null の値に無い（`"plan"` を含む） | `400 {"error":"unknown permission: <値>"}` |
+| `planMode: true` だが §8.2 の `planModeAvailable` が false | `400 {"error":"plan mode unavailable"}` |
+| Mac が初期設定を適用できず起動に失敗 | `422 {"error":"settings not applied"}` |
+
+- 検証はすべて spawn の前に行う。400 のときセッションは作らない。
+- 既存の `projectId`（§7.1.1）・`workingDirectory`・`role` の扱いは不変。
+
+### 8.2 GET /agents/{kind}/settings（新設）— 新規チャットで選べる設定
+
+`{kind}` は AgentKind rawValue。モデルの一覧は従来どおり §7.3 `GET /agents/{kind}/models` から取る。
+```json
+{
+  "availableEfforts": {
+    "opus":  [ { "value": "low", "displayName": "低" }, { "value": "medium", "displayName": "中" },
+               { "value": "high", "displayName": "高" }, { "value": "xhigh", "displayName": "非常に高" },
+               { "value": "max", "displayName": "最大" } ],
+    "haiku": []
+  },
+  "availablePermissions": [
+    { "value": "acceptEdits", "displayName": "…" }, { "value": "auto", "displayName": "…" },
+    { "value": "bypassPermissions", "displayName": "…" }, { "value": "manual", "displayName": "…" },
+    { "value": "dontAsk", "displayName": "…" }
+  ],
+  "planModeAvailable": true
+}
+```
+- `availableEfforts` のキーは、同じ kind の `GET /agents/{kind}/models` の `models[].id` と同じ集合。値が `[]` のモデルは推論の深さを選べない（チップを出さない）。
+- 選択肢は Mac の新規チャット画面と同じ: Claude の推論の深さは low/medium/high/xhigh/max（`haiku` は無し）、Codex・Cursor はモデルの `reasoningEfforts`。権限は Claude が acceptEdits/auto/bypassPermissions/manual/dontAsk、Codex が `:danger-full-access`/`:workspace`/`:read-only`、Cursor が 既定（`value: null`）/`ask`。Plan は 3 つとも `planModeAvailable: true`。
+- 未知 kind・クエリ付き: `404`。
+
+### 8.3 GET /sessions/{id}/settings — 項目の追加
+
+§6 の応答に次のキーを**追加**する（既存の `selectedModel` / `availableModels` の意味と能力ゲートは不変）:
+```json
+{
+  "selectedModel": "opus", "availableModels": [ … ],
+  "selectedEffort": "high",
+  "availableEfforts": [ { "value": "low", "displayName": "低" }, … ],
+  "selectedPermission": "bypassPermissions",
+  "availablePermissions": [ { "value": "acceptEdits", "displayName": "…" }, … ],
+  "planMode": false,
+  "planModeAvailable": true
+}
+```
+- 選択肢は Mac の実行中セッションの入力欄と同じ出所（推論の深さはそのセッションで回せる段、Codex の権限は app-server が返すプロファイル）。推論の深さの `displayName` は §8.2 と同じ訳語（「高」など）にする（Mac の実行中の入力欄は値をそのまま表示している）。
+- 変えられないセッション（PTY・復元失敗など）: `selectedEffort: null`・`availableEfforts: []`・`selectedPermission: null`・`availablePermissions: []`・`planMode: false`・`planModeAvailable: false`。
+- `selectedPermission` が選択肢に無い値（Codex の独自設定など）のときは `null`。
+- 未知のセッション id: `404`（従来どおり）。
+
+### 8.4 PATCH /sessions/{id}/settings（新設）— 実行中のセッションの設定変更
+
+body は次のうち**1 つ以上**（モデルの変更は従来どおり §6 `POST /sessions/{id}/model`）:
+```json
+{ "effort": "medium" }
+{ "permission": ":workspace" }
+{ "permission": null }
+{ "planMode": true }
+```
+- 適用順は `permission` → `planMode` → `effort`。
+- 権限を変えると Plan は解除される（Mac の入力欄と同じ）。同じ body に `"planMode": true` があれば、その後で Plan に入る。
+- `"permission": null` は「既定」に戻す。§8.3 の `availablePermissions` に `value: null` があるセッション（Cursor）だけで有効。
+- 成功: `200`（body なし）。反映後の値は `GET /sessions/{id}/settings` で取り直す。
+
+| 条件 | 応答 |
+|---|---|
+| 未知のセッション id | `404` |
+| Codex の thread 開始前 | `425 {"error":"session not ready"}`（§6 の model と同じ。wait-ready 後に再送） |
+| body 不正・3 項目どれも無い・型違い | `400` |
+| 値が空文字・制御文字入り・長すぎ | `400 {"error":"invalid effort"}` / `400 {"error":"invalid permission"}` |
+| 値が §8.3 の選択肢に無い（`"plan"` を含む） | `400 {"error":"unknown effort: <値>"}` / `400 {"error":"unknown permission: <値>"}` |
+| その設定を変えられないセッション（選択肢が空・PTY など） | `409 {"error":"effort unsupported"}` / `409 {"error":"permission unsupported"}` / `409 {"error":"plan mode unavailable"}` |
+| Mac が変更を受け付けない状態（権限の切り替え中・送信中・画像送信の準備中など。どの状態で拒むかは Mac の入力欄と同じ） | `409 {"error":"settings update in progress"}`。少し待って再送できる |
+| 適用に失敗 | `500` |
+
+- `404`・`425`・`400`・`409 unsupported` は、何も適用する前に判定する。
+- 適用の途中（2 項目目以降）で `409 in progress`・`500` になったときは、先に適用した項目は戻さない。
+
+### 8.5 GET /projects（新設）— プロジェクト一覧
+
+```json
+{ "projects": [ { "id": "6C2F0E2A-1111-4222-8333-444455556666", "name": "My Repo" } ] }
+```
+- Mac のプロジェクト（サイドバー）と同じ順。セッションが 0 件のプロジェクトも含む。プロジェクトが無ければ `[]`。
+- `id` は §7.1.1 の `projectId`（送る値）・§7.2 の `projectId`（返る値）と同じ文字列。
+- クエリ付き: `404`。
+
+### 8.6 新しい iOS と古い Mac の組み合わせ
+
+- `POST /sessions` の新項目は古い Mac では黙って無視され、既定の設定で `201` になる（§7.1.1 と同じサイレント劣化）。
+- `GET /agents/{kind}/settings`・`GET /projects` は `404`、`PATCH /sessions/{id}/settings` は `400` になる。iOS はこれらを「非対応」として扱い、チップを出さない（プロジェクトは §7.2 から組み立てる従来の方法に戻す）。
+
+### 8.7 質問カード — `allowsSessionScope` 追加（Claude の「このセッション中は許可」）
+
+`GET /sessions/{id}/messages` の `type == "userQuestion"` の `questions[]` の各要素に、**省略可**の `allowsSessionScope`（Bool）を追加する:
+```json
+{ "question": "Bash を実行しますか？", "header": "…", "multiSelect": false,
+  "options": [ { "label": "Allow" }, { "label": "Deny" } ],
+  "allowsSessionScope": true }
+```
+- Claude Code のツール使用許可の質問（Mac で承認カードとして出るもの）にだけ付く。`true` なら「このセッション中は許可」を返せる（CLI が同じ種類を通すルールを提案してきたとき）。`false` なら返せない。
+- 通常の質問（AskUserQuestion など）・古い保存データでは**キー自体を省略**する。iOS は欠落を false として扱う。
+- 返し方: 既存の `POST /sessions/{id}/question` に、その質問の回答として `"AllowForSession"` を送る（Mac の承認カードと同じ値・同じ経路）:
+  `{"requestId": "<requestId>", "answers": {"<question文>": ["AllowForSession"]}}`
+- `allowsSessionScope` が false・欠落の質問に `"AllowForSession"` を送ると、Mac と同じく通常の「許可」（1 回だけ）になる。
+- `options` には `AllowForSession` を足さない（古い iOS が 3 つ目の選択肢として表示しないように）。
+- Codex の承認は従来どおり `POST /approvals/{id}` の `acceptForSession`。Cursor には対話的な承認が無い。
+- 定数: `ControlQuestionWireContract.allowsSessionScopeKey` / `allowForSessionAnswer`（iOS `PhloxQuestionWireContract` と一字一句一致）。
+
+### 8.8 POST /sessions/{id}/model — 変更中を 409 に（§6 の改版）
+
+- Mac が変更を受け付けない状態（権限の切り替え中）は、以前は 500 だったのを **409 `{"error":"settings update in progress"}`** に変える。§8.4 の PATCH と同じ。
+- 本当の適用失敗は 500 のまま。ほかのステータス（200/400/404/425）は不変。
+- iOS（`PhloxAPIClient.setModel`）は再試行せず、失敗を黙って現状維持にしているだけで 500 を特別扱いしていない（2026-10-17 確認）。このため iOS の挙動は変わらない。

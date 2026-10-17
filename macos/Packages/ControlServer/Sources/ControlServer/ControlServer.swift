@@ -217,6 +217,10 @@ public actor ControlServer {
             }
             return .success(.listSessions)
 
+        case ("GET", "/projects"):
+            guard !request.hasQuery else { return .failure(.status(404)) }
+            return .success(.listProjects)
+
         case ("GET", "/usage"):
             guard !request.hasQuery else {
                 return .failure(.status(404))
@@ -275,6 +279,9 @@ public actor ControlServer {
                 return parseApprovalResponse(path: request.path, hasQuery: request.hasQuery, body: request.body)
             }
             if request.method == "PATCH" {
+                if let result = parseSettingsChange(path: request.path, hasQuery: request.hasQuery, body: request.body) {
+                    return result
+                }
                 return parseRename(path: request.path, hasQuery: request.hasQuery, body: request.body)
             }
             if request.method == "DELETE" {
@@ -379,6 +386,12 @@ public actor ControlServer {
             return .failure(.status(400))
         }
 
+        guard var settings = try? JSONDecoder().decode(ControlSettingsUpdate.self, from: body) else {
+            return .failure(.status(400))
+        }
+        if settings.permission == .some(nil) { settings.permission = nil }
+        if let failure = normalizeSettings(&settings) { return .failure(failure) }
+
         let role: String?
         if let rawRole = payload.role {
             let trimmed = rawRole.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -410,6 +423,10 @@ public actor ControlServer {
             backend = .pty
         }
 
+        guard settings.isEmpty || backend == .appServer else {
+            return .failure(.json(400, ErrorDTO(error: "settings require appServer backend")))
+        }
+
         let projectID: ProjectID?
         if let rawProjectID = payload.projectId {
             guard let uuid = UUID(uuidString: rawProjectID) else {
@@ -423,7 +440,13 @@ public actor ControlServer {
         if let kind = AgentKind(rawValue: payload.kind) {
             pendingSpawnRole = role
             pendingSpawnModel = Self.normalizedSpawnModel(payload.model, for: kind)
-            return .success(.spawn(ref: .builtin(kind), backend: backend, workingDirectory: payload.workingDirectory, projectID: projectID))
+            return .success(.spawn(ref: .builtin(kind), backend: backend, workingDirectory: payload.workingDirectory, projectID: projectID,
+                initialSettings: settings.isEmpty ? nil : CodexAppServerSessionSettings(
+                    selectedModel: pendingSpawnModel ?? AgentModelCatalog.defaultModel(for: kind),
+                    selectedEffort: settings.effort,
+                    selectedPermissionProfile: settings.permission ?? nil,
+                    isPlanMode: settings.planMode
+                )))
         }
 
         return .failure(.json(400, ErrorDTO(error: "unknown agent kind: \(payload.kind)")))
@@ -522,7 +545,7 @@ public actor ControlServer {
         guard components.count == 4,
               components[0] == "",
               components[1] == "agents",
-              components[3] == "models"
+              (components[3] == "models" || components[3] == "settings")
         else {
             return nil
         }
@@ -532,7 +555,7 @@ public actor ControlServer {
         guard let kind = AgentKind(rawValue: String(components[2])) else {
             return .failure(.status(404))
         }
-        return .success(.agentModels(kind: kind))
+        return .success(components[3] == "models" ? .agentModels(kind: kind) : .agentSettings(kind: kind))
     }
 
     private func parseModelChange(path: String, hasQuery: Bool, body: Data) -> RouteResult? {
@@ -762,6 +785,32 @@ public actor ControlServer {
         }
 
         return .success(.respondApproval(id: approvalID, decision: decision))
+    }
+
+    private func normalizeSettings(_ settings: inout ControlSettingsUpdate) -> ControlResponse? {
+        for (field, value) in [("effort", settings.effort), ("permission", settings.permission ?? nil)] {
+            guard let value else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed.count <= 128,
+                  !Self.containsRejectedControlCharacters(value) else {
+                return .json(400, ErrorDTO(error: "invalid \(field)"))
+            }
+            if field == "effort" { settings.effort = trimmed }
+            else { settings.permission = .some(trimmed) }
+        }
+        return nil
+    }
+
+    private func parseSettingsChange(path: String, hasQuery: Bool, body: Data) -> RouteResult? {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.count == 4, components[0] == "", components[1] == "sessions",
+              components[3] == "settings" else { return nil }
+        guard !hasQuery else { return .failure(.status(404)) }
+        guard let id = parseSessionID(from: components[2]),
+              var settings = try? JSONDecoder().decode(ControlSettingsUpdate.self, from: body),
+              !settings.isEmpty else { return .failure(.status(400)) }
+        if let failure = normalizeSettings(&settings) { return .failure(failure) }
+        return .success(.setSettings(id: id, settings: settings))
     }
 
     private func parseRename(path: String, hasQuery: Bool, body: Data) -> RouteResult {

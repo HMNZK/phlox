@@ -215,43 +215,17 @@ struct NewChatView: View {
     }
     private var effortOptions: [ComposerSettingOption] {
         guard let kind = selectedKind else { return [] }
-        let values: [String]
-        switch kind {
-        case .claudeCode:
-            let model = (draft.settings.selectedModel ?? "").split(separator: "[", maxSplits: 1).first.map(String.init) ?? draft.settings.selectedModel
-            values = model == "haiku" ? [] : ["low", "medium", "high", "xhigh", "max"]
-        case .codex, .cursor:
-            values = selectedModelOption?.reasoningEfforts ?? []
+        let available = newChatEffortOptions(for: kind, modelID: draft.settings.selectedModel, languageCode: languageCode, bundle: localizationBundle).map {
+            ComposerSettingOption(value: $0.value, title: $0.displayName)
         }
-        let available = values.map { ComposerSettingOption(value: $0, title: effortTitle($0)) }
         guard let selected = draft.settings.selectedEffort, !available.contains(where: { $0.value == selected }) else { return available }
         return available + [ComposerSettingOption(value: selected, title: effortTitle(selected))]
     }
     private var permissionOptions: [ComposerSettingOption] {
         guard let kind = selectedKind else { return [] }
-        let plan = "Plan"
-        func permission(_ value: String, agent: UIWording.PermissionAgent, kind: UIWording.PermissionKind) -> ComposerSettingOption {
-            ComposerSettingOption(
-                value: value,
-                title: UIWording.permission(agent: agent, kind: kind, value: value, languageCode: languageCode).title
-            )
-        }
-        switch kind {
-        case .claudeCode:
-            let values = ["acceptEdits", "auto", "bypassPermissions", "manual", "dontAsk"]
-            return values.map { permission($0, agent: .claude, kind: .claudePermissionMode) }
-                + [ComposerSettingOption(value: Self.planSelection, title: plan)]
-        case .codex:
-            return [":danger-full-access", ":workspace", ":read-only"].map {
-                permission($0, agent: .codex, kind: .codexProfile)
-            } + [ComposerSettingOption(value: Self.planSelection, title: plan)]
-        case .cursor:
-            return [
-                ComposerSettingOption(value: nil, title: localized("既定")),
-                permission("ask", agent: .cursor, kind: .cursorOperationMode),
-                ComposerSettingOption(value: Self.planSelection, title: plan),
-            ]
-        }
+        return newChatSettingsOptions(for: kind, languageCode: languageCode, bundle: localizationBundle)
+            .availablePermissions.map { ComposerSettingOption(value: $0.value, title: $0.displayName) }
+            + [ComposerSettingOption(value: Self.planSelection, title: "Plan")]
     }
     private var selectedPermissionSelection: String? {
         draft.settings.isPlanMode == true ? Self.planSelection : draft.settings.selectedPermissionProfile
@@ -845,17 +819,7 @@ struct NewChatView: View {
     }
 
     private func effortTitle(_ value: String) -> String {
-        let key: String
-        switch value {
-        case "low": key = "低"
-        case "medium": key = "中"
-        case "high": key = "高"
-        case "xhigh": key = "非常に高"
-        case "max": key = "最大"
-        case "ultra": key = "ultra"
-        default: return value
-        }
-        return localized(key)
+        composerEffortTitle(value, languageCode: languageCode, bundle: localizationBundle)
     }
 
     /// ↩ と送信ボタン。送れないときは理由を検証メッセージとして出し、読み上げる（要件 E7）。

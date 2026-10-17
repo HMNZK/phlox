@@ -496,6 +496,8 @@ struct DesignSnapshotRenderTests {
             expectedSize: CGSize(width: 428, height: 926),
             expectedScale: 3
         )
+
+        try await renderNewChatSnapshots(output: output, variables: variables, osSuffix: osSuffix)
     }
 
     @Test func dotGothic16FontAndLicenseAreInHostedApp() throws {
@@ -514,6 +516,137 @@ struct DesignSnapshotRenderTests {
             return URL(fileURLWithPath: path, isDirectory: true)
         }
         return root.appendingPathComponent(".verification/ios-redesign/snapshots", isDirectory: true)
+    }
+
+    private func renderNewChatSnapshots(
+        output: URL,
+        variables: [String: String],
+        osSuffix: String
+    ) async throws {
+        struct Layout {
+            let name: String
+            let width: CGFloat
+            let height: CGFloat
+            let dark: Bool
+            let ax5: Bool
+        }
+
+        let layouts = [
+            Layout(name: "Draft", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftFromProject", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftSuggest", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftEntryEmpty", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftModel", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftModelNa", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftPermDanger", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftMoreSE", width: 375, height: 667, dark: false, ax5: false),
+            Layout(name: "DraftCreating", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftFailed", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftSE", width: 375, height: 667, dark: false, ax5: false),
+            Layout(name: "DraftDT", width: 428, height: 926, dark: false, ax5: true),
+            Layout(name: "DraftDark", width: 428, height: 926, dark: true, ax5: false),
+        ]
+
+        for layout in layouts {
+            let suiteName = "Phlox.NewChatSnapshot.\(UUID().uuidString)"
+            let defaults = try #require(UserDefaults(suiteName: suiteName))
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            let store = NewChatSettingsStore(defaults: defaults)
+            store.record(
+                kind: .claudeCode,
+                model: "sonnet",
+                effort: "high",
+                permission: "manual",
+                planMode: false,
+                projectKey: layout.name == "DraftEntryEmpty" ? "deleted-project" : "project-phlox"
+            )
+
+            let entry: SessionComposeDraft = layout.name == "DraftFromProject"
+                ? SessionComposeDraft(project: "SimpleBudget", projectID: "project-simple-budget")
+                : SessionComposeDraft(project: "")
+            let api = NewChatSnapshotAPI(cursorUnavailable: layout.name == "DraftModelNa")
+            let viewModel = NewChatViewModel(api: api, entryProject: entry, settingsStore: store)
+            await viewModel.load()
+
+            let greeting: String = switch layout.name {
+            case "DraftFromProject": "次は何を作りますか？"
+            case "DraftSuggest": "今日の課題を教えてください"
+            case "DraftEntryEmpty": "何をお手伝いしましょうか？"
+            case "DraftSE": "さあ、始めましょう"
+            case "DraftDT": "アイデアを形にしましょう"
+            case "DraftDark": "今日は何を進めますか？"
+            case "DraftFailed": "さあ、始めましょう"
+            default: "何から始めますか？"
+            }
+            var showsMoreSettings = false
+            switch layout.name {
+            case "DraftSuggest":
+                viewModel.appendSuggestion(0)
+            case "DraftEntryEmpty":
+                viewModel.inputText = "README の手順を最新の CLI に合わせて直して"
+                viewModel.inputCursorUTF16 = viewModel.inputText.utf16.count
+                await viewModel.send { _, _ in }
+            case "DraftModel", "DraftModelNa":
+                viewModel.isModelPickerPresented = true
+            case "DraftPermDanger":
+                viewModel.inputText = "CI の設定を直して、通るまで回して"
+                viewModel.inputCursorUTF16 = viewModel.inputText.utf16.count
+                viewModel.selectPermission("bypassPermissions")
+            case "DraftMoreSE":
+                showsMoreSettings = true
+            case "DraftCreating":
+                viewModel.seedProgressForSnapshot(text: "ProxyRouter のテストを流して、落ちたら直して", waitSeconds: 4)
+            case "DraftFailed":
+                viewModel.seedCreationErrorForSnapshot(
+                    "セッションを作成できませんでした。指示は入力欄に戻しました（workspace \"phlox\" is locked by another spawn）",
+                    text: "ProxyRouter のテストを流して、落ちたら直して"
+                )
+            default:
+                break
+            }
+
+            let usage = UsageViewModel(api: api)
+            await usage.load()
+            let themeID = AppearancePreference.system.themeID(
+                systemColorScheme: layout.dark ? .dark : .light
+            )
+            UserDefaults.standard.set(themeID, forKey: ThemeStore.themeKey)
+            DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
+
+            let size = CGSize(width: layout.width, height: layout.height)
+            let content = NewChatSnapshotHost(
+                viewModel: viewModel,
+                usageViewModel: usage,
+                greeting: greeting,
+                showsMoreSettings: showsMoreSettings,
+                dark: layout.dark,
+                ax5: layout.ax5
+            )
+            .environment(\.colorScheme, layout.dark ? .dark : .light)
+            .environment(\.dynamicTypeSize, layout.ax5 ? .accessibility5 : .large)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            .frame(width: size.width, height: size.height)
+
+            let safeArea = layout.width == 428
+                ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
+                : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+            let scale: CGFloat = layout.width == 428 ? 3 : 2
+            let image = try await windowImage(
+                content,
+                size: size,
+                safeArea: safeArea,
+                scale: scale,
+                dark: layout.dark,
+                settleDelay: .milliseconds(100)
+            )
+            try writeSnapshot(
+                image,
+                name: "\(layout.name)-\(Int(layout.width))x\(Int(layout.height))-\(layout.dark ? "dark" : "light")\(layout.ax5 ? "-ax5" : "")\(osSuffix).png",
+                to: output,
+                expectedSize: size,
+                expectedScale: scale
+            )
+        }
     }
 
     private func writeSnapshot(
@@ -543,7 +676,8 @@ struct DesignSnapshotRenderTests {
         size: CGSize,
         safeArea: UIEdgeInsets,
         scale: CGFloat,
-        dark: Bool
+        dark: Bool,
+        settleDelay: Duration = .milliseconds(20)
     ) async throws -> UIImage {
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
@@ -574,7 +708,7 @@ struct DesignSnapshotRenderTests {
         #expect(abs(host.view.safeAreaInsets.top - safeArea.top) < 0.5)
         #expect(abs(host.view.safeAreaInsets.bottom - safeArea.bottom) < 0.5)
         await Task.yield()
-        try await Task.sleep(for: .milliseconds(20))
+        try await Task.sleep(for: settleDelay)
         window.layoutIfNeeded()
         host.view.layoutIfNeeded()
 
@@ -734,6 +868,212 @@ struct DesignSnapshotRenderTests {
     }
 
     private enum SnapshotError: Error { case bodyDidNotRender }
+}
+
+private struct NewChatSnapshotHost: View {
+    @State private var path: [Route] = []
+    let viewModel: NewChatViewModel
+    let usageViewModel: UsageViewModel
+    let greeting: String
+    let showsMoreSettings: Bool
+    let dark: Bool
+    let ax5: Bool
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            Text("セッション一覧")
+                .navigationTitle("セッション一覧")
+                .navigationStackHomeBackButton()
+                .navigationDestination(for: Route.self) { route in
+                    switch route {
+                    case .newChat:
+                        GeometryReader { geometry in
+                            ZStack(alignment: .bottom) {
+                                NewChatView(
+                                    viewModel: viewModel,
+                                    fixedGreeting: greeting,
+                                    focusOnAppear: false,
+                                    onCreated: { _, _ in }
+                                )
+                                .environment(\.usageViewModel, usageViewModel)
+                                .overlay {
+                                    if showsMoreSettings {
+                                        NewChatMoreSettingsSnapshotPanel()
+                                            .position(
+                                                x: geometry.size.width / 2,
+                                                y: geometry.size.height * 0.58
+                                            )
+                                            .accessibilityHidden(true)
+                                    }
+                                }
+
+                            }
+                        }
+                    default:
+                        Color.clear
+                    }
+                }
+        }
+        .task {
+            await Task.yield()
+            path = [.newChat(SessionComposeDraft(project: ""))]
+        }
+        .dsCampNavigationChrome()
+        .environment(\.colorScheme, dark ? .dark : .light)
+        .environment(\.dynamicTypeSize, ax5 ? .accessibility5 : .large)
+        .environment(\.locale, Locale(identifier: "ja_JP"))
+    }
+}
+
+/// Menu を合成操作で開かず、盤面にあるメニューの見た目を描画する専用 fixture。
+private struct NewChatMoreSettingsSnapshotPanel: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            settingRow(title: "思考の強さ", value: "高", symbol: "gauge.medium")
+            Rectangle()
+                .fill(IOSColor.bg.separator)
+                .frame(height: 1)
+            settingRow(title: "権限", value: "Manual", symbol: "shield")
+        }
+        .padding(.horizontal, 14)
+        .frame(width: 280)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(IOSColor.bg.separator.opacity(0.7), lineWidth: 0.8)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
+    }
+
+    private func settingRow(title: String, value: String, symbol: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(DSFont.body.weight(.medium))
+                .foregroundStyle(IOSColor.text.primary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(DSFont.body)
+                    .foregroundStyle(IOSColor.text.primary)
+                Text(value)
+                    .font(DSFont.subheadline)
+                    .foregroundStyle(IOSColor.text.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(DSFont.captionStrong)
+                .foregroundStyle(IOSColor.text.secondary)
+        }
+        .frame(height: 51)
+    }
+}
+
+private struct NewChatSnapshotAPI: PhloxAPI {
+    let cursorUnavailable: Bool
+
+    func listSessions() async throws -> [Session] { [] }
+
+    func spawn(_ request: SpawnRequest) async throws -> Session {
+        Session(
+            id: "snapshot-new-session",
+            name: "snapshot-new-session",
+            agent: request.agent,
+            status: .starting,
+            subtitle: "",
+            projectId: request.projectID,
+            projectName: request.workspace,
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )
+    }
+
+    func agentModels(kind: AgentKind) async throws -> AgentModels {
+        if kind == .cursor && cursorUnavailable {
+            throw PhloxError.server(status: 503, message: "取得できません")
+        }
+        switch kind {
+        case .claudeCode:
+            return AgentModels(models: [
+                SessionModelOption(id: "opus", displayName: "Opus (1M context)"),
+                SessionModelOption(id: "sonnet", displayName: "Sonnet 5"),
+            ], defaultModel: "sonnet")
+        case .codex:
+            return AgentModels(models: [
+                SessionModelOption(id: "gpt-6.1-sol", displayName: "gpt-6.1-sol"),
+                SessionModelOption(id: "gpt-6.1-codex", displayName: "gpt-6.1-codex"),
+            ], defaultModel: "gpt-6.1-sol")
+        case .cursor:
+            return AgentModels(models: [
+                SessionModelOption(id: "auto", displayName: "Auto"),
+                SessionModelOption(id: "composer-1", displayName: "composer-1"),
+                SessionModelOption(id: "sonnet-5-thinking", displayName: "sonnet-5-thinking"),
+            ], defaultModel: "auto")
+        }
+    }
+
+    func agentSettings(kind: AgentKind) async throws -> AgentSettings? {
+        switch kind {
+        case .claudeCode:
+            AgentSettings(
+                availableEfforts: [
+                    "opus": [AgentSettingOption(value: "low", displayName: "低"), AgentSettingOption(value: "high", displayName: "高")],
+                    "sonnet": [AgentSettingOption(value: "low", displayName: "低"), AgentSettingOption(value: "high", displayName: "高")],
+                ],
+                availablePermissions: [
+                    AgentSettingOption(value: "auto", displayName: "Auto"),
+                    AgentSettingOption(value: "manual", displayName: "Manual"),
+                    AgentSettingOption(value: "bypassPermissions", displayName: "Bypass Permissions"),
+                ],
+                planModeAvailable: true
+            )
+        case .codex:
+            AgentSettings(
+                availableEfforts: ["gpt-6.1-sol": [AgentSettingOption(value: "medium", displayName: "中")]],
+                availablePermissions: [
+                    AgentSettingOption(value: ":read-only", displayName: "Read Only"),
+                    AgentSettingOption(value: ":workspace", displayName: "Workspace"),
+                    AgentSettingOption(value: ":danger-full-access", displayName: "Full Access"),
+                ],
+                planModeAvailable: true
+            )
+        case .cursor:
+            AgentSettings(
+                availableEfforts: ["composer-1": [AgentSettingOption(value: "medium", displayName: "中")]],
+                availablePermissions: [
+                    AgentSettingOption(value: nil, displayName: "既定"),
+                    AgentSettingOption(value: "ask", displayName: "Ask"),
+                ],
+                planModeAvailable: true
+            )
+        }
+    }
+
+    func projects() async throws -> [ProjectSummary]? {
+        [
+            ProjectSummary(id: "project-phlox", name: "Phlox"),
+            ProjectSummary(id: "project-simple-budget", name: "SimpleBudget"),
+            ProjectSummary(id: "project-landing-page", name: "landing-page"),
+            ProjectSummary(id: "project-dotfiles", name: "dotfiles"),
+        ]
+    }
+
+    func cliUsage() async throws -> [CLIUsage] {
+        let date = Date(timeIntervalSince1970: 1_792_300_000)
+        func bucket(_ id: String, _ label: String, _ used: Double) -> UsageBucket {
+            UsageBucket(id: id, label: label, usedPercent: used, resetsAt: date.addingTimeInterval(3600))
+        }
+        return [
+            CLIUsage(kind: .claudeCode, state: .ok, buckets: [bucket("5h", "5時間", 48), bucket("weekly", "週次", 62)], updatedAt: date, dataAsOf: date),
+            CLIUsage(kind: .codex, state: .ok, buckets: [bucket("5h", "5時間", 32), bucket("weekly", "週次", 42)], updatedAt: date, dataAsOf: date),
+            CLIUsage(kind: .cursor, state: .ok, buckets: [bucket("auto", "Auto", 20), bucket("api", "API", 50)], updatedAt: date, dataAsOf: date),
+        ]
+    }
+
+    func waitUntilReady(sessionID: String) async throws -> Bool { true }
+    func send(_ request: SendRequest) async throws -> SendResult { SendResult(accepted: true) }
+    func messages(sessionID: String) async throws -> [ChatMessage] { [] }
+    func remove(sessionID: String) async throws {}
+    func approvals() async throws -> [Approval] { [] }
+    func respond(approvalID: String, decision: ApprovalDecision) async throws {}
 }
 
 private struct ModelPickerSnapshotHost: View {

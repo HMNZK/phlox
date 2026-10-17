@@ -24,7 +24,7 @@ SIMULATOR_ID  := $(shell xcrun simctl list devices available | sed -nE 's/^[[:sp
 # 注: name= 指定は OS:latest に解決され、複数ランタイム共存環境で失敗する（既知）。UDID で固定する。
 DESTINATION   := platform=iOS Simulator,id=$(SIMULATOR_ID)
 SNAPSHOT_SIMULATOR_ID ?= $(shell xcrun simctl list devices available | sed -nE 's/^[[:space:]]*iPhone[^()]*\(([A-F0-9-]+)\).*/\1/p' | head -1)
-SNAPSHOT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)/.verification/ios-redesign
+SNAPSHOT_ROOT ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)/.verification/ios-redesign
 
 .PHONY: all generate build run run-live snapshot test lint
 

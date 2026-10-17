@@ -74,6 +74,8 @@ public actor PhloxAPIClient: PhloxAPI {
             agent: request.agent,
             status: .starting,
             subtitle: request.workspace,
+            projectId: request.projectID,
+            projectName: request.workspace,
             updatedAt: Date()
         )
     }

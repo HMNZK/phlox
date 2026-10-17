@@ -37,7 +37,6 @@ enum ChatRowKind: Equatable {
 
 /// セッション詳細画面（カンプ③）。承認リクエスト + 会話 + 入力バー。
 public struct SessionDetailView: View {
-    @Environment(\.sessionComposeDraft) private var sessionComposeDraft
     @Environment(\.usageViewModel) private var usageViewModel
     @State private var viewModel: SessionDetailViewModel
     @State private var distanceFromBottom: CGFloat = 0
@@ -142,7 +141,7 @@ public struct SessionDetailView: View {
             }
         }
         .task(id: viewModel.session.id) {
-            await viewModel.startPolling(composeDraft: sessionComposeDraft)
+            await viewModel.startPolling()
         }
         .task(id: shouldShowInputBar) {
             guard shouldShowInputBar else { return }
@@ -262,7 +261,7 @@ public struct SessionDetailView: View {
     }
 
     private var showsStartingBanner: Bool {
-        viewModel.currentStatus == .starting && !viewModel.isAwaitingInitialSpawn
+        viewModel.currentStatus == .starting && !viewModel.isRecoveringInitialSend
     }
 
     private var shouldShowInputBar: Bool {
@@ -343,7 +342,7 @@ public struct SessionDetailView: View {
                 }
             }
         } else {
-            Task { await viewModel.sendMessage(composeDraft: sessionComposeDraft) }
+            Task { await viewModel.sendMessage() }
         }
     }
 

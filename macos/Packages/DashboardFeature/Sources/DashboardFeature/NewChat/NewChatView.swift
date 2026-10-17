@@ -767,7 +767,11 @@ struct NewChatView: View {
     func selectModel(_ model: ControlModelOption, for section: NewChatModelMenuSection) {
         draft.selectHarness(.builtin(section.kind))
         draft.settings.selectedModel = model.id
-        draft.settings.selectedEffort = model.defaultReasoningEffort ?? (section.kind == .claudeCode && model.id != "haiku" ? "high" : nil)
+        draft.settings.selectedEffort = newChatDefaultSettings(
+            for: section.kind,
+            modelID: model.id,
+            fullAccess: BypassSettings.isEnabled(for: section.kind)
+        ).selectedEffort
         modelSearch = ""
     }
 

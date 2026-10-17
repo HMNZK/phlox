@@ -42,3 +42,7 @@ Codex の行は「空カタログでも agent-only 行を必ず持つ」とい�
 
 - `DraftSelectionStabilityTests` で、Cursor→Codex / Claude→Codex / Claude→Cursor / Cursor→Claude の 4 パターンのすり替わりが起きないことを検証した。修正前はこの 4 件が赤になる（PM が修正前ツリーで確認済み）。
 - **受け入れテストのハーネス自体に欠陥があった**（PM の誤り）。`sendMessage()` を引数なしで呼ぶと 2 回目の `prepareDraft` が走らず、バグを再現できていなかった。`sendMessage(composeDraft:)` へ修理して初めて 4 件が赤になった。実装役はハーネスを書き換えず、再現しない事実をそのまま報告して正しかった。
+
+## 2026-10-18 段階 5 での適用範囲
+
+`SessionDetailViewModel.prepareDraft` の再入・`DraftModelSelection` 型・`DraftSelectionStabilityTests` は専用 `NewChatViewModel` への切り出しで superseded。新規チャットは `selectedAgent` と `selectedModelID` を別々に保持し、ピッカー行の識別子も `kind::modelID` とする。カタログが取れないエージェントに自動で別エージェントのモデルを割り当てず、取得できるエージェントの行だけを選択可能にする。新しい回帰確認は `NewChatViewModelTests` が担う。

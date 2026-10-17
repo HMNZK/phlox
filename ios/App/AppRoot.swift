@@ -19,6 +19,8 @@ struct AppRoot: View {
     @State private var settingsRouter = NavigationRouter()
     @State private var listVM: SessionListViewModel?
     @State private var usageViewModel: UsageViewModel?
+    @State private var createdSession: Session?
+    @State private var createdSessionRecovery: SessionDetailRecovery?
     @State private var selectedTab: AppTab? = .sessions
     @State private var scrollToTopRequest = 0
     @State private var qrScanInitialPayload: String?
@@ -219,7 +221,7 @@ struct AppRoot: View {
     private func openNewChat() {
         router.popToRoot()
         selectedTab = .sessions
-        router.push(.sessionComposeDraft(SessionComposeDraft(project: "")))
+        router.push(.newChat(SessionComposeDraft(project: "")))
     }
 
     private func openAttentionSession(_ id: String) {
@@ -256,9 +258,9 @@ struct AppRoot: View {
         .overlay { deleteConfirmationOverlay(for: router) }
     }
 
-    /// task-2 の `onAddSession(draft:)` seam。未 spawn の compose 詳細へ遷移する。
+    /// 一覧のプロジェクト見出しから初期プロジェクトを渡して新規チャットを開く。
     private func onAddSession(draft: SessionComposeDraft) {
-        router.push(.sessionComposeDraft(draft))
+        router.push(.newChat(draft))
     }
 
     private var settingsTab: some View {
@@ -292,11 +294,12 @@ struct AppRoot: View {
         switch route {
         case .sessionDetail(let id):
             // 直近取得分も含めて解決（再購読中の一時的 .loading/.offline で詳細を消さない）。
-            let session = listVM?.session(id: id)
+            let session = listVM?.session(id: id) ?? (createdSession?.id == id ? createdSession : nil)
             if let session {
                 SessionDetailDestination(
                     session: session,
                     api: environment.apiClient,
+                    recovery: createdSession?.id == id ? createdSessionRecovery : nil,
                     onDelete: { router.present(.deleteConfirmation(id: session.id, cascadeCount: 0)) }
                 )
                 .toolbar(.hidden, for: .tabBar)
@@ -308,10 +311,19 @@ struct AppRoot: View {
                     .background(DSColor.surface)
                     .toolbar(.hidden, for: .tabBar)
             }
-        case .sessionComposeDraft(let draft):
-            DraftSessionComposeDestination(
+        case .newChat(let draft):
+            NewChatDestination(
                 draft: draft,
-                api: environment.apiClient
+                api: environment.apiClient,
+                onCreated: { session, recovery in
+                    createdSession = session
+                    createdSessionRecovery = recovery
+                    Task { @MainActor in
+                        router.pop()
+                        await Task.yield()
+                        router.push(.sessionDetail(id: session.id))
+                    }
+                }
             )
             .toolbar(.hidden, for: .tabBar)
         case .settings:
@@ -512,29 +524,28 @@ struct AppRoot: View {
     }
 }
 
-/// ドラフト compose 詳細の入口（task-4 が compose UI・spawn を実装）。
-private struct DraftSessionComposeDestination: View {
+/// 新規チャット画面の ViewModel をナビゲーション push 単位で保持する。
+private struct NewChatDestination: View {
     let draft: SessionComposeDraft
     let api: PhloxAPI
+    let onCreated: (Session, SessionDetailRecovery?) -> Void
+    @State private var viewModel: NewChatViewModel
 
-    var body: some View {
-        let placeholder = Session(
-            id: Self.placeholderSessionID,
-            name: draft.project.isEmpty ? "新規セッション" : draft.project,
-            agent: .claudeCode,
-            status: .running,
-            subtitle: draft.project,
-            updatedAt: Date()
-        )
-        SessionDetailView(
-            viewModel: SessionDetailViewModel(session: placeholder, api: api),
-            approvalViewModel: nil,
-            onDelete: {}
-        )
-        .environment(\.sessionComposeDraft, draft)
+    init(
+        draft: SessionComposeDraft,
+        api: PhloxAPI,
+        onCreated: @escaping (Session, SessionDetailRecovery?) -> Void
+    ) {
+        self.draft = draft
+        self.api = api
+        self.onCreated = onCreated
+        _viewModel = State(initialValue: NewChatViewModel(api: api, entryProject: draft))
     }
 
-    private static let placeholderSessionID = "draft-compose"
+    var body: some View {
+        NewChatView(viewModel: viewModel, onCreated: onCreated)
+            .toolbar(.hidden, for: .tabBar)
+    }
 }
 
 /// QR ペアリング直後の全画面オーバーレイ。接続待ちの間はリッチな中央アニメーション＋「接続中…」を出し、

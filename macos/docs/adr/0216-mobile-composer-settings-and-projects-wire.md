@@ -81,3 +81,9 @@ iPhone の入力欄を Mac の新規チャットと揃える（iOS 再設計）�
    - 棄却案: 表示用の状態の語（「無応答」「未読」）を Mac が文字列で返す。表示言語に依存し、iPhone で比較できない。
 9. **質問に `toolName`・`toolDetail` を足す**（契約 §8.11。U-8）。Claude Code のツール使用の許可の質問を、iPhone が Mac と同じく承認のカードで出すため。`allowsSessionScope` は false のときにキーが省かれるので、許可の質問かどうかの印にならなかった。出所は `ChatUserQuestion.permission`。
    - 棄却案: 形（選択肢が Allow・Deny の 1 問）から iPhone で見分ける。Mac の文言の変更で壊れる。
+
+## 追記（2026-10-18）: 新規チャットの既定を Mac から返す
+
+10. **`GET /agents/{kind}/settings` に省略可の `defaultEfforts`・`defaultPermission` を足す**（契約 §8.2）。iPhone の新規チャットが保存値の無いときの初期値を、Mac の新規チャットと同じにするため。
+    - 足さないと iPhone が既定を自前で持つことになり、Claude の権限の既定（Mac の「Bypass を使う」設定で bypassPermissions か auto かが変わる）を iPhone が推測するしかない。推測で `bypassPermissions` を送ると、Mac で Bypass を切っている利用者のセッションが iPhone からだけ強い権限で始まる。権限を強める方向の推測は避ける。
+    - 古い Mac ではキーが無い。iPhone は推論の深さ・権限を送らず、Mac の既定で起動する（§8.1 の「省略」と同じ）。

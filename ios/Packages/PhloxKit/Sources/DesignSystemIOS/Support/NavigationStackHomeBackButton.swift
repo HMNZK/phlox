@@ -24,12 +24,16 @@ public extension View {
 @MainActor
 enum NavigationStackHomeBackButtonInstaller {
     private static let house = UIImage(systemName: "house")?.withRenderingMode(.alwaysTemplate)
-    private static let accessibilityLabel = "ホーム"
+    private static let accessibilityLabel = "ホーム（セッション一覧に戻る）"
 
     /// SwiftUI の更新のたびに呼ばれるので、掛け済みなら何もしない。
     static func apply(to navigationController: UINavigationController) {
         guard let house else { return }
         let bar = navigationController.navigationBar
+        let tint = UIColor(DSNavigationChrome.accentTint)
+        if bar.tintColor?.isEqual(tint) != true {
+            bar.tintColor = tint
+        }
 
         if bar.standardAppearance.backIndicatorImage !== house {
             bar.standardAppearance = appearance(bar.standardAppearance, house: house)

@@ -50,3 +50,9 @@ wave-2（ADR-0005 の前提）では、新規タスクは独立したモーダ�
 
 - **spawn 画面を残し「+」ボタンの遷移先だけ変える**: ユーザー要望は画面そのものの廃止であり、専用モーダルを残すと要望に反するため却下。
 - **spawn とメッセージ送信を別操作にする（先に spawn ボタン、後で送信）**: 未 spawn 状態で空のセッションを一覧に残すことになり、ドラフトの破棄・再開といった追加の状態管理が必要になるため、初回送信時に一括で spawn する現行方式を採用した。
+
+## 2026-10-18 段階 5 での適用範囲
+
+未 spawn の入力画面を `SessionDetailView` に重ねる方式は superseded。入口は引き続きセッション一覧とプロジェクト見出しだが、遷移先は `Route.newChat(SessionComposeDraft)` と専用の `NewChatView` / `NewChatViewModel` になった。`Environment(\.sessionComposeDraft)`・placeholder Session・`SessionDetailViewModel.prepareDraft` は使わない。
+
+初回送信の **spawn → ready → send** の順序と、spawn 応答の Session を直に採用する決定は引き続き有効で、新規チャット用 ViewModel が担う。準備待ち・送信の失敗は作成済みセッションへ移り `SessionDetailRecovery` で本文・添付を戻す（[仕様書 U-12](../specs/redesign-2026-10.md)）。

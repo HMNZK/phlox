@@ -7,16 +7,23 @@ import PhloxCore
 struct SessionDetailDestination: View {
     let session: Session
     let api: PhloxAPI
+    let recovery: SessionDetailRecovery?
     let onDelete: () -> Void
 
     @State private var detailVM: SessionDetailViewModel
     @State private var approvalVM: ApprovalViewModel
 
-    init(session: Session, api: PhloxAPI, onDelete: @escaping () -> Void) {
+    init(
+        session: Session,
+        api: PhloxAPI,
+        recovery: SessionDetailRecovery? = nil,
+        onDelete: @escaping () -> Void
+    ) {
         self.session = session
         self.api = api
+        self.recovery = recovery
         self.onDelete = onDelete
-        _detailVM = State(initialValue: SessionDetailViewModel(session: session, api: api))
+        _detailVM = State(initialValue: SessionDetailViewModel(session: session, api: api, recovery: recovery))
         _approvalVM = State(initialValue: ApprovalViewModel(
             sessionID: session.id,
             api: api

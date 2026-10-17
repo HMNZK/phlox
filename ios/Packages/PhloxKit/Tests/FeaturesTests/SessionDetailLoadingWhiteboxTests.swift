@@ -25,16 +25,6 @@ struct SessionDetailLoadingWhiteboxTests {
         #expect(viewModel.showsInitialLoadingIndicator)
     }
 
-    @Test("ドラフト作成画面では初回ロード表示を出さない")
-    func draftDoesNotShowInitialLoadingSpinner() async {
-        let viewModel = SessionDetailViewModel(session: makeSession(), api: MockAPI())
-
-        await viewModel.startPolling(composeDraft: SessionComposeDraft(project: "phlox"))
-
-        #expect(viewModel.isAwaitingInitialSpawn)
-        #expect(!viewModel.showsInitialLoadingIndicator)
-    }
-
     @Test("メッセージ取得後は初回ロードを完了してチャットを表示する")
     func messageLoadCompletesInitialLoading() async {
         let viewModel = SessionDetailViewModel(

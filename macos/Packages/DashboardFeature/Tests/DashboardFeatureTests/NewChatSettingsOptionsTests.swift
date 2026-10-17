@@ -1,4 +1,6 @@
 import AgentDomain
+import Foundation
+import SessionFeature
 import Testing
 @testable import DashboardFeature
 
@@ -21,5 +23,27 @@ import Testing
         #expect(options.availablePermissions.first?.value == nil)
         #expect(options.availablePermissions.first?.displayName == "既定")
         #expect(options.planModeAvailable)
+        #expect(options.defaultPermission == nil)
+    }
+
+    @MainActor
+    @Test func reportedDefaultsMatchMacNewChatAndFollowBothBypassStates() throws {
+        for fullAccess in [false, true] {
+            let suite = "phlox-new-chat-settings-defaults-\(UUID().uuidString)"
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let store = LastUsedChatSettingsStore(defaults: defaults)
+            let draft = NewChatDraft(lastUsedChatSettingsStore: store, isFullAccessEnabled: { _ in fullAccess })
+            let model = try #require(draft.settings.selectedModel)
+            let options = newChatSettingsOptions(
+                for: .claudeCode,
+                languageCode: "ja",
+                fullAccessEnabled: fullAccess
+            )
+
+            #expect(options.defaultEfforts?[model] == draft.settings.selectedEffort)
+            #expect(options.defaultPermission == draft.settings.selectedPermissionProfile)
+            #expect(options.defaultPermission == (fullAccess ? "bypassPermissions" : "auto"))
+        }
     }
 }

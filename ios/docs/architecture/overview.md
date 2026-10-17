@@ -27,8 +27,9 @@ last-verified: 2026-10-17
 | `Features/Pairing` | `QRScanScreen`、`PairingApplyViewModel`、`QRImageDecoder`。QR から読み取った host・port・token を検証して接続設定へ一括適用する |
 | `Features/Settings` | `@Observable` の `AppSettings` と `AppSettingsStoring`。`UserDefaults` 永続化の Face ID（**既定オフ** → [ADR 0017](../adr/0017-face-id-launch-gate-default-off.md)）、通知（既定オン）、外観（`AppearancePreference.system/light/dark`）と About を提供する |
 | `Features/SessionList` | 一覧画面。`SessionListProjection` が対応待ち 4 種（承認待ち・質問あり・エラー・無応答）、`GET /projects` 順のプロジェクト欄、未割当の「その他」、同じプロジェクト内の親子木、折りたたみ時の状態内訳を View 非依存で作る。古い Mac がプロジェクト一覧を返さない場合は、セッションが届いた順で欄を並べる。対応待ち行はプロジェクト欄に重ねない。行は名前と状態語だけで、未読名を semibold、実行中名に Reduce Motion 対応の 1 回の光の帯を表示する。子は既定で閉じ、開閉状態は `SessionListView` のメモリだけに保つ。`SessionListView` は一覧・スケルトン・接続判定・空・オフライン・取得エラーを表示する。3 秒ごとの一覧取得はセッションだけを更新し、引っ張って更新ではセッション・プロジェクト・使用量を並行して再取得する。到達性が未判定の間は読み込み表示を続け、判定後に必要なオフライン表示へ移る（→ [ADR 0027](../adr/0027-session-list-probe-before-offline.md)） |
-| `Features/Spawn` | wave-4 で廃止（ソースファイル削除、ディレクトリのみ残置）。新規セッション作成はセッション一覧の「+ セッションを追加」→ドラフト compose フローに統合された（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)） |
-| `Features/Usage` | `AppRoot` が `UsageViewModel` を 1 つ生成し、環境値でセッション詳細（新規チャット下書きを含む）と一覧へ渡す。`load()` は `GET /usage` を呼び、取得中と失敗後も前の値を保持する。`UsageRingPresentation` が残り・枠順・リセット書式・VoiceOver 文言を共有し、`UsageRingRow` が入力欄下の 44pt の行とポップオーバーを描く。使用量タブの画面は再設計で消した（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)） |
+| `Features/Spawn` | wave-4 で廃止（ソースファイル削除、ディレクトリのみ残置）。新規セッション作成は一覧の「新規チャット」・プロジェクトの「＋」から `Features/NewChat` の専用画面へ遷移する（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)） |
+| `Features/NewChat` | 見出し・提案・モデル・設定・プロジェクト選択と初回送信を `NewChatViewModel` が保持する。`GET /agents/{kind}/models`・`GET /agents/{kind}/settings`・`GET /projects` を使い、旧 Mac ではセッション一覧からプロジェクトを組み立てる。送信時は spawn → ready → send を行い、失敗時の本文・添付回復は実セッション画面へ渡す（→ 仕様 AC-5-1〜15） |
+| `Features/Usage` | `AppRoot` が `UsageViewModel` を 1 つ生成し、環境値でセッション詳細・新規チャットと一覧へ渡す。`load()` は `GET /usage` を呼び、取得中と失敗後も前の値を保持する。`UsageRingPresentation` が残り・枠順・リセット書式・VoiceOver 文言を共有し、`UsageRingRow` が入力欄下の 44pt の行とポップオーバーを描く。使用量タブの画面は再設計で消した（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)） |
 | `Features/AppShell` | 下部固定タブバーの状態機械。`AppTab`（`.sessions/.settings` の 2 種。wave-4 で `.overview`（→ [ADR 0007](../adr/0007-remove-overview-tab.md)）、再設計で `.usage`（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)）を削除）と `AppShellViewModel.selectTab(_:)`（現在は単純な選択更新のみ。旧・俯瞰タブ再選択トグルは削除済み） |
 
 ## アプリルートの設定反映
@@ -105,29 +106,27 @@ iOS 26 は標準のガラスタブ・`tabViewBottomAccessory`・`tabBarMinimizeB
 - **ツールコールの集約行**（→ [ADR 0026](../adr/0026-ios-single-toolcall-grouped-row.md) / [ADR 0038](../adr/0038-command-group-cost-bounding.md)）: `SessionDetailToolCallGrouping`（純関数）が transcript を描画単位 `SessionDetailChatBlock`（`single` / `commandGroup`）へ畳む。**連続する `.command` は1件以上で必ず `commandGroup`**（id = グループ先頭 message の id・順序保存）になり、`.command` 以外はグループ境界かつ `single`。`commandGroup` は `SessionDetailToolCallGroupRow` が**最後のコマンド原文**の見出し 1 行（＋タイトル直後のシェブロン。器は持たない）として描画し、タップで各コマンド行を `SessionDetailCommandCard`（ツール名ラベル＋`$ <コマンド>`＋出力・枠線付き）として展開する。見出しがコマンド原文でなく `"ツール実行 ×N"` になるのは、コマンドが 1 件も無いグループのフォールバックだけ（→ [ADR 0041](../adr/0041-chat-render-rules-shared-via-chatrenderkit.md)）。展開部の行は「出力が空かつ実行中でない」ものを除外するが、**`items.count == 1` のときは除外しない**（唯一の行を消すとどのコマンドが走ったか分からなくなるため）。全件空出力かつ非実行中の**複数件**グループはカード自体を描画しない。`scrollTargetID` は個別 message の id をその所属グループの id へ解決する。**窓境界は必ずブロック境界に来るため部分ブロックは生じない**（ADR 0037 で旧・境界分割処理は削除）。macOS も ADR 0127 で1件以上の集約へ揃ったため、かつての意図的な差異は解消している。
   - 窓がブロック単位になり1グループが数千件を抱えうるため、**ヘッダと行データを型で分けてある**（ADR 0038）: `SessionDetailCommandGroupHeader`（`title` / `isRunning` / `shouldRender`・行データを保持しない）を閉状態で使い、`SessionDetailCommandGroupRowWindow.slice(...)` は `if isExpanded` の内側でだけ呼ぶ。展開時の行は末尾 `defaultLimit = 50` 件で、残りは `hiddenRowCount` として「残り N 件を表示」（`expandStep = 50`）で段階展開する。コピー用テキストも押下時にだけ生成する（`ChatMessageDeferredCopyText`。転写のコピーは行ごとのボタンではなく長押し `contextMenu` で提供する → [ADR 0042](../adr/0042-input-bar-send-reveal-and-transcript-long-press-copy.md)）。コピー可否の判定と文字列生成はどちらも `ChatMessageCopyText.commandGroupCopyablePart(for:)` 1本を通す。
 - **チャット履歴の末尾ウィンドウ描画**（→ [ADR 0022](../adr/0022-ios-transcript-tail-window.md) / [ADR 0037](../adr/0037-transcript-window-counts-blocks.md)）: 上記の per-message 折りたたみとは別に、チャット履歴全体を**末尾 N ブロックのみ描画**して初回オープンの eager 描画コストを有界化する。**N が数えるのはトップレベルに描画されるブロック数**であって message 数ではない（ADR 0037）——連続するツール実行のまとまりは中に何件入っていても1枠。`TranscriptWindow`（純粋値型・`defaultLimit = 50` / `expandStep = 50`）が totalCount のみから末尾スライスと隠れ件数を返し、`SessionDetailToolCallGrouping.visibleSlice(from:blockLimit:)` が末尾 `blockLimit` ブロックと `hiddenBlockCount` を返す。`SessionDetailTranscriptSlice`（`SessionDetailView` が `@State` で持つ窓から生成）は `visibleMessages` を**可視ブロック列から導く**（id の逆引きはしない＝ id 一意を前提にしない）。超過時のみ先頭に「以前のメッセージを表示（残り k 件）」ボタンを出し、**拡張契機はボタン押下のみ**（+50）。セッション切替で `reset()`。展開時は押下前の先頭可視ブロックをアンカーに保持（`SessionDetailTranscriptExpansionPolicy`・世代ガード付き scrollTo・末尾追従は選ばない）。macOS の非 Lazy VStack + 件数制限（ADR 0030/0051/0127）を単一文脈へ簡約移植したもので、LazyVStack は再導入しない。
-- **初回ロード中の接続表示**（→ [ADR 0023](../adr/0023-ios-initial-load-connecting-indicator.md)）: 初回 `load()` が解決するまで `isInitialLoading` を true とし、表示ゲート `showsInitialLoadingIndicator = isInitialLoading && !isAwaitingInitialSpawn && chatMessages 空` の間だけ中央に既存 `DSConnectingIndicator` を表示する。終了保証は `load()` の `defer`。閉じ判定は到達性でなく実データのロード完了に紐付け（ADR 0021 の教訓）、ドラフト作成画面（`load()` を呼ばない）は `!isAwaitingInitialSpawn` で除外して永久スピナーを防ぐ。
-- **入力欄の有効条件**（→ [ADR 0028](../adr/0028-input-bar-enabled-on-completed-and-error.md)）: `inputEnabled` が false になるのは `starting` **だけ**。`completed` / `error` で停止したセッションでも入力欄は出したままにする（送信で respawn して復帰できるため）。`isAwaitingInitialSpawn` の間も有効。
+- **初回ロード中の接続表示**（→ [ADR 0023](../adr/0023-ios-initial-load-connecting-indicator.md)）: 初回 `load()` が解決するまで `isInitialLoading` を true とし、`isInitialLoading && chatMessages 空 && outputText 空` の間だけ中央に既存 `DSConnectingIndicator` を表示する。終了保証は `load()` の `defer`。新規チャットは別の ViewModel を使うため、このセッション画面のロード表示にドラフト分岐は無い。
+- **入力欄の有効条件**（→ [ADR 0028](../adr/0028-input-bar-enabled-on-completed-and-error.md)）: `inputEnabled` が false になるのは `starting` **だけ**。`completed` / `error` で停止したセッションでも入力欄は出したままにする（送信で respawn して復帰できるため）。
 - **AskUserQuestion カードの排他**（→ [macOS ADR 0124](../../../macos/docs/adr/0124-user-question-free-text-exclusive.md)・[ADR 0024](../adr/0024-user-question-card-mirror.md)）: 選択状態は View の `@State` 辞書ではなく値型 `UserQuestionFormState`（`selections` / `freeText` / `canSubmit` / `answers` / `seed(from:)`）が持つ。自由入力欄へフォーカスが入ると `freeTextDidFocus(question:)` がその質問の選択肢を解除し、選択肢を触ると自由入力をクリアする（どちらか一方だけが回答になる状態を画面上でも保つ）。自由入力欄は `axis: .vertical` + `lineLimit(1...4)` で右端折り返し。
 
-### ドラフト compose（未 spawn セッションの詳細画面、wave-4）
+### 新規チャット（専用画面、stage 5）
 
-セッション一覧の「+ セッションを追加」は `Route.sessionComposeDraft(project:)` へ遷移し、`DraftSessionComposeDestination`
-が placeholder `Session`（id `"draft-compose"`）を `SessionDetailView` に渡し `Environment(\.sessionComposeDraft)` を
-セットする。実セッションが存在しないため:
+下部の「新規チャット」、プロジェクト見出しの「＋」、空の一覧の入口は `Route.newChat(SessionComposeDraft)` を push し、
+`Features/NewChat/NewChatView` と `NewChatViewModel` を表示する。以前の placeholder `Session` を `SessionDetailView` に渡す
+ドラフト経路は廃止した。新規チャットの状態・モデル選択・プロジェクト選択・初回送信は `SessionDetailViewModel` に含めない。
 
-- `SessionDetailViewModel.isAwaitingInitialSpawn`（`draftProject != nil && !hasSpawnedDraft`）の間は
-  `startPolling(composeDraft:)` が実 polling を起動せず、`prepareDraft(_:)` が `claudeCode`/`cursor`/`codex` 3種の
-  `agentModels(kind:)` カタログだけを取得してモデルピッカーを準備する。**codex も他2種と同じくカタログの
-  モデル行を並べる**（→ [macOS ADR 0122](../../../macos/docs/adr/0122-live-agent-model-catalog.md)）。agent-only の
-  1行は codex のカタログが空のときだけ追加する。
-- **選択の保持は `(kind, modelID?)`**（→ [ADR 0030](../adr/0030-draft-model-selection-kind-and-id.md)）: `prepareDraft` は
-  再入するため、カタログの一時的な欠落で選択行が消えることがある。選択は表示用 ID 文字列ではなく
-  `DraftModelSelection { kind, modelID }` で保持し、再取得時は「同一 `(kind, modelID)` → 同 kind の既定モデル →
-  同 kind の任意行 → kind のみ保持（ピッカーは未選択表示）」の順で解決する。**kind が別エージェントへ移ることはない**。
-  `selectedModelPickerEntryID` はピッカーのハイライト専用。
-- 初回送信（`sendMessage(composeDraft:)`）で **`spawn(kind, model) → waitUntilReady → send` を1回の操作内で順序実行**する。
-  `spawn` の応答 `Session` は `listSessions` の反映を待たず `session = spawned` として直渡しで採用し、一覧非同期反映との
-  レースを避ける（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)）。
+- `NewChatViewModel.load()` は 3 エージェントのモデル一覧と設定選択肢、`GET /projects`、セッション一覧を並行取得する。
+  `GET /projects` 非対応の古い Mac ではセッション一覧からプロジェクトを組み立てる。空の一覧でもプロジェクト未選択で始める。
+- 前回のエージェント・モデル・設定・プロジェクトを `NewChatSettingsStore`（Mac と同じ UserDefaults キー群）から復元する。
+  モデルは `(kind, modelID)` の組で識別し、表示名を識別子にしない（→ [ADR 0030](../adr/0030-draft-model-selection-kind-and-id.md)）。
+  3 エージェントのモデルシートは取得できない欄も残し「取得できません」と表示する。
+- 送信はプロジェクト必須を確認してから `POST /sessions`（model・projectId・effort・permission・planMode）→
+  `waitUntilReady` → `POST /send` を直列実行する。成功したら実セッションを開く（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)）。
+  作成失敗は新規チャットに本文を残す。準備待ちまたは初回送信の失敗は作成済みセッションへ移り、本文・添付・赤いエラーを
+  `SessionDetailRecovery` で戻す（15 章 U-12）。
+- `SessionDetailViewModel` にはセッション画面の履歴・設定・送信と、初回送信失敗からの回復表示だけを残す。
+  stage 6 ではここからセッション画面の表示状態と通信を分離できる。
 
 ## UI 部品（`DesignSystemIOS`）
 

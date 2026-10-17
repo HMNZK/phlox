@@ -340,12 +340,16 @@ struct AgentSettingsResponseDTO: Decodable {
     let availableEfforts: [String: [AgentSettingOption]]
     let availablePermissions: [AgentSettingOption]
     let planModeAvailable: Bool
+    let defaultEfforts: [String: String]?
+    let defaultPermission: String?
 
     func toDomain() -> AgentSettings {
         AgentSettings(
             availableEfforts: availableEfforts,
             availablePermissions: availablePermissions,
-            planModeAvailable: planModeAvailable
+            planModeAvailable: planModeAvailable,
+            defaultEfforts: defaultEfforts,
+            defaultPermission: defaultPermission
         )
     }
 }

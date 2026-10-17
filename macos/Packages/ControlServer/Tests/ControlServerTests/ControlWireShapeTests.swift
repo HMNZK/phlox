@@ -40,6 +40,37 @@ import Testing
         #expect(sessions[1]["projectName"] == nil)
     }
 
+    @Test("新規チャット設定は既定キーを値があるときだけ返す")
+    func agentSettingsDefaultWireShape() throws {
+        let availableEfforts = ["opus": [ControlSettingOption(value: "high", displayName: "高")]]
+        let permissions = [ControlSettingOption(value: "auto", displayName: "Auto")]
+        let withDefaults = ControlAgentSettings(
+            availableEfforts: availableEfforts,
+            availablePermissions: permissions,
+            planModeAvailable: true,
+            defaultEfforts: ["opus": "high"],
+            defaultPermission: "auto"
+        )
+        let withObject = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(withDefaults)) as? [String: Any]
+        )
+        #expect(withObject["defaultEfforts"] as? [String: String] == ["opus": "high"])
+        #expect(withObject["defaultPermission"] as? String == "auto")
+
+        let withoutDefaults = ControlAgentSettings(
+            availableEfforts: availableEfforts,
+            availablePermissions: permissions,
+            planModeAvailable: true,
+            defaultEfforts: [:],
+            defaultPermission: nil
+        )
+        let withoutObject = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(withoutDefaults)) as? [String: Any]
+        )
+        #expect(withoutObject["defaultEfforts"] == nil)
+        #expect(withoutObject["defaultPermission"] == nil)
+    }
+
     @Test("一覧の表示用項目は常に出し、親と状態の時刻は nil ならキーを省略する")
     func sessionListDisplayMetadataWireShape() throws {
         let response = ControlSessionListResponse(sessions: [

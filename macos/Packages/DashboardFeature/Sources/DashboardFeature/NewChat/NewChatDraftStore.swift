@@ -151,12 +151,11 @@ public final class NewChatDraft {
         saved: LastUsedChatSettings?,
         fullAccess: Bool
     ) -> CodexAppServerSessionSettings {
-        let model = saved?.model ?? AgentModelCatalog.defaultModel(for: kind)
-        let modelOption = AgentModelCatalog.models(for: kind).first { $0.id == model }
+        let defaults = newChatDefaultSettings(for: kind, modelID: saved?.model, fullAccess: fullAccess)
         return CodexAppServerSessionSettings(
-            selectedModel: model,
-            selectedEffort: saved?.effort ?? modelOption?.defaultReasoningEffort ?? (kind == .claudeCode ? "high" : nil),
-            selectedPermissionProfile: saved?.permission ?? (kind == .claudeCode ? (fullAccess ? "bypassPermissions" : "auto") : nil),
+            selectedModel: saved?.model ?? defaults.selectedModel,
+            selectedEffort: saved?.effort ?? defaults.selectedEffort,
+            selectedPermissionProfile: saved?.permission ?? defaults.selectedPermissionProfile,
             isPlanMode: saved?.isPlanMode ?? false
         )
     }

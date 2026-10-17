@@ -378,6 +378,44 @@ public struct ControlSettingOption: Encodable, Equatable, Sendable {
     }
 }
 
+/// GET /agents/{kind}/settings の応答 DTO。
+public struct ControlAgentSettings: Encodable, Equatable, Sendable {
+    public let availableEfforts: [String: [ControlSettingOption]]
+    public let availablePermissions: [ControlSettingOption]
+    public let planModeAvailable: Bool
+    public let defaultEfforts: [String: String]?
+    public let defaultPermission: String?
+
+    public init(
+        availableEfforts: [String: [ControlSettingOption]],
+        availablePermissions: [ControlSettingOption],
+        planModeAvailable: Bool,
+        defaultEfforts: [String: String]? = nil,
+        defaultPermission: String? = nil
+    ) {
+        self.availableEfforts = availableEfforts
+        self.availablePermissions = availablePermissions
+        self.planModeAvailable = planModeAvailable
+        self.defaultEfforts = defaultEfforts
+        self.defaultPermission = defaultPermission
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case availableEfforts, availablePermissions, planModeAvailable, defaultEfforts, defaultPermission
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(availableEfforts, forKey: .availableEfforts)
+        try container.encode(availablePermissions, forKey: .availablePermissions)
+        try container.encode(planModeAvailable, forKey: .planModeAvailable)
+        if let defaultEfforts, !defaultEfforts.isEmpty {
+            try container.encode(defaultEfforts, forKey: .defaultEfforts)
+        }
+        try container.encodeIfPresent(defaultPermission, forKey: .defaultPermission)
+    }
+}
+
 public struct ControlProject: Encodable, Equatable, Sendable {
     public let id: String
     public let name: String

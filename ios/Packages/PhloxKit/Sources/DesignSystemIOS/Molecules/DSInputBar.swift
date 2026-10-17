@@ -49,6 +49,19 @@ public struct DSInputBarSettingOption: Identifiable, Equatable, Sendable {
     }
 }
 
+/// 新規チャットのプロジェクト選択メニューに渡す項目。
+public struct DSInputBarProjectOption: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let isLastUsed: Bool
+
+    public init(id: String, name: String, isLastUsed: Bool = false) {
+        self.id = id
+        self.name = name
+        self.isLastUsed = isLastUsed
+    }
+}
+
 /// 入力欄の設定チップに渡す値と操作。新規チャットは段階 5 で同じ設定を渡す。
 public struct DSInputBarSettings {
     public let agentName: String
@@ -274,6 +287,11 @@ public struct DSInputBar: View {
     let settings: DSInputBarSettings?
     let projectName: String?
     let onSelectProject: (() -> Void)?
+    let projectOptions: [DSInputBarProjectOption]
+    let selectedProjectID: String?
+    let onSelectProjectID: ((String) -> Void)?
+    let focusOnAppear: Bool
+    let focusRequest: Int
     let onSubmit: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -309,6 +327,11 @@ public struct DSInputBar: View {
         settings: DSInputBarSettings? = nil,
         projectName: String? = nil,
         onSelectProject: (() -> Void)? = nil,
+        projectOptions: [DSInputBarProjectOption] = [],
+        selectedProjectID: String? = nil,
+        onSelectProjectID: ((String) -> Void)? = nil,
+        focusOnAppear: Bool = false,
+        focusRequest: Int = 0,
         onSubmit: @escaping () -> Void
     ) {
         self._text = text
@@ -332,6 +355,11 @@ public struct DSInputBar: View {
         self.settings = settings
         self.projectName = projectName
         self.onSelectProject = onSelectProject
+        self.projectOptions = projectOptions
+        self.selectedProjectID = selectedProjectID
+        self.onSelectProjectID = onSelectProjectID
+        self.focusOnAppear = focusOnAppear
+        self.focusRequest = focusRequest
         self.onSubmit = onSubmit
     }
 
@@ -354,7 +382,7 @@ public struct DSInputBar: View {
 
     private var layout: DSInputBarLayout {
         DSInputBarLayout.resolve(
-            width: max(0, measuredWidth - (mode == .newChat ? 20 : 24)),
+            width: max(0, measuredWidth + (mode == .newChat ? 2 : -24)),
             mode: mode,
             isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
             hasModel: model != nil,
@@ -364,7 +392,7 @@ public struct DSInputBar: View {
             isStrongPermission: isStrongPermissionSelected,
             hasText: !text.isEmpty,
             isRunning: isRunning,
-            hasProject: mode == .newChat && (projectName != nil || onSelectProject != nil),
+            hasProject: mode == .newChat && (projectName != nil || onSelectProject != nil || onSelectProjectID != nil),
             projectName: projectName
         )
     }
@@ -431,6 +459,17 @@ public struct DSInputBar: View {
         .onChange(of: selectedPhotoItems) { _, items in
             guard onAddAttachments != nil else { return }
             Task { await importSelectedPhotos(items) }
+        }
+        .onAppear {
+            guard focusOnAppear else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(180))
+                isFocused = true
+            }
+        }
+        .onChange(of: focusRequest) { _, _ in
+            guard focusOnAppear else { return }
+            isFocused = true
         }
         .photosPicker(
             isPresented: $isPhotoPickerPresented,
@@ -997,14 +1036,39 @@ public struct DSInputBar: View {
     }
 
     private var showsProjectSelector: Bool {
-        mode == .newChat && (projectName != nil || onSelectProject != nil)
+        mode == .newChat && (projectName != nil || onSelectProject != nil || onSelectProjectID != nil)
     }
 
     private func projectSelector(iconOnly: Bool) -> some View {
-        smallControlButton(
-            label: "プロジェクト、\(projectName ?? "未選択")",
-            fill: DSColor.fillSubtle
-        ) {
+        Menu {
+            Section("プロジェクト") {
+                if projectOptions.isEmpty {
+                    Button("プロジェクトがありません") {}
+                        .disabled(true)
+                } else {
+                    ForEach(projectOptions) { option in
+                        Button {
+                            if let onSelectProjectID { onSelectProjectID(option.id) }
+                            else { onSelectProject?() }
+                        } label: {
+                            HStack(spacing: DSSpacing.s) {
+                                if option.id == selectedProjectID {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(IOSColor.accent)
+                                }
+                                Text(option.name)
+                                Spacer(minLength: DSSpacing.s)
+                                if option.isLastUsed {
+                                    Text("前回使った")
+                                        .font(DSFont.caption)
+                                        .foregroundStyle(IOSColor.text.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
             HStack(spacing: 4) {
                 Image(systemName: "folder")
                     .font(DSFont.inputBar(.chipSymbol, for: dynamicTypeSize))
@@ -1017,9 +1081,12 @@ public struct DSInputBar: View {
                 }
             }
             .foregroundStyle(IOSColor.text.secondary)
-        } action: {
-            onSelectProject?()
+            .frame(minHeight: DSTouch.minSize)
+            .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 12 : 7)
+            .background(DSColor.fillSubtle, in: Capsule())
+            .contentShape(Capsule())
         }
+        .accessibilityLabel("プロジェクト、\(projectName ?? "未選択")")
     }
 
     private func settingChip(

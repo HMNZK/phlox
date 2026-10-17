@@ -125,16 +125,25 @@ import SessionFeature
             let efforts = try #require(body["availableEfforts"] as? [String: [[String: Any]]])
             #expect(Set(efforts.keys) == Set(AgentModelCatalog.models(for: kind).map(\.id)))
             #expect(body["planModeAvailable"] as? Bool == true)
+            let defaults = body["defaultEfforts"] as? [String: String]
+            let expectedDefaults = Dictionary(AgentModelCatalog.models(for: kind).compactMap { model in
+                newChatDefaultSettings(for: kind, modelID: model.id, fullAccess: true)
+                    .selectedEffort
+                    .map { (model.id, $0) }
+            }, uniquingKeysWith: { first, _ in first })
+            #expect(defaults == (expectedDefaults.isEmpty ? nil : expectedDefaults))
             let permissions = try #require(body["availablePermissions"] as? [[String: Any]])
             if kind == .cursor {
                 #expect(permissions.first?["value"] is NSNull)
                 #expect(permissions.last?["value"] as? String == "ask")
+                #expect(body["defaultPermission"] == nil)
             }
             if kind == .claudeCode {
                 for (model, values) in efforts {
                     #expect(values.count == (model.split(separator: "[").first == "haiku" ? 0 : 5))
                 }
                 #expect(permissions.compactMap { $0["value"] as? String } == ["acceptEdits", "auto", "bypassPermissions", "manual", "dontAsk"])
+                #expect(body["defaultPermission"] as? String == (BypassSettings.isEnabled(for: kind) ? "bypassPermissions" : "auto"))
             }
         }
     }

@@ -321,6 +321,7 @@ iPhone の入力欄を Mac の新規チャットと揃えるための拡張。�
 - `availableEfforts` のキーは、同じ kind の `GET /agents/{kind}/models` の `models[].id` と同じ集合。値が `[]` のモデルは推論の深さを選べない（チップを出さない）。
 - 選択肢は Mac の新規チャット画面と同じ: Claude の推論の深さは low/medium/high/xhigh/max（`haiku` は無し）、Codex・Cursor はモデルの `reasoningEfforts`。権限は Claude が acceptEdits/auto/bypassPermissions/manual/dontAsk、Codex が `:danger-full-access`/`:workspace`/`:read-only`、Cursor が 既定（`value: null`）/`ask`。Plan は 3 つとも `planModeAvailable: true`。
 - 未知 kind・クエリ付き: `404`。
+- **既定（2026-10-18 追加・省略可）**: `defaultEfforts`（`{"<model id>": "<value>"}`。`availableEfforts` と同じキーの集合で、既定の無いモデルはキーを省く）と `defaultPermission`（String。`availablePermissions` の値のどれか。既定が「既定（null）」のエージェントではキーを省く）。値は **Mac の新規チャットが保存値の無いときに使う初期値と同じ出所**（Claude の権限は Mac の「Bypass を使う」設定に従う）。iOS はこの値を、保存値の無いときの初期値とモデルを替えたときの戻し先に使い、iOS 側に既定を持たない。古い Mac（キーが無い）では iOS は推論の深さ・権限を送らない（Mac の既定で起動する。§8.1 の「省略」）。
 
 ### 8.3 GET /sessions/{id}/settings — 項目の追加
 

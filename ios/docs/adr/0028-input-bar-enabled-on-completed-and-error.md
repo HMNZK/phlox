@@ -28,3 +28,7 @@ last-verified: 2026-07-26
 
 - `ErrorSessionInputBarTests` で、各 `SessionStatus` に対する `inputEnabled` の値を全数検証した（`starting` のみ false）。
 - **respawn 機構を持たないバックエンドでは、送信しても復帰しない可能性がある**。本 run の調査時点で Codex には respawn 機構が無い。その場合ユーザーは送信してエラーが返ることになるが、「入力欄が消えて何もできない」よりは改善である。Codex の respawn は本 run のスコープ外の申し送りとする。
+
+## 2026-10-18 段階 5 での適用範囲
+
+決定 2 の `isAwaitingInitialSpawn` は placeholder Session を使った旧ドラフト経路向けで superseded。新規チャットは `SessionDetailView` に入らず専用画面で作成する。本 ADR の決定 1（実セッションでは `starting` だけ入力無効）は引き続き有効。

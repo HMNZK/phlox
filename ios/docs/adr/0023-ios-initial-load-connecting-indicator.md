@@ -31,3 +31,7 @@ last-verified: 2026-07-18
 - 白箱 `SessionDetailLoadingWhiteboxTests`（6件）: 生成直後 true／messages 成功→false+showsChat／空 messages+output フォールバック→false／両失敗→false+`loadError`／refresh で再点灯しない／**ドラフト作成画面ではゲートが成立しない**。`swift test --package-path ios/Packages/PhloxKit --no-parallel` 全数 green（388・XCTest 別途）。
 - 初回ロード区間の空白がインジケータ表示に置き換わり、描画待ちが可視化される。
 - **未検証（フェーズ4/実機）**: 実機/シミュレータでの初回オープン体感は次段で確認する。
+
+## 2026-10-18 段階 5 での適用範囲
+
+決定 4 のドラフト除外（`!isAwaitingInitialSpawn`）は placeholder Session を使う旧実装向けで superseded。新規チャットは `SessionDetailView` を通らず、独立した `NewChatView` が「作成しました」「準備ができるのを待っています…」「指示を送る」を表示する。実セッションの初回履歴ロード表示は引き続き本 ADR のとおり。

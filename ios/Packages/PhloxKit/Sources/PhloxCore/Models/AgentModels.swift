@@ -34,15 +34,21 @@ public struct AgentSettings: Sendable, Equatable, Decodable {
     public let availableEfforts: [String: [AgentSettingOption]]
     public let availablePermissions: [AgentSettingOption]
     public let planModeAvailable: Bool
+    public let defaultEfforts: [String: String]?
+    public let defaultPermission: String?
 
     public init(
         availableEfforts: [String: [AgentSettingOption]],
         availablePermissions: [AgentSettingOption],
-        planModeAvailable: Bool
+        planModeAvailable: Bool,
+        defaultEfforts: [String: String]? = nil,
+        defaultPermission: String? = nil
     ) {
         self.availableEfforts = availableEfforts
         self.availablePermissions = availablePermissions
         self.planModeAvailable = planModeAvailable
+        self.defaultEfforts = defaultEfforts
+        self.defaultPermission = defaultPermission
     }
 }
 

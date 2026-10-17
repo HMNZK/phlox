@@ -46,7 +46,7 @@ struct NavigationBackSwipeProbeTests {
         }
 
         let rootItem = try #require(navigationController.viewControllers.first?.navigationItem)
-        #expect(rootItem.backBarButtonItem?.accessibilityLabel == "ホーム")
+        #expect(rootItem.backBarButtonItem?.accessibilityLabel == "ホーム（セッション一覧に戻る）")
     }
 }
 

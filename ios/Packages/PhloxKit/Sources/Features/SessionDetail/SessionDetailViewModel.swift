@@ -9,6 +9,22 @@ import UniformTypeIdentifiers
 import UIKit
 #endif
 
+public struct SessionDetailRecovery: Sendable {
+    public let text: String
+    public let attachments: [SessionDetailViewModel.SessionAttachmentItem]
+    public let errorMessage: String
+
+    public init(
+        text: String,
+        attachments: [SessionDetailViewModel.SessionAttachmentItem],
+        errorMessage: String
+    ) {
+        self.text = text
+        self.attachments = attachments
+        self.errorMessage = errorMessage
+    }
+}
+
 /// セッション詳細（カンプ③ / E4-6）+ 送信（カンプ⑦ / E4-8）。
 /// 入力は送信受付後にだけクリアし、送信中の編集を保持する。
 @MainActor
@@ -54,6 +70,7 @@ public final class SessionDetailViewModel {
     /// reasoning / command / fileChange 行の展開状態（message.id キー。ポーリング差し替え後も保持）。
     public private(set) var expandedMessageIDs: Set<String> = []
     public private(set) var sendState: SendState = .idle
+    public private(set) var isRecoveringInitialSend = false
     public private(set) var loadError: String?
     /// task-9: 実行中ターンの停止が可能か（interrupt 非対応=409 を観測したら false にして停止 UI を隠す）。
     public private(set) var canInterrupt: Bool = true
@@ -114,27 +131,13 @@ public final class SessionDetailViewModel {
         guard let defaultSessionModelID else { return nil }
         return modelPickerEntries.first(where: { $0.modelID == defaultSessionModelID })?.id
     }
-    /// ドラフトでユーザーが選んだエージェント種別とモデル。表示用 ID と切り離して保持し、
-    /// カタログの一時的な欠落で別 kind へ選択が移ることを防ぐ。
-    private struct DraftModelSelection: Equatable {
-        let kind: AgentKind
-        let modelID: String?
-    }
-    private var draftModelSelection: DraftModelSelection?
-    private var draftProject: String?
-    private var draftProjectID: String?
     /// branch 情報は Session に無いため、取得済みのプロジェクト名だけを代替表示する。
-    public var inputContextDisplayName: String? { session.projectName ?? draftProject }
-    private var draftNeedsReady = false
-    public private(set) var hasSpawnedDraft = false
-    public var isAwaitingInitialSpawn: Bool { draftProject != nil && !hasSpawnedDraft }
-    /// 入力バーが停止ボタンを出すべきか。下書き未 spawn（isAwaitingInitialSpawn）中は
-    /// placeholder が .running でも送信ボタンを出す（最初の1通を送れるようにする）。
+    public var inputContextDisplayName: String? { session.projectName }
     public var showsStopButton: Bool {
-        !isAwaitingInitialSpawn && currentStatus == .running && canInterrupt
+        currentStatus == .running && canInterrupt
     }
     public var showsInitialLoadingIndicator: Bool {
-        isInitialLoading && !isAwaitingInitialSpawn && chatMessages.isEmpty
+        isInitialLoading && chatMessages.isEmpty
     }
     /// 表示名の単一の源（初期値は session.name）。
     public private(set) var displayName: String
@@ -167,11 +170,18 @@ public final class SessionDetailViewModel {
         }
     }
 
-    public init(session: Session, api: PhloxAPI) {
+    public init(session: Session, api: PhloxAPI, recovery: SessionDetailRecovery? = nil) {
         self.session = session
         self.api = api
         self.currentStatus = session.status
         self.displayName = session.name
+        if let recovery {
+            inputText = recovery.text
+            inputCursorUTF16 = recovery.text.utf16.count
+            attachmentItems = recovery.attachments
+            sendState = .failed(recovery.errorMessage)
+            isRecoveringInitialSend = true
+        }
         // didSet は init では発火しないため、初期 running をここで記録する。
         if session.status == .running {
             thinkingStartedAt = Date()
@@ -487,7 +497,7 @@ public final class SessionDetailViewModel {
 
     /// 入力バー有効: starting 以外。初回 spawn 待ち中は既存どおり有効にする。
     public var inputEnabled: Bool {
-        if isAwaitingInitialSpawn { return true }
+        if isRecoveringInitialSend { return true }
         switch currentStatus {
         case .awaitingApproval, .awaitingUserQuestion, .idle, .running, .completed, .error:
             return true
@@ -501,7 +511,6 @@ public final class SessionDetailViewModel {
 
     /// task-6: 選択可能モデルが1件以上あるときだけチップを出す。
     public var showsModelSelectorChip: Bool {
-        if isAwaitingInitialSpawn { return !modelPickerEntries.isEmpty }
         guard let modelSettings else { return false }
         return !modelSettings.availableModels.isEmpty
     }
@@ -547,19 +556,6 @@ public final class SessionDetailViewModel {
             do { try await Task.sleep(for: interval) } catch { break }
             await refresh()
         }
-    }
-
-    /// ドラフトではカタログだけを準備して終了し、存在しない placeholder を poll しない。
-    /// spawn 後は `session.id` の変化で View の task が再起動し、実セッションを poll する。
-    public func startPolling(
-        composeDraft: SessionComposeDraft?,
-        interval: Duration = pollInterval
-    ) async {
-        if let composeDraft, !hasSpawnedDraft {
-            await prepareDraft(composeDraft)
-            return
-        }
-        await startPolling(interval: interval)
     }
 
     /// ポーリング更新。データは更新するが、**一時的な失敗・空では表示を消さない**（復帰時フリッカー防止）。
@@ -760,95 +756,9 @@ public final class SessionDetailViewModel {
         }
     }
 
-    /// 未 spawn compose の3エージェント分カタログを読み込む。
-    /// Codex は既存契約どおり、空カタログでも agent-only 行を必ず持つ。
-    public func prepareDraft(_ draft: SessionComposeDraft) async {
-        draftProject = draft.project
-        draftProjectID = draft.projectID
-        guard !hasSpawnedDraft else { return }
-
-        var catalogs: [AgentKind: AgentModels] = [:]
-        for kind in [AgentKind.claudeCode, .cursor, .codex] {
-            if let catalog = try? await api.agentModels(kind: kind) {
-                catalogs[kind] = catalog
-            }
-        }
-
-        var entries: [ModelPickerEntry] = []
-        for kind in [AgentKind.claudeCode, .cursor, .codex] {
-            for model in catalogs[kind]?.models ?? [] {
-                entries.append(ModelPickerEntry(
-                    kind: kind,
-                    modelID: model.id,
-                    displayName: model.displayName
-                ))
-            }
-        }
-        if catalogs[.codex]?.models.isEmpty ?? true {
-            entries.append(ModelPickerEntry(kind: .codex, modelID: nil, displayName: AgentKind.codex.displayName))
-        }
-        modelPickerEntries = entries
-
-        guard let previousSelection = draftModelSelection else {
-            selectedModelPickerEntryID = Self.defaultDraftEntryID(entries: entries, catalogs: catalogs)
-            return
-        }
-
-        if let exactEntry = entries.first(where: {
-            $0.kind == previousSelection.kind && $0.modelID == previousSelection.modelID
-        }) {
-            selectedModelPickerEntryID = exactEntry.id
-            return
-        }
-        if let defaultModel = catalogs[previousSelection.kind]?.defaultModel,
-           let defaultEntry = entries.first(where: {
-               $0.kind == previousSelection.kind && $0.modelID == defaultModel
-           }) {
-            draftModelSelection = DraftModelSelection(kind: previousSelection.kind, modelID: defaultModel)
-            selectedModelPickerEntryID = defaultEntry.id
-            return
-        }
-        if let sameKindEntry = entries.first(where: { $0.kind == previousSelection.kind }) {
-            draftModelSelection = DraftModelSelection(
-                kind: previousSelection.kind,
-                modelID: sameKindEntry.modelID
-            )
-            selectedModelPickerEntryID = sameKindEntry.id
-            return
-        }
-
-        // 行が一時的に存在しなくても、spawn の kind は保持する。ピッカーでは未選択に見せる。
-        draftModelSelection = DraftModelSelection(kind: previousSelection.kind, modelID: nil)
-        selectedModelPickerEntryID = nil
-    }
-
-    public func selectDraftModel(entryID: String) {
-        guard isAwaitingInitialSpawn,
-              let entry = modelPickerEntries.first(where: { $0.id == entryID }) else { return }
-        draftModelSelection = DraftModelSelection(kind: entry.kind, modelID: entry.modelID)
-        selectedModelPickerEntryID = entryID
-    }
-
     public func selectModelPickerEntry(entryID: String) async {
-        if isAwaitingInitialSpawn {
-            selectDraftModel(entryID: entryID)
-            return
-        }
         guard let modelID = modelPickerEntries.first(where: { $0.id == entryID })?.modelID else { return }
         await selectModel(modelID)
-    }
-
-    private static func defaultDraftEntryID(
-        entries: [ModelPickerEntry],
-        catalogs: [AgentKind: AgentModels]
-    ) -> String? {
-        for kind in [AgentKind.claudeCode, .cursor] {
-            guard let defaultModel = catalogs[kind]?.defaultModel else { continue }
-            if let entry = entries.first(where: { $0.kind == kind && $0.modelID == defaultModel }) {
-                return entry.id
-            }
-        }
-        return entries.first?.id
     }
 
     /// task-6 白箱テスト用: availableModels の有無だけでチップ表示を判定する。
@@ -882,32 +792,6 @@ public final class SessionDetailViewModel {
             return
         }
         do {
-            if let draftProject, !hasSpawnedDraft {
-                let selection = draftModelSelection
-                    ?? modelPickerEntries.first(where: { $0.id == selectedModelPickerEntryID }).map {
-                        DraftModelSelection(kind: $0.kind, modelID: $0.modelID)
-                    }
-                    ?? DraftModelSelection(kind: .codex, modelID: nil)
-                let spawned = try await api.spawn(SpawnRequest(
-                    agent: selection.kind,
-                    workspace: draftProject,
-                    projectID: draftProjectID,
-                    model: selection.modelID
-                ))
-                // listSessions の反映を待たず、spawn 応答の実体をそのまま採用する。
-                session = spawned
-                currentStatus = spawned.status
-                displayName = spawned.name
-                hasSpawnedDraft = true
-                draftNeedsReady = true
-            }
-            if draftNeedsReady {
-                guard try await api.waitUntilReady(sessionID: session.id) else {
-                    throw DraftComposeError.notReady
-                }
-                draftNeedsReady = false
-                currentStatus = .running
-            }
             _ = try await api.send(SendRequest(
                 sessionID: session.id,
                 text: text,
@@ -922,24 +806,13 @@ public final class SessionDetailViewModel {
             }
             sendState = .idle
             attachmentError = nil
+            isRecoveringInitialSend = false
             await refresh() // 送信後に即時更新（以降はポーリングが追従）
         } catch let error as PhloxError {
             sendState = .failed(error.presentation.message)
         } catch {
             sendState = .failed("送信に失敗しました")
         }
-    }
-
-    /// View の environment を送信経路にも渡し、`.task` より先に操作されても placeholder へ送らない。
-    public func sendMessage(composeDraft: SessionComposeDraft?) async {
-        if let composeDraft, !hasSpawnedDraft {
-            await prepareDraft(composeDraft)
-        }
-        await sendMessage()
-    }
-
-    private enum DraftComposeError: Error {
-        case notReady
     }
 
     /// messages 全量取得→非空なら採用。`load()` と delta フォールバック用。

@@ -76,7 +76,7 @@ struct IOSRedesignStage2APITests {
         IOSRedesignStage2URLProtocol.outcomes = [response(200, """
         {"availableEfforts":{"opus":[{"value":"xhigh","displayName":"非常に高"}],"haiku":[]},
          "availablePermissions":[{"value":null,"displayName":"既定"},{"value":"ask","displayName":"確認"}],
-         "planModeAvailable":true}
+         "planModeAvailable":true,"defaultEfforts":{"opus":"xhigh"},"defaultPermission":"ask"}
         """)]
 
         let settings = try #require(try await makeClient().agentSettings(kind: .claudeCode))
@@ -90,6 +90,23 @@ struct IOSRedesignStage2APITests {
             AgentSettingOption(value: "ask", displayName: "確認"),
         ])
         #expect(settings.planModeAvailable)
+        #expect(settings.defaultEfforts == ["opus": "xhigh"])
+        #expect(settings.defaultPermission == "ask")
+    }
+
+    @Test("旧 Mac の agent settings は未対応の既定キーを nil として読む")
+    func agentSettingsWithoutMacDefaultsDecodesAsNil() async throws {
+        IOSRedesignStage2URLProtocol.reset()
+        IOSRedesignStage2URLProtocol.outcomes = [response(200, """
+        {"availableEfforts":{"sonnet":[{"value":"high","displayName":"高"}]},
+         "availablePermissions":[{"value":"auto","displayName":"Auto"}],
+         "planModeAvailable":true}
+        """)]
+
+        let settings = try #require(try await makeClient().agentSettings(kind: .claudeCode))
+
+        #expect(settings.defaultEfforts == nil)
+        #expect(settings.defaultPermission == nil)
     }
 
     @Test("古い Mac の agent settings 404 は非対応 nil")
@@ -195,7 +212,7 @@ struct IOSRedesignStage2APITests {
         #expect(body["planMode"] as? Bool == true)
     }
 
-    @Test("spawn の新項目が nil なら旧 Mac と同じ body")
+    @Test("Mac の既定が無い場合、effort と permission のキーを spawn body から省く")
     func spawnOmitsNilOptionalSettings() async throws {
         IOSRedesignStage2URLProtocol.reset()
         IOSRedesignStage2URLProtocol.outcomes = [response(201, #"{"id":"s-new"}"#)]

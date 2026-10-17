@@ -618,6 +618,7 @@ private struct SessionDetailNavigationChromeModifier<Menu: View>: ViewModifier {
         content
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
             // 戻るボタンはシステムのものを使う（自前の leading 項目に差し替えると端スワイプ pop が拒否される）。
             // editor ロールは戻るラベルを落として従来と同じ「‹」だけの見た目にする。
             .toolbarRole(.editor)

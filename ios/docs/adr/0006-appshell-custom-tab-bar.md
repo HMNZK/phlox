@@ -1,6 +1,6 @@
 ---
-status: active
-last-verified: 2026-07-15
+status: superseded
+last-verified: 2026-10-17
 ---
 
 # ADR 0006: 下部タブバーは独自実装とし SwiftUI TabView を採用しない
@@ -9,6 +9,8 @@ last-verified: 2026-07-15
 > **書かないもの**: 現行の AppShell 構成（→ [architecture/overview.md](../architecture/overview.md)）。
 >
 > **追記 (2026-07-15)**: 本 ADR が前提とした「4タブ構成」「俯瞰タブ再選択での grid⇔single トグル」は wave-4 で `.overview` タブ廃止により置き換えられた。詳細は [ADR 0007](0007-remove-overview-tab.md)。**独自 `Button` タブバー実装を採用したという決定自体（本 ADR の核）は有効のまま**。
+>
+> **状態（2026-10-17）**: 下部タブバーを OS 標準の `TabView` に戻したため、本 ADR は [ADR 0049](0049-standard-tabview-for-navigation.md) により superseded。
 
 ## 文脈
 

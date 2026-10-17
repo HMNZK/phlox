@@ -1,80 +1,64 @@
-import SwiftUI
 import DesignSystemIOS
+import SwiftUI
 
-/// カンプ⑪の文言（テスト可能なコピー層）。
 public enum EmptyStateCopy {
     public static let title = "セッションがありません"
-    public static let subtitle = "+ をタップして最初のエージェントを\nspawn しましょう。外出先でも指示できます。"
-    public static let ctaTitle = "+ 新規タスクを作成"
+    public static let subtitle = "Mac でエージェントを動かすと、ここにセッションが並びます。iPhone から始めるときは「新規チャット」を押してください。"
+    public static let projectNote = "プロジェクトの欄は、セッションが 1 つ以上あるプロジェクトだけが出ます。"
+    public static let ctaTitle = "新規チャット"
 }
 
-/// カンプ⑪の寸法トークン（design.md §2.3 / ios-design.html）。
-enum EmptyStateMetrics {
-    /// 点線アイコン枠 96×96。
-    static let iconContainerSize: CGFloat = DSSpacing.xxl * 3
-    /// 点線枠角丸 24px。
-    static let iconContainerCornerRadius: CGFloat = DSSpacing.l + DSSpacing.s
-    /// 点線枠 2px。
-    static let iconContainerBorderWidth: CGFloat = DSSpacing.xxs
-    /// 内側アイコン 42×42。
-    static let iconSize: CGFloat = DSTouch.minSize - DSSpacing.xxs
-    /// `rgba(168,85,247,.45)` 相当。
-    static let iconBorderOpacity: CGFloat = 0.45
-    /// カンプ内ターミナル風 SF Symbol。
-    static let iconName = "terminal"
-}
-
-/// セッション 0 件の空状態（カンプ⑪）。
+/// セッションが 0 件のときの一覧。
 public struct EmptyStateView: View {
     let onCreate: () -> Void
-    let showsCTA: Bool
 
-    public init(onCreate: @escaping () -> Void, showsCTA: Bool = true) {
+    public init(onCreate: @escaping () -> Void) {
         self.onCreate = onCreate
-        self.showsCTA = showsCTA
     }
 
     public var body: some View {
-        VStack(spacing: DSSpacing.l) {
-            Spacer()
-            dashedIconPlaceholder
+        VStack(spacing: DSSpacing.m) {
+            Image(systemName: "square.and.pencil")
+                .font(DSFont.title2)
+                .foregroundStyle(IOSColor.text.secondary)
+                .frame(width: 72, height: 72)
+                .background(IOSColor.bg.raised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .accessibilityHidden(true)
             Text(EmptyStateCopy.title)
                 .font(DSFont.title2.weight(.bold))
-                .foregroundStyle(DSColor.textPrimary)
-            Text(EmptyStateCopy.subtitle)
-                .font(DSFont.subheadline)
-                .foregroundStyle(DSColor.textSecondary)
+                .foregroundStyle(IOSColor.text.primary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(DSSpacing.xxs)
-                .padding(.horizontal, DSSpacing.xl)
-            Spacer()
-            if showsCTA {
-                DSButton(EmptyStateCopy.ctaTitle, action: onCreate)
-                    .padding(.horizontal, DSSpacing.l)
-                    .padding(.bottom, DSSpacing.s)
+                .padding(.top, DSSpacing.s)
+            Text(EmptyStateCopy.subtitle)
+                .font(DSFont.body)
+                .foregroundStyle(IOSColor.text.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 330)
+            Text(EmptyStateCopy.projectNote)
+                .font(DSFont.auxiliary)
+                .foregroundStyle(IOSColor.text.tertiary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 330)
+            Button(action: onCreate) {
+                Label(EmptyStateCopy.ctaTitle, systemImage: "square.and.pencil")
+                    .font(DSFont.headline.weight(.semibold))
+                    .foregroundStyle(IOSColor.accentOnFill)
+                    .padding(.horizontal, DSSpacing.xl)
+                    .frame(minHeight: 50)
+                    .background(IOSColor.accent, in: Capsule())
+                    .contentShape(Capsule())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(EmptyStateCopy.ctaTitle)
+            .padding(.top, 17)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DSColor.background)
-    }
-
-    private var dashedIconPlaceholder: some View {
-        Image(systemName: EmptyStateMetrics.iconName)
-            .font(DSFont.title1)
-            .foregroundStyle(IOSColor.accent)
-            .frame(width: EmptyStateMetrics.iconSize, height: EmptyStateMetrics.iconSize)
-            .frame(width: EmptyStateMetrics.iconContainerSize, height: EmptyStateMetrics.iconContainerSize)
-            .overlay(
-                RoundedRectangle(cornerRadius: EmptyStateMetrics.iconContainerCornerRadius, style: .continuous)
-                    .strokeBorder(
-                        IOSColor.accent.opacity(EmptyStateMetrics.iconBorderOpacity),
-                        style: StrokeStyle(
-                            lineWidth: EmptyStateMetrics.iconContainerBorderWidth,
-                            dash: [DSSpacing.xs, DSSpacing.xs]
-                        )
-                    )
-            )
-            .accessibilityHidden(true)
+        .padding(.top, 100)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(IOSColor.bg.base)
     }
 }
 

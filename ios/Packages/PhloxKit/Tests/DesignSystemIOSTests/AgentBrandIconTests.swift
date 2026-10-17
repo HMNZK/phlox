@@ -12,18 +12,13 @@ import AgentDomain
         #expect(AgentBrandIcon.assetBundle.bundleURL != Bundle.main.bundleURL)
     }
 
-    @Test func sessionAndChatUseTheirSpecifiedLogoSizes() {
-        #expect(DSSessionRow.agentLogoSize == 38)
+    @Test func chatUsesItsSpecifiedLogoSize() {
         #expect(DSChatBubble.agentLogoSize == 28)
-    }
-
-    @Test func skeletonRowsUseTheSessionLogoSize() {
-        #expect(DSSkeletonRow.agentLogoSize == DSSessionRow.agentLogoSize)
     }
 
     @Test(arguments: [AgentKind.claudeCode, .codex, .cursor])
     func resolvesDescriptorViaAgentRegistry(kind: AgentKind) {
-        let icon = AgentBrandIcon(kind: kind, size: DSSessionRow.agentLogoSize)
+        let icon = AgentBrandIcon(kind: kind, size: 24)
         #expect(icon.descriptor.displayName == AgentRegistry.descriptor(for: kind).displayName)
         #expect(icon.descriptor.displayName == kind.displayName)
     }

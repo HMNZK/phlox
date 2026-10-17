@@ -26,7 +26,7 @@ last-verified: 2026-07-26
 | `Features/ConnectionSettings` | 接続設定画面。QR 適用済みの接続先を読み取り専用で表示し、接続／再接続は「QRで接続」から行う。保存済み接続先への疎通テストを持つ。到達性は `ReachabilityMonitor`（`NWPathMonitor`＋`/sessions` healthCheck）が保持し、QR ペアリング完了・手動「再接続を試す」で `refresh()` により経路イベントを待たず即再判定する（→ [ADR 0019](../adr/0019-reachability-on-demand-refresh.md)）。QR ペアリング直後は全画面「接続中…」オーバーレイ（`AppModel.isConnecting`／`AppRoot.ConnectingOverlayView`）を出し、その閉じ判定を到達性ではなく**セッション一覧の取得成功**（`PairingConnectGate`＋`SessionListViewModel.state`）でゲートしてオフライン画面の一瞬のちらつきを隠す。オーバーレイ本体はリッチな中央アニメーション `DSConnectingIndicator`（`Canvas`＋`TimelineView(.animation)` のレーダー状リング＋回転円弧＋脈動スパーク・Reduce Motion 時は静的）で、タイムアウト時は閉じずに原因（`AppModel.connectFailure`＝一覧エラー優先／無ければオフライン画面と同一コピー）と再試行/閉じるを同じ画面に表示する（→ [ADR 0021](../adr/0021-connecting-overlay-gated-on-session-list-load.md)） |
 | `Features/Pairing` | `QRScanScreen`、`PairingApplyViewModel`、`QRImageDecoder`。QR から読み取った host・port・token を検証して接続設定へ一括適用する |
 | `Features/Settings` | `@Observable` の `AppSettings` と `AppSettingsStoring`。`UserDefaults` 永続化の Face ID（**既定オフ** → [ADR 0017](../adr/0017-face-id-launch-gate-default-off.md)）、通知（既定オン）、外観（`AppearancePreference.system/light/dark`）と About を提供する |
-| `Features/SessionList` | セッション一覧画面（タイトル「Projects」、wave-4 で刷新 → [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)）。件数/ホストの subtitle・上部空白・右下 FAB は撤去。`SessionGrouping.grouped(from:)` が `projectId ?? projectName` をキーにセッションを `ProjectGroup` へ束ね、`SessionListView` は `DisclosureGroup`（既定全展開）で表示する。各プロジェクトグループ末尾（グループが空の場合は単独行）に「+ セッションを追加」行を出し、タップで `onAddSession(project:)` → `Route.sessionComposeDraft(project:)` へ遷移する。**到達性が未判定（`.unknown`）の間はオフライン画面へ落とさない**（→ [ADR 0027](../adr/0027-session-list-probe-before-offline.md)）: `SessionRepository.emitOnce` が `reachability.refresh()` で能動的に判定を促し、判定が付くまで `.loading` に留まる。`.loading` は `DSConnectingIndicator(size: 96)` で描画する。未判定のまま `defaultUnknownTimeout`（20 秒・`init` で注入可）を過ぎたときだけ `.offline` へ落とし、永久スピナーを防ぐ。オフライン画面には実際の `Reachability` をそのまま渡す（`.unknown` を `unreachableHost` に丸めない） |
+| `Features/SessionList` | 一覧画面。`SessionListProjection` が対応待ち 4 種（承認待ち・質問あり・エラー・無応答）、`GET /projects` 順のプロジェクト欄、未割当の「その他」、同じプロジェクト内の親子木、折りたたみ時の状態内訳を View 非依存で作る。古い Mac がプロジェクト一覧を返さない場合は、セッションが届いた順で欄を並べる。対応待ち行はプロジェクト欄に重ねない。行は名前と状態語だけで、未読名を semibold、実行中名に Reduce Motion 対応の 1 回の光の帯を表示する。子は既定で閉じ、開閉状態は `SessionListView` のメモリだけに保つ。`SessionListView` は一覧・スケルトン・接続判定・空・オフライン・取得エラーを表示し、引っ張って更新でセッション・プロジェクト・使用量を再取得する。到達性が未判定の間は読み込み表示を続け、判定後に必要なオフライン表示へ移る（→ [ADR 0027](../adr/0027-session-list-probe-before-offline.md)） |
 | `Features/Spawn` | wave-4 で廃止（ソースファイル削除、ディレクトリのみ残置）。新規セッション作成はセッション一覧の「+ セッションを追加」→ドラフト compose フローに統合された（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)） |
 | `Features/Usage` | `UsageViewModel` だけを置く（`load()` が `cliUsage()` を叩く）。使用量タブの画面は再設計で消した（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)）。入力欄の下の残りのリングで使う |
 | `Features/AppShell` | 下部固定タブバーの状態機械。`AppTab`（`.sessions/.settings` の 2 種。wave-4 で `.overview`（→ [ADR 0007](../adr/0007-remove-overview-tab.md)）、再設計で `.usage`（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)）を削除）と `AppShellViewModel.selectTab(_:)`（現在は単純な選択更新のみ。旧・俯瞰タブ再選択トグルは削除済み） |
@@ -41,16 +41,19 @@ last-verified: 2026-07-26
 
 `AppModel.initialAuthState` が起動時の認証状態を決め、`shouldRelock` が背景復帰時の再ロック要否を管理する。`AppRoot` は `scenePhase` が `.background` へ遷移した時に再ロックし、Face ID 設定を無効にした時はロック状態を解除する。**Face ID 設定の既定はオフ**（`UserDefaultsAppSettingsStore.faceIDEnabled` の未設定フォールバックは `false`＝新規インストール時は起動ロックしない。設定で ON にしたときだけ起動ロック・背景復帰時の再ロックが働く。`initialAuthState`/`shouldRelock` は `faceIDEnabled` を明示引数で受けるため既定値変更の影響を受けない → [ADR 0017](../adr/0017-face-id-launch-gate-default-off.md)）。
 
-## アプリシェル（下部固定タブバー、`Features/AppShell`）
+## アプリシェル（下部ナビゲーション、`Features/AppShell`）
 
-`AppRoot`（`ios/App/AppRoot.swift`）は SwiftUI 標準の `TabView` を使わず、`VStack`（コンテンツ＋`Divider`＋タブ行）
-の**独自タブバー**を組む（`appTabBar(appShell:)`）。タブ行は `AppTab.allCases`（宣言順 `.sessions → .settings` の
-2 タブ。`.overview` は wave-4 で、`.usage` は再設計で廃止）をアイコン＋下ラベルの
-`Button` として並べ、各 `Button` の action は `AppShellViewModel.handleTabTap(tab)` を直接呼ぶ（独自 `Button` 採用理由は
-[ADR 0006](../adr/0006-appshell-custom-tab-bar.md)）。
+`AppRoot`（`ios/App/AppRoot.swift`）は標準の SwiftUI `TabView` を使い、`AppTab`（`.sessions`・`.settings`）ごとの
+`NavigationStack` を切り替える。OS ごとの共通表示は `DesignSystemIOS.DSPlatformTabView` にまとめる。
+iOS 26 は標準のガラスタブ・`tabViewBottomAccessory`・`tabBarMinimizeBehavior(.onScrollDown)` と独立した
+`Tab(role: .search)` の操作を使う。iOS 18 は標準タブバーと `safeAreaInset` を使い、一覧の大見出し右の新規チャットだけ
+`DSLegacyNewChatButton` で足す（→ [ADR 0049](../adr/0049-standard-tabview-for-navigation.md)）。
 
-`AppShellViewModel.selectTab(_:)` は単純に `selectedTab` を更新するのみ（旧・俯瞰タブ再選択での grid⇔single
-反転ロジックは `.overview` 廃止に伴い削除済み）。`handleTabTap` は `selectTab` への薄いラッパー。
+`Features/AppShell.SessionNavigationState` は対応待ち 4 状態の件数・先頭・アクセサリ表示を決める。
+対応待ちの欄・バーの先頭・長押しメニューは `SessionAttentionQueue.ordered` を共用し、Mac の `AttentionQueue.ordered` と同じ `statusEnteredAt` の古い順にする。時刻なしは末尾、同時刻（時刻なし同士を含む）は Mac からの受信順を保つ。プロジェクトと「その他」の閉じた内訳は、その欄の表示行と子孫だけを数え、対応待ちへ移した行を含めない。内訳は見出し右端の「＋」の左へ寄せる。
+`AppRoot` の選択 Binding は、新規チャット操作を compose へ送り、同じタブの選択を受け取った場合に
+一覧のルート復帰と先頭スクロール、設定のルート復帰を行う。SwiftUI が同一選択の再タップで Binding setter を呼ぶかは
+公開仕様に記載がなく、実操作で未確認（→ ADR 0049）。
 
 ## ネットワーク層（`PhloxNetworking`）
 
@@ -132,7 +135,7 @@ last-verified: 2026-07-26
 - `DSAgentBrandIcon`: 共有 DesignSystem の `AgentBrandIcon` でエージェントのロゴを描く（Claude・Codex は単色、Cursor は元の色。再設計の仕様書 2.2）。
 - `DSChatBubble`: チャットバブル。macOS 版と同配色（user = `DSColor.userBubble` の淡面＋`textPrimary` 前景 / agent = 背景なし）。agent バブル本文は `DSMarkdownText` で描画。コピーは**長押し `contextMenu`**（`ChatMessageCopyText.chatMessageCopyContextMenu(copyText:)`）で提供し、wave-4 で常時表示のコピーボタンを撤去した。wave-8 で user バブルに画像添付バッジ（`attachmentImageCount`＝非 nil のとき `Image("photo")`＋`attachmentBadgeText(count:)`＝「画像」/「画像 ×N」）を追加し、wave-9 でバッジをバブル内から**バブルの外（下・右寄せのカプセル型チップ）へ分離**した（macOS デスクトップと同じ「別要素」配置。テキスト空で画像のみのときは空バブルを出さずバッジのみ → [ADR 0020](../adr/0020-chat-attachment-badge-client-side.md)）。
 - `DSInputBar`: 送信・写真添付付きの**コンパクトなピル型**入力バー（wave-6 で角丸カードから `Capsule()` へ再デザイン、`providesCardChrome = false` / `providesPillChrome = true` → [ADR 0016](../adr/0016-input-bar-compact-pill-redesign.md)）。写真添付ボタン・テキストフィールド・モデルセレクタスロット・送信/停止アクションボタンを `pillRow` という1つの `HStack` に横並びする（wave-7 で上部のドラッグ閉じバー `dragDismissAffordance` とマイクボタンを撤去した → [ADR 0018](../adr/0018-input-bar-remove-drag-and-voice.md)。キーボードを閉じる操作はチャット面の `.scrollDismissesKeyboard(.interactively)` に委譲）。**送信/停止は右端のスロットに並ぶ**（`DSInputBarActionState`: `showsStop` / `showsSend` / `sendIsEnabled` の3値。`showsStop = isRunning`、`showsSend = !isRunning || hasText || isLoading`、`sendIsEnabled = canSubmit`。非実行中は空文字・送信不能時も無効・淡色 `opacity(0.45)` の送信ボタンを常設し、実行中は入力があるときだけ送信ボタンが右から現れて停止ボタンと併置される＝実行中・空入力では停止ボタンのみ。出現は `.move(edge: .trailing)`＋`.opacity` を `DSMotion.spring` で animate する。wave-6 の `.none`＝空文字時非表示は wave-7 で一度廃止したが、**実行中に限った条件**として `showsSend` に戻った → [ADR 0042](../adr/0042-input-bar-send-reveal-and-transcript-long-press-copy.md)。ドラッグバー・音声撤去は [ADR 0018](../adr/0018-input-bar-remove-drag-and-voice.md)）。`SessionDetailView` 側の別置き停止ボタンは廃止した。フォーカス時の枠色変化は無く、常に `IOSColor.bg.separator` の中立色固定（`usesNeutralFocusBorder` = true）。`modelSelector: () -> some View` の `@ViewBuilder` スロット（既定 `EmptyView()`、`providesInlineModelSelectorSlot` = true、安静時は空スロットでピルに影響しない）と `contextLabel: String?`（branch 風表示。`Session` に branch フィールドは無くプロジェクト名で代替、→ [ADR 0012](../adr/0012-input-bar-branch-display-only.md)）を持ち、呼び出し元（`SessionDetailView`）がモデルセレクタチップと表示名を差し込む（→ [ADR 0010](../adr/0010-restore-inline-model-selector-chip.md)）。**音声入力ボタンは wave-7 で入力欄から撤去された**（→ [ADR 0018](../adr/0018-input-bar-remove-drag-and-voice.md)）。孤児になっていた `DSVoiceInputController` とマイク・音声認識の権限文は、再設計の段階 1 で消した（→ [作業記録 0021](../delivery/0021-ios-redesign-stage1-worklog.md)）。wave-4 でキーボード上の「完了」ツールバーを撤去し（`providesKeyboardDismissToolbar` = false）、キーボードを閉じる操作はチャット面の `.scrollDismissesKeyboard(.interactively)` に委譲した（送信ボタンとの重なり解消）。
-- `DSSessionRow`: セッション一覧行。エージェントは `DSAgentBrandIcon`（ロゴ）で描画。
+- `SessionListView`: 大見出し「セッション」の下に、対応待ち（承認・質問・エラー・無応答）・プロジェクト別の一覧・未割当の「その他」を表示する。`SessionListProjection` が API 順の欄と行、同一プロジェクト内の親子木、閉じた欄の状態内訳、行と VoiceOver の表示情報を View 非依存で組み立てる。子の開閉状態は View のメモリにだけ保持する。行は名前と状態語だけを表示し、実行中の名前には Reduce Motion 設定に応じた 1 回の光の帯を重ねる。行表示と一覧読み込み中・空・オフライン・取得エラーは `Features/SessionList/` に置く。
 - 追従スクロール `ChatAutoFollowPolicy`: 最下部 80pt 以内にいる時だけ新着へ自動追従（ユーザーが上へスクロール中は追従しない）。
 - `DSNavigationChrome.barColorScheme(for:)`: テーマ ID から `ColorScheme` を判定（`phloxLight` → `.light`、それ以外は `.dark` フォールバック）。`DSCampNavigationChromeModifier` が `@AppStorage` でテーマ変更を監視し、`installUIKitAppearanceIfNeeded(for:)` で `UINavigationBarAppearance`/`barStyle` を再適用する。[adr/0004](../adr/0004-ios-appearance-live-switch-via-root-remount.md) の `rootContent.id()` 再マウントとは別経路（`@AppStorage` の `onChange` で駆動）で、SwiftUI 側の `camp*` 色再評価と並行して UIKit グローバル appearance を独立に更新する。再適用は `themeID` が変化した時だけ実行される冪等な経路（`DSNavigationChromeAppearanceInstaller` が直近の `themeID` を保持し、同一テーマの再呼び出しは no-op。適用回数は `appearanceInstallationState` で観測可能。wave-5 → [ADR 0014](../adr/0014-navigation-chrome-appearance-idempotent-install.md)）。
 

@@ -20,6 +20,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 | 0046 | [色・ロゴ・状態・一覧・新規チャット・入力欄・承認を Mac に揃える](0046-align-ios-with-mac.md) | accepted |
 | 0047 | [UI の確認を XCUITest から描画テストに移し、UI テストのターゲットを消す](0047-replace-xcuitest-with-render-tests.md) | accepted |
 | 0048 | [左上のホームはシステムの戻るボタンの印を家に替えて作り、端スワイプは UIKit のまま使う](0048-home-button-is-the-system-back-button-with-a-house.md) | accepted |
+| 0049 | [下部ナビゲーションを OS 標準の TabView に戻す](0049-standard-tabview-for-navigation.md) | accepted |
 | 0040 | [モバイルの端末は桁の格子を守る（折り返さない・全角を 2 桁に釘付けする）](0040-mobile-terminal-keeps-the-column-grid.md) | superseded（0044） |
 | 0041 | [チャット表示の純関数を ChatRenderKit へ 1 本化し、モバイルにも同じ表示規則を適用する](0041-chat-render-rules-shared-via-chatrenderkit.md) | accepted |
 | 0042 | [実行中の送信ボタンを入力開始で現し、転写のコピーを長押しへ集約する](0042-input-bar-send-reveal-and-transcript-long-press-copy.md) | accepted |
@@ -54,7 +55,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 | 0009 | [ロック/ホーム画面ウィジェットは WidgetKit 拡張＋App Group 共有 UserDefaults で実装する](0009-widgetkit-app-group-session-status.md) | active |
 | 0008 | [新規タスク（spawn）画面を廃止し、セッション一覧からのドラフト compose フローに統合する](0008-spawn-screen-to-draft-compose.md) | active |
 | 0007 | [下部タブバーから「概要（overview）」タブを廃止し3タブ構成にする](0007-remove-overview-tab.md) | active（3 タブは 0045 で superseded） |
-| 0006 | [下部タブバーは独自実装とし SwiftUI TabView を採用しない](0006-appshell-custom-tab-bar.md) | active |
+| 0006 | [下部タブバーは独自実装とし SwiftUI TabView を採用しない](0006-appshell-custom-tab-bar.md) | superseded（0049） |
 | 0005 | [モバイル wave-2 ワイヤ消費とアカウント使用量／ターン使用量の型分離](0005-mobile-wave2-wire-consumption.md) | active |
 | 0004 | [iOS 外観を rootContent の再マウントで即時反映する](0004-ios-appearance-live-switch-via-root-remount.md) | active |
 | 0003 | [Tailscale 接続の平文 HTTP とクライアント側認証ガード](0003-plaintext-http-tailscale-client-guard.md) | active |

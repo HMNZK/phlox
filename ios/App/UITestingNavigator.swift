@@ -32,10 +32,16 @@ enum UITestingNavigator {
         switch screen {
         case .sessionDetail:
             router.push(.sessionDetail(id: "sess-rose"))
+        case .sessionShellDetail:
+            router.push(.sessionDetail(id: "attention-approval"))
         case .deleteConfirmation:
             router.push(.sessionDetail(id: "sess-rose"))
             router.present(.deleteConfirmation(id: "sess-rose", cascadeCount: 3))
-        case .connectionSettings, .sessionList, .launchGate, .unreachable, .empty:
+        case .connectionSettings, .sessionList, .launchGate, .unreachable, .empty,
+             .sessionShell, .sessionShellNoAttention, .sessionShellScrolled, .sessionShellOffline,
+             .list, .listMulti, .listCollapsed, .listChildrenExpanded, .listAllAttention,
+             .listLoading, .listJudging, .listEmpty, .listOffNet, .listOffHost, .listOffUnknown,
+             .listError, .listError401, .listSE, .listDT:
             break
         }
     }
@@ -47,6 +53,8 @@ enum UITestingNavigator {
         case .connectionSettings:
             return AppModel(authState: .unlocked, hasConnectionConfig: false, reachability: .online)
         case .unreachable:
+            return AppModel(authState: .unlocked, hasConnectionConfig: true, reachability: .unreachableHost)
+        case .sessionShellOffline:
             return AppModel(authState: .unlocked, hasConnectionConfig: true, reachability: .unreachableHost)
         default:
             return AppModel(authState: .unlocked, hasConnectionConfig: true, reachability: .online)

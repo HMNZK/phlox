@@ -10,6 +10,7 @@ actor MockAPI: PhloxAPI {
     var messagesOutcome: Result<[ChatMessage], PhloxError>
     var agentSettingsOutcome: Result<AgentSettings?, PhloxError> = .success(nil)
     var projectsOutcome: Result<[ProjectSummary]?, PhloxError> = .success(nil)
+    var cliUsageOutcome: Result<[CLIUsage], PhloxError> = .success([])
     let removeError: PhloxError?
     let respondError: PhloxError?
 
@@ -17,6 +18,8 @@ actor MockAPI: PhloxAPI {
     private(set) var readyCount = 0
     private(set) var removeCount = 0
     private(set) var sendCount = 0
+    private(set) var projectsCount = 0
+    private(set) var cliUsageCount = 0
     private(set) var respondLog: [(String, ApprovalDecision)] = []
 
     // MARK: - API 拡張（task-9 の受け入れ用ハーネス。additive）
@@ -77,7 +80,13 @@ actor MockAPI: PhloxAPI {
         try agentSettingsOutcome.get()
     }
     func projects() async throws -> [ProjectSummary]? {
-        try projectsOutcome.get()
+        projectsCount += 1
+        return try projectsOutcome.get()
+    }
+
+    func cliUsage() async throws -> [CLIUsage] {
+        cliUsageCount += 1
+        return try cliUsageOutcome.get()
     }
 
     func spawn(_ request: SpawnRequest) async throws -> Session {
@@ -151,6 +160,10 @@ actor MockAPI: PhloxAPI {
 
     func setProjectsOutcome(_ outcome: Result<[ProjectSummary]?, PhloxError>) {
         projectsOutcome = outcome
+    }
+
+    func setCLIUsageOutcome(_ outcome: Result<[CLIUsage], PhloxError>) {
+        cliUsageOutcome = outcome
     }
 
     func interrupt(sessionID: String) async throws {

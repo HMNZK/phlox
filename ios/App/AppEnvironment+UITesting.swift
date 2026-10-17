@@ -50,9 +50,237 @@ extension AppEnvironment {
                 sessionRepository: StubSessionRepository(states: [.offline]),
                 auditLog: InMemoryAuditLog()
             )
+        case .sessionShell, .sessionShellDetail:
+            return shellEnvironment(sessions: shellSessions)
+        case .sessionShellNoAttention:
+            return shellEnvironment(sessions: shellSessions.filter { !$0.needsAttention })
+        case .sessionShellScrolled:
+            return shellEnvironment(sessions: scrolledShellSessions)
+        case .sessionShellOffline:
+            return shellEnvironment(sessions: shellSessions, reachability: .unreachableHost)
+        case .list, .listCollapsed, .listChildrenExpanded, .listSE, .listDT:
+            return listEnvironment(sessions: listSessions, state: .loaded(listSessions))
+        case .listMulti:
+            return listEnvironment(sessions: listMultiSessions, state: .loaded(listMultiSessions))
+        case .listAllAttention:
+            return listEnvironment(sessions: listAttentionSessions, state: .loaded(listAttentionSessions))
+        case .listLoading:
+            return listEnvironment(sessions: [], state: .loading)
+        case .listJudging:
+            return listEnvironment(sessions: [], state: .loading, reachability: .unknown)
+        case .listEmpty:
+            return listEnvironment(sessions: [], state: .empty)
+        case .listOffNet:
+            return listEnvironment(sessions: [], state: .offline, reachability: .offlineNetwork)
+        case .listOffHost:
+            return listEnvironment(sessions: [], state: .offline, reachability: .unreachableHost)
+        case .listOffUnknown:
+            return listEnvironment(sessions: [], state: .offline, reachability: .unknown)
+        case .listError:
+            return listEnvironment(sessions: [], state: .error(.server(status: 500, message: "Internal Server Error")))
+        case .listError401:
+            return listEnvironment(sessions: [], state: .error(.unauthorized))
         default:
             return goldenPath()
         }
+    }
+
+    private static func shellEnvironment(
+        sessions: [Session],
+        reachability: Reachability = .online
+    ) -> AppEnvironment {
+        AppEnvironment(
+            tokenStore: InMemoryTokenStore(token: "ui-test-token"),
+            authenticator: StubAuthenticator(allows: true),
+            apiClient: UITestPhloxAPI(sessions: sessions, approvals: []),
+            reachability: StubReachability(reachability),
+            sessionRepository: StubSessionRepository(snapshot: sessions),
+            auditLog: InMemoryAuditLog()
+        )
+    }
+
+    private static func listEnvironment(
+        sessions: [Session],
+        state: SessionsState,
+        reachability: Reachability = .online
+    ) -> AppEnvironment {
+        AppEnvironment(
+            tokenStore: InMemoryTokenStore(token: "ui-test-token"),
+            authenticator: StubAuthenticator(allows: true),
+            apiClient: UITestPhloxAPI(sessions: sessions, approvals: [], projectList: listProjects),
+            reachability: StubReachability(reachability),
+            sessionRepository: StubSessionRepository(states: [state]),
+            auditLog: InMemoryAuditLog()
+        )
+    }
+
+    private static var shellSessions: [Session] {
+        [
+            Session(
+                id: "attention-approval", name: "add /approvals endpoint", agent: .codex,
+                status: .awaitingApproval(prompt: "Run tests?"), subtitle: "承認待ち",
+                projectName: "phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "attention-question", name: "Tulip", agent: .claudeCode,
+                status: .awaitingUserQuestion, subtitle: "質問あり",
+                projectName: "garden", updatedAt: Date()
+            ),
+            Session(
+                id: "shell-running", name: "Design polish", agent: .codex,
+                status: .running, subtitle: "実行中", projectName: "phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "shell-running-2", name: "Release checklist", agent: .claudeCode,
+                status: .running, subtitle: "実行中", projectName: "garden", updatedAt: Date()
+            ),
+            Session(
+                id: "shell-running-3", name: "Snapshot updates", agent: .codex,
+                status: .running, subtitle: "実行中", projectName: "phlox", updatedAt: Date()
+            ),
+        ]
+    }
+
+    private static var scrolledShellSessions: [Session] {
+        shellSessions + (1...20).map { index in
+            Session(
+                id: "shell-running-\(index)", name: "Session \(index)", agent: .claudeCode,
+                status: .running, subtitle: "実行中", projectName: index.isMultiple(of: 2) ? "phlox" : "garden",
+                updatedAt: Date()
+            )
+        }
+    }
+
+    /// `List` / `ListMulti` / `ListCollapsed` の見本データ。
+    private static var listProjects: [ProjectSummary] {
+        [
+            ProjectSummary(id: "phlox", name: "Phlox"),
+            ProjectSummary(id: "simple-budget", name: "SimpleBudget"),
+        ]
+    }
+
+    private static var listSessions: [Session] {
+        [
+            Session(
+                id: "list-approval", name: "add /approvals endpoint", agent: .codex,
+                status: .awaitingApproval(prompt: "Run tests?"), subtitle: "承認待ち",
+                projectId: "phlox", projectName: "Phlox",
+                statusEnteredAt: Date(timeIntervalSince1970: 100), updatedAt: Date()
+            ),
+            Session(
+                id: "list-question", name: "Tulip", agent: .claudeCode,
+                status: .awaitingUserQuestion, subtitle: "質問あり",
+                projectId: "phlox", projectName: "Phlox",
+                statusEnteredAt: Date(timeIntervalSince1970: 200), updatedAt: Date()
+            ),
+            Session(
+                id: "refactor", name: "refactor: ControlServer proxy", agent: .codex,
+                status: .running, subtitle: "実行中",
+                projectId: "phlox", projectName: "Phlox", hasUnseenCompletion: true, updatedAt: Date()
+            ),
+            Session(
+                id: "proxy-tests", name: "ProxyRouter のテストを追加", agent: .claudeCode,
+                status: .running, subtitle: "実行中", projectId: "phlox", projectName: "Phlox",
+                parentSessionId: "refactor", updatedAt: Date()
+            ),
+            Session(
+                id: "routing-table", name: "ルーティング表の整理", agent: .codex,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "phlox", projectName: "Phlox",
+                hasUnseenCompletion: true, parentSessionId: "refactor", updatedAt: Date()
+            ),
+            Session(
+                id: "rose-error", name: "Rose", agent: .claudeCode,
+                status: .error(message: "Request failed"), subtitle: "エラー",
+                projectId: "phlox", projectName: "Phlox", hasUnseenCompletion: true,
+                statusEnteredAt: Date(timeIntervalSince1970: 300), updatedAt: Date()
+            ),
+            Session(
+                id: "write-unit-tests", name: "write unit tests", agent: .codex,
+                status: .idle, subtitle: "", projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "adr-0044", name: "docs: ADR 0044", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "csv-import", name: "CSV 取り込みの重複判定を修正", agent: .codex,
+                status: .running, subtitle: "実行中",
+                projectId: "simple-budget", projectName: "SimpleBudget", updatedAt: Date()
+            ),
+            Session(
+                id: "test-data-generation", name: "テストデータの生成", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了",
+                projectId: "simple-budget", projectName: "SimpleBudget", parentSessionId: "csv-import", updatedAt: Date()
+            ),
+            Session(
+                id: "duplicate-key-investigation", name: "重複キーの調査", agent: .codex,
+                status: .idle, subtitle: "",
+                projectId: "simple-budget", projectName: "SimpleBudget", parentSessionId: "csv-import", updatedAt: Date()
+            ),
+            Session(
+                id: "log-formatting", name: "ログの整形", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了",
+                projectId: "simple-budget", projectName: "SimpleBudget", parentSessionId: "csv-import", updatedAt: Date()
+            ),
+            Session(
+                id: "clover", name: "Clover", agent: .claudeCode,
+                status: .running, subtitle: "無応答",
+                projectId: "simple-budget", projectName: "SimpleBudget", isStalled: true, hasUnseenCompletion: true,
+                statusEnteredAt: Date(timeIntervalSince1970: 400), updatedAt: Date()
+            ),
+            Session(
+                id: "mint", name: "Mint", agent: .codex,
+                status: .idle, subtitle: "", projectId: "simple-budget", projectName: "SimpleBudget", updatedAt: Date()
+            ),
+            Session(
+                id: "daisy", name: "Daisy", agent: .codex,
+                status: .starting, subtitle: "起動中", updatedAt: Date()
+            ),
+            Session(
+                id: "ivy", name: "Ivy", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了", updatedAt: Date()
+            ),
+        ]
+    }
+
+    private static var listMultiSessions: [Session] {
+        listSessions + [
+            Session(
+                id: "list-approval-2", name: "Lily", agent: .codex,
+                status: .awaitingApproval(prompt: "Apply patch?"), subtitle: "承認待ち",
+                projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "list-question-2", name: "migrate Usage API to v2 contract", agent: .claudeCode,
+                status: .awaitingUserQuestion, subtitle: "質問あり",
+                projectId: "simple-budget", projectName: "SimpleBudget", updatedAt: Date()
+            ),
+        ]
+    }
+
+    private static var listAttentionSessions: [Session] {
+        [
+            Session(
+                id: "list-approval", name: "add /approvals endpoint", agent: .codex,
+                status: .awaitingApproval(prompt: "Run tests?"), subtitle: "承認待ち",
+                projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "list-question", name: "Tulip", agent: .claudeCode,
+                status: .awaitingUserQuestion, subtitle: "質問あり",
+                projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "list-error", name: "Rose", agent: .claudeCode,
+                status: .error(message: "Request failed"), subtitle: "エラー",
+                projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "list-stalled", name: "Clover", agent: .codex,
+                status: .running, subtitle: "無応答", projectId: "simple-budget", projectName: "SimpleBudget",
+                isStalled: true, updatedAt: Date()
+            ),
+        ]
     }
 
     private static func goldenPath() -> AppEnvironment {
@@ -98,10 +326,17 @@ extension AppEnvironment {
 private struct UITestPhloxAPI: PhloxAPI {
     let sessions: [Session]
     let approvals: [Approval]
+    let projectList: [ProjectSummary]?
+
+    init(sessions: [Session], approvals: [Approval], projectList: [ProjectSummary]? = nil) {
+        self.sessions = sessions
+        self.approvals = approvals
+        self.projectList = projectList
+    }
 
     func listSessions() async throws -> [Session] { sessions }
     func agentSettings(kind: AgentKind) async throws -> AgentSettings? { nil }
-    func projects() async throws -> [ProjectSummary]? { nil }
+    func projects() async throws -> [ProjectSummary]? { projectList }
     func waitUntilReady(sessionID: String) async throws -> Bool { true }
     func approvals() async throws -> [Approval] { approvals }
     /// スクリーンショット・目視確認用の代表的な transcript。

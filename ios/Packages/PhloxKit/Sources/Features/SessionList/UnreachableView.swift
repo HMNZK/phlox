@@ -1,8 +1,8 @@
-import SwiftUI
 import DesignSystemIOS
 import PhloxCore
+import SwiftUI
 
-/// 到達不可の下部カード（カンプ⑩ / DP-4-10）。一覧のスケルトン背後に重ねる。
+/// 一覧取得ができないときに本文へ出す説明カード。
 public struct UnreachableView: View {
     @State private var viewModel: UnreachableViewModel
 
@@ -11,38 +11,28 @@ public struct UnreachableView: View {
     }
 
     public var body: some View {
-        VStack(spacing: DSSpacing.m) {
-            Image(systemName: DSIcon.unreachable)
-                .font(.title2)
-                .foregroundStyle(IOSColor.status.error)
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: DSSpacing.m) {
             Text(viewModel.cardTitle)
-                .font(DSFont.headline)
-                .foregroundStyle(DSColor.textPrimary)
-                .multilineTextAlignment(.center)
+                .font(DSFont.title.weight(.bold))
+                .foregroundStyle(viewModel.reachability == .unreachableHost ? IOSColor.status.error : IOSColor.text.primary)
             Text(viewModel.cardMessage)
                 .font(DSFont.subheadline)
-                .foregroundStyle(DSColor.textSecondary)
-                .multilineTextAlignment(.center)
+                .foregroundStyle(IOSColor.text.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if let detail = viewModel.technicalDetail {
                 Text(detail)
                     .font(DSFont.campMonoCaption)
-                    .foregroundStyle(IOSColor.text.tertiary)
-                    .multilineTextAlignment(.center)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            DSButton("再接続を試す", variant: .secondary, isLoading: viewModel.isRetrying) {
-                Task { await viewModel.retry() }
-            }
+            Text(viewModel.footerText())
+                .font(DSFont.footnote)
+                .foregroundStyle(IOSColor.text.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(DSSpacing.l)
-        .frame(maxWidth: .infinity)
-        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
-                .strokeBorder(IOSColor.bg.separator, lineWidth: 1)
-        )
-        .padding(.horizontal, DSSpacing.m)
-        .padding(.bottom, DSSpacing.m)
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityID.unreachableCard)
     }
@@ -52,19 +42,19 @@ public struct UnreachableView: View {
 #Preview("offlineNetwork") {
     UnreachableView(viewModel: UnreachableViewModel(
         reachability: .offlineNetwork,
-        lastUpdated: Date().addingTimeInterval(-180),
-        onRetry: {}
+        lastUpdated: Date().addingTimeInterval(-180)
     ))
-    .background(DSColor.background)
+    .padding()
+    .background(IOSColor.bg.base)
 }
 
 #Preview("unreachableHost") {
     UnreachableView(viewModel: UnreachableViewModel(
         reachability: .unreachableHost,
-        host: "100.64.0.1",
-        lastUpdated: Date().addingTimeInterval(-600),
-        onRetry: {}
+        endpoint: "100.64.0.1:8765",
+        lastUpdated: Date().addingTimeInterval(-180)
     ))
-    .background(DSColor.background)
+    .padding()
+    .background(IOSColor.bg.base)
 }
 #endif

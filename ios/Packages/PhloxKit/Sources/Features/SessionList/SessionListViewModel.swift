@@ -1,31 +1,35 @@
 import SwiftUI
 import PhloxCore
 
-/// セッション一覧（カンプ② / E4-3）。`SessionRepository` を購読し `SessionsState` を反映する。
-/// ViewModel は `PhloxAPI` を直接呼ばず Repository 経由のみ。scenePhase 連動で start/stop する。
+/// セッション一覧の取得状態と、一覧表示に必要な API の補助データを持つ。
 @MainActor
 @Observable
 public final class SessionListViewModel {
     /// UI テスト・スクリーンショット用の既定ホスト（接続設定未保存時の表示フォールバック）。
     public static let uiTestFallbackHost = "100.64.0.1"
 
-    /// 「実行中・その他」セクション見出し（カンプ②）。
-    public static let otherSectionTitle = "実行中・その他"
-
     private let repository: SessionRepositoryProtocol
+    private let api: (any PhloxAPI)?
     private let configStore: ConnectionConfigStoring
     public private(set) var state: SessionsState = .loading
     public private(set) var lastFetchedAt: Date?
+    public private(set) var projectOrder: [ProjectSummary]?
+    public private(set) var projectOrderError: PhloxError?
+    public private(set) var cliUsage: [CLIUsage]?
+    public private(set) var cliUsageError: PhloxError?
     /// 直近に取得できたセッション群。`.loading`/`.offline`/`.error` 等の一時的な非 loaded 状態でも
     /// ナビゲーション先（詳細）が消えないよう、id 解決のフォールバックに使う。
     public private(set) var lastKnownSessions: [Session] = []
     private var task: Task<Void, Never>?
+    private var hasRequestedProjectOrder = false
 
     public init(
         repository: SessionRepositoryProtocol,
+        api: (any PhloxAPI)? = nil,
         configStore: ConnectionConfigStoring = UserDefaultsConnectionConfigStore()
     ) {
         self.repository = repository
+        self.api = api
         self.configStore = configStore
     }
 
@@ -35,35 +39,15 @@ public final class SessionListViewModel {
         return stored.isEmpty ? Self.uiTestFallbackHost : stored
     }
 
-    /// loaded 状態のセッション件数。
-    public var sessionCount: Int {
-        allSessions.count
+    public var connectionEndpoint: String {
+        let config = configStore.load()
+        let host = config?.host.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let resolvedHost = host.isEmpty ? Self.uiTestFallbackHost : host
+        return "\(resolvedHost):\(config?.port ?? 8765)"
     }
 
-    /// ナビ直下のメタ行（`5 件 · 100.64.0.1`）。
-    public var listSubtitle: String {
-        Self.listSubtitle(sessionCount: sessionCount, host: connectionHost)
-    }
-
-    /// 「あなたの番 · N」見出し。
-    public var attentionSectionTitle: String {
-        Self.attentionSectionTitle(count: attentionSessions.count)
-    }
-
-    /// カンプ②の件数・ホスト行を組み立てる（テスト可能な決定点）。
-    public nonisolated static func listSubtitle(sessionCount: Int, host: String) -> String {
-        "\(sessionCount) 件 · \(host)"
-    }
-
-    /// カンプ②の attention セクション見出しを組み立てる。
-    public nonisolated static func attentionSectionTitle(count: Int) -> String {
-        "あなたの番 · \(count)"
-    }
-
-    /// 「あなたの番」（承認待ち）セッション。
-    public var attentionSessions: [Session] {
-        guard case .loaded(let sessions) = state else { return [] }
-        return sessions.filter(\.needsAttention)
+    public var projection: SessionListProjection {
+        SessionListProjection.make(sessions: allSessions, projects: projectOrder)
     }
 
     /// 全セッション（loaded のときのみ）。
@@ -78,22 +62,6 @@ public final class SessionListViewModel {
         allSessions.first { $0.id == id } ?? lastKnownSessions.first { $0.id == id }
     }
 
-    /// 「実行中・その他」— あなたの番（needsAttention）を除く。
-    public var otherSessions: [Session] {
-        guard case .loaded(let sessions) = state else { return [] }
-        return sessions.filter { !$0.needsAttention }
-    }
-
-    /// loaded 状態の全セッションをプロジェクト単位にグルーピングした結果。
-    public var projectGroups: [ProjectGroup] {
-        SessionGrouping.grouped(from: allSessions)
-    }
-
-    /// DisclosureGroup 表示用（あなたの番を除きプロジェクト単位にグルーピング）。
-    public var groupedOtherSessions: [ProjectGroup] {
-        SessionGrouping.grouped(from: otherSessions)
-    }
-
     /// ストリームを購読し続ける（テストは直接 await して終了を待てる）。
     public func observe(interval: Duration = .seconds(3)) async {
         for await next in repository.sessionStream(interval: interval) {
@@ -102,6 +70,10 @@ public final class SessionListViewModel {
                 lastKnownSessions = sessions
             }
             state = next
+            if case .loaded = next, !hasRequestedProjectOrder, api != nil {
+                hasRequestedProjectOrder = true
+                await refreshProjectOrder()
+            }
         }
     }
 
@@ -120,12 +92,48 @@ public final class SessionListViewModel {
     }
 
     public func refresh() async {
-        try? await repository.refresh()
+        do {
+            try await repository.refresh()
+        } catch let error as PhloxError {
+            state = .error(error)
+        } catch {
+            state = .error(.transport(WrappedError(error)))
+        }
+        await refreshProjectOrder()
+        await refreshCLIUsage()
+    }
+
+    private func refreshProjectOrder() async {
+        guard let api else { return }
+        do {
+            projectOrder = try await api.projects()
+            projectOrderError = nil
+        } catch let error as PhloxError {
+            projectOrder = nil
+            projectOrderError = error
+        } catch {
+            projectOrder = nil
+            projectOrderError = .transport(WrappedError(error))
+        }
+    }
+
+    private func refreshCLIUsage() async {
+        guard let api else { return }
+        do {
+            cliUsage = try await api.cliUsage()
+            cliUsageError = nil
+        } catch let error as PhloxError {
+            cliUsageError = error
+        } catch {
+            cliUsageError = .transport(WrappedError(error))
+        }
     }
 
     /// UI テスト / スクリーンショット用に一覧状態を直接固定する（`-UITesting` 時のみ）。
     public func seedStateForUITesting(_ state: SessionsState) {
-        guard ProcessInfo.processInfo.arguments.contains("-UITesting") else { return }
+        let variables = ProcessInfo.processInfo.environment
+        guard ProcessInfo.processInfo.arguments.contains("-UITesting")
+                || variables["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
         self.state = state
         if case .loaded = state {
             lastFetchedAt = Date()

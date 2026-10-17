@@ -7,22 +7,24 @@ import Features
 struct SessionGroupingProjectIDWhiteboxTests {
     @Test("本物の session.projectId を持つグループだけ projectID を持つ")
     func projectIDIsOnlySetForRealProjectIDs() {
-        let result = SessionGrouping.grouped(from: [
+        let result = SessionListProjection.make(sessions: [
             makeSession(id: "id", projectID: "project-id", projectName: "ID を持つプロジェクト"),
             makeSession(id: "name", projectID: nil, projectName: "名前だけのプロジェクト"),
             makeSession(id: "other", projectID: nil, projectName: nil),
         ])
+        let groups = result.projectGroups + [result.otherGroup].compactMap { $0 }
 
-        #expect(result.map(\.projectID) == ["project-id", nil, nil])
+        #expect(groups.map(\.projectID) == ["project-id", nil, nil])
     }
 
     @Test("グループから作る追加セッション下書きは表示名と本物の projectID を使う")
     func addSessionDraftUsesProjectGroupContext() {
-        let groups = SessionGrouping.grouped(from: [
+        let projection = SessionListProjection.make(sessions: [
             makeSession(id: "id", projectID: "project-id", projectName: "ID を持つプロジェクト"),
             makeSession(id: "name", projectID: nil, projectName: "名前だけのプロジェクト"),
             makeSession(id: "other", projectID: nil, projectName: nil),
         ])
+        let groups = projection.projectGroups + [projection.otherGroup].compactMap { $0 }
 
         #expect(groups.map(\.addSessionDraft) == [
             SessionComposeDraft(project: "ID を持つプロジェクト", projectID: "project-id"),

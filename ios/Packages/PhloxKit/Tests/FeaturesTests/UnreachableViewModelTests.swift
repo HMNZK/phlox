@@ -2,52 +2,56 @@ import XCTest
 import PhloxCore
 @testable import Features
 
-// DP-4-10 / E4-4 検証。一覧オーバーレイ用の到達不可表示と再接続を検証する。
 @MainActor
 final class UnreachableViewModelTests: XCTestCase {
+    func testOfflineNetworkUsesNeutralInternetMessage() {
+        let model = UnreachableViewModel(reachability: .offlineNetwork)
 
-    func testOfflineNetworkCardMentionsOutOfRange() {
-        let vm = UnreachableViewModel(reachability: .offlineNetwork, onRetry: {})
-        XCTAssertEqual(vm.cardTitle, "オフライン")
-        XCTAssertTrue(vm.cardMessage.contains("圏外"))
+        XCTAssertEqual(model.cardTitle, "インターネットにつながっていません")
+        XCTAssertEqual(model.cardMessage, "iPhone が圏外か、機内モードになっています。通信が戻ると自動でつなぎ直します。")
+        XCTAssertNil(model.technicalDetail)
     }
 
-    func testUnreachableHostCardTitleAndPingDetail() {
-        let vm = UnreachableViewModel(
+    func testUnreachableHostShowsRedStateDetailAndLastFetchFooter() {
+        let fetchedAt = Date(timeIntervalSince1970: 1_000)
+        let model = UnreachableViewModel(
             reachability: .unreachableHost,
-            host: "100.64.0.1",
-            onRetry: {}
+            endpoint: "100.64.0.1:8765",
+            lastUpdated: fetchedAt
         )
-        XCTAssertEqual(vm.cardTitle, "Mac に到達できません")
-        XCTAssertTrue(vm.cardMessage.contains("スリープ") || vm.cardMessage.contains("Tailscale"))
-        XCTAssertEqual(vm.technicalDetail, "ping 100.64.0.1 → timeout")
-    }
 
-    func testBannerTextIncludesOfflineAndLastFetched() {
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        let vm = UnreachableViewModel(
-            reachability: .offlineNetwork,
-            lastUpdated: now.addingTimeInterval(-120),
-            onRetry: {}
+        XCTAssertEqual(model.cardTitle, "Mac に届きません")
+        XCTAssertEqual(model.technicalDetail, "100.64.0.1:8765 · 無応答")
+        XCTAssertEqual(model.lastUpdatedText(now: fetchedAt.addingTimeInterval(180)), "最終取得 3 分前")
+        XCTAssertEqual(
+            model.footerText(now: fetchedAt.addingTimeInterval(180)),
+            "最終取得 3 分前 · 下の「再接続を試す」で今すぐ確認"
         )
-        XCTAssertEqual(vm.bannerText(now: now), "オフライン · 最終取得 2分前")
     }
 
-    func testBannerTextOfflineOnlyWhenNoTimestamp() {
-        let vm = UnreachableViewModel(reachability: .offlineNetwork, onRetry: {})
-        XCTAssertEqual(vm.bannerText(), "オフライン")
+    func testUnknownStateUsesConnectionJudgingCopy() {
+        let model = UnreachableViewModel(reachability: .unknown)
+
+        XCTAssertEqual(model.cardTitle, "接続を確かめています")
+        XCTAssertEqual(model.cardMessage, "Mac からの応答を待っています。最大 20 秒ほどかかります。")
+        XCTAssertNil(model.technicalDetail)
     }
 
-    func testLastUpdatedTextNilWhenNoTimestamp() {
-        let vm = UnreachableViewModel(reachability: .offlineNetwork, onRetry: {})
-        XCTAssertNil(vm.lastUpdatedText())
+    func testFooterExplainsWhenThereWasNoSuccessfulFetch() {
+        let model = UnreachableViewModel(reachability: .offlineNetwork)
+
+        XCTAssertEqual(model.footerText(), "最終取得なし · 下の「再接続を試す」で今すぐ確認")
     }
 
-    func testRetryInvokesCallback() async {
-        var retried = false
-        let vm = UnreachableViewModel(reachability: .unreachableHost, onRetry: { retried = true })
-        await vm.retry()
-        XCTAssertTrue(retried)
-        XCTAssertFalse(vm.isRetrying)
+    func testRetryCallsTheProvidedReconnectAction() async {
+        var retryCount = 0
+        let model = UnreachableViewModel(reachability: .unreachableHost) {
+            retryCount += 1
+        }
+
+        await model.retry()
+
+        XCTAssertEqual(retryCount, 1)
+        XCTAssertFalse(model.isRetrying)
     }
 }

@@ -2,7 +2,7 @@ import XCTest
 import PhloxCore
 @testable import Features
 
-// E4-3 検証。Repository 購読による状態反映と「あなたの番」フィルタを検証する。
+// Repository 購読、プロジェクト順、プル更新の補助取得を検証する。
 @MainActor
 final class SessionListViewModelTests: XCTestCase {
 
@@ -19,11 +19,12 @@ final class SessionListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.allSessions.map(\.id), ["s1", "s2"])
     }
 
-    func testAttentionSessionsAreFiltered() async {
+    func testProjectionSeparatesAttentionFromProjectRows() async {
         let sessions = [session("s1", attention: false), session("s2", attention: true), session("s3", attention: true)]
         let vm = SessionListViewModel(repository: StubSessionRepository(states: [.loaded(sessions)]))
         await vm.observe(interval: .milliseconds(1))
-        XCTAssertEqual(vm.attentionSessions.map(\.id), ["s2", "s3"])
+        XCTAssertEqual(vm.projection.attentionSessions.map(\.id), ["s2", "s3"])
+        XCTAssertEqual(vm.projection.otherGroup?.roots.map(\.id), ["s1"])
     }
 
     func testOfflineState() async {
@@ -41,7 +42,7 @@ final class SessionListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.state, .offline)
         XCTAssertNotNil(vm.lastFetchedAt)
         XCTAssertTrue(vm.allSessions.isEmpty)
-        XCTAssertTrue(vm.attentionSessions.isEmpty)
+        XCTAssertTrue(vm.projection.attentionSessions.isEmpty)
     }
 
     func testEmptyState() async {
@@ -75,48 +76,49 @@ final class SessionListViewModelTests: XCTestCase {
         XCTAssertEqual(vm.state, .loaded(sessions))
     }
 
-    // MARK: - DP-4-2 カンプ②メタ表示
-
-    func testListSubtitleFormatsSessionCountAndHost() async {
-        let sessions = [session("s1", attention: false), session("s2", attention: true)]
+    func testConnectionEndpointUsesStoredHostAndPort() {
         let config = InMemoryConnectionConfigStore(ConnectionConfig(host: "100.64.0.1", port: 8765))
         let vm = SessionListViewModel(
-            repository: StubSessionRepository(states: [.loaded(sessions)]),
+            repository: StubSessionRepository(states: [.loading]),
             configStore: config
         )
-        await vm.observe(interval: .milliseconds(1))
-        XCTAssertEqual(vm.listSubtitle, "2 件 · 100.64.0.1")
+        XCTAssertEqual(vm.connectionEndpoint, "100.64.0.1:8765")
     }
 
-    func testListSubtitleUsesFallbackHostWhenConfigMissing() async {
-        let sessions = [session("s1", attention: false)]
+    func testConnectionEndpointUsesFallbackWhenConfigIsMissing() {
         let vm = SessionListViewModel(
-            repository: StubSessionRepository(states: [.loaded(sessions)]),
+            repository: StubSessionRepository(states: [.loading]),
             configStore: InMemoryConnectionConfigStore()
         )
-        await vm.observe(interval: .milliseconds(1))
-        XCTAssertEqual(vm.listSubtitle, "1 件 · \(SessionListViewModel.uiTestFallbackHost)")
+        XCTAssertEqual(vm.connectionEndpoint, "\(SessionListViewModel.uiTestFallbackHost):8765")
     }
 
-    func testAttentionSectionTitleIncludesCount() async {
+    func testProjectsResponseOrdersTheViewModelProjection() async {
         let sessions = [
-            session("s1", attention: true),
-            session("s2", attention: true),
-            session("s3", attention: false),
+            Session(id: "a", name: "A", agent: .claudeCode, status: .running, projectId: "a", projectName: "A", updatedAt: Date(timeIntervalSince1970: 0)),
+            Session(id: "b", name: "B", agent: .claudeCode, status: .running, projectId: "b", projectName: "B", updatedAt: Date(timeIntervalSince1970: 0)),
         ]
-        let vm = SessionListViewModel(repository: StubSessionRepository(states: [.loaded(sessions)]))
+        let api = MockAPI()
+        await api.setProjectsOutcome(.success([
+            ProjectSummary(id: "b", name: "B"),
+            ProjectSummary(id: "a", name: "A"),
+        ]))
+        let vm = SessionListViewModel(repository: StubSessionRepository(states: [.loaded(sessions)]), api: api)
         await vm.observe(interval: .milliseconds(1))
-        XCTAssertEqual(vm.attentionSectionTitle, "あなたの番 · 2")
+        XCTAssertEqual(vm.projection.projectGroups.map(\.id), ["id:b", "id:a"])
     }
 
-    func testOtherSectionTitleIsCampLabel() {
-        XCTAssertEqual(SessionListViewModel.otherSectionTitle, "実行中・その他")
-    }
+    func testPullRefreshAlsoReloadsProjectsAndUsage() async {
+        let api = MockAPI()
+        await api.setProjectsOutcome(.success([ProjectSummary(id: "p", name: "P")]))
+        let vm = SessionListViewModel(repository: StubSessionRepository(states: [.loaded([session("s1", attention: false)])]), api: api)
 
-    func testSessionCountIsZeroWhenNotLoaded() async {
-        let vm = SessionListViewModel(repository: StubSessionRepository(states: [.loading]))
-        await vm.observe(interval: .milliseconds(1))
-        XCTAssertEqual(vm.sessionCount, 0)
-        XCTAssertEqual(vm.listSubtitle, "0 件 · \(SessionListViewModel.uiTestFallbackHost)")
+        await vm.refresh()
+
+        let projectsCount = await api.projectsCount
+        let usageCount = await api.cliUsageCount
+        XCTAssertEqual(projectsCount, 1)
+        XCTAssertEqual(usageCount, 1)
+        XCTAssertEqual(vm.cliUsage, [])
     }
 }

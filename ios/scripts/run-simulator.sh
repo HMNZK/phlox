@@ -39,6 +39,26 @@ list_screens() {
   launchGate           ⑤ 起動ゲート
   unreachable          ⑥ 到達不可
   empty                ⑦ 空状態
+  sessionShell         ⑧ 下部ナビ（対応待ちあり）
+  sessionShellNoAttention ⑨ 下部ナビ（対応待ちなし）
+  sessionShellScrolled ⑩ 下部ナビ（スクロール）
+  sessionShellOffline  ⑪ 下部ナビ（オフライン）
+  sessionShellDetail   ⑫ 下部ナビ（セッション画面）
+  list                 ⑬ 一覧（対応待ち・プロジェクト・子）
+  listMulti            ⑭ 一覧（複数プロジェクト）
+  listCollapsed        ⑮ 一覧（閉じた欄の内訳）
+  listChildrenExpanded ⑯ 一覧（子セッション展開）
+  listAllAttention     ⑰ 一覧（4 種の対応待ち）
+  listLoading          ⑱ 一覧（読み込み中）
+  listJudging          ⑲ 一覧（接続判定中）
+  listEmpty            ⑳ 一覧（空）
+  listOffNet           ㉑ 一覧（圏外）
+  listOffHost          ㉒ 一覧（Mac 応答なし）
+  listOffUnknown       ㉓ 一覧（接続確認中）
+  listError            ㉔ 一覧（HTTP 500）
+  listError401         ㉕ 一覧（HTTP 401）
+  listSE               ㉖ 一覧（375×667）
+  listDT               ㉗ 一覧（文字サイズ最大）
 EOF
 }
 

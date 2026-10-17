@@ -1,13 +1,13 @@
-import SwiftUI
-import PhloxCore
 import DesignSystemIOS
+import Foundation
+import Observation
+import PhloxCore
 
-/// 到達不可（カンプ⑩ / E4-4 / DP-4-10）。圏外と Mac 応答なしを出しわけ、一覧オーバーレイ下部カード用。
 @MainActor
 @Observable
 public final class UnreachableViewModel {
     public let reachability: Reachability
-    public let host: String?
+    public let endpoint: String?
     public let lastUpdated: Date?
     private let onRetry: () async -> Void
     public var isRetrying = false
@@ -15,49 +15,57 @@ public final class UnreachableViewModel {
     public init(
         reachability: Reachability,
         host: String? = nil,
+        endpoint: String? = nil,
         lastUpdated: Date? = nil,
-        onRetry: @escaping () async -> Void
+        onRetry: @escaping () async -> Void = {}
     ) {
         self.reachability = reachability
-        self.host = host
+        self.endpoint = endpoint ?? host.map { "\($0):8765" }
         self.lastUpdated = lastUpdated
         self.onRetry = onRetry
     }
 
     public var cardTitle: String {
         switch reachability {
-        case .offlineNetwork: return "オフライン"
-        case .unreachableHost: return "Mac に到達できません"
-        default: return "接続を確認しています"
+        case .offlineNetwork: "インターネットにつながっていません"
+        case .unreachableHost: "Mac に届きません"
+        default: "接続を確かめています"
         }
     }
 
     public var cardMessage: String {
         switch reachability {
         case .offlineNetwork:
-            return "圏外です。Wi-Fi またはモバイル通信を確認してください。"
+            "iPhone が圏外か、機内モードになっています。通信が戻ると自動でつなぎ直します。"
         case .unreachableHost:
-            return "Mac がスリープ中か Tailscale が切断されている可能性があります。スリープ解除後に自動で再接続します。"
+            "Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。Mac を起こすと自動でつなぎ直します。"
         default:
-            return "接続状態を確認しています。"
+            "Mac からの応答を待っています。最大 20 秒ほどかかります。"
         }
     }
 
     public var technicalDetail: String? {
-        guard reachability == .unreachableHost, let host else { return nil }
-        return "ping \(host) → timeout"
-    }
-
-    public func bannerText(now: Date = Date()) -> String {
-        if let last = lastUpdatedText(now: now) {
-            return "オフライン · \(last)"
-        }
-        return "オフライン"
+        guard reachability == .unreachableHost, let endpoint else { return nil }
+        return "\(endpoint) · 無応答"
     }
 
     public func lastUpdatedText(now: Date = Date()) -> String? {
         guard let lastUpdated else { return nil }
-        return "最終取得 " + DSRelativeTime.compact(from: lastUpdated, now: now)
+        let relative = DSRelativeTime.compact(from: lastUpdated, now: now)
+        let unit = ["秒", "分", "時間", "日"].first { relative.contains($0) }
+        let spacedRelative: String
+        if let unit, let unitRange = relative.range(of: unit), unitRange.lowerBound > relative.startIndex {
+            var spaced = relative
+            spaced.insert(" ", at: unitRange.lowerBound)
+            spacedRelative = spaced
+        } else {
+            spacedRelative = relative
+        }
+        return "最終取得 " + spacedRelative
+    }
+
+    public func footerText(now: Date = Date()) -> String {
+        "\(lastUpdatedText(now: now) ?? "最終取得なし") · 下の「再接続を試す」で今すぐ確認"
     }
 
     public func retry() async {

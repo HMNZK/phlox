@@ -9,6 +9,7 @@ public enum IOSColor {
     public static var accentOnFill: Color { themed(0xFFFFFF, 0x000000) }
     public static var stop: Color { themed(0xD62F26, 0xE5483F) }
     public static var badge: Color { themed(0xD62F26, 0xE5483F) }
+    public static var listRunningGlow: Color { themed(0xC9C9D0, 0xFFFFFF) }
 
     public static var text: TextColors { TextColors() }
     public static var status: StatusColors { StatusColors() }

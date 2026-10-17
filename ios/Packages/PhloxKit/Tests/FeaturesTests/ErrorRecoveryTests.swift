@@ -16,10 +16,10 @@ final class ErrorRecoveryTests: XCTestCase {
         XCTAssertTrue(vm.cardMessage.contains("圏外"))
     }
 
-    // 2. Mac スリープ（unreachableHost）→ ping/応答なし旨
-    func testUnreachableHostShowsPingHint() {
-        let vm = UnreachableViewModel(reachability: .unreachableHost, host: "100.64.0.1", onRetry: {})
-        XCTAssertEqual(vm.technicalDetail, "ping 100.64.0.1 → timeout")
+    // 2. Mac に届かない → 接続先と無応答を等幅の詳細として示す
+    func testUnreachableHostShowsEndpointAndNoResponse() {
+        let vm = UnreachableViewModel(reachability: .unreachableHost, endpoint: "100.64.0.1:8765", onRetry: {})
+        XCTAssertEqual(vm.technicalDetail, "100.64.0.1:8765 · 無応答")
     }
 
     // 3. 401 → 再認証導線（接続設定へ）

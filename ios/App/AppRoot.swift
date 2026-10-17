@@ -18,7 +18,8 @@ struct AppRoot: View {
     @State private var setupRouter = NavigationRouter()
     @State private var settingsRouter = NavigationRouter()
     @State private var listVM: SessionListViewModel?
-    @State private var appShell: AppShellViewModel?
+    @State private var selectedTab: AppTab? = .sessions
+    @State private var scrollToTopRequest = 0
     @State private var qrScanInitialPayload: String?
     @Binding private var pendingPairingURLString: String?
     private let configStore = UserDefaultsConnectionConfigStore()
@@ -34,6 +35,7 @@ struct AppRoot: View {
         self.pushCoordinator = pushCoordinator
         self.pushRegistrationService = pushRegistrationService
         _pendingPairingURLString = pendingPairingURLString
+        _selectedTab = State(initialValue: UITestingSupport.screen == .sessionShellOffline ? .settings : .sessions)
 
         let settings = AppSettings(store: UserDefaultsAppSettingsStore())
         let initialModel = UITestingNavigator.initialModel()
@@ -56,10 +58,10 @@ struct AppRoot: View {
             .onAppear {
                 synchronizeTheme()
                 if listVM == nil {
-                    listVM = SessionListViewModel(repository: environment.sessionRepository)
-                }
-                if appShell == nil {
-                    appShell = AppShellViewModel()
+                    listVM = SessionListViewModel(
+                        repository: environment.sessionRepository,
+                        api: environment.apiClient
+                    )
                 }
                 if UITestingSupport.isEnabled {
                     if let listVM {
@@ -153,83 +155,74 @@ struct AppRoot: View {
 
     @ViewBuilder
     private var sessionsStack: some View {
-        if let listVM, let appShell {
-            VStack(spacing: 0) {
-                selectedTabContent(listVM: listVM, appShell: appShell)
-                if !tabBarHidden(appShell: appShell) {
-                    appTabBar(appShell: appShell)
-                }
-            }
+        if let listVM {
+            AppShellView(
+                selection: tabSelection,
+                navigationState: navigationState(listVM: listVM),
+                reachability: model.reachability,
+                lastFetchedAt: UITestingSupport.screen == .sessionShellOffline
+                    ? Date().addingTimeInterval(-180)
+                    : listVM.lastFetchedAt,
+                host: connectionHost,
+                hidesTabBar: selectedTab == .sessions && !router.path.isEmpty,
+                hidesAccessory: selectedTab == .sessions && !router.path.isEmpty,
+                onOpenSession: openAttentionSession,
+                onShowSessionList: showSessionList,
+                onReconnect: { Task { await refreshReachability() } },
+                sessions: { sessionsTab(listVM: listVM) },
+                settings: { settingsTab }
+            )
         } else {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    /// チャット/詳細画面（sessions タブでスタックに push 中）ではタブバーを隠し、
-    /// 入力欄を画面下端（入力時はキーボード直上）へ収める。リスト最上位では表示する。
-    private func tabBarHidden(appShell: AppShellViewModel) -> Bool {
-        appShell.selectedTab == .sessions && !router.path.isEmpty
-    }
-
-    @ViewBuilder
-    private func selectedTabContent(
-        listVM: SessionListViewModel,
-        appShell: AppShellViewModel
-    ) -> some View {
-        switch appShell.selectedTab {
-        case .sessions:
-            sessionsTab(listVM: listVM)
-        case .settings:
-            settingsTab
-        }
-    }
-
-    private func appTabBar(appShell: AppShellViewModel) -> some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 0) {
-                appTabButton(
-                    tab: .sessions,
-                    title: "セッション",
-                    systemImage: "list.bullet",
-                    appShell: appShell
-                )
-                appTabButton(
-                    tab: .settings,
-                    title: "設定",
-                    systemImage: "gearshape",
-                    appShell: appShell
-                )
+    private var tabSelection: Binding<AppTab?> {
+        Binding(
+            get: { selectedTab },
+            set: { tab in
+                guard let tab else {
+                    openNewChat()
+                    return
+                }
+                guard selectedTab == tab else {
+                    selectedTab = tab
+                    return
+                }
+                switch tab {
+                case .sessions:
+                    router.popToRoot()
+                    scrollToTopRequest += 1
+                case .settings:
+                    settingsRouter.popToRoot()
+                }
             }
-            .padding(.top, 4)
-        }
-        .background(DSColor.surface.ignoresSafeArea(edges: .bottom))
+        )
     }
 
-    private func appTabButton(
-        tab: AppTab,
-        title: String,
-        systemImage: String,
-        appShell: AppShellViewModel
-    ) -> some View {
-        let isSelected = appShell.selectedTab == tab
-        return Button {
-            appShell.handleTabTap(tab)
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: systemImage)
-                    .font(DSFont.iconTab.weight(isSelected ? .semibold : .regular))
-                Text(title)
-                    .font(.caption2)
-            }
-            .foregroundStyle(isSelected ? IOSColor.accentOnFill : IOSColor.text.secondary)
-            .frame(maxWidth: .infinity, minHeight: DSTouch.rowMinHeight)
-            .padding(.vertical, DSSpacing.xs)
-            .background(isSelected ? IOSColor.accent : Color.clear, in: Capsule())
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    private func navigationState(listVM: SessionListViewModel) -> SessionNavigationState {
+        SessionNavigationState.resolve(
+            listState: listVM.state,
+            lastKnownSessions: listVM.lastKnownSessions,
+            reachability: model.reachability
+        )
+    }
+
+    private func openNewChat() {
+        router.popToRoot()
+        selectedTab = .sessions
+        router.push(.sessionComposeDraft(SessionComposeDraft(project: "")))
+    }
+
+    private func openAttentionSession(_ id: String) {
+        selectedTab = .sessions
+        router.popToRoot()
+        router.push(.sessionDetail(id: id))
+    }
+
+    private func showSessionList() {
+        selectedTab = .sessions
+        router.popToRoot()
     }
 
     @ViewBuilder
@@ -239,10 +232,12 @@ struct AppRoot: View {
             SessionListView(
                 viewModel: listVM,
                 reachability: model.reachability,
-                host: connectionHost ?? SessionListViewModel.uiTestFallbackHost,
+                endpoint: listVM.connectionEndpoint,
                 onSelectDetail: { router.push(.sessionDetail(id: $0)) },
                 onAddSession: { onAddSession(draft: $0) },
-                onReconnect: { await refreshReachability() }
+                onReconnect: { await refreshReachability() },
+                onQRScan: { openQRScan() },
+                scrollToTopRequest: scrollToTopRequest
             )
             .navigationStackHomeBackButton()
             .navigationDestination(for: Route.self) { route in
@@ -296,18 +291,21 @@ struct AppRoot: View {
                     api: environment.apiClient,
                     onDelete: { router.present(.deleteConfirmation(id: session.id, cascadeCount: 0)) }
                 )
+                .toolbar(.hidden, for: .tabBar)
             } else {
                 Text("セッションが見つかりません")
                     .font(DSFont.body)
                     .foregroundStyle(DSColor.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(DSColor.surface)
+                    .toolbar(.hidden, for: .tabBar)
             }
         case .sessionComposeDraft(let draft):
             DraftSessionComposeDestination(
                 draft: draft,
                 api: environment.apiClient
             )
+            .toolbar(.hidden, for: .tabBar)
         case .settings:
             settingsView(onQRScan: { openQRScan(using: router) })
         case .qrScan:
@@ -364,7 +362,7 @@ struct AppRoot: View {
 
     private func openQRScan(with payloadString: String? = nil) {
         if model.hasConnectionConfig {
-            appShell?.selectTab(.settings)
+            selectedTab = .settings
             openQRScan(with: payloadString, using: settingsRouter)
         } else {
             openQRScan(with: payloadString, using: setupRouter)
@@ -431,7 +429,7 @@ struct AppRoot: View {
         }
         let unreachable = UnreachableViewModel(
             reachability: model.reachability,
-            host: connectionHost,
+            endpoint: connectionEndpoint,
             onRetry: {}
         )
         return ConnectFailure(
@@ -445,7 +443,7 @@ struct AppRoot: View {
 
     private func handlePendingPushNavigation() {
         guard let sessionID = pushCoordinator.pendingSessionID else { return }
-        appShell?.selectTab(.sessions)
+        selectedTab = .sessions
         router.push(.sessionDetail(id: sessionID))
         _ = pushCoordinator.consumePendingSessionID()
     }
@@ -477,6 +475,12 @@ struct AppRoot: View {
 
     private var connectionHost: String? {
         configStore.load()?.host
+    }
+
+    private var connectionEndpoint: String {
+        let config = configStore.load()
+        let host = config?.host ?? SessionListViewModel.uiTestFallbackHost
+        return "\(host):\(config?.port ?? 8765)"
     }
 
     private func synchronizeTheme() {

@@ -8,7 +8,7 @@ public enum IOSStatusWeight: Equatable, Sendable {
     case medium
     case semibold
 
-    var fontWeight: Font.Weight {
+    public var fontWeight: Font.Weight {
         switch self {
         case .regular: .regular
         case .medium: .medium

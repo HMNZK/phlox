@@ -92,9 +92,12 @@ iPhone アプリの UI を、Claude Design で作った再設計の見本（版 
 
 ### 段階 3 — 一覧と下部のナビゲーション（M）
 
-- 自前のタブバーを、タブ 2 つ＋離れた「新規チャット」ボタンに作り替える（iOS 26 は Liquid Glass、iOS 18 は Shell18）。
-- 一覧: 対応待ち・プロジェクトごと（セッションのあるプロジェクトだけ。D1）・その他。見出しの「＋」・閉じたときの内訳・行の状態の文字・未読の太さ・実行中の光の帯（Reduce Motion で止める）・子セッション。
-- 完了: List*・Shell* の盤面と描画テストの画像が一致する。
+- 前半: 自前のタブバーを OS 標準の `TabView` に戻し、タブ 2 つ・離れた「新規チャット」操作・対応待ちバーを作る（iOS 26 は Liquid Glass、iOS 18 は `Shell18`。判断は ADR 0049）。一覧の行・欄・空・オフラインのカードは後半で作り替える。
+- 後半: 大見出し「セッション」・中立の対応待ちカード（承認待ち／質問あり／エラー／無応答）・プロジェクト別・未割当の「その他」に作り替える。対応待ち行はプロジェクト欄へ重ねない。欄は `GET /projects` の順（古い Mac は `GET /sessions` で届いた順）、閉じた欄は子孫も含め Mac と同じ順で内訳を示す。
+- 行: 名前と状態語だけにし、未読名の太さ・実行中の 1 回の光の帯・子セッションの開閉と「+N」・VoiceOver を実装する。子は既定で閉じ、開閉状態はアプリ起動中だけ保持する。読み込み中・接続判定中・空・オフライン 3 種・取得エラー 500/401 の表示も List* の盤面へ揃える。
+- 完了: List*・Shell* の描画画像を iOS 26.2 / 18.3 で見本と照合し、差分を直す。複数プロジェクト・閉じた欄・子の開閉・各通信状態・ダーク・375×667・Dynamic Type 最大の画像を残す。
+
+段階 3 の作業記録は [0023](0023-ios-redesign-stage3-worklog.md)。前半の下部ナビゲーションと後半の一覧本文を同じ記録に分けて残す。
 
 ### 段階 4 — 入力欄と使用量のリング（L）
 
@@ -158,7 +161,7 @@ iPhone アプリの UI を、Claude Design で作った再設計の見本（版 
 - 実行: `PATH=/opt/homebrew/bin:$PATH make -C ios snapshot SNAPSHOT_SIMULATOR_ID=<UDID>`。スキーム `PhloxMobileSnapshots`（UI テストを含まない）で `PhloxMobileSnapshotTests` だけを走らせ、`<worktree>/.verification/ios-redesign/snapshots/` に `<画面>-<幅>x<高さ>-<light|dark>[-ax5].png` を書き出す。`PHLOX_DESIGN_SNAPSHOTS=1` が無いときは何も書かずに成功する。`SNAPSHOT_SIMULATOR_ID` を省くと、利用できる最初の iPhone のシミュレーターを使う。
 - 描き方: `ImageRenderer` は `NavigationStack` を描けず禁止マークになったので、`UIWindow` に `UIHostingController` を載せて `drawHierarchy` で撮る（画素の検査で中身の有無を確かめてから書き出す）。
 - データ: `AppEnvironment.uiTesting(scenario:screen:)`（`run-simulator.sh --screen` と同じ見本のデータ）を `@testable import PhloxMobile` で使う。
-- 安全領域と倍率（段階 1 で足した）: 428×926 は上 47・下 34 の安全領域で 3 倍、375×667 は上 20・下 0 で 2 倍に書き出す。共通の部品の見本 `components-428x926-<light|dark>-ios<26|18>.png` は OS ごとに描き分けが違うので、名前に OS の版を付ける（ほかの画面は付けない。両方の OS で撮るときは、後に撮った方で上書きされる）。
+- 安全領域と倍率（段階 1 で足した）: 428×926 は上 47・下 34 の安全領域で 3 倍、375×667 は上 20・下 0 で 2 倍に書き出す。iOS の描画が OS の版で異なるため、部品を含む**すべての画面**の名前に `-ios<major>` を付ける（例: `sessionList-428x926-light-ios26.png`）。iOS 26 と iOS 18 の画像を同じ出力先に置いても上書きしない。
 - 段階 3〜6 の場面（新規チャット・使用量のリング・表示できない会話・承認のカード）の足し方: `ios/App/UITestingSupport.swift` の `UITestingSupport.Screen` に case を足し、`ios/App/AppEnvironment+UITesting.swift` の `environment(for:)` に見本のデータ、`ios/App/UITestingNavigator.swift` の `applyNavigation` に遷移を書く。`run-simulator.sh --list-screens` と描画テストの画面の一覧に同じ名前で足す。空の入口は今は足さない（中身の無い case を残さないため。各段階で画面と一緒に足す）。廃止する `spawn`・`chatAnswer`・`codexApproval`・`spawnError` は段階 1 で消す。
 
 ### 6.2 盤面の画像の書き出し（D4。2026-10-17 に試して描けた）

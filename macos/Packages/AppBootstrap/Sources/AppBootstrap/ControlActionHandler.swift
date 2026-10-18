@@ -6,6 +6,12 @@ import DashboardFeature
 import SessionFeature
 import StructuredChatKit
 
+private enum ControlAPITimestamp {
+    static func string(from date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
+}
+
 /// Control API のセッション一覧で返す 1 セッション分の概要。
 public struct ControlSessionSummary: Sendable {
     public let id: SessionID
@@ -257,7 +263,6 @@ public final class ControlActionHandler {
     }
 
     private func handleListSessions(_ dashboard: any ControlActionDashboard) -> ControlResponse {
-        let formatter = ISO8601DateFormatter()
         let items = dashboard.controlSessionSummaries.map { s in
             ControlSessionListItem(
                 id: s.id.rawValue.uuidString,
@@ -271,7 +276,7 @@ public final class ControlActionHandler {
                 isStalled: s.isStalled,
                 hasUnseenCompletion: s.hasUnseenCompletion,
                 parentSessionId: s.parentSessionID?.rawValue.uuidString,
-                statusEnteredAt: s.statusEnteredAt.map(formatter.string(from:))
+                statusEnteredAt: s.statusEnteredAt.map(ControlAPITimestamp.string(from:))
             )
         }
         return .json(200, ControlSessionListResponse(sessions: items))
@@ -831,6 +836,7 @@ private struct MessagesDeltaDTO: Encodable {
 private struct ChatMessageDTO: Encodable {
     let id: String
     let type: String
+    let createdAt: String?
     let text: String?
     let command: String?
     let output: String?
@@ -844,6 +850,7 @@ private struct ChatMessageDTO: Encodable {
     init(
         id: String,
         type: String,
+        createdAt: String? = nil,
         text: String? = nil,
         command: String? = nil,
         output: String? = nil,
@@ -856,6 +863,7 @@ private struct ChatMessageDTO: Encodable {
     ) {
         self.id = id
         self.type = type
+        self.createdAt = createdAt
         self.text = text
         self.command = command
         self.output = output
@@ -871,6 +879,7 @@ private struct ChatMessageDTO: Encodable {
         var container = encoder.container(keyedBy: WireCodingKey.self)
         try container.encode(id, forKey: .init("id"))
         try container.encode(type, forKey: .init("type"))
+        try container.encodeIfPresent(createdAt, forKey: .init("createdAt"))
         try container.encodeIfPresent(text, forKey: .init("text"))
         try container.encodeIfPresent(command, forKey: .init("command"))
         try container.encodeIfPresent(output, forKey: .init("output"))
@@ -899,10 +908,20 @@ private struct ChatMessageDTO: Encodable {
     /// DashboardFeature の表示モデル `ChatItem` を wire DTO へ写像する。
     static func from(_ item: ChatItem) -> ChatMessageDTO {
         switch item {
-        case let .userMessage(id, text, _, _):
-            ChatMessageDTO(id: id, type: "user", text: text)
-        case let .agentMessage(id, text, _):
-            ChatMessageDTO(id: id, type: "agent", text: text)
+        case let .userMessage(id, text, timestamp, _):
+            ChatMessageDTO(
+                id: id,
+                type: "user",
+                createdAt: ControlAPITimestamp.string(from: timestamp),
+                text: text
+            )
+        case let .agentMessage(id, text, timestamp):
+            ChatMessageDTO(
+                id: id,
+                type: "agent",
+                createdAt: ControlAPITimestamp.string(from: timestamp),
+                text: text
+            )
         case let .reasoning(id, text, _):
             ChatMessageDTO(id: id, type: "reasoning", text: text)
         case let .commandExecution(id, command, output, _):

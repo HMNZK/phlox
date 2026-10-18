@@ -9,12 +9,18 @@ import PhloxNetworking
 struct SessionSettingsSelectionTests {
     @Test("Haiku のように努力の選択肢が空ならチップを隠し、古い Mac の空設定も隠す")
     func chipVisibilityUsesDeliveredOptions() {
+        let codex = settings(
+            efforts: [AgentSettingOption(value: "medium", displayName: "中")],
+            permissions: [AgentSettingOption(value: nil, displayName: "Default")]
+        )
         let haiku = settings(
             efforts: [],
             permissions: [AgentSettingOption(value: "ask", displayName: "Ask")]
         )
         let oldMac = settings(efforts: [], permissions: [])
 
+        #expect(SessionDetailViewModel.shouldShowEffortSelectorChip(for: codex))
+        #expect(SessionDetailViewModel.shouldShowPermissionSelectorChip(for: codex))
         #expect(!SessionDetailViewModel.shouldShowEffortSelectorChip(for: haiku))
         #expect(SessionDetailViewModel.shouldShowPermissionSelectorChip(for: haiku))
         #expect(!SessionDetailViewModel.shouldShowEffortSelectorChip(for: oldMac))

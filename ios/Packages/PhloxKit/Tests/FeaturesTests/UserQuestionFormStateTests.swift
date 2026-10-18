@@ -115,10 +115,20 @@ final class UserQuestionFormStateTests: XCTestCase {
         var form = UserQuestionFormState(questions: [single("Q1"), multi("Q2")])
         form.selectSingle(question: "Q1", label: "A案")
         XCTAssertFalse(form.canSubmit)
+        XCTAssertEqual(form.unansweredCount, 1)
 
         form.toggleMulti(question: "Q2", label: "X")
         XCTAssertTrue(form.canSubmit)
+        XCTAssertEqual(form.unansweredCount, 0)
         XCTAssertEqual(form.answers ?? [:], ["Q1": ["A案"], "Q2": ["X"]])
+    }
+
+    func testQuestionTitleNamesFirstHeaderAndRemainingCount() {
+        XCTAssertEqual(UserQuestionFormState.title(for: [single("Q1")]), "質問待ち · H")
+        XCTAssertEqual(
+            UserQuestionFormState.title(for: [single("Q1"), single("Q2"), single("Q3")]),
+            "質問待ち · H ほか 2 問"
+        )
     }
 
     func testUpdatingFreeTextDoesNotClearSelectionUntilFocusTransition() {

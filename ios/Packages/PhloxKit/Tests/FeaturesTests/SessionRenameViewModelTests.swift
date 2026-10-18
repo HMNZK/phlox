@@ -61,6 +61,7 @@ import PhloxCore
         let log = await api.renameLog
         #expect(log.isEmpty)
         #expect(vm.displayName == "Rose")
+        #expect(!vm.isRenamePresented)
         #expect(vm.isRenamePresented == false)
     }
 
@@ -84,6 +85,8 @@ import PhloxCore
         await vm.commitRename()
 
         #expect(vm.displayName == "Rose")
+        #expect(vm.renameError == "boom")
+        #expect(!vm.isRenamePresented)
     }
 }
 

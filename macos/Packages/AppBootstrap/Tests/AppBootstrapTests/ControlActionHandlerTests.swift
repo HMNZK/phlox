@@ -375,7 +375,7 @@ import SessionFeature
 
     @Test func messagesMapsAllChatItemKindsToWireDTO() async throws {
         let dashboard = DashboardStub()
-        let ts = Date(timeIntervalSince1970: 1_700_000_000)
+        let ts = try #require(ISO8601DateFormatter().date(from: "2026-10-17T14:32:00+09:00"))
         dashboard.chatMessages = [
             .userMessage(id: "u1", text: "hello", timestamp: ts),
             .agentMessage(id: "a1", text: "hi there", timestamp: ts),
@@ -385,6 +385,12 @@ import SessionFeature
                 FilePatchChange(path: "Sources/A.swift", diff: "@@ -1 +1 @@", kind: "modified"),
             ], timestamp: ts),
             .error(id: "e1", message: "boom", timestamp: ts),
+            .subAgentMarker(id: "s1", subagentType: "Explore", description: "files", status: .running),
+            .turnCost(id: "t1", costUSD: 0.12, timestamp: ts),
+            .userQuestion(
+                id: "q1", requestId: "req-1", questions: [], answers: nil, state: .pending, timestamp: ts
+            ),
+            .taskList(id: "tl1", tasks: [], timestamp: ts),
         ]
         let id = SessionID()
         let handler = makeHandler(dashboard)
@@ -395,15 +401,17 @@ import SessionFeature
         let body = try bodyJSON(response)
         #expect(body["sessionId"] as? String == id.rawValue.uuidString)
         let messages = try #require(body["messages"] as? [[String: Any]])
-        #expect(messages.count == 6)
+        #expect(messages.count == 10)
 
         #expect(messages[0]["id"] as? String == "u1")
         #expect(messages[0]["type"] as? String == "user")
         #expect(messages[0]["text"] as? String == "hello")
+        #expect(messages[0]["createdAt"] as? String == "2026-10-17T05:32:00Z")
         #expect(messages[0]["command"] == nil)  // 不要キーは省略される
 
         #expect(messages[1]["type"] as? String == "agent")
         #expect(messages[1]["text"] as? String == "hi there")
+        #expect(messages[1]["createdAt"] as? String == "2026-10-17T05:32:00Z")
 
         #expect(messages[2]["type"] as? String == "reasoning")
         #expect(messages[2]["text"] as? String == "thinking")
@@ -421,6 +429,13 @@ import SessionFeature
 
         #expect(messages[5]["type"] as? String == "error")
         #expect(messages[5]["message"] as? String == "boom")
+        #expect(messages[6]["type"] as? String == "subAgent")
+        #expect(messages[7]["type"] as? String == "turnCost")
+        #expect(messages[8]["type"] as? String == "userQuestion")
+        #expect(messages[9]["type"] as? String == "taskList")
+        for message in messages.dropFirst(2) {
+            #expect(message["createdAt"] == nil)
+        }
     }
 
     @Test func messagesReturns503WhenDashboardIsGone() async {

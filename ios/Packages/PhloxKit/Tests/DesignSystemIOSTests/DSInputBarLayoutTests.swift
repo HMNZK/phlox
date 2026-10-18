@@ -18,6 +18,20 @@ struct DSInputBarLayoutTests {
         #expect(!layout.wrapsSecondRow)
     }
 
+    @Test("428pt の Codex 詳細は「中」のチップを権限と分けて表示する")
+    func codexDetail428KeepsMediumEffortChipSeparate() {
+        let layout = resolve(
+            width: 404,
+            mode: .session,
+            modelName: "gpt-6.1-sol",
+            effort: "中",
+            permission: "Default"
+        )
+
+        #expect(!layout.mergesSettings)
+        #expect(!layout.wrapsSecondRow)
+    }
+
     @Test("428pt の実行中・本文ありでも Accept Edits を省略しない")
     func runningReply428KeepsFullAcceptEditsChip() {
         let layout = resolve(
@@ -117,6 +131,7 @@ struct DSInputBarLayoutTests {
         width: CGFloat,
         mode: DSInputBarMode,
         isAccessibilitySize: Bool = false,
+        modelName: String = "Sonnet 5",
         effort: String?,
         permission: String?,
         isStrongPermission: Bool = false,
@@ -130,7 +145,7 @@ struct DSInputBarLayoutTests {
             mode: mode,
             isAccessibilitySize: isAccessibilitySize,
             hasModel: true,
-            modelName: "Sonnet 5",
+            modelName: modelName,
             effortName: effort,
             permissionName: permission,
             isStrongPermission: isStrongPermission,

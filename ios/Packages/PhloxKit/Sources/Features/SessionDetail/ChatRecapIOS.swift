@@ -4,7 +4,7 @@ import PhloxCore
 /// 実行中ターンの ChatMessage 列から Thinking recap 文字列を導出する（純粋関数・task-4）。
 enum ChatRecapIOS {
     /// messages 表示順（古い→新しい）から recap を導出する。
-    /// - gate: `status != .running` → nil
+    /// - gate: 実行中・承認待ち・質問待ち以外 → nil
     /// - scope: 最後の `.user` の次以降（無ければ全体）
     /// - 委譲: `ThinkingRecap.summary`（elapsed / threshold は引数のみ。Date を内部生成しない）
     static func derive(
@@ -13,7 +13,7 @@ enum ChatRecapIOS {
         elapsed: TimeInterval,
         threshold: TimeInterval = ThinkingRecap.defaultThreshold
     ) -> String? {
-        guard status == .running else { return nil }
+        guard status == .running || AgentActivityClassifier.waitingState(for: status) != nil else { return nil }
 
         let scoped: ArraySlice<ChatMessage>
         if let lastUserIndex = messages.lastIndex(where: {
@@ -26,17 +26,17 @@ enum ChatRecapIOS {
         }
 
         var reasoningText: String?
-        var activities: [RecapActivity] = []
+        var activity: RecapActivity?
 
         for message in scoped {
             switch message {
             case .reasoning(_, let text):
                 reasoningText = text
             case .command(_, let command, _):
-                activities.append(RecapActivity.fromCommand(command))
+                activity = .fromCommand(command)
             case .fileChange(_, let changes):
-                if let path = changes.first?.path {
-                    activities.append(.editing(path))
+                if let path = changes.last?.path {
+                    activity = .editing((path as NSString).lastPathComponent)
                 }
             default:
                 break
@@ -45,10 +45,16 @@ enum ChatRecapIOS {
 
         return ThinkingRecap.summary(
             reasoningText: reasoningText,
-            recentActivity: activities,
+            recentActivity: activity.map { [$0] } ?? [],
             elapsed: elapsed,
             threshold: threshold
         )
+    }
+
+    static func elapsedLabel(_ interval: TimeInterval) -> String {
+        let seconds = max(0, Int(interval.rounded(.down)))
+        guard seconds >= 60 else { return "\(seconds) 秒" }
+        return SessionDetailPresentationState.elapsedClock(interval)
     }
 
     /// messages とセッション状態から Thinking インジケータの活動状態を導出する（純粋関数）。

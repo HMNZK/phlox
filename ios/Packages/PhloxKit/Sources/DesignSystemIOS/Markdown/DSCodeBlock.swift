@@ -11,8 +11,6 @@ import AppKit
 public struct DSCodeBlock: View {
     private let language: String?
     private let code: String
-    @State private var didCopy = false
-    @State private var resetTask: Task<Void, Never>?
 
     public init(language: String?, code: String) {
         self.language = language
@@ -23,39 +21,41 @@ public struct DSCodeBlock: View {
         VStack(alignment: .leading, spacing: .zero) {
             HStack(spacing: DSSpacing.s) {
                 Text(language?.isEmpty == false ? language! : "text")
-                    .font(DSFont.campMonoCaption)
+                    .font(DSFont.sessionDetailTechnical)
                     .foregroundStyle(DSColor.chatTextSecondary)
 
                 Spacer(minLength: .zero)
 
                 Button(action: copyCode) {
-                    Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                        .font(DSFont.captionStrong)
+                    Image(systemName: "doc.on.doc")
+                        .font(DSFont.sessionDetailSubtitle.weight(.medium))
                         .foregroundStyle(DSColor.chatTextSecondary)
+                        .frame(width: DSTouch.minSize, height: DSTouch.minSize)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(didCopy ? "Copied" : "Copy")
+                .accessibilityLabel("コードをコピー")
                 .accessibilityIdentifier("DSCodeBlock.copyButton")
             }
             .padding(.horizontal, DSSpacing.m)
-            .padding(.vertical, DSSpacing.s)
+            .frame(minHeight: DSTouch.minSize)
 
             Divider()
                 .overlay(DSColor.separator)
 
             ScrollView(.horizontal) {
                 highlightedText
-                    .font(DSFont.campMono)
+                    .font(DSFont.sessionDetailTechnical)
                     .textSelection(.enabled)
                     .padding(DSSpacing.m)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
-        .background(DSColor.chatCard)
+        .background(IOSColor.bg.code)
         .clipShape(RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                .stroke(DSColor.border)
+                .strokeBorder(DSColor.border, lineWidth: 1)
         }
     }
 
@@ -83,13 +83,5 @@ public struct DSCodeBlock: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(code, forType: .string)
         #endif
-        resetTask?.cancel()
-        didCopy = true
-        resetTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_400_000_000)
-            guard !Task.isCancelled else { return }
-            didCopy = false
-            resetTask = nil
-        }
     }
 }

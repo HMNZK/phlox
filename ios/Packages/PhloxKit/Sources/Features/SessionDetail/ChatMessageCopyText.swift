@@ -13,7 +13,7 @@ public enum ChatMessageCopyText {
     public static func copyText(for message: ChatMessage) -> String? {
         let raw: String
         switch message {
-        case let .user(_, text), let .agent(_, text), let .reasoning(_, text), let .subAgent(_, text):
+        case let .user(_, text, _), let .agent(_, text, _), let .reasoning(_, text), let .subAgent(_, text):
             raw = text
         case let .command(_, command, output):
             if let command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -27,8 +27,21 @@ public enum ChatMessageCopyText {
             raw = changes.map { "\($0.path)\n\($0.diff)" }.joined(separator: "\n\n")
         case let .userQuestion(_, _, questions, _, _):
             raw = questions.map(\.question).joined(separator: "\n")
+        case .turnCost:
+            raw = ""
         }
         return normalizedCopyText(raw)
+    }
+
+    /// 長押しメニューの見出し。時刻が無い古い Mac では見出しを出さない。
+    public static func contextMenuTitle(createdAt: Date?, timeZone: TimeZone = .current) -> String? {
+        guard let createdAt else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter.string(from: createdAt)
     }
 
     /// 空・空白のみは nil（コピーボタン非表示）。

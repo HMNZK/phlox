@@ -171,18 +171,18 @@ struct MarkdownTableBlockParsingTests {
     }
 
     // ADR 0045: 表レイアウトの非収束（CPU 100% 固着）は実ウィンドウでしか再現しないため、
-    // MarkdownUI の表テーマフックへ手を入れていないことをソースで守る（test-policy の例外）。
-    @Test("MarkdownUI の表テーマへ手を入れない（ADR 0045 の表レイアウト非収束の再発防止）")
-    func doesNotTouchMarkdownUITableTheme() throws {
+    // Mac と同じ表の見た目を使いつつ、表本体・セルに fixedSize を加えないことをソースで守る。
+    @Test("markdown 表・表セルへ fixedSize を適用しない（ADR 0045 の表レイアウト非収束の再発防止）")
+    func markdownTableStaysFreeOfFixedSize() throws {
         let source = try MarkdownLayoutProbe.sourceText("Markdown/DSMarkdownText.swift")
-
-        #expect(
-            !source.contains(".table {"),
-            ".table テーマフックへ手を入れないこと（表の可読性はブロック切り出し＋横スクロールで達成する）"
+        let tableRange = try #require(
+            source.range(of: ".table {"),
+            "Mac と同じ表テーマを置き、段落系の修正より後ろに置くこと"
         )
+        let afterTable = String(source[tableRange.lowerBound...])
         #expect(
-            !source.contains(".tableCell {"),
-            ".tableCell テーマフックへ手を入れないこと（ADR 0045: 表レイアウト非収束→CPU 100% 固着の再発防止）"
+            !afterTable.contains("fixedSize"),
+            ".table 以降（表・表セル）に fixedSize を適用しないこと（ADR 0045: 表レイアウト非収束→CPU 100% 固着の再発防止）"
         )
     }
 }

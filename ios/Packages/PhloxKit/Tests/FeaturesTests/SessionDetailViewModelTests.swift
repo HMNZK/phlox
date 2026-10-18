@@ -2,26 +2,12 @@ import XCTest
 import PhloxCore
 @testable import Features
 
-// E4-6 / E4-8 検証。入力バー有効制御・送信時の入力保持を検証する。
+// E4-8 検証。送信時の入力保持とポーリング更新を検証する。
 @MainActor
 final class SessionDetailViewModelTests: XCTestCase {
 
     private func session(_ status: SessionStatus) -> Session {
         Session(id: "s1", name: "Rose", agent: .claudeCode, status: status, subtitle: "", updatedAt: Date(timeIntervalSince1970: 0))
-    }
-
-    // MARK: - E4-6
-
-    func testInputEnabledForInteractiveStatuses() {
-        XCTAssertTrue(SessionDetailViewModel(session: session(.awaitingApproval(prompt: "p")), api: MockAPI()).inputEnabled)
-        XCTAssertTrue(SessionDetailViewModel(session: session(.running), api: MockAPI()).inputEnabled)
-        XCTAssertTrue(SessionDetailViewModel(session: session(.idle), api: MockAPI()).inputEnabled)
-    }
-
-    func testInputEnabledForTerminalStatusesButDisabledWhileStarting() {
-        XCTAssertTrue(SessionDetailViewModel(session: session(.completed(exitCode: 0)), api: MockAPI()).inputEnabled)
-        XCTAssertTrue(SessionDetailViewModel(session: session(.error(message: "e")), api: MockAPI()).inputEnabled)
-        XCTAssertFalse(SessionDetailViewModel(session: session(.starting), api: MockAPI()).inputEnabled)
     }
 
     // MARK: - 構造化チャット / フォールバック（CH-4）
@@ -34,6 +20,18 @@ final class SessionDetailViewModelTests: XCTestCase {
         await vm.load()
         XCTAssertTrue(vm.showsChat)
         XCTAssertEqual(vm.chatMessages, [.agent(id: "a1", text: "hi")])
+    }
+
+    func testInitialIdleLoadFetchesTurnUsageOnce() async {
+        let mock = MockAPI(messagesOutcome: .success([]))
+        await mock.setUsageOutcome(.success(TurnUsage(costUSD: 0.42, contextUsedTokens: 44, contextWindowTokens: 200)))
+        let vm = SessionDetailViewModel(session: session(.idle), api: mock)
+
+        await vm.load()
+
+        XCTAssertEqual(vm.turnUsage, TurnUsage(costUSD: 0.42, contextUsedTokens: 44, contextWindowTokens: 200))
+        let usageCount = await mock.usageCount
+        XCTAssertEqual(usageCount, 1)
     }
 
     // MARK: - ポーリング更新（refresh）

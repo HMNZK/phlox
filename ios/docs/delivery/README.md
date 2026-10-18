@@ -35,3 +35,4 @@ last-verified: 2026-07-30
 - `delivery/0023-ios-redesign-stage3-worklog.md` … 再設計の段階 3 前半（下部ナビゲーション）の作業記録
 - `delivery/0024-ios-redesign-stage4-worklog.md` … 再設計の段階 4（入力欄・セッション設定・使用量リング）の作業記録
 - `delivery/0025-ios-redesign-stage5-worklog.md` … 再設計の段階 5（新規チャット画面）の作業記録
+- `delivery/0026-ios-redesign-stage6-worklog.md` … 再設計の段階 6a〜6c（セッション画面・会話表示・承認と質問カード）の作業記録

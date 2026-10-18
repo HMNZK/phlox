@@ -17,35 +17,45 @@ enum SessionDetailCommandGroupHeaderElement: Equatable {
     case subtitle
 }
 
-/// 折りたたみ時に必要な値だけを持つヘッダ表現。行データ（rows）を保持しない。
+/// 折りたたみ時の見出しと状態だけを保持する。
 struct SessionDetailCommandGroupHeader: Equatable {
     let title: String
-    let subtitle: String?
+    let subtitle: String
     let elements: [SessionDetailCommandGroupHeaderElement]
     let isRunning: Bool
     let shouldRender: Bool
 
     init(items: [ChatMessage], lastTranscriptID: String?, isTurnRunning: Bool) {
         let lastItemID = items.last?.id
-        let groupIsRunning = isTurnRunning && lastItemID == lastTranscriptID
-        isRunning = groupIsRunning
+        isRunning = isTurnRunning && lastItemID == lastTranscriptID
+        title = "ツール実行 ×\(items.count)"
+        elements = [.title, .chevron, .spacer, .subtitle]
+
         let commands = items.map { item -> String? in
-            guard case .command(_, let command, _) = item else {
-                return nil
-            }
+            guard case .command(_, let command, _) = item else { return nil }
             return command
         }
-        title = ChatCommandGroupTitle.derive(commands: commands, itemCount: items.count)
-        subtitle = nil
-        elements = [.title, .chevron, .spacer]
+        subtitle = Self.summary(commands: commands, isRunning: isRunning)
+        shouldRender = isRunning || items.count == 1 || items.contains(where: Self.hasNonBlankOutput)
+    }
 
-        shouldRender = groupIsRunning || items.count == 1 || items.contains(where: Self.hasNonBlankOutput)
+    private static func summary(commands: [String?], isRunning: Bool) -> String {
+        guard let selectedIndex = isRunning ? commands.indices.last : commands.indices.first else { return "" }
+        let tool = ChatCommandToolLabel.derive(command: commands[selectedIndex])
+        if isRunning {
+            return "\(tool.label) \(tool.body)"
+        }
+        let target: String
+        if ["Read", "Write", "Edit", "NotebookEdit"].contains(tool.label) {
+            target = tool.body.split(separator: "/").last.map(String.init) ?? tool.body
+        } else {
+            target = tool.body
+        }
+        return "\(tool.label) \(target) ほか \(max(0, commands.count - 1)) 件"
     }
 
     private static func hasNonBlankOutput(_ item: ChatMessage) -> Bool {
-        guard case .command(_, _, let output) = item else {
-            return false
-        }
+        guard case .command(_, _, let output) = item else { return false }
         return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
@@ -57,8 +67,8 @@ struct SessionDetailCommandGroupRowsSlice: Equatable {
 }
 
 enum SessionDetailCommandGroupRowWindow {
-    static let defaultLimit: Int = 50
-    static let expandStep: Int = 50
+    static let defaultLimit = 50
+    static let expandStep = 50
 
     static func slice(
         items: [ChatMessage],
@@ -68,11 +78,8 @@ enum SessionDetailCommandGroupRowWindow {
     ) -> SessionDetailCommandGroupRowsSlice {
         let lastItemID = items.last?.id
         let groupIsRunning = isTurnRunning && lastItemID == lastTranscriptID
-
         let allRows = items.compactMap { item -> SessionDetailCommandGroupRow? in
-            guard case .command(let id, let command, let output) = item else {
-                return nil
-            }
+            guard case .command(let id, let command, let output) = item else { return nil }
             return SessionDetailCommandGroupRow(
                 id: id,
                 command: command,
@@ -80,15 +87,9 @@ enum SessionDetailCommandGroupRowWindow {
                 isRunning: groupIsRunning && id == lastItemID
             )
         }
-        // 空出力行の除外は「複数件のツールコールが並ぶときのノイズ抑制」が目的なので、
-        // 唯一の行には適用しない。適用すると単独・空出力のツールコールが
-        // 「ヘッダを押しても何も出ない＝どのコマンドが走ったのか分からない」状態になる。
-        // 受け入れテスト: ToolCallGroupingTests
-        //   「単独コマンドは出力が空でも展開でコマンド文字列を読める」/「複数件で全て空出力かつ完了済みなら従来どおり描画しない」
         let displayRows = items.count == 1 ? allRows : allRows.filter { row in
             row.isRunning || !row.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-
         let visibleLimit = max(0, limit)
         return SessionDetailCommandGroupRowsSlice(
             rows: Array(displayRows.suffix(visibleLimit)),
@@ -113,23 +114,28 @@ struct SessionDetailToolCallGroupRow: View {
             lastTranscriptID: lastTranscriptID,
             isTurnRunning: isTurnRunning
         )
-        if header.shouldRender {
-            VStack(alignment: .leading, spacing: DSSpacing.s) {
-                Button(action: onToggleGroup) {
-                    HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
-                        Text(header.title)
-                            .font(DSFont.footnote.weight(.bold))
-                            .foregroundStyle(IOSColor.text.tertiary)
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(DSFont.footnote.weight(.semibold))
-                            .foregroundStyle(IOSColor.text.tertiary)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
+        if items.count == 1, case .command(_, let command, let output) = items[0] {
+            SessionDetailCommandCard(
+                command: command,
+                output: output,
+                isExpanded: isExpanded,
+                isRunning: header.isRunning,
+                onToggle: onToggleGroup
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if header.shouldRender {
+            DSChatCodeCard(isRunning: header.isRunning, showsDivider: isExpanded) {
+                SessionDetailTranscriptCardHeader(
+                    label: header.title,
+                    summary: header.subtitle,
+                    badges: header.isRunning
+                        ? [SessionDetailTranscriptBadge(id: "running", text: "実行中", color: IOSColor.text.primary)]
+                        : [],
+                    isExpanded: isExpanded,
+                    allowsDisclosure: true,
+                    onToggle: onToggleGroup
+                )
+            } content: {
                 if isExpanded {
                     let rowsSlice = SessionDetailCommandGroupRowWindow.slice(
                         items: items,
@@ -137,33 +143,101 @@ struct SessionDetailToolCallGroupRow: View {
                         isTurnRunning: isTurnRunning,
                         limit: rowLimit
                     )
-                    VStack(alignment: .leading, spacing: DSSpacing.s) {
+                    VStack(alignment: .leading, spacing: 0) {
                         if rowsSlice.hiddenRowCount > 0 {
                             Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
                                 rowLimit += SessionDetailCommandGroupRowWindow.expandStep
                             }
+                            .buttonStyle(.plain)
+                            .font(DSFont.caption)
+                            .foregroundStyle(IOSColor.text.secondary)
+                            .frame(minHeight: DSTouch.minSize, alignment: .leading)
+                            .padding(.horizontal, DSSpacing.m)
                             .accessibilityIdentifier("SessionDetailToolCallGroupRow.loadEarlierRows")
                         }
-                        ForEach(rowsSlice.rows) { row in
-                            commandRow(row)
-                                .id(row.id)
+                        ForEach(Array(rowsSlice.rows.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(IOSColor.bg.separator)
+                                    .frame(height: 1)
+                            }
+                            SessionDetailCommandGroupToolRow(
+                                row: row,
+                                isExpanded: isMessageExpanded(row.id),
+                                onToggle: { onToggleMessage(row.id) }
+                            )
+                            .id(row.id)
                         }
                     }
                 }
             }
-            // グループ自体は器を持たない（見出しと展開状態だけ）。器は中身のコマンドカードが持つ。
-            // 外側にも背景を敷くと、ファイル変更カードと見た目が割れ、カードの入れ子で枠が二重になる（ADR 0147）。
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("SessionDetailToolCallGroupRow")
         }
     }
+}
 
-    private func commandRow(_ row: SessionDetailCommandGroupRow) -> some View {
-        SessionDetailCommandCard(
-            command: row.command,
-            output: row.output,
-            isExpanded: isMessageExpanded(row.id),
-            onToggle: { onToggleMessage(row.id) }
-        )
+private struct SessionDetailCommandGroupToolRow: View {
+    let row: SessionDetailCommandGroupRow
+    let isExpanded: Bool
+    let onToggle: () -> Void
+
+    private var tool: (label: String, body: String) {
+        ChatCommandToolLabel.derive(command: row.command)
+    }
+
+    private var summary: String {
+        tool.label == "Bash" ? "$ \(tool.body)" : tool.body
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: onToggle) {
+                HStack(spacing: DSSpacing.xs) {
+                    Text("›")
+                        .font(DSFont.sessionDetailSubtitle.weight(.semibold))
+                        .foregroundStyle(IOSColor.text.tertiary)
+                        .frame(width: DSSpacing.s)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    Text(tool.label == "Bash" ? "コマンド" : tool.label)
+                        .font(DSFont.sessionDetailSubtitle.weight(.semibold))
+                        .foregroundStyle(IOSColor.text.primary)
+                        .lineLimit(1)
+                        .fixedSize()
+                    Text(summary)
+                        .font(DSFont.sessionDetailTechnical)
+                        .foregroundStyle(IOSColor.text.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if row.isRunning {
+                        badge("実行中", color: IOSColor.text.primary)
+                    } else if let exitCode = SessionDetailTranscriptPresentation.exitCode(in: row.output) {
+                        badge("exit \(exitCode)", color: exitCode == 0 ? IOSColor.text.tertiary : IOSColor.status.error)
+                    }
+                }
+                .padding(.horizontal, DSSpacing.m)
+                .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isExpanded {
+                SessionDetailCommandOutputView(
+                    output: row.output,
+                    copyText: ChatMessageCopyText.copyText(
+                        for: .command(id: row.id, command: row.command, output: row.output)
+                    )
+                )
+            }
+        }
+        .accessibilityIdentifier("SessionDetailCommandGroupToolRow")
+    }
+
+    private func badge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(DSFont.sessionDetailTechnical)
+            .monospacedDigit()
+            .foregroundStyle(color)
+            .fixedSize()
     }
 }

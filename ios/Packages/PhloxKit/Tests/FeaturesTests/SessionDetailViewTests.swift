@@ -61,11 +61,16 @@ final class SessionDetailViewTests: XCTestCase {
         let line = SessionDetailUsageFormat.line(
             for: TurnUsage(costUSD: 0.1234, contextUsedTokens: 1000, contextWindowTokens: 200_000)
         )
-        XCTAssertEqual(line, "$0.1234 · コンテキスト 1%")
+        XCTAssertEqual(line, "$0.12 · コンテキスト 1%")
     }
 
     func testUsageFormatOmitsMissingFields() {
         XCTAssertNil(SessionDetailUsageFormat.line(for: TurnUsage(costUSD: nil, contextUsedTokens: nil, contextWindowTokens: nil)))
-        XCTAssertEqual(SessionDetailUsageFormat.line(for: TurnUsage(costUSD: 1.0, contextUsedTokens: nil, contextWindowTokens: nil)), "$1.0000")
+        XCTAssertEqual(SessionDetailUsageFormat.line(for: TurnUsage(costUSD: 1.0, contextUsedTokens: nil, contextWindowTokens: nil)), "$1.00")
+    }
+
+    func testWireTurnCostTakesPrecedenceOverUsageCost() {
+        let usage = TurnUsage(costUSD: 0.5, contextUsedTokens: 50, contextWindowTokens: 100)
+        XCTAssertEqual(SessionDetailUsageFormat.line(costUSD: 0.42, for: usage), "$0.42 · コンテキスト 50%")
     }
 }

@@ -87,3 +87,10 @@ iPhone の入力欄を Mac の新規チャットと揃える（iOS 再設計）�
 10. **`GET /agents/{kind}/settings` に省略可の `defaultEfforts`・`defaultPermission` を足す**（契約 §8.2）。iPhone の新規チャットが保存値の無いときの初期値を、Mac の新規チャットと同じにするため。
     - 足さないと iPhone が既定を自前で持つことになり、Claude の権限の既定（Mac の「Bypass を使う」設定で bypassPermissions か auto かが変わる）を iPhone が推測するしかない。推測で `bypassPermissions` を送ると、Mac で Bypass を切っている利用者のセッションが iPhone からだけ強い権限で始まる。権限を強める方向の推測は避ける。
     - 古い Mac ではキーが無い。iPhone は推論の深さ・権限を送らず、Mac の既定で起動する（§8.1 の「省略」と同じ）。
+
+## 追記（2026-10-18）: 発言・返答の時刻を返す
+
+11. **`GET /sessions/{id}/messages` の `user`・`agent` の要素に省略可の `createdAt` を足す**（契約 §8.12。iOS 再設計の U-24）。iPhone の長押しのメニューの見出しに、見本どおり発言の時刻を出すため。
+    - Mac の `ChatItem` は時刻を持っているが、ワイヤに載せていなかった。iPhone には他に時刻の出所が無く、取得した時刻で代えると表示が嘘になる。
+    - 使い道が長押しの見出しだけなので、`user`・`agent` 以外には付けない。
+    - 棄却案: 見出しを出さない。見本（`ChatCopy`）から外れ、どの発言をコピーするか見分ける手がかりが減る。

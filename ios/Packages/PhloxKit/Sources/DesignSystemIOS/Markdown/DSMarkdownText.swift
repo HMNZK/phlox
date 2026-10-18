@@ -5,6 +5,7 @@ import MarkdownUI
 /// チャット本文の Markdown とフェンス付きコードを描画する View。
 public struct DSMarkdownText: View {
     private let content: String
+    @ScaledMetric(relativeTo: .body) private var bodyLineSpacing: CGFloat = 9.35
 
     public init(_ content: String) {
         self.content = content
@@ -19,6 +20,7 @@ public struct DSMarkdownText: View {
                     Markdown(markdown)
                         .markdownTheme(Self.theme)
                         .font(DSFont.body)
+                        .lineSpacing(bodyLineSpacing)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case let .code(language, code):
                     DSCodeBlock(language: language, code: code)
@@ -78,6 +80,31 @@ public struct DSMarkdownText: View {
         .heading6 { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
+        }
+        .table { configuration in
+            configuration.label
+                .markdownTableBorderStyle(TableBorderStyle(color: .clear, width: 0))
+                .markdownTableBackgroundStyle(
+                    .alternatingRows(
+                        Color.clear,
+                        Color.clear,
+                        header: Color.clear
+                    )
+                )
+                .markdownMargin(top: DSSpacing.s, bottom: DSSpacing.s)
+        }
+        .tableCell { configuration in
+            configuration.label
+                .markdownTextStyle {
+                    if configuration.row == 0 {
+                        FontWeight(.semibold)
+                    }
+                    FontSize(.em(1))
+                    ForegroundColor(DSColor.chatTextPrimary)
+                    BackgroundColor(nil)
+                }
+                .padding(.vertical, DSSpacing.xs)
+                .padding(.horizontal, DSSpacing.s)
         }
     }
 }
@@ -184,21 +211,39 @@ private struct HorizontallyScrollableMarkdownTable: View {
     let markdown: String
     let theme: Theme
     @State private var containerWidth: CGFloat = 0
+    @ScaledMetric(relativeTo: .body) private var bodyLineSpacing: CGFloat = 9.35
 
     var body: some View {
+        let contentWidth = MarkdownTableWidthEstimator.contentWidth(
+            for: markdown,
+            containerWidth: containerWidth
+        )
         ScrollView(.horizontal, showsIndicators: true) {
             Markdown(markdown)
                 .markdownTheme(theme)
                 .font(DSFont.body)
-                .frame(
-                    width: MarkdownTableWidthEstimator.contentWidth(
-                        for: markdown,
-                        containerWidth: containerWidth
-                    ),
-                    alignment: .leading
-                )
+                .lineSpacing(bodyLineSpacing)
+                .frame(width: contentWidth, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .trailing) {
+            if containerWidth > 0, contentWidth > containerWidth {
+                LinearGradient(
+                    colors: [.clear, IOSColor.bg.base],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 18)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
+                .strokeBorder(DSColor.border, lineWidth: 1)
+                .accessibilityHidden(true)
+        }
         .background {
             GeometryReader { proxy in
                 Color.clear

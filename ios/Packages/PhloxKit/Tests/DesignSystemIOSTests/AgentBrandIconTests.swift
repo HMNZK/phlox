@@ -12,10 +12,6 @@ import AgentDomain
         #expect(AgentBrandIcon.assetBundle.bundleURL != Bundle.main.bundleURL)
     }
 
-    @Test func chatUsesItsSpecifiedLogoSize() {
-        #expect(DSChatBubble.agentLogoSize == 28)
-    }
-
     @Test(arguments: [AgentKind.claudeCode, .codex, .cursor])
     func resolvesDescriptorViaAgentRegistry(kind: AgentKind) {
         let icon = AgentBrandIcon(kind: kind, size: 24)

@@ -74,6 +74,16 @@ import PhloxCore
                 .fileChange(id: "f", changes: [ChatFileChange(path: "a.swift", diff: "+x")])
             )
         )
+        let answeredQuestion = ChatMessage.userQuestion(
+            id: "q",
+            requestId: "request",
+            questions: [UserQuestionItem(question: "どちらですか？", header: "選択", options: [], multiSelect: false)],
+            answers: ["どちらですか？": ["A"]],
+            state: .answered
+        )
+        #expect(SessionDetailViewModel.supportsMessageExpansionToggle(answeredQuestion))
+        #expect(!SessionDetailViewModel.supportsMessageExpansionToggle(.subAgent(id: "s", text: "調査")))
+        #expect(!SessionDetailViewModel.supportsMessageExpansionToggle(.turnCost(id: "t", costUSD: 0.42)))
     }
 
     private func makeViewModel(api: MockAPI = MockAPI()) -> SessionDetailViewModel {

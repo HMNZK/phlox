@@ -68,7 +68,6 @@ private struct HomeBackProbeRoot: View {
                     Text("セッション詳細")
                         .navigationTitle("詳細")
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbarRole(.editor)
                 }
         }
     }

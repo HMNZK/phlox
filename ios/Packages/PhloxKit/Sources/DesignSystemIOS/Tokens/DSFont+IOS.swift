@@ -76,6 +76,19 @@ public extension DSFont {
     /// 最小補助テキスト（タイムスタンプ等）。
     static let footnote = Font.footnote
 
+    /// セッション詳細のナビゲーション見出し（17 / semibold）。
+    static var sessionDetailTitle: Font { .system(size: 17, weight: .semibold) }
+    /// セッション詳細の補助ラベル・小ボタン（13 / regular）。
+    static var sessionDetailSubtitle: Font { .system(size: 13) }
+    /// セッション詳細の技術値（13 / monospaced）。
+    static var sessionDetailTechnical: Font { .system(size: 13, design: .monospaced) }
+    /// セッション詳細の思考カード本文（Mac と同じ 12.5pt）。
+    static var sessionDetailReasoning: Font { .system(size: 12.5) }
+    /// ターン使用量の末尾行（12 / monospaced）。
+    static var sessionDetailUsage: Font { .system(size: 12, design: .monospaced) }
+    /// 空状態の吹き出し記号（28）。
+    static var sessionEmptyIcon: Font { .system(size: 28) }
+
     /// FAB（＋）内 SF Symbol。カンプ右上 FAB の視認性（`title2` + semibold）。
     static let iconFAB = Font.title2.weight(.semibold)
     /// 入力欄の送信丸ボタン内の矢印。`title3` + semibold。

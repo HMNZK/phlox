@@ -132,10 +132,6 @@ final class AtomsTests: XCTestCase {
         XCTAssertEqual(AgentBrandIcon(kind: .cursor, size: 32).descriptor.displayName, "Cursor")
     }
 
-    func testChatAgentLogoUsesTwentyEightPointSize() {
-        XCTAssertEqual(DSChatBubble.agentLogoSize, 28)
-    }
-
     func testBrandIconStoresRegistryDescriptorAndSize() {
         let icon = AgentBrandIcon(kind: .codex, size: 28)
         XCTAssertEqual(icon.descriptor.displayName, "Codex")

@@ -45,3 +45,7 @@ ADR 0037 で表示窓がブロック単位になった結果、**1つの `comman
 
 - `ios/Packages/PhloxKit/Tests/FeaturesTests/CommandGroupRowWindowTests.swift` — 5000件でもヘッダが正しい・展開直後の行数 ≤ 50・`hiddenRowCount`・単独空出力の描画・複数件全空出力の非描画
 - `ios/Packages/PhloxKit/Tests/FeaturesTests/ToolCallGroupingTests.swift` — グルーピング・表示窓の境界・identity 安定・ジャンプ先解決
+
+## 段階 6b 追記（2026-10-18）
+
+Mac と同じコマンドカードの出力窓は 20 行とし、超過時は「さらに表示（残り n 行）」を出す。旧 50 行の段階展開は適用しない。カードから「セクションをコピー」を呼ぶ。グループ全体の行窓を扱う旧決定は、本仕様のカード出力上限とは別に維持する。

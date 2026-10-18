@@ -1,6 +1,6 @@
 ---
 status: accepted
-last-verified: 2026-10-17
+last-verified: 2026-10-18
 ---
 
 # ADR 0048: 左上のホームはシステムの戻るボタンの印を家に替えて作り、端スワイプは UIKit のまま使う
@@ -40,3 +40,20 @@ B が既定のままで true を返したのは ADR 0033 の観測と食い違�
 - **見本との差（解消）**: サブエージェント詳細（一覧から 2 段目）では家の印が親のセッションへ戻る問題があったが、2026-10-17 にサブエージェント詳細そのものを廃止した（仕様書 15 章 U-21）。家の印の画面は一覧から 1 段だけになり、押すと一覧へ戻る。
 - **未検証**: 指での端スワイプ・家の印を押したとき・戻った後の大タイトル。シミュレーターの UIKit の状態だけを確かめた。実機での確認はユーザーに頼む（段階 6 のセッション画面の作り替えの後）。
 - ADR 0033 の決定 3「leading に自前の項目を置かない」はそのまま守る。0046 の 8 の「戻るの差し替え」は、見た目だけをこの ADR の方法で行う。
+
+## 段階 6 追記（2026-10-18）
+
+- セッション詳細も `NavigationStackHomeBackButton` のシステム戻る印を使う。`DSSessionNavigationChrome` はナビゲーションバーの内容と iOS 26／18 の背景だけを設定し、独自の leading ボタンやジェスチャの差し替えは追加しない。
+- スナップショットでは左上の表示が家の印にならず、戻る矢印のまま残った。UIKit の appearance 値を確かめる既存プローブは成功している。戻る表示モードを `.minimal` にしても変化せず、原因は未特定。独自の leading ボタンは端スワイプを崩すため導入せず、この視覚差を残す。
+
+## 段階 6 再確認（2026-10-18）
+
+- 前項の差は `DSSessionNavigationChrome` が詳細画面ごとに `.toolbarBackground`・`.toolbarBackground(.visible)`・`.toolbarColorScheme` を適用していたことが原因だった。UIKit の appearance は家の画像を保持していたが、詳細画面の SwiftUI toolbar が表示上の戻る印を矢印に戻していた。
+- これらの画面単位の指定を外し、バーの背景と配色は `NavigationStack` に適用された `DSCampNavigationChrome` に任せた。詳細の描画で iOS 26・18 とも左上が家になり、タイトル中央寄せを保つことを確認した。戻るボタン、端スワイプの delegate、leading 項目は置き換えていない。
+- `NavigationBackSwipeProbeTests.homeBackIndicatorPreservesInteractivePopAcrossPopAndPush` は両 OS のスナップショット実行内で成功。これは UIKit のジェスチャ状態を読む確認であり、指での端スワイプや実機操作は未確認。
+
+## 段階 6 最終見比べ（2026-10-18）
+
+- 左上の家が遅れて出る原因ではなく、詳細画面の toolbar 背景・配色指定が SwiftUI の戻る印を矢印へ戻していた。画面単位の指定を外した状態で iOS 26・18 の初回描画から家を確認した。システムの戻るボタンと UIKit の端スワイプは維持する。
+- 右上メニューは iOS 26 で `GlassSurfaceRole.roundButton` の丸いガラス面を使い、`ToolbarItem` の共有背景を隠して二重面を防ぐ。iOS 18 は plain の印だけにする。タイトル中央寄せのため、詳細経路の `.toolbarRole(.editor)` を外した。
+- 状態の語とエージェント名を別々の色で組み立てる。Codex の `gpt-6.1-sol` は選択肢データに `medium` が無かったため、描画 fixture に「中」を足した。表示規則は変えていない。

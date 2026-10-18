@@ -6,6 +6,7 @@ import Testing
 import AgentDomain
 @testable import Features
 import PhloxCore
+import PhloxNetworking
 import DesignSystemIOS
 @testable import PhloxMobile
 
@@ -32,17 +33,12 @@ struct DesignSnapshotRenderTests {
             DSNavigationChrome.installUIKitAppearanceIfNeeded()
         }
 
-        for screen in [UITestingSupport.Screen.sessionList, .sessionDetail] {
+        for screen in [UITestingSupport.Screen.sessionList] {
             let environment = AppEnvironment.uiTesting(scenario: .goldenPath, screen: screen)
             let list = SessionListViewModel(repository: environment.sessionRepository, api: environment.apiClient)
             await list.observe()
             try #require(!list.allSessions.isEmpty)
             defer { list.stop() }
-            let session = try #require(list.session(id: "sess-rose"))
-            let detail = SessionDetailViewModel(session: session, api: environment.apiClient)
-            await detail.load()
-            try #require(detail.showsChat)
-
             for (width, height, dark, ax5) in [
                 (428, 926, false, false), (428, 926, true, false),
                 (375, 667, false, false), (375, 667, true, false),
@@ -53,14 +49,10 @@ struct DesignSnapshotRenderTests {
                 DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
                 let size = CGSize(width: width, height: height)
                 let content = NavigationStack {
-                    if screen == .sessionList {
-                        SessionListView(
-                            viewModel: list, reachability: .online,
-                            onSelectDetail: { _ in }, onAddSession: { _ in }
-                        )
-                    } else {
-                        SessionDetailView(viewModel: detail, onDelete: {})
-                    }
+                    SessionListView(
+                        viewModel: list, reachability: .online,
+                        onSelectDetail: { _ in }, onAddSession: { _ in }
+                    )
                 }
                 .dsCampNavigationChrome()
                 .environment(\.colorScheme, dark ? .dark : .light)
@@ -88,6 +80,8 @@ struct DesignSnapshotRenderTests {
                 )
             }
         }
+
+        try await renderSessionDetailSnapshots(output: output, osSuffix: osSuffix)
 
         var shellScreens: [UITestingSupport.Screen] = [
             .sessionShell, .sessionShellNoAttention, .sessionShellOffline, .sessionShellDetail,
@@ -327,12 +321,11 @@ struct DesignSnapshotRenderTests {
             .init(name: "ReplyRunEmpty", isRunning: true),
             .init(name: "ReplyRunText", text: "ProxyRouterTests の失敗 3 件を先に直して。\n直したら swift test をもう一度流して、結果だけ教えて", isRunning: true),
             .init(name: "ReplySending", isSending: true),
-            .init(name: "ReplyStarting", isStarting: true),
             .init(name: "ReplyPermDanger", permission: "bypassPermissions"),
             .init(name: "ReplyPermFail", permission: "manual", settingsError: "権限を変更できませんでした。今の権限（Manual）のままです。もう一度選んでください"),
             .init(name: "ReplyMore", width: 375, height: 667),
             .init(name: "ReplyHaiku", modelName: "Haiku 5.5", showsEffort: false),
-            .init(name: "ReplyDT", isAccessibilitySize: true),
+            .init(name: "ReplyInputDT", isAccessibilitySize: true),
             .init(name: "ReplyAttach", text: "この2枚の502の画面を見て原因を探して [Image #1] [Image #2]", attachmentCount: 2),
             .init(
                 name: "ReplyAttachErr",
@@ -367,84 +360,62 @@ struct DesignSnapshotRenderTests {
                 ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
                 : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
             let content: AnyView
-            if scenario.isStarting {
-                content = AnyView(
-                    ZStack(alignment: .bottom) {
-                        snapshotTranscript(for: scenario)
-                            .frame(width: size.width, height: size.height)
-                        HStack(spacing: DSSpacing.s) {
-                            ProgressView().controlSize(.small)
-                            Text("セッションを起動しています。準備ができると入力できます")
-                                .font(DSFont.subheadline)
-                                .foregroundStyle(IOSColor.text.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(DSSpacing.m)
-                        .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, DSSpacing.m)
-                    }
-                    .frame(width: size.width, height: size.height)
-                    .background(DSColor.background)
-                )
-            } else {
-                let attachments = (0..<scenario.attachmentCount).map { index in
-                    let number = index + 1
-                    return DSAttachmentStripItem(
-                        id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", number))!,
-                        number: number,
-                        previewData: attachmentPreviews[index % attachmentPreviews.count]
-                    )
-                }
-                let settings = inputBarSettings(
-                    permission: scenario.permission,
-                    showsEffort: scenario.showsEffort
-                )
-                let inputBar = DSInputBar(
-                    text: .constant(scenario.text),
-                    placeholder: "やりたいことを入力",
-                    isLoading: scenario.isSending,
-                    attachmentStrip: attachments,
-                    attachmentError: scenario.attachmentError,
-                    settingsError: scenario.settingsError,
-                    contextLabel: "Phlox",
-                    onAddAttachments: { _ in },
-                    onRemoveAttachment: { _ in },
-                    isRunning: scenario.isRunning,
-                    onStop: {},
-                    model: (kind: .claudeCode, displayName: scenario.modelName),
-                    settings: settings,
-                    onSubmit: {}
-                )
-                let usageViewModel = UsageViewModel(
-                    api: UITestSnapshotUsageAPI(),
-                    agents: UITestUsageFixtures.values(for: scenario.usageStyle),
-                    state: scenario.usageState,
-                    lastSuccessfulAt: scenario.usageLastSuccessfulAt,
-                    now: { UITestUsageFixtures.asOfDate }
-                )
-                let usageRow = UsageRingRow(
-                    viewModel: usageViewModel,
-                    isPopoverPresented: scenario.showsUsagePopover
-                )
-                .padding(.horizontal, DSSpacing.xl)
-                content = AnyView(
-                    ZStack(alignment: .bottom) {
-                        snapshotTranscript(for: scenario)
-                            .frame(width: size.width, height: size.height)
-                        VStack(spacing: DSSpacing.s) {
-                            inputBar
-                            usageRow
-                        }
-                        .padding(.bottom, DSSpacing.m)
-                    }
-                    .frame(width: size.width, height: size.height)
-                    .background(DSColor.background)
-                    .environment(\.colorScheme, scenario.dark ? .dark : .light)
-                    .environment(\.dynamicTypeSize, scenario.isAccessibilitySize ? .accessibility5 : .large)
-                    .environment(\.locale, Locale(identifier: "ja_JP"))
+            let attachments = (0..<scenario.attachmentCount).map { index in
+                let number = index + 1
+                return DSAttachmentStripItem(
+                    id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", number))!,
+                    number: number,
+                    previewData: attachmentPreviews[index % attachmentPreviews.count]
                 )
             }
+            let settings = inputBarSettings(
+                permission: scenario.permission,
+                showsEffort: scenario.showsEffort
+            )
+            let inputBar = DSInputBar(
+                text: .constant(scenario.text),
+                placeholder: "やりたいことを入力",
+                isLoading: scenario.isSending,
+                attachmentStrip: attachments,
+                attachmentError: scenario.attachmentError,
+                settingsError: scenario.settingsError,
+                contextLabel: "Phlox",
+                onAddAttachments: { _ in },
+                onRemoveAttachment: { _ in },
+                isRunning: scenario.isRunning,
+                onStop: {},
+                model: (kind: .claudeCode, displayName: scenario.modelName),
+                settings: settings,
+                onSubmit: {}
+            )
+            let usageViewModel = UsageViewModel(
+                api: UITestSnapshotUsageAPI(),
+                agents: UITestUsageFixtures.values(for: scenario.usageStyle),
+                state: scenario.usageState,
+                lastSuccessfulAt: scenario.usageLastSuccessfulAt,
+                now: { UITestUsageFixtures.asOfDate }
+            )
+            let usageRow = UsageRingRow(
+                viewModel: usageViewModel,
+                isPopoverPresented: scenario.showsUsagePopover
+            )
+            .padding(.horizontal, DSSpacing.xl)
+            content = AnyView(
+                ZStack(alignment: .bottom) {
+                    snapshotTranscript(for: scenario)
+                        .frame(width: size.width, height: size.height)
+                    VStack(spacing: DSSpacing.s) {
+                        inputBar
+                        usageRow
+                    }
+                    .padding(.bottom, DSSpacing.m)
+                }
+                .frame(width: size.width, height: size.height)
+                .background(DSColor.background)
+                .environment(\.colorScheme, scenario.dark ? .dark : .light)
+                .environment(\.dynamicTypeSize, scenario.isAccessibilitySize ? .accessibility5 : .large)
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+            )
 
             let scale: CGFloat = scenario.width == 428 ? 3 : 2
             let image = try await windowImage(
@@ -506,6 +477,343 @@ struct DesignSnapshotRenderTests {
         let license = try String(contentsOf: licenseURL, encoding: .utf8)
         #expect(license.contains("SIL OPEN FONT LICENSE Version 1.1"))
         #expect(!license.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private func renderSessionDetailSnapshots(output: URL, osSuffix: String) async throws {
+        let detailName = osSuffix == "-ios18" ? "Detail18" : "Detail"
+        let snapshotDate = Date(timeIntervalSince1970: 1_792_300_000)
+        let chatName = "refactor: ControlServer proxy"
+        let detailSession = Session(
+            id: "stage6-detail", name: "add /approvals endpoint", agent: .codex,
+            status: .awaitingApproval(prompt: "git rm ControlServer.swift"),
+            projectName: "Phlox", statusEnteredAt: Date().addingTimeInterval(-120), updatedAt: snapshotDate
+        )
+        let detailRecentMessages: [ChatMessage] = [
+            .reasoning(id: "detail-reason", text: "# 方針\n/approvals は ControlServer が受けている。\n契約 v2 の id・session・kind・prompt を返す。\n既存のルーティングとテストを確認する。"),
+            .agent(id: "detail-agent-1", text: "既存のルーティングとテストを確認してから実装します。"),
+            .command(id: "detail-tool-1", command: "Read Router.swift", output: "GET /approvals → ProxyRouter"),
+            .command(id: "detail-tool-2", command: "Read ControlServer.swift", output: ""),
+            .command(id: "detail-tool-3", command: "rg -n approvals Sources", output: ""),
+            .command(id: "detail-tool-4", command: "Read Package.swift", output: ""),
+            .command(id: "detail-tool-5", command: "Read MobileProxy.swift", output: ""),
+            .command(id: "detail-tests", command: "swift test --package-path ios/Packages/PhloxKit", output: "Test run with 50 tests in 2 suites passed after 1.2 seconds."),
+            .fileChange(id: "detail-file", changes: [
+                ChatFileChange(path: "Sources/ControlServer/ProxyRouter.swift", diff: "@@ -0,0 +1,128 @@\n+public struct ProxyRouter {\n+    public func forward(_ request: Request) async throws -> Response {\n+        try await upstream.send(request)\n+    }\n+}", kind: "edit"),
+                ChatFileChange(path: "Sources/ControlServer/ControlServer.swift", diff: "@@ -87,41 +87,0 @@\n-router.get(\"/sessions/*\") { try await self.forwardLegacy($0) }\n-router.get(\"/approvals\") { try await self.forwardLegacy($0) }", kind: "edit"),
+            ]),
+            .agent(id: "detail-agent-2", text: "新しいルータに置き換えるため、旧 ControlServer.swift の削除が必要です。"),
+        ]
+
+        func chatSession(
+            _ id: String,
+            _ status: SessionStatus,
+            stalled: Bool = false
+        ) -> Session {
+            Session(
+                id: id, name: chatName, agent: .claudeCode, status: status,
+                projectName: "Phlox", isStalled: stalled,
+                statusEnteredAt: stalled ? Date().addingTimeInterval(-192) : nil,
+                updatedAt: snapshotDate
+            )
+        }
+
+        let testCommand = "swift test --package-path macos/Packages/ControlServer"
+        let buildCommand = "swift build --package-path macos/Packages/ControlServer"
+        let testOutputLines = ["Exit code 1"] + (1...48).map { index in
+            index == 11
+                ? "✘ ProxyRouterTests.testForwardsApprovals — XCTAssertEqual failed: (\"502\") is not equal to (\"200\")"
+                : "✔ ProxyRouterTests.testCase\(index) passed"
+        } + ["Test Suite 'ProxyRouterTests' finished"]
+        let testOutput = testOutputLines.joined(separator: "\n")
+        let userFirst = ChatMessage.user(
+            id: "chat-user",
+            text: "/sessions の転送を ControlServer から MobileProxy 側の ProxyRouter に寄せて。既存のテストは全部通すこと。502 の画面も添付する"
+        )
+        let reasoning = ChatMessage.reasoning(
+            id: "chat-reasoning",
+            text: "# 方針\nControlServer.swift と MobileProxy の両方に /sessions の転送がある。\n片方に寄せるなら、認証ヘッダを扱っている MobileProxy 側が自然。\nまず既存テストで転送の振る舞いを固定してから移す。"
+        )
+        let readCommands: [ChatMessage] = [
+            .command(id: "chat-tool-1", command: "Read ControlServer.swift", output: "router.get(\"/sessions/*\") { try await self.forwardLegacy($0) }"),
+            .command(id: "chat-tool-2", command: "rg -n forward macos/Packages", output: "ControlServer.swift:88: router.get(\"/sessions/*\") { try await self.forwardLegacy($0) }"),
+        ]
+        let agent = ChatMessage.agent(
+            id: "chat-agent-1",
+            text: "転送処理が ControlServer と MobileProxy の 2 か所にあります。ProxyRouter を新設して 1 か所にまとめます。"
+        )
+        let subAgent = ChatMessage.subAgent(
+            id: "chat-subagent",
+            text: "Sub-agent explore-map completed: 既存テストの棚卸し"
+        )
+        let fileA = ChatMessage.fileChange(id: "chat-file-a", changes: [
+            ChatFileChange(path: "ControlServer/ProxyRouter.swift", diff: "@@ -0,0 +1,8 @@\n+import Foundation\n+\n+public struct ProxyRouter {\n+    let upstream: URL\n+    public func handler(_ request: Request) async throws -> Response {\n+        try await forward(request, to: upstream.appending(path: request.path))\n+    }\n+}", kind: "create"),
+        ])
+        let fileB = ChatMessage.fileChange(id: "chat-file-b", changes: [
+            ChatFileChange(
+                path: "ControlServer/ControlServer.swift",
+                diff: "@@ -87,3 +87,2 @@\n-router.get(\"/sessions/*\") { try await self.forwardLegacy($0) }\n-router.get(\"/approvals\") { try await self.forwardLegacy($0) }\n+server.mount(\"/sessions\", ProxyRouter(upstream: upstream).handler)\n router.get(\"/usage\") { try await self.usage($0) }",
+                kind: "edit"
+            ),
+        ])
+        let lastToolCommands: [ChatMessage] = [
+            .command(id: "chat-tool-edit", command: "Edit ProxyRouter.swift", output: ""),
+            .command(id: "chat-tool-grep", command: "rg -n forwardLegacy macos/Packages", output: ""),
+            .command(id: "chat-tool-tests", command: testCommand, output: testOutput),
+        ]
+        let buildMessage = ChatMessage.command(id: "chat-build", command: buildCommand, output: "実行中…")
+        let expandedReasoning = ChatMessage.reasoning(
+            id: "chat-reasoning-expanded",
+            text: "ProxyRouter に /approvals も載せる。\n認証ヘッダは MobileProxy で付け直しているので、ルーターでは触らない。\n先に testForwardsApprovals を書いて、落ちることを確かめてから実装する。"
+        )
+        let richReply = ChatMessage.agent(
+            id: "chat-rich-reply",
+            text: "### 変更点\n\n- `ProxyRouter` を新設し、/sessions と /approvals の転送をまとめた\n- ControlServer からは転送処理を削除\n- 既存テスト 50 件はすべて成功\n\n経緯は ADR 0044 にまとめました。呼び出し側はこう変わります。\n\n```swift\nlet router = ProxyRouter(upstream: config.upstream)\nserver.mount(\"/sessions\", router.handler)\nserver.mount(\"/approvals\", router.handler)\n```\n\n| エンドポイント | 変更前 | 変更後 |\n| --- | --- | --- |\n| /sessions/* | ControlServer | ProxyRouter |\n| /approvals | ControlServer | ProxyRouter |\n| /usage | MobileProxy | MobileProxy |"
+        )
+        let finalLintReply = ChatMessage.agent(
+            id: "chat-lint-reply",
+            text: "lint の指摘 3 件を直しました。テストと lint はすべて通っています。"
+        )
+        let commandFailure = ChatMessage.error(
+            id: "chat-error",
+            message: "swift test が終了コード 1 で失敗しました: ProxyRouterTests.testForwardsApprovals2 — XCTAssertEqual failed: (\"502\") is not equal to (\"200\")"
+        )
+        let runningMessages = [userFirst, reasoning] + readCommands + [agent, subAgent, fileA, fileB] + lastToolCommands + [buildMessage]
+        let stallMessages = [userFirst, reasoning] + readCommands + [agent, fileA, fileB] + lastToolCommands + [buildMessage]
+        let idleMessages = [fileA, fileB] + lastToolCommands + [richReply, .turnCost(id: "chat-turn-cost", costUSD: 0.42)]
+        let doneMessages: [ChatMessage] = [
+            richReply,
+            .turnCost(id: "chat-first-turn-cost", costUSD: 0.42),
+            .user(id: "chat-lint-request", text: "ありがとう。最後に lint も通して"),
+            .command(id: "chat-lint", command: "swiftlint lint --strict", output: "Exit code 0\nok"),
+            .fileChange(id: "chat-lint-file", changes: [ChatFileChange(path: "ControlServer/ProxyRouter.swift", diff: "@@ -1,3 +1,3 @@\n-old one\n-old two\n-old three\n+new one\n+new two\n+new three", kind: "edit")]),
+            finalLintReply,
+            .turnCost(id: "chat-done-turn-cost", costUSD: 0.16),
+        ]
+        let chatErrorMessages: [ChatMessage] = [
+            agent, subAgent, fileA, fileB,
+            .command(id: "chat-error-tests", command: testCommand, output: "Exit code 1\nProxyRouterTests failed"),
+            commandFailure,
+        ]
+        let approval = Approval(
+            id: "stage6-approval", sessionID: detailSession.id, kind: .codex,
+            prompt: "旧 ControlServer.swift を削除して続行します（新しいルータに置き換え済み）。",
+            actionKind: "command"
+        )
+        let answeredScope = ChatMessage.userQuestion(
+            id: "answered-scope", requestId: "scope-request",
+            questions: [UserQuestionItem(
+                question: "/approvals のレスポンス契約は v2 で進めますか？", header: "SCOPE",
+                options: [
+                    UserQuestionOption(label: "v2", description: "id・session・kind・prompt を含む"),
+                    UserQuestionOption(label: "v1 のまま", description: "既存クライアントに合わせる"),
+                ], multiSelect: false
+            )],
+            answers: ["/approvals のレスポンス契約は v2 で進めますか？": ["v2"]], state: .answered
+        )
+        let pendingDeploymentQuestion = ChatMessage.userQuestion(
+            id: "pending-deploy-test", requestId: "deploy-test-request",
+            questions: [
+                UserQuestionItem(
+                    question: "どの環境で動作確認しますか？", header: "DEPLOY",
+                    options: [
+                        UserQuestionOption(label: "staging", description: "検証環境"),
+                        UserQuestionOption(label: "prod", description: "本番環境"),
+                    ], multiSelect: false
+                ),
+                UserQuestionItem(
+                    question: "失敗している 3 件のテストはどう扱いますか？", header: "TEST",
+                    options: [], multiSelect: false
+                ),
+            ],
+            answers: ["どの環境で動作確認しますか？": ["staging"]], state: .pending
+        )
+        let pendingDeploymentQuestionFail = ChatMessage.userQuestion(
+            id: "pending-deploy-fail", requestId: "deploy-test-request",
+            questions: [
+                UserQuestionItem(
+                    question: "どの環境で動作確認しますか？", header: "DEPLOY",
+                    options: [
+                        UserQuestionOption(label: "staging", description: "検証環境"),
+                        UserQuestionOption(label: "prod", description: "本番環境"),
+                    ], multiSelect: false
+                ),
+                UserQuestionItem(
+                    question: "失敗している 3 件のテストはどう扱いますか？", header: "CHECKS",
+                    options: [UserQuestionOption(label: "lint"), UserQuestionOption(label: "unit tests"), UserQuestionOption(label: "UI tests")],
+                    multiSelect: true
+                ),
+            ],
+            answers: [
+                "どの環境で動作確認しますか？": ["staging"],
+                "失敗している 3 件のテストはどう扱いますか？": ["lint", "unit tests"],
+            ], state: .pending
+        )
+        let plainQuestion = ChatMessage.userQuestion(
+            id: "plain-question", requestId: "plain-question-request",
+            questions: [UserQuestionItem(
+                question: "/approvals のレスポンス契約は v2（id・session・kind・prompt）で進めますか？",
+                header: "CONTRACT", options: [], multiSelect: false
+            )],
+            answers: nil, state: .pending
+        )
+        let replyToolPermission = ChatMessage.userQuestion(
+            id: "reply-tool-permission", requestId: "reply-tool-request",
+            questions: [UserQuestionItem(
+                question: "旧 ControlServer.swift を削除します（ProxyRouter に置き換え済み）。",
+                header: "Bash",
+                options: [UserQuestionOption(label: "Allow"), UserQuestionOption(label: "Deny")],
+                multiSelect: false, toolName: "Bash", toolDetail: "git rm ControlServer.swift", allowsSessionScope: true
+            )],
+            answers: nil, state: .pending
+        )
+        let replyEditPermission = ChatMessage.userQuestion(
+            id: "reply-edit-permission", requestId: "reply-edit-request",
+            questions: [UserQuestionItem(
+                question: "ControlServer.swift を編集しますか？",
+                header: "Edit",
+                options: [UserQuestionOption(label: "Allow"), UserQuestionOption(label: "Deny")],
+                multiSelect: false, toolName: "Edit", toolDetail: "Sources/ControlServer/ControlServer.swift"
+            )],
+            answers: nil, state: .pending
+        )
+        let replySession = Session(
+            id: "stage6-reply", name: chatName, agent: .claudeCode,
+            status: .awaitingUserQuestion, projectName: "Phlox",
+            statusEnteredAt: Date().addingTimeInterval(-120), updatedAt: snapshotDate
+        )
+        let replyMessages: [ChatMessage] = [
+            .command(id: "reply-git-status", command: "git status --short", output: "Exit code 0"),
+            .agent(id: "reply-explanation", text: "旧 ControlServer.swift は ProxyRouter に置き換わったため、削除が必要です。"),
+            replyToolPermission,
+            replyEditPermission,
+        ]
+        let codexReplyMessages: [ChatMessage] = [
+            .command(id: "reply-codex-status", command: "git status --short", output: "Exit code 0"),
+            .agent(id: "reply-codex-explanation", text: "テストが通ったので、リモートのブランチを更新します。"),
+        ]
+        let codexApprovalOne = Approval(
+            id: "reply-codex-one", sessionID: detailSession.id, kind: .codex,
+            prompt: "git push --force-with-lease origin feature/proxy-router", actionKind: "command"
+        )
+        let codexApprovalTwo = Approval(
+            id: "reply-codex-two", sessionID: detailSession.id, kind: .codex,
+            prompt: "ControlServer.swift を削除します。", actionKind: "fileChange"
+        )
+        let codexDiffApproval = Approval(
+            id: "reply-approval-diff", sessionID: detailSession.id, kind: .codex,
+            prompt: "Sources/ControlServer/ProxyRouter.swift ほか 1 件", actionKind: "fileChange"
+        )
+        let codexDiffMessage = ChatMessage.fileChange(id: "reply-approval-diff", changes: [
+            ChatFileChange(
+                path: "Sources/ControlServer/ProxyRouter.swift",
+                diff: "@@ -41,3 +41,4 @@\n func register(_ app: Application) {\n     app.get(\"health\", use: health)\n-    legacy.mount(on: app)\n+    app.get(\"approvals\", use: list)\n+    app.post(\"approvals\", \":id\", use: respond)\n+    app.get(\"sessions\", use: sessions)\n }",
+                kind: "edit"
+            ),
+            ChatFileChange(
+                path: "Sources/ControlServer/ControlServer.swift",
+                diff: "@@ -87,4 +87,1 @@\n-router.get(\"/sessions/*\") { try await self.forwardLegacy($0) }\n-router.get(\"/approvals\") { try await self.forwardLegacy($0) }\n-router.get(\"/usage\") { try await self.usage($0) }\n+server.mount(\"/sessions\", ProxyRouter(upstream: upstream).handler)",
+                kind: "edit"
+            ),
+        ])
+        let usage42 = TurnUsage(costUSD: 0.42, contextUsedTokens: 44_000, contextWindowTokens: 200_000)
+        let usage16 = TurnUsage(costUSD: 0.16, contextUsedTokens: 62_000, contextWindowTokens: 200_000)
+        let attachmentPreviews = [
+            snapshotAttachmentData(color: .systemOrange, label: "502"),
+            snapshotAttachmentData(color: .systemBlue, label: "LOG"),
+        ]
+        let cases: [SessionDetailSnapshotCase] = [
+            .init(name: detailName, session: detailSession, messages: .success(detailRecentMessages), approvals: [approval]),
+            .init(name: "ChatLoading", session: chatSession("loading", .running), messages: .suspended),
+            .init(name: "ChatEmpty", session: chatSession("empty", .idle), messages: .success([])),
+            .init(name: "ChatFetchErr", session: chatSession("fetch-error", .running), messages: .failure(.server(status: 502, message: "gateway timeout"))),
+            .init(name: "ChatUnsupported", session: Session(id: "pty", name: chatName, agent: .claudeCode, status: .running, backend: "pty", updatedAt: snapshotDate), messages: .success(stallMessages)),
+            .init(name: "ChatSendFail", session: chatSession("send-failed", .idle), messages: .success([lastToolCommands[0], lastToolCommands[1], lastToolCommands[2], richReply]), recovery: SessionDetailRecovery(text: "失敗しているテストを先に直して", attachments: [], errorMessage: "送信に失敗しました · Mac に接続できません"), isNewSession: true),
+            .init(name: "Chat", session: chatSession("chat", .running), messages: .success(runningMessages), attachmentPreviews: ["chat-user": attachmentPreviews], statusAge: 38),
+            .init(name: "ChatStall", session: chatSession("stalled", .running, stalled: true), messages: .success(stallMessages), attachmentPreviews: ["chat-user": attachmentPreviews]),
+            .init(name: "ChatIdle", session: chatSession("idle", .idle), messages: .success(idleMessages), usage: usage42),
+            .init(name: "ChatDone", session: chatSession("done", .completed(exitCode: 0)), messages: .success(doneMessages), usage: usage16),
+            .init(name: "ChatError", session: chatSession("error", .error(message: "ProxyRouterTests failed")), messages: .success(chatErrorMessages)),
+            .init(name: "ChatQuestion", session: chatSession("question", .awaitingUserQuestion), messages: .success([answeredScope, agent, .command(id: "question-tests", command: testCommand, output: testOutput), .error(id: "question-error", message: "3 件のテストが失敗しています（ProxyRouterTests）。"), pendingDeploymentQuestion]), statusAge: 12),
+            .init(name: "ChatExpandCmd", session: chatSession("expand-cmd", .running), messages: .success([agent] + lastToolCommands + [buildMessage]), expandedMessageIDs: ["chat-tool-edit", "chat-tool-tests"], statusAge: 12),
+            .init(name: "ChatExpandDiff", session: chatSession("expand-diff", .idle), messages: .success([agent, fileA, fileB, .turnCost(id: "chat-turn-cost", costUSD: 0.42)]), usage: usage42, expandedMessageIDs: ["chat-file-a-file-0", "chat-file-b-file-0"]),
+            .init(name: "ChatThinking", session: chatSession("thinking", .running), messages: .success([userFirst, reasoning, readCommands[0], readCommands[1], agent, expandedReasoning]), attachmentPreviews: ["chat-user": attachmentPreviews], expandedMessageIDs: ["chat-reasoning-expanded"], statusAge: 12),
+            .init(name: "ReplyStarting", session: chatSession("starting", .starting), messages: .success([.command(id: "starting-command", command: "phlox spawn --agent claude-code --project ControlServer", output: "実行中"), .agent(id: "starting-message", text: "セッションを準備しています。")]), isNewSession: true),
+            .init(name: "Reply", session: replySession, messages: .success(replyMessages), statusAge: 120),
+            .init(name: "ReplyCodex", session: detailSession, messages: .success(codexReplyMessages), approvals: [codexApprovalOne], statusAge: 120),
+            .init(name: "ReplyApprovalDiff", session: detailSession, messages: .success([codexDiffMessage]), approvals: [codexDiffApproval], statusAge: 60, replyState: .expandedApprovalDiff),
+            .init(name: "ReplyApprovalFail", session: replySession, messages: .success(replyMessages), statusAge: 120, replyState: .approvalFailure),
+            .init(name: "ReplyDT", session: replySession, messages: .success(replyMessages), statusAge: 120, isAccessibilitySize: true),
+            .init(name: "FlowApprove", session: detailSession, messages: .success(codexReplyMessages), approvals: [codexApprovalOne], statusAge: 120),
+            .init(name: "FlowNext", session: detailSession, messages: .success(codexReplyMessages), approvals: [codexApprovalOne, codexApprovalTwo], statusAge: 120, replyState: .approvalResult(actionLabel: "許可", remainingCount: 1)),
+            .init(name: "ReplyQuestion", session: chatSession("reply-question", .awaitingUserQuestion), messages: .success([agent, .command(id: "reply-question-tests", command: testCommand, output: testOutput), pendingDeploymentQuestion]), statusAge: 12),
+            .init(name: "ReplyQuestionPlain", session: chatSession("reply-question-plain", .awaitingUserQuestion), messages: .success([agent, plainQuestion]), statusAge: 12),
+            .init(name: "ReplyQuestionFail", session: chatSession("reply-question-fail", .awaitingUserQuestion), messages: .success([agent, .command(id: "reply-question-fail-tests", command: testCommand, output: testOutput), pendingDeploymentQuestionFail]), statusAge: 12, replyState: .questionFailure(requestID: "deploy-test-request")),
+        ]
+
+        let environment = AppEnvironment.uiTesting(scenario: .goldenPath)
+        let list = SessionListViewModel(repository: environment.sessionRepository, api: environment.apiClient)
+        await list.observe()
+        defer { list.stop() }
+
+        for snapshot in cases {
+            let session = snapshot.session.isStalled || snapshot.statusAge != nil
+                ? Session(
+                    id: snapshot.session.id, name: snapshot.session.name, agent: snapshot.session.agent,
+                    status: snapshot.session.status, needsAttention: snapshot.session.needsAttention,
+                    subtitle: snapshot.session.subtitle, projectId: snapshot.session.projectId,
+                    projectName: snapshot.session.projectName, backend: snapshot.session.backend,
+                    isStalled: snapshot.session.isStalled, hasUnseenCompletion: snapshot.session.hasUnseenCompletion,
+                    parentSessionId: snapshot.session.parentSessionId,
+                    statusEnteredAt: Date().addingTimeInterval(-(snapshot.statusAge ?? 192)), updatedAt: snapshot.session.updatedAt
+                )
+                : snapshot.session
+            let readiness = SessionDetailSnapshotReadiness()
+            let api = SessionDetailSnapshotAPI(
+                session: session, messages: snapshot.messages, approvals: snapshot.approvals,
+                turnUsage: snapshot.usage,
+                readiness: readiness
+            )
+            let navigationState = SessionNavigationState.resolve(
+                listState: list.state, lastKnownSessions: list.lastKnownSessions, reachability: .online
+            )
+            let size = CGSize(width: 428, height: 926)
+            let content = SessionDetailSnapshotHost(
+                list: list, navigationState: navigationState, snapshot: snapshot,
+                session: session, api: api
+            )
+            .environment(\.usageViewModel, UsageViewModel(
+                api: api, agents: UITestUsageFixtures.values(for: .normal), state: .loaded,
+                lastSuccessfulAt: UITestUsageFixtures.asOfDate, now: { UITestUsageFixtures.asOfDate }
+            ))
+            .environment(\.colorScheme, .light)
+            .environment(\.dynamicTypeSize, snapshot.isAccessibilitySize ? .accessibility5 : .large)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            .frame(width: size.width, height: size.height)
+
+            let image = try await windowImage(
+                content, size: size,
+                safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
+                scale: 2, dark: false, settleDelay: .milliseconds(800),
+                waitUntilReady: {
+                    switch snapshot.messages {
+                    case .suspended:
+                        if session.agent == .codex {
+                            await readiness.waitForApprovals()
+                        }
+                    case .success, .failure:
+                        if snapshot.session.isPTY { return }
+                        await readiness.waitForMessages()
+                        if session.agent == .codex {
+                            await readiness.waitForApprovals()
+                        }
+                    }
+                }
+            )
+            try writeSnapshot(
+                image, name: "\(snapshot.name)-428x926-light\(osSuffix).png", to: output,
+                expectedSize: size, expectedScale: 2
+            )
+        }
     }
 
     private func outputDirectory(variables: [String: String]) throws -> URL {
@@ -677,7 +985,8 @@ struct DesignSnapshotRenderTests {
         safeArea: UIEdgeInsets,
         scale: CGFloat,
         dark: Bool,
-        settleDelay: Duration = .milliseconds(20)
+        settleDelay: Duration = .milliseconds(20),
+        waitUntilReady: (() async -> Void)? = nil
     ) async throws -> UIImage {
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
@@ -709,6 +1018,8 @@ struct DesignSnapshotRenderTests {
         #expect(abs(host.view.safeAreaInsets.bottom - safeArea.bottom) < 0.5)
         await Task.yield()
         try await Task.sleep(for: settleDelay)
+        await waitUntilReady?()
+        try await Task.sleep(for: .milliseconds(150))
         window.layoutIfNeeded()
         host.view.layoutIfNeeded()
 
@@ -860,14 +1171,193 @@ struct DesignSnapshotRenderTests {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func snapshotAttachmentData(color: UIColor) -> Data {
+    private func snapshotAttachmentData(color: UIColor, label: String? = nil) -> Data {
         UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).pngData { context in
             color.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+            if let label {
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.systemFont(ofSize: 18, weight: .bold),
+                    .foregroundColor: UIColor.white,
+                ]
+                let textSize = (label as NSString).size(withAttributes: attributes)
+                (label as NSString).draw(
+                    at: CGPoint(x: (64 - textSize.width) / 2, y: (64 - textSize.height) / 2),
+                    withAttributes: attributes
+                )
+            }
         }
     }
 
     private enum SnapshotError: Error { case bodyDidNotRender }
+}
+
+private struct SessionDetailSnapshotCase {
+    let name: String
+    let session: Session
+    let messages: SessionDetailSnapshotMessages
+    var approvals: [Approval] = []
+    var usage: TurnUsage?
+    var recovery: SessionDetailRecovery?
+    var isNewSession = false
+    var attachmentPreviews: [String: [Data]] = [:]
+    var expandedMessageIDs: Set<String> = []
+    var statusAge: TimeInterval?
+    var isAccessibilitySize = false
+    var replyState: SessionDetailViewModel.ReplySnapshotState?
+}
+
+private enum SessionDetailSnapshotMessages: Sendable {
+    case success([ChatMessage])
+    case failure(PhloxError)
+    case suspended
+}
+
+private struct SessionDetailSnapshotHost: View {
+    @State private var path: [Route] = []
+
+    let list: SessionListViewModel
+    let navigationState: SessionNavigationState
+    let snapshot: SessionDetailSnapshotCase
+    let session: Session
+    let api: SessionDetailSnapshotAPI
+
+    var body: some View {
+        AppShellView(
+            selection: .constant(.sessions), navigationState: navigationState,
+            reachability: .online, lastFetchedAt: list.lastFetchedAt, host: "100.64.0.1:8765",
+            hidesTabBar: true, hidesAccessory: true,
+            onOpenSession: { _ in }, onShowSessionList: {}, onReconnect: {}
+        ) {
+            NavigationStack(path: $path) {
+                SessionListView(
+                    viewModel: list, reachability: .online, endpoint: "100.64.0.1:8765",
+                    onSelectDetail: { _ in }, onAddSession: { _ in }
+                )
+                .navigationStackHomeBackButton()
+                .task {
+                    await Task.yield()
+                    guard path.isEmpty else { return }
+                    path = [.sessionDetail(id: session.id)]
+                }
+                .navigationDestination(for: Route.self) { route in
+                    if case .sessionDetail = route {
+                        SessionDetailDestination(
+                            session: session, api: api, recovery: snapshot.recovery,
+                            isNewSession: snapshot.isNewSession,
+                            initialAttachmentPreviews: snapshot.attachmentPreviews,
+                            initialExpandedMessageIDs: snapshot.expandedMessageIDs,
+                            snapshotReplyState: snapshot.replyState,
+                            onDelete: {}
+                        )
+                        .toolbar(.hidden, for: .tabBar)
+                    } else {
+                        EmptyView()
+                    }
+                }
+            }
+            .dsCampNavigationChrome()
+        } settings: {
+            NavigationStack { EmptyView() }
+                .dsCampNavigationChrome()
+        }
+    }
+}
+
+private struct SessionDetailSnapshotAPI: PhloxAPI, SessionModelSelecting {
+    let session: Session
+    let messages: SessionDetailSnapshotMessages
+    let approvals: [Approval]
+    let turnUsage: TurnUsage?
+    let readiness: SessionDetailSnapshotReadiness?
+
+    private var model: SessionModelOption {
+        if session.agent == .codex {
+            return SessionModelOption(id: "gpt-6.1-sol", displayName: "gpt-6.1-sol")
+        }
+        return SessionModelOption(id: "sonnet-5", displayName: "Sonnet 5")
+    }
+
+    func listSessions() async throws -> [Session] { [session] }
+    func usage(sessionID: String) async throws -> TurnUsage? { turnUsage }
+    func spawn(_ request: SpawnRequest) async throws -> Session { session }
+    func agentSettings(kind: AgentKind) async throws -> AgentSettings? { nil }
+    func projects() async throws -> [ProjectSummary]? { [] }
+    func cliUsage() async throws -> [CLIUsage] { UITestUsageFixtures.values(for: .normal) }
+    func agentModels(kind: AgentKind) async throws -> AgentModels { AgentModels(models: [model], defaultModel: model.id) }
+    func sessionSettings(sessionID: String) async throws -> SessionModelSettings {
+        SessionModelSettings(
+            selectedModel: model.id,
+            availableModels: [model],
+            selectedEffort: session.agent == .codex ? "medium" : "high",
+            availableEfforts: session.agent == .codex
+                ? [
+                    AgentSettingOption(value: "low", displayName: "低"),
+                    AgentSettingOption(value: "medium", displayName: "中"),
+                    AgentSettingOption(value: "high", displayName: "高"),
+                ]
+                : [AgentSettingOption(value: "high", displayName: "高")],
+            selectedPermission: session.agent == .codex ? nil : "acceptEdits",
+            availablePermissions: session.agent == .codex
+                ? [AgentSettingOption(value: nil, displayName: "Default")]
+                : [AgentSettingOption(value: "acceptEdits", displayName: "Accept Edits")],
+            planMode: false,
+            planModeAvailable: true
+        )
+    }
+    func setModel(sessionID: String, model: String) async throws {}
+    func waitUntilReady(sessionID: String) async throws -> Bool { true }
+    func send(_ request: SendRequest) async throws -> SendResult { SendResult(accepted: true) }
+    func messages(sessionID: String) async throws -> [ChatMessage] {
+        switch messages {
+        case .success(let messages):
+            await readiness?.markMessagesLoaded()
+            return messages
+        case .failure(let error):
+            await readiness?.markMessagesLoaded()
+            throw error
+        case .suspended:
+            try await Task.sleep(for: .seconds(60))
+            await readiness?.markMessagesLoaded()
+            return []
+        }
+    }
+    func remove(sessionID: String) async throws {}
+    func rename(sessionID: String, name: String) async throws {}
+    func approvals() async throws -> [Approval] {
+        await readiness?.markApprovalsLoaded()
+        return approvals
+    }
+    func respond(approvalID: String, decision: ApprovalDecision) async throws {}
+}
+
+private actor SessionDetailSnapshotReadiness {
+    private var messagesLoaded = false
+    private var approvalsLoaded = false
+    private var messageWaiter: CheckedContinuation<Void, Never>?
+    private var approvalWaiter: CheckedContinuation<Void, Never>?
+
+    func markMessagesLoaded() {
+        messagesLoaded = true
+        messageWaiter?.resume()
+        messageWaiter = nil
+    }
+
+    func markApprovalsLoaded() {
+        approvalsLoaded = true
+        approvalWaiter?.resume()
+        approvalWaiter = nil
+    }
+
+    func waitForMessages() async {
+        guard !messagesLoaded else { return }
+        await withCheckedContinuation { messageWaiter = $0 }
+    }
+
+    func waitForApprovals() async {
+        guard !approvalsLoaded else { return }
+        await withCheckedContinuation { approvalWaiter = $0 }
+    }
 }
 
 private struct NewChatSnapshotHost: View {
@@ -1125,7 +1615,6 @@ private struct InputBarSnapshotScenario {
     let text: String
     let isRunning: Bool
     let isSending: Bool
-    let isStarting: Bool
     let modelName: String
     let permission: String
     let showsEffort: Bool
@@ -1146,7 +1635,6 @@ private struct InputBarSnapshotScenario {
         text: String = "",
         isRunning: Bool = false,
         isSending: Bool = false,
-        isStarting: Bool = false,
         modelName: String = "Sonnet 5",
         permission: String = "acceptEdits",
         showsEffort: Bool = true,
@@ -1166,7 +1654,6 @@ private struct InputBarSnapshotScenario {
         self.text = text
         self.isRunning = isRunning
         self.isSending = isSending
-        self.isStarting = isStarting
         self.modelName = modelName
         self.permission = permission
         self.showsEffort = showsEffort

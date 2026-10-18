@@ -14,7 +14,9 @@ struct DSChatCodeCardTests {
         }
 
         _ = card.body
-        #expect(DSChatCodeCardMetrics.cornerRadius == DSRadius.card)
+        #expect(DSChatCodeCardMetrics.cornerRadius == DSRadius.m)
         #expect(DSChatCodeCardMetrics.borderWidth == 1)
+        #expect(DSChatCodeCardMetrics.runningBorderWidth == 1.5)
+        #expect(DSChatCodeCardMetrics.headerHeight == DSTouch.minSize)
     }
 }

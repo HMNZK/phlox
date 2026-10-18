@@ -24,6 +24,7 @@ public extension View {
 @MainActor
 enum NavigationStackHomeBackButtonInstaller {
     private static let house = UIImage(systemName: "house")?.withRenderingMode(.alwaysTemplate)
+    private static let housePNGData = house?.pngData()
     private static let accessibilityLabel = "ホーム（セッション一覧に戻る）"
 
     /// SwiftUI の更新のたびに呼ばれるので、掛け済みなら何もしない。
@@ -35,28 +36,39 @@ enum NavigationStackHomeBackButtonInstaller {
             bar.tintColor = tint
         }
 
-        if bar.standardAppearance.backIndicatorImage !== house {
+        if !hasHouse(bar.standardAppearance) {
             bar.standardAppearance = appearance(bar.standardAppearance, house: house)
+        }
+        if !hasHouse(bar.scrollEdgeAppearance) {
             bar.scrollEdgeAppearance = appearance(bar.scrollEdgeAppearance ?? bar.standardAppearance, house: house)
+        }
+        if !hasHouse(bar.compactAppearance) {
             bar.compactAppearance = appearance(bar.compactAppearance ?? bar.standardAppearance, house: house)
+        }
+        if !hasHouse(bar.compactScrollEdgeAppearance) {
             bar.compactScrollEdgeAppearance = appearance(
                 bar.compactScrollEdgeAppearance ?? bar.standardAppearance,
                 house: house
             )
         }
 
-        guard let root = navigationController.viewControllers.first,
-              root.navigationItem.backBarButtonItem?.accessibilityLabel != accessibilityLabel
-        else { return }
-        let backItem = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
-        backItem.accessibilityLabel = accessibilityLabel
-        root.navigationItem.backBarButtonItem = backItem
+        guard let root = navigationController.viewControllers.first else { return }
+        if root.navigationItem.backBarButtonItem?.accessibilityLabel != accessibilityLabel {
+            let backItem = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
+            backItem.accessibilityLabel = accessibilityLabel
+            root.navigationItem.backBarButtonItem = backItem
+        }
     }
 
     private static func appearance(_ source: UINavigationBarAppearance, house: UIImage) -> UINavigationBarAppearance {
         let copy = source.copy()
         copy.setBackIndicatorImage(house, transitionMaskImage: house)
         return copy
+    }
+
+    private static func hasHouse(_ appearance: UINavigationBarAppearance?) -> Bool {
+        guard let housePNGData else { return false }
+        return appearance?.backIndicatorImage.pngData() == housePNGData
     }
 }
 
@@ -76,8 +88,23 @@ private struct NavigationControllerResolver: UIViewControllerRepresentable {
             installIfPossible()
         }
 
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            installIfPossible()
+            DispatchQueue.main.async { [weak self] in
+                self?.installIfPossible()
+            }
+        }
+
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
+            DispatchQueue.main.async { [weak self] in
+                self?.installIfPossible()
+            }
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
             installIfPossible()
         }
 

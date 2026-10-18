@@ -2,6 +2,9 @@ import SwiftUI
 import AgentDomain
 import DesignSystemIOS
 import PhloxCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 enum ChatRowKind: Equatable {
     case userBubble
@@ -12,6 +15,7 @@ enum ChatRowKind: Equatable {
     case fileChangeCard
     case error
     case userQuestion
+    case turnCost
 
     static func forMessage(_ message: ChatMessage) -> Self {
         switch message {
@@ -31,6 +35,8 @@ enum ChatRowKind: Equatable {
             .error
         case .userQuestion:
             .userQuestion
+        case .turnCost:
+            .turnCost
         }
     }
 }
@@ -45,101 +51,150 @@ public struct SessionDetailView: View {
     @State private var transcriptWindow = TranscriptWindow()
     @State private var pendingTranscriptScrollTarget: SessionDetailTranscriptScrollTarget?
     @State private var transcriptScrollGeneration = 0
-    let approvalViewModel: ApprovalViewModel?
+    @State private var partialSelectionMessageID: String?
+    @State private var isKeyboardVisible = false
+    #if os(iOS)
+    @State private var renameSelection: TextSelection?
+    #endif
+    @Environment(\.locale) private var locale
     let onDelete: () -> Void
 
     public init(
         viewModel: SessionDetailViewModel,
-        approvalViewModel: ApprovalViewModel? = nil,
         onDelete: @escaping () -> Void
     ) {
         self._viewModel = State(initialValue: viewModel)
-        self.approvalViewModel = approvalViewModel
         self.onDelete = onDelete
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: DSSpacing.m) {
-                        transcriptSection
-                        // 末尾アンカー: 新着メッセージ/出力で最下部へスクロールするため。
-                        Color.clear
-                            .frame(height: 1)
-                            .id(Self.bottomAnchorID)
-                            .background(
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: BottomAnchorMaxYKey.self,
-                                        value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).maxY
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                if viewModel.session.isPTY {
+                    EmptyView()
+                } else {
+                    renameFailureBanner
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: DSSpacing.m) {
+                                transcriptSection
+                                // 末尾アンカー: 新着メッセージ/出力で最下部へスクロールするため。
+                                Color.clear
+                                    .frame(height: 1)
+                                    .id(Self.bottomAnchorID)
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear.preference(
+                                                key: BottomAnchorMaxYKey.self,
+                                                value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).maxY
+                                            )
+                                        }
                                     )
-                                }
-                            )
-                    }
-                    .padding(DSSpacing.l)
-                    .animation(.easeInOut(duration: 0.25), value: viewModel.sendState)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .coordinateSpace(name: Self.scrollCoordinateSpace)
-                .background(DSColor.background)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: ScrollViewportHeightKey.self,
-                            value: proxy.size.height
-                        )
-                    }
-                )
-                .onPreferenceChange(BottomAnchorMaxYKey.self) { bottomMaxY in
-                    distanceFromBottom = max(0, bottomMaxY - scrollViewportHeight)
-                }
-                .onPreferenceChange(ScrollViewportHeightKey.self) { height in
-                    scrollViewportHeight = height
-                }
-                // 本文が初めて届いたときは必ず最下部へ寄せ、以降だけ距離で追従を判定する。
-                .onChange(of: viewModel.chatMessages) { scrollToBottomForContentChange(proxy) }
-                .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
-                .onChange(of: pendingTranscriptScrollTarget) { _, target in
-                    guard let target else { return }
-                    pendingTranscriptScrollTarget = nil
-                    let generation = transcriptScrollGeneration
-                    Task { @MainActor in
-                        guard generation == transcriptScrollGeneration else { return }
-                        switch target {
-                        case .anchor(let anchorID):
-                            proxy.scrollTo(anchorID, anchor: .top)
-                        case .bottom:
-                            scrollToBottom(proxy)
+                            }
+                            .padding(DSSpacing.l)
+                            .animation(.easeInOut(duration: 0.25), value: viewModel.sendState)
                         }
+                        .frame(maxHeight: .infinity)
+                        .scrollDismissesKeyboard(.interactively)
+                        .coordinateSpace(name: Self.scrollCoordinateSpace)
+                        .background(IOSColor.bg.base)
+                        .background(
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: ScrollViewportHeightKey.self,
+                                    value: proxy.size.height
+                                )
+                            }
+                        )
+                        .onPreferenceChange(BottomAnchorMaxYKey.self) { bottomMaxY in
+                            distanceFromBottom = max(0, bottomMaxY - scrollViewportHeight)
+                        }
+                        .onPreferenceChange(ScrollViewportHeightKey.self) { height in
+                            scrollViewportHeight = height
+                        }
+                        // 本文が初めて届いたときは必ず最下部へ寄せ、以降だけ距離で追従を判定する。
+                        .onChange(of: viewModel.chatMessages) { scrollToBottomForContentChange(proxy) }
+                        .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
+                        .onChange(of: pendingTranscriptScrollTarget) { _, target in
+                            guard let target else { return }
+                            pendingTranscriptScrollTarget = nil
+                            let generation = transcriptScrollGeneration
+                            Task { @MainActor in
+                                guard generation == transcriptScrollGeneration else { return }
+                                switch target {
+                                case .anchor(let anchorID):
+                                    proxy.scrollTo(anchorID, anchor: .top)
+                                case .bottom:
+                                    scrollToBottom(proxy)
+                                }
+                            }
+                        }
+                        .onChange(of: viewModel.session.id) { _, _ in
+                            transcriptWindow.reset()
+                            pendingTranscriptScrollTarget = nil
+                            transcriptScrollGeneration += 1
+                            scrollFollowState.reset()
+                        }
+                        .onAppear { scrollToBottomForContentChange(proxy) }
                     }
+                    replyArea
                 }
-                .onChange(of: viewModel.session.id) { _, _ in
-                    transcriptWindow.reset()
-                    pendingTranscriptScrollTarget = nil
-                    transcriptScrollGeneration += 1
-                    scrollFollowState.reset()
-                }
-                .onAppear { scrollToBottomForContentChange(proxy) }
             }
-
-            replyArea
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .top) {
+                transcriptStateOverlay(in: geometry)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $viewModel.isModelSheetPresented) {
             modelSelectorSheet
         }
-        .background(DSColor.background)
+        .background(IOSColor.bg.base.ignoresSafeArea())
         .accessibilityIdentifier(AccessibilityID.sessionDetail)
-        .modifier(SessionDetailNavigationChromeModifier(title: viewModel.displayName) { sessionMenu })
-        .alert("名前変更", isPresented: $viewModel.isRenamePresented) {
+        .modifier(DSSessionNavigationChrome(
+            title: viewModel.displayName,
+            subtitle: navigationSubtitle
+        ) { sessionMenu })
+        .navigationStackHomeBackButton()
+        .alert("名前を変更", isPresented: $viewModel.isRenamePresented) {
+            #if os(iOS)
+            TextField(text: $viewModel.renameDraft, selection: $renameSelection) {
+                Text("セッション名")
+            }
+            #else
             TextField("セッション名", text: $viewModel.renameDraft)
+            #endif
             Button("キャンセル", role: .cancel) {
                 viewModel.isRenamePresented = false
             }
             Button("変更") {
                 Task { await viewModel.commitRename() }
             }
+        } message: {
+            Text("一覧と詳細に出る名前です。")
         }
+#if canImport(UIKit)
+        .onChange(of: viewModel.renameError) { _, error in
+            guard let error else { return }
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: "名前を変更できませんでした。名前は “\(viewModel.displayName)” のままです。\(error)"
+            )
+        }
+        .onChange(of: viewModel.loadError) { _, error in
+            guard let error else { return }
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: "会話を読み込めませんでした。Mac から会話の内容を受け取れませんでした。\(error)"
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardVisible = false
+        }
+#endif
         .task(id: viewModel.session.id) {
             await viewModel.startPolling()
         }
@@ -147,24 +202,162 @@ public struct SessionDetailView: View {
             guard shouldShowInputBar else { return }
             await usageViewModel?.load()
         }
-        .task(id: approvalViewModel?.sessionID) {
-            await approvalViewModel?.load()
+        .task(id: viewModel.session.id) {
+            guard !viewModel.session.isPTY else { return }
+            await viewModel.loadApprovals()
+        }
+    }
+
+    private var presentation: SessionDetailPresentationState { viewModel.presentationState }
+
+    @ViewBuilder
+    private func transcriptStateOverlay(in geometry: GeometryProxy) -> some View {
+        if viewModel.session.isPTY {
+            VStack(spacing: 0) {
+                Text("このセッションは iPhone では表示できません。Mac")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Text("で開いてください")
+                    .lineLimit(1)
+            }
+                .font(DSFont.subheadline)
+                .foregroundStyle(IOSColor.text.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity)
+                .offset(y: stateTopOffset(in: geometry))
+                .accessibilityElement(children: .combine)
+        } else {
+            transcriptStateContent
+                .frame(maxWidth: .infinity)
+                .offset(y: stateTopOffset(in: geometry))
+        }
+    }
+
+    @ViewBuilder
+    private var transcriptStateContent: some View {
+        switch presentation.transcript {
+        case .loading:
+            VStack(spacing: DSSpacing.m) {
+                ProgressView()
+                Text("会話を読み込んでいます…")
+                    .font(DSFont.subheadline)
+                    .foregroundStyle(IOSColor.text.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        case .empty:
+            VStack(alignment: .center, spacing: DSSpacing.s) {
+                Image(systemName: "bubble.left")
+                    .font(DSFont.sessionEmptyIcon)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .frame(width: 60, height: 60)
+                    .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                Text("まだ会話はありません")
+                    .font(DSFont.headline)
+                    .foregroundStyle(IOSColor.text.primary)
+                Text("このセッションにはまだメッセージがありません。下の入力欄から指示を送ると、ここに会話が表示されます。")
+                    .font(DSFont.subheadline)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 32)
+            .frame(maxWidth: .infinity)
+        case .fetchError:
+            VStack(alignment: .leading, spacing: DSSpacing.s) {
+                Text("会話を読み込めませんでした")
+                    .font(DSFont.headline)
+                    .foregroundStyle(IOSColor.status.error)
+                Text("Mac から会話の内容を受け取れませんでした。3 秒ごとに読み込み直しています。続くときは一覧に戻って開き直してください。")
+                    .font(DSFont.subheadline)
+                    .foregroundStyle(IOSColor.text.primary)
+                Text(viewModel.loadError ?? "メッセージの取得に失敗しました")
+                    .font(DSFont.sessionDetailTechnical)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .textSelection(.enabled)
+            }
+            .padding(DSSpacing.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(IOSColor.status.errorBackground, in: RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 20)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("会話を読み込めませんでした。Mac から会話の内容を受け取れませんでした。3 秒ごとに読み込み直しています。続くときは一覧に戻って開き直してください。\(viewModel.loadError ?? "メッセージの取得に失敗しました")")
+        case .unsupported, .messages:
+            EmptyView()
+        }
+    }
+
+    private func stateTopOffset(in geometry: GeometryProxy) -> CGFloat {
+        let frame = geometry.frame(in: .global)
+        let screenHeight = frame.maxY + geometry.safeAreaInsets.bottom
+        return max(0, screenHeight * 0.34 - frame.minY)
+    }
+
+    private var navigationSubtitle: Text? {
+        guard let state = presentation.displayState else { return nil }
+        let stateLabel = Text(state.localizedLabel(locale: locale))
+            .foregroundColor(navigationStatusColor)
+        let agentLabel = Text(" · \(viewModel.session.agent.displayName)")
+            .foregroundColor(IOSColor.text.secondary)
+        return stateLabel + agentLabel
+    }
+
+    private var navigationStatusColor: Color {
+        guard let state = presentation.displayState,
+              let color = IOSStatusVocabulary.presentation(for: state).color else {
+            return IOSColor.text.tertiary
+        }
+        return color
+    }
+
+    @ViewBuilder
+    private var renameFailureBanner: some View {
+        if let message = viewModel.renameError {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                Text("名前を変更できませんでした")
+                    .font(DSFont.subheadline.weight(.semibold))
+                Text("名前は “\(viewModel.displayName)” のままです。")
+                    .font(DSFont.subheadline)
+                Text(message)
+                    .font(DSFont.sessionDetailTechnical)
+                    .textSelection(.enabled)
+            }
+            .foregroundStyle(IOSColor.status.error)
+            .padding(DSSpacing.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(IOSColor.status.errorBackground, in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, DSSpacing.l)
+            .padding(.top, DSSpacing.s)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("名前を変更できませんでした。名前は “\(viewModel.displayName)” のままです。\(message)")
         }
     }
 
     private var sessionMenu: some View {
         Menu {
-            Button("モデル変更") {
-                viewModel.isModelSheetPresented = true
+            if presentation.allowsModelSelection {
+                Button {
+                    viewModel.isModelSheetPresented = true
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("モデル変更")
+                        Text("現在: \(viewModel.selectedModelDisplayName ?? viewModel.modelSettings?.selectedModel ?? "未取得")")
+                            .font(.caption)
+                    }
+                }
+                Divider()
             }
             Button("名前変更") {
                 viewModel.beginRename()
+                #if os(iOS)
+                let name = viewModel.renameDraft
+                renameSelection = name.isEmpty ? nil : TextSelection(range: name.startIndex..<name.endIndex)
+                #endif
             }
+            Divider()
             Button("削除", role: .destructive, action: onDelete)
         } label: {
             Image(systemName: "ellipsis")
                 .font(DSFont.headline.weight(.semibold))
-                .frame(width: DSTouch.minSize, height: DSTouch.minSize)
         }
         .accessibilityLabel("セッションメニュー")
     }
@@ -211,11 +404,45 @@ public struct SessionDetailView: View {
             }
             if let settingsError = viewModel.settingsChangeError { errorLine(settingsError) }
             if let attachmentError = viewModel.attachmentError { errorLine(attachmentError) }
-
-            approvalSection
+            if let approvalError = viewModel.replyApprovalError ?? viewModel.approvalLoadError {
+                errorLine(approvalError)
+            }
+            if let result = viewModel.replyApprovalResult {
+                ReplyApprovalCard(
+                    approval: nil,
+                    result: result,
+                    index: 0,
+                    count: 0,
+                    isResponding: false,
+                    isKeyboardVisible: false,
+                    onDecision: { _ in },
+                    onPrevious: {},
+                    onNext: {},
+                    onShowNext: { viewModel.showNextReplyApproval() }
+                )
                 .padding(.horizontal, DSSpacing.l)
+            } else if let approval = viewModel.currentReplyApproval {
+                ReplyApprovalCard(
+                    approval: approval,
+                    result: nil,
+                    index: viewModel.currentReplyApprovalPage,
+                    count: viewModel.replyApprovals.count,
+                    isResponding: viewModel.isReplyApprovalResponding,
+                    isKeyboardVisible: isKeyboardVisible,
+                    onDecision: { decision in Task { await viewModel.respond(to: approval, decision: decision) } },
+                    onPrevious: { viewModel.moveReplyApproval(to: viewModel.replyApprovalIndex - 1) },
+                    onNext: { viewModel.moveReplyApproval(to: viewModel.replyApprovalIndex + 1) },
+                    onShowNext: { viewModel.showNextReplyApproval() },
+                    initiallyShowsDiff: viewModel.replyApprovalDiffInitiallyExpanded
+                )
+                .padding(.horizontal, DSSpacing.l)
+            }
 
             ForEach(pendingQuestions) { question in
+                if viewModel.questionAnswerFailureRequestID == question.requestId {
+                    errorLine("回答を送信できませんでした。選んだ内容は残っています")
+                        .padding(.horizontal, DSSpacing.l)
+                }
                 UserQuestionCard(
                     requestId: question.requestId,
                     questions: question.questions,
@@ -230,7 +457,7 @@ public struct SessionDetailView: View {
                 .id(question.id)
             }
 
-            if showsStartingBanner {
+            if presentation.showsStartingBanner {
                 Text("セッションを起動しています。準備ができると入力できます")
                     .font(DSFont.subheadline)
                     .foregroundStyle(DSColor.textSecondary)
@@ -240,7 +467,7 @@ public struct SessionDetailView: View {
                     .padding(.horizontal, 12)
             } else if shouldShowInputBar {
                 inputBarSection
-                if let usageViewModel, usageViewModel.shouldShowRow {
+                if presentation.showsUsage, let usageViewModel, usageViewModel.shouldShowRow {
                     UsageRingRow(viewModel: usageViewModel)
                         .padding(.horizontal, DSSpacing.xl)
                 }
@@ -254,19 +481,14 @@ public struct SessionDetailView: View {
         Text(message)
             .font(DSFont.captionStrong)
             .foregroundStyle(IOSColor.status.error)
-            .lineLimit(2)
+            .lineLimit(1)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12)
             .accessibilityAddTraits(.isStaticText)
     }
 
-    private var showsStartingBanner: Bool {
-        viewModel.currentStatus == .starting && !viewModel.isRecoveringInitialSend
-    }
-
     private var shouldShowInputBar: Bool {
-        !showsStartingBanner && (viewModel.inputEnabled
-            || (viewModel.currentStatus == .running && viewModel.canInterrupt))
+        presentation.showsInputBar
     }
 
     private struct PendingQuestion: Identifiable {
@@ -285,7 +507,12 @@ public struct SessionDetailView: View {
         viewModel.visibleMessages.compactMap { message in
             guard case let .userQuestion(id, requestId, questions, answers, state) = message,
                   state == .pending else { return nil }
-            return PendingQuestion(id: id, requestId: requestId, questions: questions, answers: answers, state: state)
+            let visibleQuestions = viewModel.session.agent == .claudeCode
+                && ReplyApproval.isClaudeToolPermissionQuestion(questions)
+                ? []
+                : questions
+            guard !visibleQuestions.isEmpty else { return nil }
+            return PendingQuestion(id: id, requestId: requestId, questions: visibleQuestions, answers: answers, state: state)
         }
     }
 
@@ -294,10 +521,11 @@ public struct SessionDetailView: View {
     }
 
     private var transcriptMessages: [ChatMessage] {
-        viewModel.visibleMessages.filter { message in
-            if case let .userQuestion(_, _, _, _, state) = message, state == .pending { return false }
-            return true
-        }
+        SessionDetailTranscriptPresentation.messagesForTranscript(viewModel.visibleMessages)
+    }
+
+    private var visibleTranscriptMessages: [ChatMessage] {
+        SessionDetailTranscriptPresentation.visibleTranscriptRows(transcriptMessages)
     }
 
     private var inputModel: (kind: AgentKind, displayName: String)? {
@@ -363,35 +591,24 @@ public struct SessionDetailView: View {
         .presentationDragIndicator(.visible)
     }
 
-    @ViewBuilder
-    private var approvalSection: some View {
-        if let approvalViewModel {
-            ApprovalBarView(viewModel: approvalViewModel)
-        }
-    }
-
-    /// 構造化チャットがあれば表示し、初回データ待ちは接続表示にする。
+    /// 表示用の状態値に従って本文を描画する。
     @ViewBuilder
     private var transcriptSection: some View {
-        if let error = viewModel.loadError {
-            DSResultBanner(message: error, isError: true)
-        } else if viewModel.showsChat {
-            chatSection
-        } else if viewModel.showsInitialLoadingIndicator {
-            DSConnectingIndicator(size: 96)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: max(320, scrollViewportHeight - DSTouch.minSize - DSSpacing.l * 2))
-        } else {
+        switch presentation.transcript {
+        case .unsupported, .loading, .empty, .fetchError:
             EmptyView()
+        case .messages:
+            chatSection
         }
     }
 
     private var chatSection: some View {
         let slice = SessionDetailTranscriptSlice(
-            messages: transcriptMessages,
+            messages: visibleTranscriptMessages,
             window: transcriptWindow
         )
-        let lastTranscriptID = transcriptMessages.last?.id
+        let lastTranscriptID = visibleTranscriptMessages.last?.id
+        let latestTurnCostID = SessionDetailTranscriptPresentation.latestTurnCostID(in: transcriptMessages)
         return VStack(alignment: .leading, spacing: DSSpacing.m) {
             if slice.hiddenCount > 0 {
                 loadEarlierMessagesButton(hiddenCount: slice.hiddenCount)
@@ -399,21 +616,51 @@ public struct SessionDetailView: View {
             ForEach(slice.visibleBlocks) { visibleBlock in
                 chatBlock(
                     visibleBlock.content,
-                    lastTranscriptID: lastTranscriptID
+                    lastTranscriptID: lastTranscriptID,
+                    latestTurnCostID: latestTurnCostID
                 )
                 .id(visibleBlock.id)
             }
-            if let activityState = viewModel.activityState {
+            if viewModel.session.isStalled {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let startedAt = viewModel.session.statusEnteredAt ?? context.date
+                    stalledStatusRow(elapsed: context.date.timeIntervalSince(startedAt))
+                }
+            } else if let activityState = viewModel.activityState {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     DSThinkingIndicator(
                         state: activityState,
-                        reasoningPreview: viewModel.recap(now: context.date),
-                        status: viewModel.currentStatus
+                        reasoningPreview: viewModel.recap(now: context.date)
                     )
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func stalledStatusRow(elapsed: TimeInterval) -> some View {
+        HStack(spacing: 10) {
+            Text("無応答 \(SessionDetailPresentationState.elapsedClock(elapsed))")
+                .font(DSFont.sessionDetailTechnical.weight(.semibold))
+                .foregroundStyle(IOSColor.status.stalled)
+            Spacer(minLength: DSSpacing.s)
+            Button {
+                Task { await viewModel.stop() }
+            } label: {
+                Text("中断")
+                    .font(DSFont.sessionDetailSubtitle.weight(.semibold))
+                    .foregroundStyle(IOSColor.text.primary)
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: DSTouch.minSize)
+                    .background(IOSColor.bg.fill, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("中断（実行を止める）")
+        }
+        .padding(.vertical, 6)
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .background(IOSColor.status.stalledBackground, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func loadEarlierMessagesButton(hiddenCount: Int) -> some View {
@@ -444,13 +691,15 @@ public struct SessionDetailView: View {
     @ViewBuilder
     private func chatBlock(
         _ block: SessionDetailChatBlock,
-        lastTranscriptID: String?
+        lastTranscriptID: String?,
+        latestTurnCostID: String?
     ) -> some View {
         switch block {
         case .single(let message):
-            chatRow(for: message)
+            chatRow(for: message, lastTranscriptID: lastTranscriptID, latestTurnCostID: latestTurnCostID)
         case .commandGroup(let id, let items):
             chatRowWithCopy(
+                messageID: id,
                 hasCopyableText: ChatMessageCopyText.commandGroupHasCopyableText(items),
                 copyTextProvider: { ChatMessageCopyText.commandGroupCopyText(items) }
             ) {
@@ -467,33 +716,42 @@ public struct SessionDetailView: View {
         }
     }
 
-    /// 1 メッセージの描画。user/agent はバブル、reasoning は v1 では agent 風バブル、
-    /// command/fileChange はモノスペースカード、error はエラーバナー。
+    /// 1 メッセージの描画。
     @ViewBuilder
-    private func chatRow(for message: ChatMessage) -> some View {
+    private func chatRow(
+        for message: ChatMessage,
+        lastTranscriptID: String?,
+        latestTurnCostID: String?
+    ) -> some View {
         let copyText = ChatMessageCopyText.copyText(for: message)
         switch ChatRowKind.forMessage(message) {
         case .userBubble:
-            if case let .user(id, text) = message {
-                DSChatBubble(
-                    role: .user,
-                    message: text,
-                    attachmentImageCount: viewModel.attachmentImageCount(forMessageID: id),
-                    copyText: copyText
-                )
+            if case let .user(id, text, createdAt) = message {
+                chatRowWithCopy(
+                    messageID: id,
+                    copyText: copyText,
+                    menuTitle: ChatMessageCopyText.contextMenuTitle(createdAt: createdAt)
+                ) {
+                    SessionDetailUserMessageBubble(
+                        text: text,
+                        attachmentPreviews: viewModel.attachmentPreviews(forMessageID: id)
+                    )
+                }
             }
         case .agentBubble:
-            if case let .agent(_, text) = message {
-                DSChatBubble(
-                    role: .agent,
-                    message: text,
-                    agentKind: viewModel.session.agent,
-                    copyText: copyText
-                )
+            if case let .agent(id, text, createdAt) = message {
+                chatRowWithCopy(
+                    messageID: id,
+                    copyText: copyText,
+                    menuTitle: ChatMessageCopyText.contextMenuTitle(createdAt: createdAt)
+                ) {
+                    DSMarkdownText(text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         case .reasoning:
             if case let .reasoning(id, text) = message {
-                chatRowWithCopy(copyText: copyText) {
+                chatRowWithCopy(messageID: id, copyText: copyText) {
                     DSReasoningText(
                         text: text,
                         isExpanded: viewModel.isMessageExpanded(id),
@@ -503,54 +761,69 @@ public struct SessionDetailView: View {
             }
         case .subAgent:
             if case let .subAgent(_, text) = message {
-                chatRowWithCopy(copyText: copyText) {
-                    DSSubAgentRow(text: text)
-                }
+                SessionDetailSubAgentCard(text: text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .commandCard:
             if case let .command(id, command, output) = message {
-                chatRowWithCopy(copyText: copyText) {
+                chatRowWithCopy(messageID: id, copyText: copyText) {
                     SessionDetailCommandCard(
                         command: command,
                         output: output,
                         isExpanded: viewModel.isMessageExpanded(id),
+                        isRunning: viewModel.isAgentWorking && id == lastTranscriptID,
                         onToggle: { viewModel.toggleMessageExpansion(id) }
                     )
                 }
             }
         case .fileChangeCard:
             if case let .fileChange(id, changes) = message {
-                let data = SessionDetailDiffCodeViewData(changes: changes)
                 chatRowWithCopy(
-                    hasCopyableText: !data.copyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                    copyTextProvider: { data.copyText }
+                    messageID: id,
+                    copyText: copyText
                 ) {
-                    SessionDetailFileChangeCard(
-                        data: data,
+                    VStack(alignment: .leading, spacing: DSSpacing.s) {
+                        ForEach(Array(changes.enumerated()), id: \.offset) { index, change in
+                            let itemID = "\(id)-file-\(index)"
+                            SessionDetailFileChangeCard(
+                                change: change,
+                                isExpanded: viewModel.isMessageExpanded(itemID),
+                                onToggle: { viewModel.toggleMessageExpansion(itemID) }
+                            )
+                        }
+                    }
+                }
+            }
+        case .error:
+            if case let .error(id, message) = message {
+                chatRowWithCopy(messageID: id, copyText: copyText) {
+                    SessionDetailErrorCard(message: message)
+                }
+            }
+        case .userQuestion:
+            if case let .userQuestion(id, _, questions, answers, state) = message {
+                chatRowWithCopy(messageID: id, copyText: copyText) {
+                    SessionDetailAnsweredQuestionCard(
+                        questions: questions,
+                        answers: answers,
+                        state: state,
                         isExpanded: viewModel.isMessageExpanded(id),
                         onToggle: { viewModel.toggleMessageExpansion(id) }
                     )
                 }
             }
-        case .error:
-            if case let .error(_, message) = message {
-                chatRowWithCopy(copyText: copyText) {
-                    DSResultBanner(message: message, isError: true)
-                }
-            }
-        case .userQuestion:
-            if case let .userQuestion(_, requestId, questions, answers, state) = message {
-                chatRowWithCopy(copyText: copyText) {
-                    UserQuestionCard(
-                        requestId: requestId,
-                        questions: questions,
-                        answers: answers,
-                        state: state,
-                        onSubmit: { requestId, answers in
-                            await viewModel.answerQuestion(requestId: requestId, answers: answers)
-                        }
-                    )
-                }
+        case .turnCost:
+            if case let .turnCost(id, costUSD) = message,
+               let line = SessionDetailUsageFormat.line(
+                costUSD: costUSD,
+                for: id == latestTurnCostID ? viewModel.turnUsage : nil
+               ) {
+                Text(line)
+                    .font(DSFont.sessionDetailUsage)
+                    .foregroundStyle(IOSColor.text.tertiary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityIdentifier(id == latestTurnCostID ? "SessionDetailTurnUsage" : "SessionDetailTurnCost")
             }
         }
     }
@@ -558,24 +831,38 @@ public struct SessionDetailView: View {
     /// コピーは行ごとのボタンではなく長押しメニューで出す（バブルと同じ作法）。
     /// 全行にボタンを常設すると転写が読めなくなるため。
     private func chatRowWithCopy<Content: View>(
+        messageID: String,
         copyText: String?,
+        menuTitle: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .chatMessageCopyContextMenu(copyText: copyText)
+            .textSelection(.enabled)
+            .chatMessageCopyContextMenu(
+                copyText: copyText,
+                menuTitle: menuTitle,
+                partialSelectionEnabled: partialSelectionMessageID == messageID,
+                onPartialSelection: { partialSelectionMessageID = messageID }
+            )
     }
 
     private func chatRowWithCopy<Content: View>(
+        messageID: String,
         hasCopyableText: Bool,
         copyTextProvider: @escaping () -> String?,
+        menuTitle: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
             .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
             .chatMessageCopyContextMenu(
                 hasCopyableText: hasCopyableText,
-                deferredCopyText: ChatMessageDeferredCopyText(copyTextProvider)
+                deferredCopyText: ChatMessageDeferredCopyText(copyTextProvider),
+                menuTitle: menuTitle,
+                partialSelectionEnabled: partialSelectionMessageID == messageID,
+                onPartialSelection: { partialSelectionMessageID = messageID }
             )
     }
 
@@ -690,17 +977,11 @@ enum SessionDetailTranscriptExpansionPolicy {
 /// ターン usage の表示文言（テスト可能な契約）。
 enum SessionDetailUsageFormat {
     static func line(for usage: TurnUsage?) -> String? {
-        guard let usage else { return nil }
-        var parts: [String] = []
-        if let cost = usage.costUSD {
-            parts.append(String(format: "$%.4f", cost))
-        }
-        if let used = usage.contextUsedTokens, let window = usage.contextWindowTokens, window > 0 {
-            let percent = Int((Double(used) / Double(window) * 100).rounded())
-            parts.append("コンテキスト \(percent)%")
-        }
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: " · ")
+        line(costUSD: nil, for: usage)
+    }
+
+    static func line(costUSD: Double?, for usage: TurnUsage?) -> String? {
+        SessionDetailTranscriptPresentation.turnUsageLine(costUSD: costUSD, usage: usage)
     }
 }
 
@@ -717,73 +998,3 @@ private struct ScrollViewportHeightKey: PreferenceKey {
         value = nextValue()
     }
 }
-
-/// セッション詳細の chrome。システムのナビゲーションバーへタイトル・戻る・メニューを載せる。
-///
-/// バーを隠して自前のヘッダを描く構成は使わない。隠すと UIKit が端スワイプ pop を拒否し、
-/// ジェスチャの delegate を差し替えて無理に通すと、pop 後に一覧の大タイトルが失われる（ADR 0033）。
-private struct SessionDetailNavigationChromeModifier<Menu: View>: ViewModifier {
-    let title: String
-    @ViewBuilder var menu: () -> Menu
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        #if os(iOS)
-        content
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.visible, for: .navigationBar)
-            // 戻るボタンはシステムのものを使う（自前の leading 項目に差し替えると端スワイプ pop が拒否される）。
-            // editor ロールは戻るラベルを落として従来と同じ「‹」だけの見た目にする。
-            .toolbarRole(.editor)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { menu() }
-            }
-        #else
-        content.navigationTitle(title)
-        #endif
-    }
-}
-
-#if DEBUG
-#Preview("Awaiting Approval") {
-    NavigationStack {
-        SessionDetailView(
-            viewModel: SessionDetailViewModel(
-                session: Session(
-                    id: "s1",
-                    name: "Rose",
-                    agent: .claudeCode,
-                    status: .awaitingApproval(prompt: "ControlServer.swift を削除して続行しますか？"),
-                    subtitle: "承認待ち",
-                    updatedAt: Date()
-                ),
-                api: StubPhloxAPI(
-                    approvals: [
-                        Approval(
-                            id: "a1",
-                            sessionID: "s1",
-                            kind: .claudeCode,
-                            prompt: "ControlServer.swift を削除して続行しますか？"
-                        ),
-                    ],
-                )
-            ),
-            approvalViewModel: ApprovalViewModel(
-                sessionID: "s1",
-                api: StubPhloxAPI(
-                    approvals: [
-                        Approval(
-                            id: "a1",
-                            sessionID: "s1",
-                            kind: .claudeCode,
-                            prompt: "ControlServer.swift を削除して続行しますか？"
-                        ),
-                    ]
-                )
-            ),
-            onDelete: {}
-        )
-    }
-}
-#endif

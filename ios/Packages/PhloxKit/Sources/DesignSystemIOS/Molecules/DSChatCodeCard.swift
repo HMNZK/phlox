@@ -5,27 +5,43 @@ import SwiftUI
 public struct DSChatCodeCard<Header: View, Content: View>: View {
     private let header: Header
     private let content: Content
+    private let isRunning: Bool
+    private let showsDivider: Bool
 
     public init(
+        isRunning: Bool = false,
+        showsDivider: Bool = false,
         @ViewBuilder header: () -> Header,
         @ViewBuilder content: () -> Content
     ) {
         self.header = header()
         self.content = content()
+        self.isRunning = isRunning
+        self.showsDivider = showsDivider
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: .zero) {
             header
                 .padding(.horizontal, DSSpacing.m)
-                .padding(.vertical, DSSpacing.s)
-                .frame(minHeight: DSTouch.minSize, alignment: .leading)
+                .frame(minHeight: DSChatCodeCardMetrics.headerHeight, alignment: .leading)
+
+            if showsDivider {
+                Rectangle()
+                    .fill(DSColor.separator)
+                    .frame(height: DSChatCodeCardMetrics.borderWidth)
+            }
 
             content
         }
         .background(DSColor.chatCard)
         .clipShape(cardShape)
-        .overlay(cardShape.strokeBorder(DSColor.border, lineWidth: DSChatCodeCardMetrics.borderWidth))
+        .overlay {
+            cardShape.strokeBorder(
+                isRunning ? DSColor.textSecondary : DSColor.border,
+                lineWidth: isRunning ? DSChatCodeCardMetrics.runningBorderWidth : DSChatCodeCardMetrics.borderWidth
+            )
+        }
     }
 
     private var cardShape: RoundedRectangle {
@@ -35,6 +51,8 @@ public struct DSChatCodeCard<Header: View, Content: View>: View {
 
 /// `DSChatCodeCard` の寸法を一元管理する。
 public enum DSChatCodeCardMetrics {
-    public static let cornerRadius: CGFloat = DSRadius.card
+    public static let cornerRadius: CGFloat = DSRadius.m
     public static let borderWidth: CGFloat = 1
+    public static let runningBorderWidth: CGFloat = 1.5
+    public static let headerHeight: CGFloat = DSTouch.minSize
 }

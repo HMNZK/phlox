@@ -20,46 +20,6 @@ final class ErrorSessionInputBarTests: XCTestCase {
         )
     }
 
-    /// 契約1: エラー停止でも入力欄が残る。
-    func testInputBarStaysEnabledOnError() {
-        let vm = SessionDetailViewModel(session: session(.error(message: "boom")), api: MockAPI())
-        XCTAssertTrue(
-            vm.inputEnabled,
-            "エラー停止（.error）でも入力欄を残す。送信すると macOS 側が会話を保って respawn する"
-        )
-        XCTAssertTrue(
-            vm.isInputBarEnabled,
-            "isInputBarEnabled も true（SessionDetailView は これで入力欄セクションを描画する）"
-        )
-    }
-
-    /// 契約2: 正常終了でも入力欄が残る。
-    func testInputBarStaysEnabledOnCompleted() {
-        let vm = SessionDetailViewModel(session: session(.completed(exitCode: 0)), api: MockAPI())
-        XCTAssertTrue(vm.inputEnabled, "正常終了（.completed）でも入力欄を残す")
-        XCTAssertTrue(vm.isInputBarEnabled)
-
-        let failed = SessionDetailViewModel(session: session(.completed(exitCode: 1)), api: MockAPI())
-        XCTAssertTrue(failed.inputEnabled, "非ゼロ終了でも入力欄を残す")
-    }
-
-    func testInputEnabledStatusSwitchDisablesOnlyStarting() {
-        let statuses: [(SessionStatus, Bool)] = [
-            (.starting, false),
-            (.idle, true),
-            (.running, true),
-            (.awaitingApproval(prompt: "p"), true),
-            (.awaitingUserQuestion, true),
-            (.completed(exitCode: 0), true),
-            (.error(message: "boom"), true)
-        ]
-
-        for (status, expected) in statuses {
-            let viewModel = SessionDetailViewModel(session: session(status), api: MockAPI())
-            XCTAssertEqual(viewModel.inputEnabled, expected, "status: \(status)")
-        }
-    }
-
     /// 終了済みセッションでも、送信失敗をバナー表示用の状態で可視化し、入力を復元する。
     func testSendFailureOnErrorSessionSurfacesFailureAndRestoresInput() async {
         let viewModel = SessionDetailViewModel(

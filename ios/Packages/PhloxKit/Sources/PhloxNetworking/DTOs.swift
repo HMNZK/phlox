@@ -109,6 +109,7 @@ struct ChatMessagesDTO: Decodable {
 struct ChatMessageDTO: Decodable {
     let id: String
     let type: String
+    let createdAt: String?
     let text: String?
     let command: String?
     let output: String?
@@ -123,6 +124,7 @@ struct ChatMessageDTO: Decodable {
     init(
         id: String,
         type: String,
+        createdAt: String? = nil,
         text: String? = nil,
         command: String? = nil,
         output: String? = nil,
@@ -135,6 +137,7 @@ struct ChatMessageDTO: Decodable {
     ) {
         self.id = id
         self.type = type
+        self.createdAt = createdAt
         self.text = text
         self.command = command
         self.output = output
@@ -150,9 +153,9 @@ struct ChatMessageDTO: Decodable {
     func toDomain() -> ChatMessage? {
         switch type {
         case "user":
-            return .user(id: id, text: text ?? "")
+            return .user(id: id, text: text ?? "", createdAt: parsedCreatedAt())
         case "agent":
-            return .agent(id: id, text: text ?? "")
+            return .agent(id: id, text: text ?? "", createdAt: parsedCreatedAt())
         case "reasoning":
             return .reasoning(id: id, text: text ?? "")
         case "command":
@@ -163,11 +166,26 @@ struct ChatMessageDTO: Decodable {
             return .error(id: id, message: message ?? "")
         case "subAgent":
             return .subAgent(id: id, text: text ?? "")
+        case "turnCost":
+            guard let costUSD = Self.parseTurnCost(text) else { return nil }
+            return .turnCost(id: id, costUSD: costUSD)
         case PhloxQuestionWireContract.messageType:
             return decodeUserQuestion()
         default:
             return nil
         }
+    }
+
+    private func parsedCreatedAt() -> Date? {
+        guard let createdAt else { return nil }
+        return ISO8601DateFormatter().date(from: createdAt)
+    }
+
+    private static func parseTurnCost(_ text: String?) -> Double? {
+        guard let text else { return nil }
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let numericValue = value.hasPrefix("$") ? String(value.dropFirst()) : value
+        return Double(numericValue)
     }
 
     private func decodeUserQuestion() -> ChatMessage? {
@@ -194,6 +212,7 @@ struct UserQuestionItemDTO: Decodable {
     let options: [UserQuestionOptionDTO]
     let toolName: String?
     let toolDetail: String?
+    let allowsSessionScope: Bool?
 
     func toDomain() -> UserQuestionItem {
         UserQuestionItem(
@@ -202,7 +221,8 @@ struct UserQuestionItemDTO: Decodable {
             options: options.map { $0.toDomain() },
             multiSelect: multiSelect,
             toolName: toolName,
-            toolDetail: toolDetail
+            toolDetail: toolDetail,
+            allowsSessionScope: allowsSessionScope ?? false
         )
     }
 }

@@ -165,10 +165,26 @@ struct SessionDetailNavigationChromeTests {
     @Test("詳細画面の chrome はシステムのナビゲーションバーへ載せる（ADR 0033）")
     func detailChromeUsesSystemNavigationBar() throws {
         let source = try SessionViewUXSource.text("Sources/Features/SessionDetail/SessionDetailView.swift")
+        let chrome = try SessionViewUXSource.text("Sources/DesignSystemIOS/Support/DSSessionNavigationChrome.swift")
+        #expect(source.contains(".navigationStackHomeBackButton()"))
 
-        #expect(source.contains(".navigationTitle(title)"))
-        #expect(source.contains(".navigationBarTitleDisplayMode(.inline)"))
-        #expect(source.contains("ToolbarItem(placement: .topBarTrailing) { menu() }"))
+        #expect(chrome.contains(".navigationTitle(title)"))
+        #expect(chrome.contains(".navigationBarTitleDisplayMode(.inline)"))
+        let homeBackButton = try SessionViewUXSource.text("Sources/DesignSystemIOS/Support/NavigationStackHomeBackButton.swift")
+        #expect(homeBackButton.contains("setBackIndicatorImage(house, transitionMaskImage: house)"))
+        #expect(!chrome.contains(".toolbarRole(.editor)"))
+        #expect(!source.contains(".toolbarRole(.editor)"))
+        #expect(!chrome.contains(".toolbarBackground("))
+        #expect(!chrome.contains(".toolbarColorScheme("))
+        #expect(!chrome.contains(".toolbar(.visible, for: .navigationBar)"))
+        #expect(chrome.contains("ToolbarItem(placement: .topBarTrailing) { trailingMenu }"))
+        #expect(chrome.contains(".sharedBackgroundVisibility(.hidden)"))
+        #expect(chrome.contains("private var trailingMenu: some View"))
+        let ios26AvailabilityCheck = ["if ", "#available", "(iOS 26, *)"].joined()
+        #expect(chrome.contains(ios26AvailabilityCheck))
+        #expect(chrome.contains(".buttonStyle(.plain)"))
+        #expect(chrome.contains(".glassSurface(.roundButton)"))
+        #expect(chrome.contains(".frame(width: DSTouch.minSize, height: DSTouch.minSize)"))
         #expect(
             !source.contains("private var topBar"),
             "自前 topBar を復活させない（ナビバーを隠す構成へ戻ると端スワイプが壊れる）"

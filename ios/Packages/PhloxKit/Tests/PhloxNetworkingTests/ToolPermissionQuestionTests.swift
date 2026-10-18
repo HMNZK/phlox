@@ -5,14 +5,15 @@ import PhloxCore
 
 @Suite("ツール許可質問の wire 項目")
 struct ToolPermissionQuestionTests {
-    @Test("toolName と toolDetail を userQuestion の質問に写す")
+    @Test("ツール許可の項目を userQuestion の質問に写す")
     func decodesToolPermissionQuestion() throws {
         let json = """
         {"sessionId":"S1","messages":[
           {"id":"q1","type":"userQuestion","requestId":"r1","state":"pending",
            "questions":[{"question":"Allow Bash?","header":"Bash","multiSelect":false,
              "options":[{"label":"Allow"},{"label":"Deny"}],
-             "toolName":"Bash","toolDetail":"swift build 2>&1 | tail -20"}]}
+             "toolName":"Bash","toolDetail":"swift build 2>&1 | tail -20",
+             "allowsSessionScope":true}]}
         ]}
         """
         let dto = try JSONDecoder().decode(ChatMessagesDTO.self, from: Data(json.utf8))
@@ -26,6 +27,7 @@ struct ToolPermissionQuestionTests {
         #expect(question.toolName == "Bash")
         #expect(question.toolDetail == "swift build 2>&1 | tail -20")
         #expect(question.isToolPermission)
+        #expect(question.allowsSessionScope)
     }
 
     @Test("古い Mac や通常の質問で toolName が無ければ通常質問")
@@ -40,5 +42,6 @@ struct ToolPermissionQuestionTests {
         #expect(question.toolName == nil)
         #expect(question.toolDetail == nil)
         #expect(!question.isToolPermission)
+        #expect(!question.allowsSessionScope)
     }
 }

@@ -1,33 +1,22 @@
 import SwiftUI
-import DesignSystemIOS
 import PhloxCore
 
-/// カンプ⑤の暗転オーバーレイ不透明度。design.md §5 ⑤ brightness .45。
-enum DeleteConfirmationMetrics {
-    private static var isLight: Bool { ThemeStore.active.preferredColorScheme == .light }
-    static var backdropOverlayOpacity: CGFloat { isLight ? 0.28 : 0.45 }
-    static var backdropBrightness: CGFloat { 1 - backdropOverlayOpacity }
-}
-
-/// カンプ⑤の文言（テスト可能なコピー層）。
-enum DeleteConfirmationCopy {
-    static let title = "セッションを削除しますか？"
-
-    static func body(cascadeCount: Int) -> String {
-        if cascadeCount > 0 {
-            return "このセッションと 子孫 \(cascadeCount) 件 が Mac 側で削除されます。元に戻せません。"
-        }
-        return "このセッションが Mac 側で削除されます。元に戻せません。"
-    }
-
-    static func deleteButtonLabel(totalCount: Int) -> String {
-        "削除（\(totalCount)件）"
-    }
-}
-
-/// 削除確認の中央アラート（カンプ⑤）。暗転オーバーレイ上にダイアログを表示し単段で削除する。
+/// OS 標準の削除確認と、削除実行中の操作ブロック。
 public struct DeleteConfirmationView: View {
+    private enum AlertItem: Identifiable {
+        case confirmation
+        case failure(String)
+
+        var id: String {
+            switch self {
+            case .confirmation: "confirmation"
+            case .failure: "failure"
+            }
+        }
+    }
+
     @State private var viewModel: DeleteConfirmationViewModel
+    @State private var alert: AlertItem? = .confirmation
     private let onCancel: () -> Void
 
     public init(viewModel: DeleteConfirmationViewModel, onCancel: @escaping () -> Void) {
@@ -35,103 +24,53 @@ public struct DeleteConfirmationView: View {
         self.onCancel = onCancel
     }
 
-    private var totalDeleteCount: Int { viewModel.cascadeCount + 1 }
-
     public var body: some View {
-        ZStack {
-            IOSColor.bg.dim
-                .ignoresSafeArea()
-                .accessibilityHidden(true)
-                .onTapGesture { onCancel() }
-
-            dialogCard
-                .padding(.horizontal, DSSpacing.l)
-                .transition(.scale(scale: 0.96).combined(with: .opacity))
-        }
-        .animation(DSMotion.easeOut, value: viewModel.isDeleting)
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-    }
-
-    private var dialogCard: some View {
-        VStack(spacing: DSSpacing.m) {
-            trashIcon
-
-            Text(DeleteConfirmationCopy.title)
-                .font(DSFont.title2)
-                .foregroundStyle(DSColor.textPrimary)
-                .multilineTextAlignment(.center)
-                .accessibilityIdentifier("deleteConfirmationTitle")
-
-            cascadeBodyText
-                .font(DSFont.subheadline)
-                .foregroundStyle(IOSColor.text.tertiary)
-                .multilineTextAlignment(.center)
-
-            if case .failed(let message) = viewModel.state {
-                DSResultBanner(message: message, isError: true)
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .overlay {
+                if viewModel.isDeleting {
+                    ZStack {
+                        Color.black.opacity(0.28).ignoresSafeArea()
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("削除しています…")
+                                .font(.body)
+                        }
+                        .padding(20)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .accessibilityAddTraits(.isModal)
+                }
             }
-
-            DSButton(
-                DeleteConfirmationCopy.deleteButtonLabel(totalCount: totalDeleteCount),
-                variant: .destructive,
-                isLoading: viewModel.isDeleting
-            ) {
-                Task { await viewModel.confirmDelete() }
+            .alert(item: $alert) { item in
+                switch item {
+                case .confirmation:
+                    Alert(
+                        title: Text(viewModel.title),
+                        message: Text(viewModel.message),
+                        primaryButton: .destructive(Text(viewModel.deleteButtonLabel)) {
+                            Task { await viewModel.confirmDelete() }
+                        },
+                        secondaryButton: .cancel(Text("キャンセル"), action: onCancel)
+                    )
+                case .failure(let message):
+                    Alert(
+                        title: Text("削除できませんでした"),
+                        message: Text(message),
+                        primaryButton: .default(Text("もう一度削除")) {
+                            Task { await viewModel.confirmDelete() }
+                        },
+                        secondaryButton: .cancel(Text("閉じる"), action: onCancel)
+                    )
+                }
             }
-
-            Button("キャンセル", action: onCancel)
-                .font(DSFont.headline)
-                .foregroundStyle(IOSColor.accent)
-                .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
-                .accessibilityAddTraits(.isButton)
-        }
-        .padding(DSSpacing.l)
-        .background(
-            IOSColor.bg.menu,
-            in: RoundedRectangle(cornerRadius: DSRadius.dialog, style: .continuous)
-        )
-        .shadow(
-            color: DSShadow.dialog.color,
-            radius: DSShadow.dialog.radius,
-            x: DSShadow.dialog.x,
-            y: DSShadow.dialog.y
-        )
-    }
-
-    private var trashIcon: some View {
-        ZStack {
-            Circle()
-                .fill(IOSColor.status.errorBackground)
-            Image(systemName: DSIcon.delete)
-                .font(DSFont.title2)
-                .foregroundStyle(IOSColor.status.error)
-        }
-        .frame(width: DSTouch.rowMinHeight, height: DSTouch.rowMinHeight)
-        .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private var cascadeBodyText: some View {
-        if viewModel.cascadeCount > 0 {
-            let count = viewModel.cascadeCount
-            (Text("このセッションと ")
-                + Text("子孫 \(count) 件").fontWeight(.semibold)
-                + Text(" が Mac 側で削除されます。元に戻せません。"))
-        } else {
-            Text(DeleteConfirmationCopy.body(cascadeCount: 0))
-        }
+            .onChange(of: viewModel.state) { _, state in
+                if case .failed(let message) = state {
+                    alert = .failure(message)
+                }
+            }
     }
 }
-
-#if DEBUG
-#Preview("Cascade") {
-    ZStack {
-        DSColor.background.ignoresSafeArea()
-        DeleteConfirmationView(
-            viewModel: DeleteConfirmationViewModel(sessionID: "s1", cascadeCount: 3, api: StubPhloxAPI(), onDeleted: {}),
-            onCancel: {}
-        )
-    }
-}
-#endif

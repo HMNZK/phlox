@@ -17,9 +17,9 @@ struct DSReasoningTextWhiteboxTests {
         #expect(presentation == shared)
     }
 
-    @Test("開閉表示は共有判定と呼び出し元のトグル有無の両方を満たす")
+    @Test("思考カードは本文の長さによらずトグルがあれば開閉できる")
     func disclosureRequiresSharedRuleAndToggle() {
-        #expect(DSReasoningText.showsDisclosure(text: "短い一文", hasToggle: true) == false)
+        #expect(DSReasoningText.showsDisclosure(text: "短い一文", hasToggle: true) == true)
         #expect(DSReasoningText.showsDisclosure(text: "# 見出し\n本文", hasToggle: true) == true)
         #expect(DSReasoningText.showsDisclosure(text: "# 見出し\n本文", hasToggle: false) == false)
     }

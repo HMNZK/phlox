@@ -9,16 +9,10 @@ import PhloxCore
 @MainActor
 final class MoleculesTests: XCTestCase {
 
-    func testThinkingIndicatorUsesCanonicalPendingStatusWords() {
+    func testThinkingIndicatorUsesActivityStateWordWhileWaiting() {
         let locale = Locale(identifier: "ja_JP")
-        let approval = DSThinkingIndicator(
-            state: .waiting,
-            status: .awaitingApproval(prompt: "")
-        )
-        let question = DSThinkingIndicator(state: .waiting, status: .awaitingUserQuestion)
-
-        XCTAssertEqual(approval.displayLabel(locale: locale), "承認待ち")
-        XCTAssertEqual(question.displayLabel(locale: locale), "質問あり")
+        let waiting = DSThinkingIndicator(state: .waiting)
+        XCTAssertEqual(waiting.displayLabel(locale: locale), "待機中…")
     }
 
     // MARK: - DSInputBar
@@ -39,68 +33,6 @@ final class MoleculesTests: XCTestCase {
     func testInputBarChipAppearanceAndTouchTarget() {
         XCTAssertEqual(DSInputBar.chipVisualHeight, 34)
         XCTAssertEqual(DSInputBar.chipTouchTargetSize, 44)
-    }
-
-    // MARK: - DSApprovalBar
-
-    func testApprovalBarOffersAcceptAndDecline() {
-        XCTAssertEqual(Set(DSApprovalBar.offeredDecisions), [.accept, .decline])
-        XCTAssertEqual(DSApprovalBar.offeredDecisions.count, 2)
-    }
-
-    func testApprovalBarAcceptButtonUsesApproveVariant() {
-        XCTAssertEqual(DSApprovalBar.acceptButtonVariant, .approve)
-    }
-
-    func testApprovalBarDeclineButtonUsesDeclineOutlineVariant() {
-        XCTAssertEqual(DSApprovalBar.declineButtonVariant, .declineOutline)
-    }
-
-    func testApprovalBarDoesNotUseLegacyPrimaryDestructiveVariants() {
-        XCTAssertNotEqual(DSApprovalBar.acceptButtonVariant, .primary)
-        XCTAssertNotEqual(DSApprovalBar.declineButtonVariant, .destructive)
-    }
-
-    // MARK: - DSApprovalRequestCard (DP-2-5)
-
-    func testApprovalRequestCardLabelMatchesCamp() {
-        XCTAssertEqual(DSApprovalRequestCard.labelText, "承認リクエスト")
-    }
-
-    func testApprovalRequestCardExtractsLeadingFileName() {
-        XCTAssertEqual(
-            DSApprovalRequestCard.extractEmphasizedFileName(
-                from: "ControlServer.swift を削除して続行しますか？"
-            ),
-            "ControlServer.swift"
-        )
-        XCTAssertNil(DSApprovalRequestCard.extractEmphasizedFileName(from: "削除しますか？"))
-    }
-
-    func testApprovalRequestCardPromptSegmentsEmphasizeFileName() {
-        let segments = DSApprovalRequestCard.promptSegments(
-            prompt: "ControlServer.swift を削除し続行しますか？",
-            emphasizedFileName: "ControlServer.swift"
-        )
-        XCTAssertEqual(segments.count, 2)
-        XCTAssertTrue(segments[0].isEmphasized)
-        XCTAssertEqual(segments[0].text, "ControlServer.swift")
-        XCTAssertFalse(segments[1].isEmphasized)
-        XCTAssertEqual(segments[1].text, " を削除し続行しますか？")
-    }
-
-    func testApprovalRequestCardPromptSegmentsWithoutEmphasis() {
-        let segments = DSApprovalRequestCard.promptSegments(
-            prompt: "削除しますか？",
-            emphasizedFileName: ""
-        )
-        XCTAssertEqual(segments.count, 1)
-        XCTAssertFalse(segments[0].isEmphasized)
-        XCTAssertEqual(segments[0].text, "削除しますか？")
-    }
-
-    func testApprovalRequestCardBorderOpacityMatchesCamp() {
-        XCTAssertEqual(DSApprovalRequestCard.borderOpacity, 0.3, accuracy: 0.001)
     }
 
     // MARK: - DSResultBanner
@@ -138,31 +70,6 @@ final class MoleculesTests: XCTestCase {
     func testRelativeTimeClampsFutureToNow() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         XCTAssertEqual(DSRelativeTime.compact(from: now.addingTimeInterval(60), now: now), "今")
-    }
-
-    // MARK: - DSChatBubble (DP-2-6 / カンプ⑦)
-    // 配色（背景・前景）の契約は task-2 で macOS 揃えに仕様変更され、
-    // DSChatBubbleStyleTests へ移管した（エージェント印の強調表示）。
-
-    func testChatBubbleAlignmentReflectsRole() {
-        XCTAssertEqual(DSChatBubble.horizontalAlignment(for: .agent), .leading)
-        XCTAssertEqual(DSChatBubble.horizontalAlignment(for: .user), .trailing)
-    }
-
-    func testChatBubbleAccessibilitySpeakerLabelsIncludeAgentName() {
-        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent), "エージェント")
-        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent, agentKind: .claudeCode), "Claude Code")
-        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent, agentKind: .codex), "Codex")
-        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .agent, agentKind: .cursor), "Cursor")
-        XCTAssertEqual(DSChatBubble.accessibilitySpeakerLabel(for: .user), "あなた")
-    }
-
-    func testChatBubbleCornerRadiusUsesCampCardToken() {
-        XCTAssertEqual(DSChatBubble.cornerRadius, DSRadius.card)
-    }
-
-    func testChatBubbleAgentLogoUsesTwentyEightPointSize() {
-        XCTAssertEqual(DSChatBubble.agentLogoSize, 28)
     }
 
 }

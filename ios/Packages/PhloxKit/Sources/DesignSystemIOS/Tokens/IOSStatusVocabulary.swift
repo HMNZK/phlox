@@ -68,10 +68,11 @@ public enum IOSStatusVocabulary {
 public extension Session {
     /// Resolve list status with the shared DesignSystem rule used by macOS.
     var displayState: SessionDisplayState {
-        SessionDisplayState.resolve(
+        let resolved = SessionDisplayState.resolve(
             status,
             hasUnseenCompletion: hasUnseenCompletion,
             isStalled: isStalled
         )
+        return agent == .cursor && resolved == .approval ? .idle : resolved
     }
 }

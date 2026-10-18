@@ -28,13 +28,42 @@ final class DeleteConfirmationViewModelTests: XCTestCase {
 
     func testCascadeCountMessage() {
         let vm = DeleteConfirmationViewModel(sessionID: "s1", cascadeCount: 3, api: MockAPI(), onDeleted: {})
-        XCTAssertTrue(vm.message.contains("3 件の子孫"))
+        XCTAssertEqual(vm.message, "子孫のセッション 3 件も一緒に削除されます。合わせて 4 件です。元に戻せません。")
+        XCTAssertEqual(vm.deleteButtonLabel, "4 件を削除")
     }
 
     func testZeroCascadeMessage() {
         let vm = DeleteConfirmationViewModel(sessionID: "s1", cascadeCount: 0, api: MockAPI(), onDeleted: {})
-        XCTAssertTrue(vm.message.contains("このセッションを削除します"))
-        XCTAssertFalse(vm.message.contains("子孫"))
+        XCTAssertEqual(vm.message, "Mac 側のセッションと会話の記録が削除されます。元に戻せません。")
+        XCTAssertEqual(vm.title, "“セッション” を削除しますか？")
+        XCTAssertEqual(vm.deleteButtonLabel, "1 件を削除")
+    }
+
+    func testTitleUsesSessionName() {
+        let vm = DeleteConfirmationViewModel(
+            sessionID: "s1", sessionName: "Rose", cascadeCount: 0, api: MockAPI(), onDeleted: {}
+        )
+        XCTAssertEqual(vm.title, "“Rose” を削除しますか？")
+    }
+
+    func testDescendantCountIncludesChildrenAndGrandchildren() {
+        let sessions = [
+            Session(id: "root", name: "Root", agent: .claudeCode, status: .idle, updatedAt: .now),
+            Session(id: "child", name: "Child", agent: .claudeCode, status: .idle, parentSessionId: "root", updatedAt: .now),
+            Session(id: "grandchild", name: "Grandchild", agent: .claudeCode, status: .idle, parentSessionId: "child", updatedAt: .now),
+            Session(id: "unrelated", name: "Other", agent: .claudeCode, status: .idle, updatedAt: .now),
+        ]
+
+        XCTAssertEqual(DeleteConfirmationViewModel.descendantCount(sessionID: "root", sessions: sessions), 2)
+    }
+
+    func testMissingParentIDsUseNoDescendantCount() {
+        let sessions = [
+            Session(id: "root", name: "Root", agent: .claudeCode, status: .idle, updatedAt: .now),
+            Session(id: "child", name: "Child", agent: .claudeCode, status: .idle, updatedAt: .now),
+        ]
+
+        XCTAssertEqual(DeleteConfirmationViewModel.descendantCount(sessionID: "root", sessions: sessions), 0)
     }
 
     func testDoesNotCallAPIBeforeConfirmation() async {

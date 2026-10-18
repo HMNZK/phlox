@@ -4,13 +4,15 @@ import Foundation
 /// `GET /sessions/{id}/messages` の wire DTO から `toDomain()` で変換し、wire format を Domain に漏らさない。
 /// 種別は user/agent/reasoning/command/fileChange/error/subAgent の 7 種で、Mac GUI の描画区分と一致する。
 public enum ChatMessage: Sendable, Equatable, Identifiable {
-    case user(id: String, text: String)
-    case agent(id: String, text: String)
+    case user(id: String, text: String, createdAt: Date? = nil)
+    case agent(id: String, text: String, createdAt: Date? = nil)
     case reasoning(id: String, text: String)
     case command(id: String, command: String?, output: String)
     case fileChange(id: String, changes: [ChatFileChange])
     case error(id: String, message: String)
     case subAgent(id: String, text: String)
+    /// ターン終了時のコスト行（Mac の `ChatItem.turnCost` に対応）。
+    case turnCost(id: String, costUSD: Double)
     /// AskUserQuestion の質問カード（task-0 契約。Mac の `ChatItem.userQuestion` に対応）。
     /// answers は「質問文 → 選択 label 配列」。
     case userQuestion(
@@ -23,16 +25,26 @@ public enum ChatMessage: Sendable, Equatable, Identifiable {
 
     public var id: String {
         switch self {
-        case let .user(id, _),
-             let .agent(id, _),
+        case let .user(id, _, _),
+             let .agent(id, _, _),
              let .reasoning(id, _),
              let .command(id, _, _),
              let .fileChange(id, _),
              let .error(id, _),
              let .subAgent(id, _):
             id
+        case let .turnCost(id, _):
+            id
         case let .userQuestion(id, _, _, _, _):
             id
+        }
+    }
+
+    /// 発言・返答の時刻。長押しメニューの見出しにだけ使う。
+    public var createdAt: Date? {
+        switch self {
+        case let .user(_, _, createdAt), let .agent(_, _, createdAt): createdAt
+        default: nil
         }
     }
 }
@@ -56,6 +68,7 @@ public struct UserQuestionItem: Sendable, Equatable {
     public let multiSelect: Bool
     public let toolName: String?
     public let toolDetail: String?
+    public let allowsSessionScope: Bool
 
     /// A tool name marks this question as a tool-use permission request.
     public var isToolPermission: Bool { toolName != nil }
@@ -66,7 +79,8 @@ public struct UserQuestionItem: Sendable, Equatable {
         options: [UserQuestionOption],
         multiSelect: Bool,
         toolName: String? = nil,
-        toolDetail: String? = nil
+        toolDetail: String? = nil,
+        allowsSessionScope: Bool = false
     ) {
         self.question = question
         self.header = header
@@ -74,6 +88,7 @@ public struct UserQuestionItem: Sendable, Equatable {
         self.multiSelect = multiSelect
         self.toolName = toolName
         self.toolDetail = toolDetail
+        self.allowsSessionScope = allowsSessionScope
     }
 }
 

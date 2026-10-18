@@ -35,12 +35,24 @@ struct UserQuestionFormState: Equatable {
         selections[question] = []
     }
 
-    var canSubmit: Bool {
-        questions.allSatisfy { question in
+    static func title(for questions: [UserQuestionItem]) -> String {
+        guard let first = questions.first else { return "質問待ち" }
+        let otherCount = questions.count - 1
+        return otherCount == 0
+            ? "質問待ち · \(first.header)"
+            : "質問待ち · \(first.header) ほか \(otherCount) 問"
+    }
+
+    var unansweredCount: Int {
+        questions.filter { question in
             let custom = freeText[question.question]?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return !custom.isEmpty || !(selections[question.question] ?? []).isEmpty
-        }
+            return custom.isEmpty && (selections[question.question] ?? []).isEmpty
+        }.count
+    }
+
+    var canSubmit: Bool {
+        unansweredCount == 0
     }
 
     var answers: [String: [String]]? {

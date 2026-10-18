@@ -38,3 +38,13 @@ macOS 側で `AskUserQuestion` 対応（質問カード表示・回答返送）�
 - `swift test --package-path ios/Packages/PhloxKit --no-parallel` で凍結受け入れ2スイート（`UserQuestionDecodingAcceptanceTests` 4件 / `UserQuestionAnswerTests`（当時 5 件））を含む396テストが green（stage1 レビュー実走確認）。
 - incremental delta（append-only）経路では既存メッセージ id の state 変化（pending→answered/expired）が取り込まれない既知の制約が残る（task-4 導入ではなく全メッセージ種に共通の既存挙動。全量フェッチ/snapshot 経路では収束する）。統合検証で incremental delta 下の state 収束が要件になった場合は別途確認する。
 - macOS 側の作業ログは [macos/docs/delivery/0008](../../../macos/docs/delivery/0008-ask-user-question-worklog.md)、iOS 側は [ios/docs/delivery/0010](../delivery/0010-ask-user-question-worklog.md) 参照。
+
+## 段階 6b 追記（2026-10-18）
+
+回答済み・期限切れの質問は、回答待ちの入力カードとは分け、会話内の折りたたみカードに残す。状態名・回答選択肢の説明・自由入力の表示データは View を通さない値型で組み立てる。期限切れの回答は送信されなかったことを示す。未回答のカードは入力欄上の次工程で扱う。
+
+## 段階 6c 追記（2026-10-18）
+
+- 未回答カードは質問ごとに選択・自由入力の下書きを持ち、全問が回答済みになるまで送信できない。選択肢の無い単一質問は入力欄を「回答を入力」にし、複数質問の一部だけを送らない。
+- `toolName` を持つツール許可は、Mac と同じく `userQuestion` 内の質問が 1 件だけの場合に限って承認カードへ移す。複数項目のメッセージは質問カード全体を保つ。`allowsSessionScope` の欠落は `false` として扱う。
+- 質問カードの表示内容・未回答数・見出しは `UserQuestionFormState` で View に依存せず組み立てる。

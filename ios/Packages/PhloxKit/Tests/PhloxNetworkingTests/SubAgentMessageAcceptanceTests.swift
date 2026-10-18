@@ -32,8 +32,8 @@ struct SubAgentMessageAcceptanceTests {
         #expect(messages == [.subAgent(id: "m1", text: "")])
     }
 
-    @Test("未知 type は引き続き除外される（前方互換）")
-    func unknownTypesAreDropped() throws {
+    @Test("turnCost は会話項目にし、未知 type だけを除外する")
+    func turnCostIsDecodedAndUnknownTypesAreDropped() throws {
         let json = #"""
         {"sessionId":"s1","messages":[
           {"id":"m1","type":"turnCost","text":"$0.12"},
@@ -42,7 +42,10 @@ struct SubAgentMessageAcceptanceTests {
         ]}
         """#
         let messages = try decodeMessages(json)
-        #expect(messages == [.agent(id: "m3", text: "hello")])
+        #expect(messages == [
+            .turnCost(id: "m1", costUSD: 0.12),
+            .agent(id: "m3", text: "hello"),
+        ])
     }
 
     @Test("既存6種のデコードは不変")

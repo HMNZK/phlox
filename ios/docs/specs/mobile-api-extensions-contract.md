@@ -460,3 +460,26 @@ iPhone の一覧を Mac のサイドバーと同じ規則で描くため（iOS �
 - 通常の質問（AskUserQuestion など）・古い保存データ・古い Mac ではキー自体を省く。iOS は欠落を「通常の質問」として扱う（古い Mac では、許可の質問も今までどおり質問のカードで出る）。
 - §8.7 の `allowsSessionScope` は今までどおり質問の直下に置く（包み直さない）。
 - 返し方は §8.7 と同じ（`"Allow"`・`"AllowForSession"`・`"Deny"`。キャンセルは `POST /sessions/{id}/interrupt`）。
+
+### 8.12 GET /sessions/{id}/messages — 発言・返答の時刻（`createdAt`。2026-10-18 追加）
+
+`type` が `"user"`・`"agent"` の要素に、**省略可**の `createdAt`（String、ISO 8601、UTC。§8.10 の `statusEnteredAt` と同じ書き方）を足す（iOS 再設計の U-24）:
+```json
+{ "id": "m1", "type": "agent", "text": "…", "createdAt": "2026-10-17T05:32:00Z" }
+```
+- 出所は Mac の `ChatItem.userMessage`・`.agentMessage` の時刻（Mac の会話の行が持つ値と同じ）。
+- iPhone は長押しのメニューの見出し（「10月17日 14:32」。端末の時間帯で表示）にだけ使う。常設の時刻は出さない（AC-8-23）。
+- 他の `type` には付けない。古い Mac ではキーが無い。iPhone は欠落なら見出しの無いメニューを出す（時刻を推測しない）。
+- `?since=` の差分取得（§6）でも同じ形。
+
+### 8.13 GET /sessions/{id}/messages — ターンコスト（既存 `turnCost` 型）
+
+Mac がターンの最後に送るコスト項目は、既存の `type: "turnCost"` を用いる。新しいエンドポイントやフィールドは追加しない。
+
+```json
+{ "id": "cost-1", "type": "turnCost", "text": "$0.42" }
+```
+
+- `text` は `$` に続く USD 金額。Mac の `ControlActionHandler` が `ChatItem.turnCost` から組み立てる。
+- iOS は金額を数値に変換し、各 `turnCost` を会話内の位置へ表示する。欠落・不正な金額は表示しない。
+- 最新ターンの行だけ §4 の使用量を併記する。最新ターンに `turnCost` が無い場合は §4 の `costUSD` を金額として使い、`contextUsedTokens` と `contextWindowTokens` がそろう場合だけコンテキスト率を表示する。入力・出力 token はこの契約で返さない。

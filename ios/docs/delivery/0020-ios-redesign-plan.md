@@ -111,24 +111,25 @@ iPhone アプリの UI を、Claude Design で作った再設計の見本（版 
 
 ### 段階 6 — セッション画面（L）
 
+- 2026-10-18 の段階 6a〜6c: 作業記録 [0026](0026-ios-redesign-stage6-worklog.md)。画面枠・表示状態・読み込み／空／取得失敗・メニュー／名前変更／削除・無応答行・発言時刻、会話の各種カードと使用量、入力欄上の共通承認カード（Codex・Claude Code）と質問カードを実装した。段階 6 の実装は完了。端スワイプと OS 標準キーボード表示中のカードは操作撮影をせず、未検証・未撮影として作業記録に記す。
+
 - 上部（ホーム・名前・「…」）、端スワイプで戻る。
 - 会話: アバター無し・全幅の返答・右の吹き出し・Mac と同じカード（コマンド・ツール実行・ファイル変更・思考）・実行中の要約・無応答（紫と「中断」）・ターンの終わりの行・エラー・長押しのメニュー。
-- 入力欄の上の承認・質問のカード。誤承認の防止（出現直後の無効時間など）は保つ。
-- 承認のカードは 1 つの部品で、2 つの経路から作る（Mac の `ChatReplyApproval.swift:144-162` と同じ組み方）:
+- 入力欄の上はエラー行 → 承認カード → 質問カード → 入力欄の順。誤承認防止の 0.6 秒待ち、ページ送り、成功後の手動「次へ」を含む。
+- 承認カードは 1 つの部品で、Codex の `GET /approvals` と Claude Code の単一項目 `userQuestion`（`toolName` 付き）の 2 経路から作る（Mac の `ChatReplyApproval.swift` と同じ組み方）:
 
   | | Codex | Claude Code |
   |---|---|---|
-  | 届く経路 | `GET /approvals` | `GET /sessions/{id}/question`（ツール使用の許可の質問。`allowsSessionScope` 付き） |
+  | 届く経路 | `GET /approvals` | 会話の `userQuestion`（ツール使用の許可。`allowsSessionScope` 付き） |
   | 許可 | `POST /approvals/{id}` accept | 質問に `"Allow"` |
   | このセッション中は許可 | acceptForSession | 質問に `"AllowForSession"`（`allowsSessionScope` が true のときだけ出す） |
   | 拒否 | decline | 質問に `"Deny"` |
   | キャンセル | cancel | ターンの中断（`POST /sessions/{id}/interrupt`。Mac の質問カードの「閉じる」と同じ） |
-  | 見出しの操作の種類 | 今は届かない（D2） | 許可の質問に載るツール名から作れるかを、この段階の最初に確かめる |
+  | 見出しの操作の種類 | `actionKind` | `toolName` から作る |
 
-- 今の iOS は Claude の許可を質問のカード（`UserQuestionCard`）で出している。この経路を承認のカードへ移す。
 - 表示できない会話の画面（`backend` が `"pty"` のセッション。U-2）。
-- `SessionDetailViewModel`（1030 行）は画面に結び付いた処理が多いので、この段階で表示用の状態と通信の処理を分ける。
-- 完了: Detail*・Chat*・Reply*（承認・質問）の盤面と一致する。
+- 承認・質問カードは見本の同名盤面に合わせる。`ReplyKeyboardAppr` は標準キーボードを含むため描画せず、カードを 1 行に畳む実装をコードと単体テストで確認する。
+- 完了: Detail*・Chat*・Reply*（承認・質問）の描画可能な盤面を追加し、見本と照合する。
 
 ### 段階 7 — アプリ外の表示（S）
 

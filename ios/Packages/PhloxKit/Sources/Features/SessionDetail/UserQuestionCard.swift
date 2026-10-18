@@ -2,7 +2,6 @@ import SwiftUI
 import DesignSystemIOS
 import PhloxCore
 
-/// AskUserQuestion の質問カード（SessionDetail 配下で完結。DesignSystemIOS への新規コンポーネント追加はしない）。
 struct UserQuestionCard: View {
     let requestId: String
     let questions: [UserQuestionItem]
@@ -35,50 +34,45 @@ struct UserQuestionCard: View {
     private var isInteractive: Bool { state == .pending && !isSubmitting }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.m) {
-            if state == .pending {
-                Text("質問待ち")
-                    .font(DSFont.footnote.weight(.semibold))
-                    .foregroundStyle(IOSColor.status.question)
-            }
-            ForEach(questions, id: \.question) { question in
-                questionBlock(question)
-            }
-            if state == .pending && !usesInputBarForFreeText {
-                DSButton(
-                    "回答する",
-                    variant: .primary,
-                    isLoading: isSubmitting,
-                    accessibilityIdentifier: "UserQuestionCard.submit"
-                ) {
-                    Task { await submit() }
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            VStack(alignment: .leading, spacing: DSSpacing.m) {
+                if state == .pending {
+                    Text(UserQuestionFormState.title(for: questions))
+                        .font(DSFont.footnote.weight(.semibold))
+                        .foregroundStyle(IOSColor.status.question)
                 }
-                .disabled(!canSubmit)
-            } else {
-                statusCaption
+                ForEach(Array(questions.enumerated()), id: \.element.question) { index, question in
+                    if index > 0 { Rectangle().fill(IOSColor.bg.separator).frame(height: 1) }
+                    questionBlock(question, number: index + 1)
+                }
+                if state == .pending && !usesInputBarForFreeText {
+                    VStack(spacing: DSSpacing.s) {
+                        DSButton(
+                            "回答を送信",
+                            variant: .primary,
+                            isLoading: isSubmitting,
+                            accessibilityIdentifier: "UserQuestionCard.submit"
+                        ) {
+                            Task { await submit() }
+                        }
+                        .disabled(!canSubmit)
+                        if form.unansweredCount > 0 {
+                            Text("あと \(form.unansweredCount) 問に答えると送信できます")
+                                .font(DSFont.caption)
+                                .foregroundStyle(DSColor.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+                } else if state != .pending {
+                    statusCaption
+                }
             }
+            .padding(DSSpacing.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassSurface(.card)
+            .opacity(state == .expired ? 0.7 : 1)
         }
-        .padding(DSSpacing.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(IOSColor.status.questionBackground, in: cardShape)
-        .overlay(cardShape.strokeBorder(borderColor, lineWidth: 1))
-        .opacity(state == .expired ? 0.7 : 1)
         .onAppear(perform: seedFromAnswers)
-    }
-
-    private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DSRadius.card, style: .continuous)
-    }
-
-    private var borderColor: Color {
-        switch state {
-        case .pending:
-            IOSColor.status.question.opacity(0.35)
-        case .answered:
-            IOSColor.status.success.opacity(0.35)
-        case .expired:
-            IOSColor.bg.separator
-        }
     }
 
     private var statusCaption: some View {
@@ -88,19 +82,25 @@ struct UserQuestionCard: View {
     }
 
     private var canSubmit: Bool {
-        guard isInteractive else { return false }
-        return form.canSubmit
+        isInteractive && form.canSubmit
     }
 
     @ViewBuilder
-    private func questionBlock(_ question: UserQuestionItem) -> some View {
+    private func questionBlock(_ question: UserQuestionItem, number: Int) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
-            Text(question.header)
-                .font(DSFont.captionStrong)
-                .foregroundStyle(DSColor.textSecondary)
-                .textCase(.uppercase)
+            HStack(spacing: DSSpacing.s) {
+                Text("\(number). \(question.header.uppercased())")
+                    .font(DSFont.captionStrong)
+                    .foregroundStyle(DSColor.textSecondary)
+                Text(question.multiSelect ? "いくつでも" : "1 つ選ぶ")
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .padding(.horizontal, DSSpacing.s)
+                    .padding(.vertical, DSSpacing.xxs)
+                    .background(DSColor.fillSubtle, in: Capsule())
+            }
             Text(question.question)
-                .font(DSFont.subheadline)
+                .font(DSFont.subheadline.weight(.semibold))
                 .foregroundStyle(DSColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -108,17 +108,20 @@ struct UserQuestionCard: View {
                 optionButton(question: question, option: option)
             }
 
-            if isInteractive && (!usesInputBarForFreeText || !question.options.isEmpty) {
-                TextField(
-                    "自由入力",
-                    text: freeTextBinding(for: question.question),
-                    axis: .vertical
+            if question.options.isEmpty {
+                Text("選択肢のない質問です。下の入力欄に書いて送信してください。")
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if isInteractive && !usesInputBarForFreeText {
+                    freeTextField(question, placeholder: "回答を入力", label: nil)
+                }
+            } else if isInteractive {
+                freeTextField(
+                    question,
+                    placeholder: "選択肢以外で答える",
+                    label: "自由入力（入力すると選択は外れます）"
                 )
-                .textFieldStyle(.roundedBorder)
-                .font(DSFont.subheadline)
-                .lineLimit(1...4)
-                .focused($focusedQuestion, equals: question.question)
-                .accessibilityIdentifier("UserQuestionCard.freeText.\(question.question)")
             } else if let custom = customAnswerText(for: question), !isKnownOption(custom, in: question) {
                 Text("入力: \(custom)")
                     .font(DSFont.caption)
@@ -131,36 +134,57 @@ struct UserQuestionCard: View {
         }
     }
 
+    private func freeTextField(
+        _ question: UserQuestionItem,
+        placeholder: String,
+        label: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            if let label {
+                Text(label)
+                    .font(DSFont.caption)
+                    .foregroundStyle(DSColor.textSecondary)
+            }
+            TextField(
+                placeholder,
+                text: freeTextBinding(for: question.question),
+                axis: .vertical
+            )
+            .textFieldStyle(.roundedBorder)
+            .font(DSFont.subheadline)
+            .lineLimit(1...4)
+            .focused($focusedQuestion, equals: question.question)
+            .accessibilityIdentifier("UserQuestionCard.freeText.\(question.question)")
+        }
+    }
+
     private func optionButton(question: UserQuestionItem, option: UserQuestionOption) -> some View {
         let selected = isSelected(question: question, label: option.label)
+        let symbol = if question.multiSelect {
+            selected ? "checkmark.square.fill" : "square"
+        } else {
+            selected ? "largecircle.fill.circle" : "circle"
+        }
         return Button {
             toggle(question: question, label: option.label)
         } label: {
             HStack(alignment: .top, spacing: DSSpacing.s) {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? IOSColor.accentOnFill : IOSColor.text.secondary)
+                Image(systemName: symbol)
+                    .foregroundStyle(selected ? IOSColor.text.primary : IOSColor.text.tertiary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(option.label)
-                        .font(DSFont.subheadline.weight(.semibold))
-                        .foregroundStyle(selected ? IOSColor.accentOnFill : IOSColor.text.primary)
+                        .font(DSFont.subheadline.weight(selected ? .semibold : .regular))
+                        .foregroundStyle(DSColor.textPrimary)
                     if let description = option.description, !description.isEmpty {
                         Text(description)
                             .font(DSFont.caption)
-                            .foregroundStyle(selected ? IOSColor.accentOnFill.opacity(0.78) : IOSColor.text.secondary)
+                            .foregroundStyle(DSColor.textSecondary)
                     }
                 }
                 Spacer(minLength: 0)
             }
-            .padding(DSSpacing.s)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                    .fill(selected ? IOSColor.accent : IOSColor.bg.raised)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                    .strokeBorder(selected ? IOSColor.accent : IOSColor.bg.separator, lineWidth: 1)
-            )
+            .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isInteractive)
@@ -202,14 +226,10 @@ struct UserQuestionCard: View {
         question.options.contains(where: { $0.label == value })
     }
 
-    private func buildAnswers() -> [String: [String]] {
-        form.answers ?? [:]
-    }
-
     private func submit() async {
-        guard canSubmit, !isSubmitting else { return }
+        guard canSubmit, !isSubmitting, let answers = form.answers else { return }
         isSubmitting = true
         defer { isSubmitting = false }
-        _ = await onSubmit(requestId, buildAnswers())
+        _ = await onSubmit(requestId, answers)
     }
 }

@@ -13,14 +13,19 @@ actor MockAPI: PhloxAPI {
     var cliUsageOutcome: Result<[CLIUsage], PhloxError> = .success([])
     let removeError: PhloxError?
     let respondError: PhloxError?
+    var respondToQuestionError: PhloxError?
 
     private(set) var spawnCount = 0
     private(set) var readyCount = 0
     private(set) var removeCount = 0
     private(set) var sendCount = 0
+    private(set) var messagesCount = 0
+    private(set) var messagesDeltaCount = 0
+    private(set) var listSessionsCount = 0
     private(set) var projectsCount = 0
     private(set) var cliUsageCount = 0
     private(set) var respondLog: [(String, ApprovalDecision)] = []
+    private(set) var respondToQuestionLog: [(sessionID: String, requestId: String, answers: [String: [String]])] = []
 
     // MARK: - API 拡張（task-9 の受け入れ用ハーネス。additive）
     /// interrupt の結果と呼び出し回数。
@@ -64,7 +69,8 @@ actor MockAPI: PhloxAPI {
         sendOutcome: Result<SendResult, PhloxError> = .success(SendResult(accepted: true)),
         messagesOutcome: Result<[ChatMessage], PhloxError> = .success([]),
         removeError: PhloxError? = nil,
-        respondError: PhloxError? = nil
+        respondError: PhloxError? = nil,
+        respondToQuestionError: PhloxError? = nil
     ) {
         self.sessions = sessions
         self.approvalsList = approvalsList
@@ -73,9 +79,13 @@ actor MockAPI: PhloxAPI {
         self.messagesOutcome = messagesOutcome
         self.removeError = removeError
         self.respondError = respondError
+        self.respondToQuestionError = respondToQuestionError
     }
 
-    func listSessions() async throws -> [Session] { sessions }
+    func listSessions() async throws -> [Session] {
+        listSessionsCount += 1
+        return sessions
+    }
     func agentSettings(kind: AgentKind) async throws -> AgentSettings? {
         try agentSettingsOutcome.get()
     }
@@ -115,7 +125,8 @@ actor MockAPI: PhloxAPI {
     }
 
     func messages(sessionID: String) async throws -> [ChatMessage] {
-        try messagesOutcome.get()
+        messagesCount += 1
+        return try messagesOutcome.get()
     }
 
     /// テストでポーリング更新を模すため、messages の結果を差し替える。
@@ -133,6 +144,11 @@ actor MockAPI: PhloxAPI {
     func respond(approvalID: String, decision: ApprovalDecision) async throws {
         respondLog.append((approvalID, decision))
         if let respondError { throw respondError }
+    }
+
+    func respondToQuestion(sessionID: String, requestId: String, answers: [String: [String]]) async throws {
+        respondToQuestionLog.append((sessionID, requestId, answers))
+        if let respondToQuestionError { throw respondToQuestionError }
     }
 
     // MARK: - API 拡張の実装（既定 501 を上書き。task-9 受け入れ用）
@@ -177,6 +193,7 @@ actor MockAPI: PhloxAPI {
     }
 
     func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -> MessagesDelta {
+        messagesDeltaCount += 1
         deltaSinceLog.append(since)
         guard !messagesDeltaScript.isEmpty else {
             throw PhloxError.server(status: 501, message: "messagesDelta: 旧サーバー（テスト既定）")

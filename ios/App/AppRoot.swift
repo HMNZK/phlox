@@ -280,6 +280,9 @@ struct AppRoot: View {
             DeleteConfirmationView(
                 viewModel: DeleteConfirmationViewModel(
                     sessionID: id,
+                    sessionName: listVM?.session(id: id)?.name
+                        ?? (createdSession?.id == id ? createdSession?.name : nil)
+                        ?? "セッション",
                     cascadeCount: count,
                     api: environment.apiClient,
                     onDeleted: { router.dismiss(); router.popToRoot() }
@@ -300,7 +303,14 @@ struct AppRoot: View {
                     session: session,
                     api: environment.apiClient,
                     recovery: createdSession?.id == id ? createdSessionRecovery : nil,
-                    onDelete: { router.present(.deleteConfirmation(id: session.id, cascadeCount: 0)) }
+                    isNewSession: createdSession?.id == id,
+                    onDelete: {
+                        let count = DeleteConfirmationViewModel.descendantCount(
+                            sessionID: session.id,
+                            sessions: listVM?.lastKnownSessions ?? []
+                        )
+                        router.present(.deleteConfirmation(id: session.id, cascadeCount: count))
+                    }
                 )
                 .toolbar(.hidden, for: .tabBar)
             } else {

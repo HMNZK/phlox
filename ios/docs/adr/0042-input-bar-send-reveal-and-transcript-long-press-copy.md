@@ -35,3 +35,8 @@ last-verified: 2026-07-31
 - wave-6 の `.none`（空文字時は送信ボタンを出さない）を wave-7 で廃止した経緯があるが、今回それは**実行中だけの条件**として `showsSend` に戻った。非実行中の常設は廃止していないので、wave-6 への差し戻しではない。
 - 契約テスト（`DSInputBarActionStateTests`）は 3 値へ更新し、実行中・空入力／実行中・入力あり／送信中を固定した。実挙動は `PhloxMobileUITests/SessionInputBarRunningUITests` が実描画で裏取りする（空入力では送信ボタンが存在せず、入力すると出現し停止も残ること）。
 - `DSChatBubble.providesAlwaysVisibleCopyButton = false` が転写全体で成り立つようになり、コピーの作法が 1 つに揃った。
+
+## 段階 6 追記（2026-10-18）
+
+- 見出しの時刻は Mac の `user`・`agent` メッセージにある `createdAt` を使う（契約 §8.12、U-24）。iOS は `Date` を `ChatMessage` に保持し、端末の時間帯で「10月17日 14:32」と整形して OS のメニュー見出しへ渡す。
+- 古い Mac から時刻が届かない場合は見出しを出さず、取得時刻などで補わない。会話行に時刻は常設せず、メニュー項目は引き続き「コピー」「選択して部分コピー」の 2 つ。

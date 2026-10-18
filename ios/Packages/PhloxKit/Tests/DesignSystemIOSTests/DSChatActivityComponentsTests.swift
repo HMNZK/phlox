@@ -18,11 +18,6 @@ struct ChatActivityComponentsWhiteboxTests {
         _ = DSThinkingIndicator(state: .searching, reasoningPreview: "方針検討").body
     }
 
-    @Test("DSSubAgentRow は平文 wire をそのまま body に載せられる")
-    func subAgentRowBuildsBody() {
-        _ = DSSubAgentRow(text: "Sub-agent explore-map running: 調査").body
-    }
-
     @Test("DSReasoningText は本文テキストで body を構築できる")
     func reasoningTextBuildsBody() {
         _ = DSReasoningText(text: "パリティ改善の意図を整理").body

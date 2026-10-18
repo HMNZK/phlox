@@ -24,14 +24,30 @@ struct ChatRecapIOSWhiteboxTests {
 
     // MARK: - gate
 
-    @Test("status が starting / awaitingApproval / completed / error / idle でも nil")
+    @Test("starting / completed / error / idle では nil")
     func gateNonRunningStatuses() {
         let msgs = [user(), reasoning("## X")]
         #expect(ChatRecapIOS.derive(messages: msgs, status: .starting, elapsed: 10, threshold: threshold) == nil)
-        #expect(ChatRecapIOS.derive(messages: msgs, status: .awaitingApproval(prompt: "p"), elapsed: 10, threshold: threshold) == nil)
         #expect(ChatRecapIOS.derive(messages: msgs, status: .completed(exitCode: 0), elapsed: 10, threshold: threshold) == nil)
         #expect(ChatRecapIOS.derive(messages: msgs, status: .error(message: "e"), elapsed: 10, threshold: threshold) == nil)
         #expect(ChatRecapIOS.derive(messages: msgs, status: .idle, elapsed: 10, threshold: threshold) == nil)
+    }
+
+    @Test("承認・質問待ちでも Mac と同じ recap を使う")
+    func waitingStatusesUseActivitySummary() {
+        let msgs = [user(), reasoning("## 設計"), command("swift build")]
+        #expect(ChatRecapIOS.derive(
+            messages: msgs,
+            status: .awaitingApproval(prompt: "続行?"),
+            elapsed: 10,
+            threshold: threshold
+        ) == "swift build を実行中")
+        #expect(ChatRecapIOS.derive(
+            messages: msgs,
+            status: .awaitingUserQuestion,
+            elapsed: 10,
+            threshold: threshold
+        ) == "swift build を実行中")
     }
 
     @Test("閾値ちょうどは通す（elapsed < threshold のみ gate）")
@@ -142,6 +158,36 @@ struct ChatRecapIOSWhiteboxTests {
         )
     }
 
+    @Test("Mac と同じく最後の fileChange の basename を要約する")
+    func latestChangedPathUsesBasename() {
+        let msgs: [ChatMessage] = [
+            user(),
+            .fileChange(id: "f", changes: [
+                ChatFileChange(path: "Sources/Old.swift", diff: ""),
+                ChatFileChange(path: "Packages/Current.swift", diff: ""),
+            ]),
+        ]
+        #expect(
+            ChatRecapIOS.derive(messages: msgs, status: .running, elapsed: 10, threshold: threshold)
+                == "Current.swift を編集中"
+        )
+    }
+
+    @Test("後から続く reasoning があっても直近の活動を優先する")
+    func activityAfterReasoningWins() {
+        let msgs = [user(), command("swift build"), reasoning("## 後続の考え")]
+        #expect(
+            ChatRecapIOS.derive(messages: msgs, status: .running, elapsed: 10, threshold: threshold)
+                == "swift build を実行中"
+        )
+    }
+
+    @Test("経過時間は60秒未満を秒、以降をゼロ埋めの分秒で表す")
+    func elapsedLabelMatchesMac() {
+        #expect(ChatRecapIOS.elapsedLabel(38) == "38 秒")
+        #expect(ChatRecapIOS.elapsedLabel(192) == "3:12")
+    }
+
     @Test("カスタム threshold を渡せる")
     func customThreshold() {
         #expect(
@@ -203,6 +249,28 @@ struct SessionDetailThinkingStartedAtWhiteboxTests {
         #expect(vm.thinkingStartedAt == nil)
     }
 
+    @Test("awaitingApproval / awaitingUserQuestion でも statusEnteredAt から recap を計る")
+    func waitingStatusesTrackTheirEnteredAt() async {
+        let enteredAt = Date(timeIntervalSince1970: 1_900_000_000)
+        let messages: [ChatMessage] = [
+            .user(id: "u", text: "実行して"),
+            .command(id: "c", command: "swift build", output: ""),
+        ]
+        for status in [SessionStatus.awaitingApproval(prompt: "続行?"), .awaitingUserQuestion] {
+            let waitingSession = Session(
+                id: "s1", name: "Rose", agent: .claudeCode,
+                status: status, subtitle: "", statusEnteredAt: enteredAt,
+                updatedAt: enteredAt
+            )
+            let api = MockAPI(messagesOutcome: .success(messages))
+            let vm = SessionDetailViewModel(session: waitingSession, api: api)
+            await vm.load()
+
+            #expect(vm.thinkingStartedAt == enteredAt)
+            #expect(vm.recap(now: enteredAt.addingTimeInterval(10)) == "swift build を実行中 · 10 秒")
+        }
+    }
+
     @Test("idle → running で thinkingStartedAt が記録される")
     func enteringRunningRecords() async {
         let mock = MockAPI()
@@ -214,6 +282,33 @@ struct SessionDetailThinkingStartedAtWhiteboxTests {
         await vm.refresh()
         #expect(vm.currentStatus == .running)
         #expect(vm.thinkingStartedAt != nil)
+    }
+
+    @Test("実行中から承認待ちへ移ると statusEnteredAt を使い、同じ状態の更新では保つ")
+    func enteringWaitingUsesStatusEnteredAtWithoutThrashing() async {
+        let enteredAt = Date(timeIntervalSince1970: 1_900_000_000)
+        let running = Session(
+            id: "s1", name: "Rose", agent: .claudeCode,
+            status: .running, subtitle: "", statusEnteredAt: enteredAt.addingTimeInterval(-20),
+            updatedAt: enteredAt
+        )
+        let waiting = Session(
+            id: "s1", name: "Rose", agent: .claudeCode,
+            status: .awaitingApproval(prompt: "approve"), subtitle: "", statusEnteredAt: enteredAt,
+            updatedAt: enteredAt
+        )
+        let mock = MockAPI()
+        await mock.setSessions([running])
+        let vm = SessionDetailViewModel(session: running, api: mock)
+        #expect(vm.thinkingStartedAt == running.statusEnteredAt)
+
+        await mock.setSessions([waiting])
+        await vm.refresh()
+        #expect(vm.currentStatus == SessionStatus.awaitingApproval(prompt: "approve"))
+        #expect(vm.thinkingStartedAt == enteredAt)
+
+        await vm.refresh()
+        #expect(vm.thinkingStartedAt == enteredAt)
     }
 
     @Test("running のままポーリングしても thinkingStartedAt は変わらない")
@@ -245,6 +340,6 @@ struct SessionDetailThinkingStartedAtWhiteboxTests {
 
         let started = try #require(vm.thinkingStartedAt)
         #expect(vm.recap(now: started.addingTimeInterval(2)) == nil)
-        #expect(vm.recap(now: started.addingTimeInterval(10)) == "swift build を実行中")
+        #expect(vm.recap(now: started.addingTimeInterval(10)) == "swift build を実行中 · 10 秒")
     }
 }

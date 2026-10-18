@@ -46,7 +46,7 @@ public final class SessionDetailViewModel {
     public private(set) var currentStatus: SessionStatus {
         didSet { syncThinkingStartedAt(from: oldValue) }
     }
-    /// task-4: `currentStatus` が `.running` になった時刻。running を外れたら nil。
+    /// 実行中または承認・質問待ちに入った時刻。活動状態を外れたら nil。
     public private(set) var thinkingStartedAt: Date?
     /// 入力欄の本文。**本文編集を添付へ同期するのは View 側の `.onChange` から
     /// `syncAttachmentsWithTextEdit(oldText:newText:)` を呼ぶ**（macOS と同じ形）。
@@ -65,17 +65,28 @@ public final class SessionDetailViewModel {
     public private(set) var chatMessages: [ChatMessage] = [] {
         didSet { reconcileAttachments() }
     }
-    public private(set) var attachmentCountsByMessageID: [String: Int] = [:]
+    public private(set) var attachmentPreviewsByMessageID: [String: [Data]]
     private var pendingAttachmentSends: [SessionAttachmentReconciler.Pending] = []
     /// reasoning / command / fileChange 行の展開状態（message.id キー。ポーリング差し替え後も保持）。
     public private(set) var expandedMessageIDs: Set<String> = []
     public private(set) var sendState: SendState = .idle
     public private(set) var isRecoveringInitialSend = false
     public private(set) var loadError: String?
+    public private(set) var approvals: [Approval] = []
+    private(set) var approvalLoadError: String?
+    private(set) var replyApprovalIndex = 0
+    private(set) var replyApprovalError: String?
+    private(set) var replyApprovalResult: ReplyApprovalResult?
+    private(set) var replyApprovalDiffInitiallyExpanded = false
+    private(set) var isReplyApprovalResponding = false
+    private(set) var questionAnswerFailureRequestID: String?
+    private var respondedReplyApprovalIDs: Set<String> = []
+    private let fallbackReplyDate: Date
     /// task-9: 実行中ターンの停止が可能か（interrupt 非対応=409 を観測したら false にして停止 UI を隠す）。
     public private(set) var canInterrupt: Bool = true
     /// task-9: 直近ターンのコスト・コンテキスト使用量（ターン完了時に取得。未取得は nil）。
     public private(set) var turnUsage: TurnUsage?
+    private var didFetchTurnUsage = false
 
     /// messagesDelta の since 引き渡し用 cursor（差分ポーリング）。
     private var messagesCursor: String?
@@ -99,6 +110,7 @@ public final class SessionDetailViewModel {
     public private(set) var settingsChangeError: String?
     public private(set) var modelSelectionInFlightID: String?
     public private(set) var modelSelectionError: String?
+    public private(set) var renameError: String?
     private enum MenuPresentation {
         case modelPicker
         case rename
@@ -133,12 +145,18 @@ public final class SessionDetailViewModel {
     }
     /// branch 情報は Session に無いため、取得済みのプロジェクト名だけを代替表示する。
     public var inputContextDisplayName: String? { session.projectName }
-    public var showsStopButton: Bool {
-        currentStatus == .running && canInterrupt
+    public var presentationState: SessionDetailPresentationState {
+        SessionDetailPresentationState(
+            session: session,
+            status: statusForPresentation,
+            canInterrupt: canInterrupt,
+            hasMessages: showsChat,
+            isInitialLoading: isInitialLoading,
+            loadError: loadError,
+            isRecoveringInitialSend: isRecoveringInitialSend
+        )
     }
-    public var showsInitialLoadingIndicator: Bool {
-        isInitialLoading && chatMessages.isEmpty
-    }
+    public var showsStopButton: Bool { presentationState.showsStopButton }
     /// 表示名の単一の源（初期値は session.name）。
     public private(set) var displayName: String
     public var renameDraft: String = ""
@@ -170,11 +188,22 @@ public final class SessionDetailViewModel {
         }
     }
 
-    public init(session: Session, api: PhloxAPI, recovery: SessionDetailRecovery? = nil) {
+    public init(
+        session: Session,
+        api: PhloxAPI,
+        recovery: SessionDetailRecovery? = nil,
+        isNewSession: Bool = false,
+        initialAttachmentPreviews: [String: [Data]] = [:],
+        initialExpandedMessageIDs: Set<String> = []
+    ) {
         self.session = session
         self.api = api
         self.currentStatus = session.status
+        self.fallbackReplyDate = Date()
         self.displayName = session.name
+        self.attachmentPreviewsByMessageID = initialAttachmentPreviews
+        self.expandedMessageIDs = initialExpandedMessageIDs
+        self.isInitialLoading = !isNewSession
         if let recovery {
             inputText = recovery.text
             inputCursorUTF16 = recovery.text.utf16.count
@@ -182,9 +211,9 @@ public final class SessionDetailViewModel {
             sendState = .failed(recovery.errorMessage)
             isRecoveringInitialSend = true
         }
-        // didSet は init では発火しないため、初期 running をここで記録する。
-        if session.status == .running {
-            thinkingStartedAt = Date()
+        // didSet は init では発火しないため、初期の実行中・応答待ち状態をここで記録する。
+        if Self.isActivityRecapStatus(session.status) {
+            thinkingStartedAt = session.statusEnteredAt ?? Date()
         }
     }
 
@@ -196,6 +225,7 @@ public final class SessionDetailViewModel {
 
     /// セッション名変更シートを開く。`renameDraft` を現在の `displayName` で初期化する。
     public func beginRename() {
+        renameError = nil
         renameDraft = displayName
         menuPresentation = .rename
     }
@@ -214,7 +244,8 @@ public final class SessionDetailViewModel {
             displayName = trimmed
             isRenamePresented = false
         } catch {
-            // 失敗時は displayName を変えない。
+            renameError = (error as? PhloxError)?.presentation.message ?? "通信中に問題が発生しました。"
+            isRenamePresented = false
         }
     }
 
@@ -390,6 +421,7 @@ public final class SessionDetailViewModel {
             return false
         }
 
+        questionAnswerFailureRequestID = nil
         do {
             try await api.respondToQuestion(
                 sessionID: session.id,
@@ -397,6 +429,7 @@ public final class SessionDetailViewModel {
                 answers: answers
             )
         } catch {
+            questionAnswerFailureRequestID = requestId
             return false
         }
 
@@ -410,8 +443,8 @@ public final class SessionDetailViewModel {
         return true
     }
 
-    public func attachmentImageCount(forMessageID id: String) -> Int? {
-        attachmentCountsByMessageID[id]
+    public func attachmentPreviews(forMessageID id: String) -> [Data] {
+        attachmentPreviewsByMessageID[id] ?? []
     }
 
     /// 生成中インジケータの表示条件: チャット表示中 かつ currentStatus == .running。
@@ -431,12 +464,12 @@ public final class SessionDetailViewModel {
         chatMessages.filter(Self.isVisible)
     }
 
-    /// reasoning / command / fileChange のみ折りたたみトグル対象。
+    /// reasoning / command / fileChange / 回答済み質問の折りたたみトグル対象。
     public static func supportsMessageExpansionToggle(_ message: ChatMessage) -> Bool {
         switch message {
-        case .reasoning, .command, .fileChange:
+        case .reasoning, .command, .fileChange, .userQuestion:
             return true
-        case .user, .agent, .error, .subAgent, .userQuestion:
+        case .user, .agent, .error, .subAgent, .turnCost:
             return false
         }
     }
@@ -484,30 +517,20 @@ public final class SessionDetailViewModel {
         return text
     }
 
-    /// 実行中ターンの recap 要約（task-4）。呼び出しは読み取り専用。
+    /// 実行中・応答待ちの recap 要約。呼び出しは読み取り専用。
     /// `elapsed = now - (thinkingStartedAt ?? now)` を `ChatRecapIOS.derive` に渡す。
     public func recap(now: Date) -> String? {
         let elapsed = now.timeIntervalSince(thinkingStartedAt ?? now)
-        return ChatRecapIOS.derive(
+        guard let summary = ChatRecapIOS.derive(
             messages: chatMessages,
             status: currentStatus,
             elapsed: elapsed
-        )
-    }
-
-    /// 入力バー有効: starting 以外。初回 spawn 待ち中は既存どおり有効にする。
-    public var inputEnabled: Bool {
-        if isRecoveringInitialSend { return true }
-        switch currentStatus {
-        case .awaitingApproval, .awaitingUserQuestion, .idle, .running, .completed, .error:
-            return true
-        case .starting:
-            return false
-        }
+        ) else { return nil }
+        return "\(summary) · \(ChatRecapIOS.elapsedLabel(elapsed))"
     }
 
     public var isSending: Bool { sendState == .sending }
-    public var isInputBarEnabled: Bool { inputEnabled && !isSending }
+    public var isInputBarEnabled: Bool { presentationState.showsInputBar && !isSending }
 
     /// task-6: 選択可能モデルが1件以上あるときだけチップを出す。
     public var showsModelSelectorChip: Bool {
@@ -540,10 +563,179 @@ public final class SessionDetailViewModel {
     /// 詳細表示時のロード入口。構造化チャットを取得する。
     public func load() async {
         defer { isInitialLoading = false }
+        guard !session.isPTY else { return }
         await loadModelSettings()
-        if await adoptNonEmptyMessages(updateOnlyIfChanged: false) { return }
-        chatMessages = []
+        if !(await adoptNonEmptyMessages(updateOnlyIfChanged: false)) {
+            chatMessages = []
+        }
+        if currentStatus != .running {
+            await fetchTurnUsageIfAvailable()
+        }
     }
+
+    /// Codex の承認は一覧 API から取得する。Claude のツール許可は会話の質問から組み立てる。
+    func loadApprovals() async {
+        guard !session.isPTY, session.agent == .codex else {
+            approvals = []
+            approvalLoadError = nil
+            return
+        }
+        do {
+            approvals = try await api.approvals().filter {
+                $0.sessionID == session.id && $0.kind == .codex
+            }
+            approvalLoadError = nil
+        } catch let error as PhloxError {
+            approvals = []
+            approvalLoadError = error.presentation.message
+        } catch {
+            approvals = []
+            approvalLoadError = "承認情報の取得に失敗しました"
+        }
+    }
+
+    var replyApprovals: [ReplyApproval] {
+        guard !session.isPTY, session.agent != .cursor else { return [] }
+        let requestedAt = session.statusEnteredAt ?? fallbackReplyDate
+        var result: [ReplyApproval] = []
+        if session.agent == .codex {
+            result += approvals.map {
+                ReplyApproval.codex(approval: $0, statusEnteredAt: requestedAt, chatMessages: visibleMessages)
+            }
+        } else if session.agent == .claudeCode {
+            result += visibleMessages.flatMap { message -> [ReplyApproval] in
+                guard case let .userQuestion(_, requestID, questions, _, .pending) = message else { return [] }
+                guard ReplyApproval.isClaudeToolPermissionQuestion(questions), let question = questions.first else { return [] }
+                return [ReplyApproval.claudeToolPermission(
+                    requestID: requestID,
+                    question: question,
+                    statusEnteredAt: requestedAt
+                )]
+            }
+        }
+        return result.filter { !respondedReplyApprovalIDs.contains($0.id) }
+    }
+
+    var currentReplyApproval: ReplyApproval? {
+        let pending = replyApprovals
+        guard !pending.isEmpty else { return nil }
+        return pending[min(max(replyApprovalIndex, 0), pending.count - 1)]
+    }
+
+    var currentReplyApprovalPage: Int {
+        guard !replyApprovals.isEmpty else { return 0 }
+        return min(max(replyApprovalIndex, 0), replyApprovals.count - 1) + 1
+    }
+
+    private var statusForPresentation: SessionStatus {
+        guard session.agent == .claudeCode, currentStatus == .awaitingUserQuestion else { return currentStatus }
+        for message in visibleMessages.reversed() {
+            guard case let .userQuestion(_, _, questions, _, .pending) = message else { continue }
+            guard ReplyApproval.isClaudeToolPermissionQuestion(questions), let permission = questions.first else { return currentStatus }
+            return .awaitingApproval(prompt: permission.question)
+        }
+        return currentStatus
+    }
+
+    func moveReplyApproval(to index: Int) {
+        let count = replyApprovals.count
+        guard count > 0 else { return }
+        replyApprovalIndex = min(max(index, 0), count - 1)
+        replyApprovalError = nil
+        replyApprovalResult = nil
+    }
+
+    func showNextReplyApproval() {
+        guard replyApprovalResult != nil, !replyApprovals.isEmpty else { return }
+        replyApprovalResult = nil
+        replyApprovalError = nil
+        replyApprovalIndex = min(max(replyApprovalIndex, 0), replyApprovals.count - 1)
+    }
+
+    func respond(to approval: ReplyApproval, decision: ApprovalDecision) async {
+        guard !isReplyApprovalResponding,
+              currentReplyApproval?.id == approval.id,
+              approval.buttonDecisions.contains(decision)
+        else { return }
+
+        replyApprovalError = nil
+        replyApprovalResult = nil
+        isReplyApprovalResponding = true
+        defer { isReplyApprovalResponding = false }
+
+        do {
+            switch approval.source {
+            case .codex(let approvalID):
+                try await api.respond(approvalID: approvalID, decision: decision)
+            case .claudeToolPermission(let requestID, let answerKey):
+                switch decision {
+                case .accept:
+                    guard await answerQuestion(requestId: requestID, answers: [answerKey: ["Allow"]]) else {
+                        throw ReplyApprovalSubmissionError.rejected
+                    }
+                case .acceptForSession:
+                    guard approval.allowsSessionScope,
+                          await answerQuestion(requestId: requestID, answers: [answerKey: ["AllowForSession"]])
+                    else { throw ReplyApprovalSubmissionError.rejected }
+                case .decline:
+                    guard await answerQuestion(requestId: requestID, answers: [answerKey: ["Deny"]]) else {
+                        throw ReplyApprovalSubmissionError.rejected
+                    }
+                case .cancel:
+                    try await api.interrupt(sessionID: session.id)
+                }
+            }
+            let oldIndex = replyApprovalIndex
+            respondedReplyApprovalIDs.insert(approval.id)
+            let remainingCount = replyApprovals.count
+            replyApprovalIndex = min(max(oldIndex, 0), max(remainingCount - 1, 0))
+            replyApprovalResult = ReplyApprovalResult(
+                actionLabel: Self.replyApprovalActionLabel(decision),
+                remainingCount: remainingCount
+            )
+        } catch {
+            replyApprovalError = "承認を送信できませんでした（Mac に接続できません）"
+        }
+    }
+
+    static func replyApprovalActionLabel(_ decision: ApprovalDecision) -> String {
+        switch decision {
+        case .accept: "許可"
+        case .acceptForSession: "このセッション中は許可"
+        case .decline: "拒否"
+        case .cancel: "キャンセル"
+        }
+    }
+
+    private enum ReplyApprovalSubmissionError: Error {
+        case rejected
+    }
+
+    #if DEBUG
+    public enum ReplySnapshotState: Sendable {
+        case approvalFailure
+        case approvalResult(actionLabel: String, remainingCount: Int)
+        case questionFailure(requestID: String)
+        case expandedApprovalDiff
+    }
+
+    public func configureReplySnapshot(_ state: ReplySnapshotState) {
+        switch state {
+        case .approvalFailure:
+            replyApprovalError = "承認を送信できませんでした（Mac に接続できません）"
+        case .approvalResult(let actionLabel, let remainingCount):
+            if let currentReplyApproval {
+                respondedReplyApprovalIDs.insert(currentReplyApproval.id)
+                replyApprovalIndex = min(replyApprovalIndex, max(replyApprovals.count - 1, 0))
+            }
+            replyApprovalResult = ReplyApprovalResult(actionLabel: actionLabel, remainingCount: remainingCount)
+        case .questionFailure(let requestID):
+            questionAnswerFailureRequestID = requestID
+        case .expandedApprovalDiff:
+            replyApprovalDiffInitiallyExpanded = true
+        }
+    }
+    #endif
 
     /// ポーリング間隔（リアルタイム更新の代替。P3 のストリーミングまでの暫定）。
     public static let pollInterval: Duration = .seconds(3)
@@ -551,6 +743,10 @@ public final class SessionDetailViewModel {
     /// 詳細表示中のポーリング入口。初回 `load()` でモードを決め、画面離脱（`.task` キャンセル）まで
     /// 一定間隔で非破壊 `refresh()` を回す。これでエージェントの遅延応答が自動で反映される。
     public func startPolling(interval: Duration = pollInterval) async {
+        guard !session.isPTY else {
+            isInitialLoading = false
+            return
+        }
         await load()
         while !Task.isCancelled {
             do { try await Task.sleep(for: interval) } catch { break }
@@ -562,6 +758,7 @@ public final class SessionDetailViewModel {
     /// - 構造化メッセージが取れれば（非空）チャットを更新。
     /// - チャット表示中の失敗/空は現状維持。
     public func refresh() async {
+        guard !session.isPTY else { return }
         await refreshCurrentStatus()
         await loadModelSettings()
         if await adoptMessagesFromDelta(updateOnlyIfChanged: true) { return }
@@ -570,6 +767,12 @@ public final class SessionDetailViewModel {
 
     /// モデル・設定の一覧を取得する。古い Mac や一時的な取得失敗では現在値を保つ。
     public func loadModelSettings() async {
+        guard !session.isPTY else {
+            modelSettings = nil
+            modelPickerEntries = []
+            selectedModelPickerEntryID = nil
+            return
+        }
         guard let modelAPI = api as? any SessionModelSelecting else {
             modelSettings = nil
             modelPickerEntries = []
@@ -769,6 +972,7 @@ public final class SessionDetailViewModel {
 
     /// E4-8 送信。受付後に同じ入力だけクリアする。失敗時は入力を書き換えない。
     public func sendMessage() async {
+        guard !session.isPTY else { return }
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, sendState != .sending else { return }
 
@@ -802,14 +1006,14 @@ public final class SessionDetailViewModel {
                 attachmentItems = []
             }
             if !backupItems.isEmpty {
-                pendingAttachmentSends.append(.init(text: text, count: backupItems.count))
+                pendingAttachmentSends.append(.init(text: text, previews: backupItems.map(\.previewData)))
             }
             sendState = .idle
             attachmentError = nil
             isRecoveringInitialSend = false
             await refresh() // 送信後に即時更新（以降はポーリングが追従）
         } catch let error as PhloxError {
-            sendState = .failed(error.presentation.message)
+            sendState = .failed("送信に失敗しました · \(error.presentation.title)")
         } catch {
             sendState = .failed("送信に失敗しました")
         }
@@ -825,11 +1029,11 @@ public final class SessionDetailViewModel {
             if case .notFound = error {
                 loadError = nil
             } else if !showsChat {
-                loadError = error.presentation.message
+                loadError = Self.messageFetchFailure(for: error)
             }
             return false
         } catch {
-            if !showsChat { loadError = "会話の取得に失敗しました" }
+            if !showsChat { loadError = "メッセージの取得に失敗しました" }
             return false
         }
         guard !messages.isEmpty else { return false }
@@ -857,10 +1061,10 @@ public final class SessionDetailViewModel {
         } catch let error as PhloxError where shouldFallbackToFullMessages(error) {
             return await adoptNonEmptyMessages(updateOnlyIfChanged: updateOnlyIfChanged)
         } catch let error as PhloxError {
-            if !showsChat { loadError = error.presentation.message }
+            if !showsChat { loadError = Self.messageFetchFailure(for: error) }
             return false
         } catch {
-            if !showsChat { loadError = "会話の取得に失敗しました" }
+            if !showsChat { loadError = "メッセージの取得に失敗しました" }
             return false
         }
     }
@@ -912,41 +1116,59 @@ public final class SessionDetailViewModel {
         let previousStatus = currentStatus
         guard let sessions = try? await api.listSessions(),
               let live = sessions.first(where: { $0.id == session.id }) else { return }
+        session = live
         currentStatus = live.status
         if previousStatus == .running, currentStatus != .running {
             await fetchTurnUsageIfAvailable()
         }
     }
 
-    /// running へ入った時刻だけ記録し、同一 running の再代入では動かさない（ポーリング暴れ防止）。
+    /// 実行中・応答待ちへ入った時刻だけ記録し、同一状態の再代入では動かさない。
     private func syncThinkingStartedAt(from oldValue: SessionStatus) {
-        if currentStatus == .running {
-            if oldValue != .running {
-                thinkingStartedAt = Date()
+        if Self.isActivityRecapStatus(currentStatus) {
+            if oldValue != currentStatus {
+                thinkingStartedAt = session.statusEnteredAt ?? Date()
             }
         } else {
             thinkingStartedAt = nil
         }
     }
 
+    private static func isActivityRecapStatus(_ status: SessionStatus) -> Bool {
+        status == .running || AgentActivityClassifier.waitingState(for: status) != nil
+    }
+
+    private static func messageFetchFailure(for error: PhloxError) -> String {
+        if case .server(let status, _) = error {
+            return "メッセージの取得に失敗しました · HTTP \(status)"
+        }
+        return "メッセージの取得に失敗しました · \(error.presentation.message)"
+    }
+
     private func fetchTurnUsageIfAvailable() async {
-        guard let usage = try? await api.usage(sessionID: session.id) else { return }
-        turnUsage = usage
+        guard !didFetchTurnUsage else { return }
+        didFetchTurnUsage = true
+        do {
+            turnUsage = try await api.usage(sessionID: session.id)
+        } catch {
+            // 使用量は任意の表示値。取得できない時は行を出さない。
+            turnUsage = nil
+        }
     }
 
     private func reconcileAttachments() {
         let result = SessionAttachmentReconciler.reconcile(
             messages: chatMessages,
             pending: pendingAttachmentSends,
-            assigned: attachmentCountsByMessageID
+            assigned: attachmentPreviewsByMessageID
         )
-        attachmentCountsByMessageID = result.assigned
+        attachmentPreviewsByMessageID = result.assigned
         pendingAttachmentSends = result.remaining
     }
 
     static func isVisible(_ message: ChatMessage) -> Bool {
         switch message {
-        case let .user(_, text), let .agent(_, text), let .reasoning(_, text), let .subAgent(_, text):
+        case let .user(_, text, _), let .agent(_, text, _), let .reasoning(_, text), let .subAgent(_, text):
             return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case let .error(_, message):
             return !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -958,6 +1180,8 @@ public final class SessionDetailViewModel {
             return !changes.isEmpty
         case let .userQuestion(_, _, questions, _, _):
             return !questions.isEmpty
+        case .turnCost:
+            return true
         }
     }
 

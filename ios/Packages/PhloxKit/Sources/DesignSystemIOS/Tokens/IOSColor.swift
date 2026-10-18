@@ -1,5 +1,6 @@
 import SwiftUI
 import DesignSystem
+import PhloxCore
 
 /// iOS 再設計用の色。共有 `DSColor` とは分け、ライト／ダークをアクティブテーマから解決する。
 public enum IOSColor {
@@ -22,25 +23,25 @@ public enum IOSColor {
     }
 
     public struct StatusColors {
-        public var approval: Color { IOSColor.themed(0xA8430A, 0xFFB46E) }
+        public var approval: Color { IOSColor.statusColor(.approval) }
         public var approvalBackground: Color {
             IOSColor.isLight ? IOSColor.color(0xFFEBD6) : IOSColor.color(0xFF9F0A, opacity: 0.20)
         }
-        public var question: Color { IOSColor.themed(0x1555C0, 0x8DB9FF) }
+        public var question: Color { IOSColor.statusColor(.question) }
         public var questionBackground: Color {
             IOSColor.isLight ? IOSColor.color(0xE3EEFF) : IOSColor.color(0x0A84FF, opacity: 0.22)
         }
-        public var error: Color { IOSColor.themed(0xB8241C, 0xFF8C82) }
+        public var error: Color { IOSColor.statusColor(.error) }
         public var errorBackground: Color {
             IOSColor.isLight ? IOSColor.color(0xFDE7E5) : IOSColor.color(0xFF453A, opacity: 0.18)
         }
-        public var stalled: Color { IOSColor.themed(0x5B3FA8, 0xC9B6FF) }
+        public var stalled: Color { IOSColor.statusColor(.stalled) }
         public var stalledBackground: Color {
             IOSColor.isLight ? IOSColor.color(0xF1ECFB) : IOSColor.color(0x9678E6, opacity: 0.20)
         }
         public var caution: Color { IOSColor.themed(0x8A5300, 0xF4BD68) }
-        public var success: Color { IOSColor.themed(0x1F7A3A, 0x6FD08C) }
-        public var neutral: Color { IOSColor.themed(0x3A3A42, 0xD4D4DA) }
+        public var success: Color { IOSColor.statusColor(.done) }
+        public var neutral: Color { IOSColor.statusColor(.running) }
     }
 
     public struct BackgroundColors {
@@ -71,6 +72,10 @@ public enum IOSColor {
 
     private static func themed(_ light: UInt32, _ dark: UInt32) -> Color {
         color(isLight ? light : dark)
+    }
+
+    private static func statusColor(_ state: SessionGlanceState) -> Color {
+        color(state.foregroundHex(dark: !isLight))
     }
 
     private static func color(_ hex: UInt32, opacity: Double = 1) -> Color {

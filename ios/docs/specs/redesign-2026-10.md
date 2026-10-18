@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-17
+last-verified: 2026-10-18
 ---
 
 # iOS アプリ再設計（2026-10）— 画面ごとの要件と受け入れ基準
@@ -45,7 +45,7 @@ last-verified: 2026-10-17
 | `status.stalled` | #5B3FA8（地 #F1ECFB） | #C9B6FF | 無応答（Mac と同じ紫） |
 | `status.caution` | #8A5300 | #F4BD68 | 使用量の残り 20% 未満だけ |
 | `status.success` | #1F7A3A | #6FD08C | 完了（アプリ外の表示と差分の追加） |
-| `status.neutral` | #3A3A42 | #D4D4DA | 実行中・待機・起動中・終了（アプリ外の表示） |
+| `status.neutral` | #3A3A42 | #D4D4DA | 実行中・起動中（アプリ外の表示。待機・状態不明は `text.secondary`） |
 
 面（`bg.base`・`bg.card`・`bg.raised`・`bg.code`・`fill`・`separator`・`glass`・`bar`・`sheet`・`menu`・`dim`）は `DS` 1 章の表の値。
 
@@ -341,10 +341,13 @@ last-verified: 2026-10-17
 
 ## 12. アプリ外の表示（`Glance*`・`GlanceSpec`）
 
-- AC-12-1: ウィジェット・Live Activity・Dynamic Island・通知は記号と文言で状態を示す（ロック画面は OS が単色にするため）。記号は SF Symbols: 起動中 `circle.dashed`・実行中（円弧）・待機 `pause.circle`・承認待ち `exclamationmark.shield`・質問あり `questionmark.bubble`・完了 `checkmark.circle`・エラー `exclamationmark.triangle`・無応答 `hourglass`・終了 `stop.circle`・状態不明 `questionmark.circle`（`DS` 4 章・`GlanceCatalog`）。
+- AC-12-1: ウィジェット・Live Activity・Dynamic Island・通知は記号と文言で状態を示す（ロック画面は OS が単色にするため）。記号は SF Symbols: 起動中 `circle.dashed`・実行中（円弧）・待機 `pause.circle`・承認待ち `exclamationmark.shield`・質問あり `questionmark.bubble`・完了 `checkmark.circle`・エラー `exclamationmark.triangle`・無応答 `hourglass`・状態不明 `questionmark.circle`（`DS` 4 章・`GlanceCatalog`）。
 - AC-12-2: 無応答（`session_stalled`）は紫（#5B3FA8／#C9B6FF）。Dynamic Island は地が常に黒で、状態の色はダークの値。
 - AC-12-3: 端末の外観に従い、アプリ内の外観設定の影響を受けない。
-- AC-12-4: 通知・Live Activity を押すとそのセッション画面（承認・質問はカードつき）。セッションが消えていれば一覧に戻して F8「このセッションは見つかりません」。
+- AC-12-4: ウィジェット・通知・Live Activity を押すとそのセッション画面（承認・質問はカードつき）。セッションが消えていれば一覧に戻して F8「このセッションは見つかりません」。
+- 段階 7: `Session.displayState`（共有 `SessionDisplayState.resolve`）の解決結果を最小の `displayState` として App Group に保存する。無応答・完了の未読を区別し、旧データの欠落キーは互換読み取りする。待機・状態不明は `GlanceCatalog` の dim、完了は緑。「終了」は作らず、非0終了の既存 push `session_exited` はエラーとして描く（U-3）。Mac の `summary` は改変しない。
+- 遷移 URL は既存 scheme の `phlox://session/<id>`。通知と同じ `pendingSessionID` に保持し、解除・タップ後の一覧取得成功を確認してから開く。取得前・通信失敗で F8 と判定せず、取得成功後に対象が無ければ一覧＋F8。
+- 通常の通知は OS が枠・色・アプリアイコンを描き、本文は Mac が生成する。iOS に独自の通知本文・SF Symbols の描画部品は無い。通知の許可時期は変更しない（U-16）。
 - 色・文言の細部の食い違いは 14 章 C-10、タップ先と通知の許可の時期は 15 章 U-16。
 
 ## 13. 廃止するもの（段階 1 で消す。ADR 0044〜0047）
@@ -377,7 +380,7 @@ last-verified: 2026-10-17
 | C-7 | 権限の変更の失敗の文言が、`ReplySpec`・`DraftSpec`・`Dialogs` では「権限を変更できませんでした」、`Reply`（`ReplyPermFail`）では長い文 | 親（`Reply`）の長い文を正とする（AC-6-11） |
 | C-8 | `ReplySpec` は「4 枚で＋が消える」、`ReplyAttachErr` は 4 枚あるのに「＋」を描き、5 枚目を足そうとした盤面になっている | 「＋」は残し、5 枚目でエラーを出す（AC-6-19。今のアプリと同じ） |
 | C-9 | 提案チップの定型文・初期設定は「Mac に合わせる前提の仮の値」 | 定型文は Mac の `NewChatSuggestions` と同じ 5 つ: コードレビュー「未コミットの変更をレビューして、問題点を重要度順に挙げてください。」・バグ修正「次の不具合を調べて、根本原因を直してください: 」・テスト追加「次の機能にテストを追加してください: 」・コードの説明「このプロジェクトの構成と主な処理の流れを説明してください。」・リファクタ「次のコードを、振る舞いを変えずに読みやすく整理してください: 」。見出し 10 種も `NewChatGreetings` と同じ。新規チャットを開いたときは Mac の `LastUsedChatSettingsStore` と同じキーで前回のエージェント別モデル・思考の強さ・権限・Plan を復元する。保存値が無いときの推論の深さ・権限は Mac の `newChatDefaultSettings` が使う値を `GET /agents/{kind}/settings` の `defaultEfforts`・`defaultPermission` から受け取る。Claude Code の権限は Mac の `BypassSettings` に従い、有効なら `bypassPermissions`、無効なら `auto`。Codex・Cursor の権限既定は省略する。既定キーの無い古い Mac では iOS に既定を作らず、前回値も無ければ effort・permission を送らない。選択肢が届いていればチップに「既定」と表示し、選択肢が無ければ AC-6-12 と同じくチップを隠す。モデル変更時の推論の深さはそのモデルの Mac 既定へ戻す。権限はエージェントが替わるときだけ、そのエージェントの有効な前回値または Mac 既定へ戻し、同じエージェント内のモデル変更では保つ。Plan は Mac の新規チャットと同じく前回値を復元し、エージェント変更後はそのエージェントの前回値、同じエージェント内のモデル変更では現在値を保つ |
-| C-10 | `ListSpec`「状態の色はアプリ外の表示でも同じ」に対し、`GlanceCatalog` は完了を緑・実行中を #3A3A42・終了を #56565E で描く。待機はウィジェットにだけ出る | アプリ内は 2.3 の表、アプリ外は `GlanceCatalog` の描画を正とする（アプリ外は単色化に耐えるよう記号と色の両方で分けるため）。細部は段階 7 で盤面と見比べる |
+| C-10 | `ListSpec`「状態の色はアプリ外の表示でも同じ」に対し、`GlanceCatalog` は完了を緑・実行中を #3A3A42・終了を #56565E で描く。待機はウィジェットにだけ出る | アプリ内は 2.3 の表、アプリ外は `GlanceCatalog` の描画を正とする（アプリ外は単色化に耐えるよう記号と色の両方で分けるため）。段階 7 でライト／ダークの描画を見比べる。見本の「終了」・非0終了専用の八角形は採用せず、U-3 と AC-12-1 の完了／エラーの記号を優先する |
 | C-11 | 対応待ちバーの長押しメニューが、`Shell`（`FlowMenu`）は 2 行「状態 · エージェント · プロジェクト」、`List` は 1 行 | `FlowMenu` を正とする（専用の盤面） |
 | C-12 | `ChatSpec` の削除のボタン「削除（N件）」と、盤面の「3 件を削除」 | 盤面（`ChatDelete`・`Dialogs` D2）の「N 件を削除」 |
 | C-13 | `ChatSpec` は「ファイル変更は 1 ファイルに 1 枚」、`Detail` は「編集 · … ほか 2 件」の 1 枚 | 1 ファイルに 1 枚（AC-8-11） |

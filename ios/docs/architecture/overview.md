@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-17
+last-verified: 2026-10-18
 ---
 
 # アーキテクチャ概要（現行）
@@ -152,8 +152,10 @@ wave-4 でロック/ホーム画面ウィジェットを追加した（→ [ADR 
 
 - **ターゲット**: `ios/PhloxWidget/`（`ios/project.yml` の `PhloxWidget`、`type: app-extension`、`APPLICATION_EXTENSION_API_ONLY: YES`）。`PhloxWidgetBundle`（`@main`）が `SessionStatusWidget`（`StaticConfiguration`、`.accessoryRectangular`＋`.systemSmall`）を提供する。本体 `PhloxMobile` ターゲットに `embed: true` で組み込まれる。バンドル ID は本体 `com.phlox.mobile.PhloxMobile`、拡張 `com.phlox.mobile.PhloxMobile.PhloxWidget`。
 - **App Group**: `group.com.phlox.mobile`（本体・拡張の両エンタイトルメントに設定）。
-- **共有ストア**: `PhloxCore/Shared/SharedSessionStore`（`UserDefaults(suiteName:)` を薄くラップし `SharedSessionSummary`（id/statusLabel/title/detail/updatedAt）を JSON で read/write。UIKit/WidgetKit 非依存で round-trip 単体テスト可能）。
-- **書き込み**: `PhloxCore/Shared/SharedSessionWriter` が `[Session]` → `[SharedSessionSummary]` 変換（`updatedAt` 降順）＋ `SharedSessionStore.write` ＋ `WidgetCenter.shared.reloadTimelines(ofKind:)` を担う。`AppRoot`（`sharedSessionWriter` プロパティ）が起動時 `.task` と `listVM.lastKnownSessions` の `onChange` の両方で `writeSharedSessionState(_:)` を呼ぶ。**未ロード・一時的な空配列での上書きは `guard !sessions.isEmpty else { return }` で抑止**し、直近の非空状態を保持する（起動直後の空上書きでウィジェットが「NO SESSIONS」に潰れるバグの修正、→ ADR 0009）。
+- **共有ストア**: `PhloxCore/Shared/SharedSessionStore`（`UserDefaults(suiteName:)` を薄くラップし `SharedSessionSummary`（id/statusLabel/title/detail/updatedAt と optional な displayState）を JSON で read/write。UIKit/WidgetKit 非依存で round-trip 単体テスト可能）。
+- **書き込み**: `DesignSystemIOS/SessionGlanceProjection` が `Session.displayState` を最小の `SessionGlanceState` へ変換し、`SharedSessionWriter.write(summaries:)` が入力順を保持して保存＋タイムライン更新する。`AppRoot` は一覧状態の変更時に書く。未取得・失敗では保持し、取得成功の0件は空で上書きする。拡張は `updatedAt` が最新の1件を表示する。`displayState` の無い旧データも読める。
+- **描画**: `PhloxWidget/Views/` にホーム・ロックのウィジェットと Live Activity の実 View。`SessionGlanceState` の記号・状態色の数値は `IOSColor` と共通。拡張の依存は `PhloxCore` だけのまま、アプリの外観設定を参照せず端末の `colorScheme` を使う。Dynamic Island の状態色は常にダーク。描画テストのターゲットにも同じ View ソースを含める。
+- **タップ**: 既存 scheme に `phlox://session/<id>` を追加し、ウィジェット・Live Activity の `widgetURL` から通知と同じ `pendingSessionID` へ送る。解除・タップ後の一覧取得成功まで保留し、既存の詳細画面（承認・質問カード含む）へ進む。対象が無ければ一覧へ戻して F8。`phlox://pair` と通知の許可時期は維持する。
 - **既知の実機ビルドブロッカー**: Apple Developer portal で App ID `com.phlox.mobile.PhloxMobile` と `com.phlox.mobile.PhloxMobile.PhloxWidget` の双方に App Group `group.com.phlox.mobile` を登録しないと、実機向けコード署名が `application-groups` entitlement 不一致で失敗する（ローカルの `project.yml`/entitlements 変更だけでは実機ビルド不可。portal 登録待ちで本 run では未実施）。
 
 ## ライブアクティビティ（push 駆動、wave-5）
@@ -161,7 +163,7 @@ wave-4 でロック/ホーム画面ウィジェットを追加した（→ [ADR 
 セッション状態変化（実行中→承認待ち/完了等）を、アプリを閉じていてもロック画面へ自動表示・更新する（→ [ADR 0011](../adr/0011-session-live-activity-push-driven.md)）。
 
 - **iOS**: `PhloxCore/LiveActivity/SessionActivityAttributes`（`ActivityAttributes` 準拠。`ContentState` は `sessionId`/`sessionName`/`status`/`summary`）と `PhloxCore/LiveActivity/LiveActivityCoordinator`（`@available(iOS 17.2, *)` の `actor`）。`PhloxAppDelegate.application(_:didFinishLaunchingWithOptions:)` が iOS 17.2+ かつ UI テスト実行時以外で `LiveActivityCoordinator().start(registrar:bundleId:environment:)` を呼ぶ。`start` は `Activity.pushToStartTokenUpdates`（アプリ全体の push-to-start token）と `activityUpdates`（Activity ごとの update token）を購読し、`ios/App/Push/LiveActivityPushRegistration.swift`（`LiveActivityTokenRegistering` 実装、`POST /device-tokens`）経由で Mac へ登録する。`LiveActivitySessionIndex` が `sessionId → activityId` を1対1に保ち、重複 Activity は即時 `.end(dismissalPolicy: .immediate)` する。
-- **Widget 拡張**: `ios/PhloxWidget/SessionLiveActivity.swift`（`ActivityConfiguration<SessionActivityAttributes>`、ロック画面＋Dynamic Island 最小構成）を `PhloxWidgetBundle` に追加登録。
+- **Widget 拡張**: `ios/PhloxWidget/SessionLiveActivity.swift`（`ActivityConfiguration<SessionActivityAttributes>`、ロック画面＋Dynamic Island の expanded / compact / minimal）を `PhloxWidgetBundle` に追加登録。
 - **macOS 送信経路**: `APNsNotificationBridge`（`AppBootstrap`）の既存 alert 送信（`RemoteSessionNotifier.notify`）に liveactivity 送信を追加。update token 未登録セッションには push-to-start（`event:"start"`）、登録済みなら `update`/`end` を送る。`APNsClient` の `apns-push-type` は呼び出し側からパラメータ化した（従来 alert 固定）。
 - **多重起動防止**: macOS 側 `actor LiveActivityStartRegistry`（`APNsNotificationBridge.swift` 内）が `(sessionId, deviceToken)` をキーに `Set` へアトミックに予約してから push-to-start を送信し、送信失敗時は予約を解放する。iOS 側の `LiveActivitySessionIndex` と合わせた2層防御。
 - **契約**: iOS `SessionActivityAttributes.ContentState` と macOS の payload エンコーダ（`content-state`/`stale-date`/`dismissal-date`/`attributes-type` 等のキー）を一字一致で固定し、`SessionActivityContractTests`（iOS）で凍結。ワイヤ定義は [macos/docs/specs/apns-companion-contract.md](../../../macos/docs/specs/apns-companion-contract.md) 契約2-LA。
@@ -170,7 +172,7 @@ wave-4 でロック/ホーム画面ウィジェットを追加した（→ [ADR 
 
 ## テスト
 
-`Packages/PhloxKit/Tests` に Swift Testing（`@Test`/`#expect`）＋ XCTest。`actor MockAPI` が `PhloxAPI` を差し替え、outcome/count/script で挙動を注入する。検証ゲートは `.claude/verify.sh`（`swift test` 全数＋raw 値 lint）。App ターゲットは `make generate && make build`。
+`Packages/PhloxKit/Tests` に Swift Testing（`@Test`/`#expect`）＋ XCTest。`actor MockAPI` が `PhloxAPI` を差し替え、outcome/count/script で挙動を注入する。検証設定の正本は `ios/Makefile`（`test` はSwiftPMテスト、`lint` はraw値lint、`generate` と `snapshot`）。旧記述の `.claude/verify.sh` はこのworktreeには無い。App ターゲットは生成後に `xcodebuild build` でビルドする。
 
 ### 送信中の本文と添付
 

@@ -67,6 +67,10 @@ public final class SessionListViewModel {
                 lastFetchedAt = Date()
                 lastKnownSessions = sessions
             }
+            if case .empty = next {
+                lastFetchedAt = Date()
+                lastKnownSessions = []
+            }
             state = next
             if case .loaded = next, !hasRequestedProjectOrder, api != nil {
                 hasRequestedProjectOrder = true

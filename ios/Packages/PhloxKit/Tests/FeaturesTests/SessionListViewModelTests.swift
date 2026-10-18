@@ -49,6 +49,17 @@ final class SessionListViewModelTests: XCTestCase {
         let vm = SessionListViewModel(repository: StubSessionRepository(states: [.empty]))
         await vm.observe(interval: .milliseconds(1))
         XCTAssertEqual(vm.state, .empty)
+        XCTAssertNotNil(vm.lastFetchedAt)
+    }
+
+    func testConfirmedEmptyClearsCachedSessionForExternalNavigation() async {
+        let vm = SessionListViewModel(repository: StubSessionRepository(states: [
+            .loaded([session("removed", attention: false)]), .empty,
+        ]))
+        await vm.observe(interval: .milliseconds(1))
+        XCTAssertEqual(vm.state, .empty)
+        XCTAssertTrue(vm.lastKnownSessions.isEmpty)
+        XCTAssertNil(vm.session(id: "removed"))
     }
 
     // バックグラウンド復帰時の再購読で state が一時的に .offline/.loading になっても、

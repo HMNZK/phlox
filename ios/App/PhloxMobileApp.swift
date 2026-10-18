@@ -46,7 +46,9 @@ struct PhloxMobileApp: App {
             .environment(environment)
             .tint(IOSColor.accent)
             .onOpenURL { url in
-                pendingPairingURLString = PairingURLNormalizer.normalizedString(from: url)
+                if !pushCoordinator.handleSessionURL(url), url.host?.lowercased() == "pair" {
+                    pendingPairingURLString = PairingURLNormalizer.normalizedString(from: url)
+                }
             }
         }
     }

@@ -50,31 +50,6 @@ final class SharedSessionStoreTests: XCTestCase {
         XCTAssertEqual(try store.read(), summaries)
     }
 
-    func testSharedSessionWriterPreservesInputOrder() throws {
-        let store = SharedSessionStore(userDefaults: defaults)
-        let writer = SharedSessionWriter(store: store)
-        let sessions = [
-            Session(
-                id: "mac-first",
-                name: "First",
-                agent: .claudeCode,
-                status: .running,
-                updatedAt: Date(timeIntervalSince1970: 1)
-            ),
-            Session(
-                id: "mac-second",
-                name: "Second",
-                agent: .claudeCode,
-                status: .running,
-                updatedAt: Date(timeIntervalSince1970: 2)
-            ),
-        ]
-
-        try writer.write(sessions: sessions)
-
-        XCTAssertEqual(try store.read().map(\.id), ["mac-first", "mac-second"])
-    }
-
     func testEncodeThenDecodeIsPureRoundTrip() throws {
         let summaries = [
             SharedSessionSummary(

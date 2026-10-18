@@ -6,19 +6,39 @@ public struct SharedSessionSummary: Codable, Equatable, Identifiable, Sendable {
     public let title: String
     public let detail: String
     public let updatedAt: Date
+    /// nil は旧保存形式。文字列にして未知の将来値もデコード可能にする。
+    public let displayState: String?
 
     public init(
         id: String,
         statusLabel: String,
         title: String,
         detail: String,
-        updatedAt: Date
+        updatedAt: Date,
+        displayState: String? = nil
     ) {
         self.id = id
         self.statusLabel = statusLabel
         self.title = title
         self.detail = detail
         self.updatedAt = updatedAt
+        self.displayState = displayState
+    }
+
+    public var glanceState: SessionGlanceState {
+        if let displayState { return SessionGlanceState(rawValue: displayState) ?? .unknown }
+        // v1 のラベルと補足から、保存済みの表示だけを復元する。
+        switch statusLabel {
+        case "Starting": return .starting
+        case "Running": return .running
+        case "Finished": return .done
+        case "Error": return .error
+        case "Waiting":
+            if detail == "Approval required" { return .approval }
+            if detail == "Input required" { return .question }
+            return .idle
+        default: return .unknown
+        }
     }
 }
 

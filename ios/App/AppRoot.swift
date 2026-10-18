@@ -24,6 +24,7 @@ struct AppRoot: View {
     @State private var selectedTab: AppTab? = .sessions
     @State private var scrollToTopRequest = 0
     @State private var qrScanInitialPayload: String?
+    @State private var showsMissingSession = false
     @Binding private var pendingPairingURLString: String?
     private let configStore = UserDefaultsConnectionConfigStore()
     private let sharedSessionWriter = SharedSessionWriter()
@@ -79,6 +80,18 @@ struct AppRoot: View {
             .onChange(of: pushCoordinator.pendingSessionID) { _, _ in
                 handlePendingPushNavigation()
             }
+            .onChange(of: model.state) { _, _ in handlePendingPushNavigation() }
+            .onChange(of: model.reachability) { _, _ in handlePendingPushNavigation() }
+            .onChange(of: listVM?.lastFetchedAt) { _, _ in handlePendingPushNavigation() }
+            .onChange(of: listVM?.state) { _, _ in
+                handlePendingPushNavigation()
+                writeSharedSessionState()
+            }
+            .alert("このセッションは見つかりません", isPresented: $showsMissingSession) {
+                Button("閉じる", role: .cancel) {}
+            } message: {
+                Text("Mac 側で削除されたか、終了して片付けられました。一覧に戻って、ほかのセッションを開いてください。")
+            }
             .onChange(of: scenePhase) { _, phase in
                 if AppModel.shouldRelock(
                     scenePhase: phase,
@@ -110,13 +123,9 @@ struct AppRoot: View {
                 openQRScan(with: urlString)
                 pendingPairingURLString = nil
             }
-            .onChange(of: listVM?.lastKnownSessions) { _, sessions in
-                guard let sessions else { return }
-                writeSharedSessionState(sessions)
-            }
             .task {
                 handlePendingPushNavigation()
-                writeSharedSessionState(listVM?.lastKnownSessions ?? [])
+                writeSharedSessionState()
                 await bootstrap()
             }
     }
@@ -472,10 +481,13 @@ struct AppRoot: View {
     // MARK: - push navigation
 
     private func handlePendingPushNavigation() {
-        guard let sessionID = pushCoordinator.pendingSessionID else { return }
+        guard let listVM,
+              let destination = pushCoordinator.openPendingSession(
+                canNavigate: model.state == .sessions && model.reachability == .online,
+                listState: listVM.state, fetchedAt: listVM.lastFetchedAt, router: router
+              ) else { return }
         selectedTab = .sessions
-        router.push(.sessionDetail(id: sessionID))
-        _ = pushCoordinator.consumePendingSessionID()
+        showsMissingSession = destination == .notFound
     }
 
     // MARK: - bootstrap
@@ -519,14 +531,17 @@ struct AppRoot: View {
         activeThemeID = themeID
     }
 
-    private func writeSharedSessionState(_ sessions: [Session]) {
-        // 起動直後は listVM が新規生成され lastKnownSessions が空（未ロード）のため、
-        // 空配列で共有ストアを上書きするとウィジェットが「NO SESSIONS」に潰れる。
-        // 未ロード/一時的な空での上書きを避け、直近の非空状態を保持する
-        // （全セッション削除で空になるケースは前状態が残るが、status ウィジェットとして許容）。
-        guard !sessions.isEmpty else { return }
+    private func writeSharedSessionState() {
+        // 未取得・通信失敗では保持し、取得成功の0件だけは空へ更新する。
+        guard let listVM else { return }
+        let confirmed: [Session]
+        switch listVM.state {
+        case .loaded(let values): confirmed = values
+        case .empty: confirmed = []
+        case .loading, .offline, .error: return
+        }
         do {
-            try sharedSessionWriter.write(sessions: sessions)
+            try sharedSessionWriter.write(sessions: confirmed)
         } catch {
             Logger(subsystem: "com.phlox.mobile.PhloxMobile", category: "Widget")
                 .error("Failed to update shared widget state: \(String(describing: error), privacy: .public)")

@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-07-15
+last-verified: 2026-10-18
 ---
 
 # ADR 0009: ロック/ホーム画面ウィジェットは WidgetKit 拡張＋App Group 共有 UserDefaults で実装する
@@ -14,12 +14,14 @@ last-verified: 2026-07-15
 
 ## 決定
 
-新規ターゲット `PhloxWidget`（`ios/PhloxWidget/`、`type: app-extension`、`deploymentTarget: 17.0`）を `ios/project.yml` に追加した。本体 `PhloxMobile` に `embed: true` で依存させる。
+新規ターゲット `PhloxWidget`（`ios/PhloxWidget/`、`type: app-extension`、`deploymentTarget: 18.0`）を `ios/project.yml` に追加した。本体 `PhloxMobile` に `embed: true` で依存させる。
 
 - **App Group**: `group.com.phlox.mobile` を本体・拡張の両エンタイトルメント（`ios/App/PhloxMobile.entitlements`・`ios/PhloxWidget/PhloxWidget.entitlements`）に追加。バンドル ID は本体 `com.phlox.mobile.PhloxMobile`、拡張 `com.phlox.mobile.PhloxMobile.PhloxWidget`。
-- **共有ストア**: `PhloxCore/Shared/SharedSessionStore`（`public struct`、`PhloxCore` に配置し本体・拡張の双方から `import PhloxCore` で参照可能にする）。`UserDefaults(suiteName: "group.com.phlox.mobile")` を薄くラップし、`SharedSessionSummary`（`id`/`statusLabel`/`title`/`detail`/`updatedAt` の5フィールドのみ、`Session` 全体ではなく表示に必要な最小限に絞った DTO）を JSON（`millisecondsSince1970`）で `write`/`read` する。**純ロジックで UIKit/WidgetKit に非依存**なため round-trip の単体テストが書ける（`SharedSessionStoreTests`）。
-- **書き込み**: `PhloxCore/Shared/SharedSessionWriter` が `[Session]` → `[SharedSessionSummary]` への変換（`updatedAt` 降順ソート）と `SharedSessionStore.write` を担い、書き込み成功後に `WidgetCenter.shared.reloadTimelines(ofKind:)` を呼んでウィジェットの再描画をトリガする。`AppRoot` が起動時 `.task` と `listVM.lastKnownSessions` の `onChange` の両方で `writeSharedSessionState(_:)` を呼ぶ。
-- **空配列上書きガード**: `writeSharedSessionState` 冒頭に `guard !sessions.isEmpty else { return }` を置く。起動直後は `listVM` が新規生成され `lastKnownSessions` が未ロード（空配列）の瞬間があり、ガード無しではその空配列でストアを無条件上書き→`reloadTimelines`→ウィジェットが毎回「NO SESSIONS」に潰れるバグがあった（stage-2 Codex レビューで検出、decision-log.md task-6 stage-2 HIGH 参照）。ガード追加により未ロード/一時的な空では直近の非空状態を保持する。**トレードオフ**: 全セッションを実際に削除して空になった場合もウィジェットには前状態が残る（status ウィジェットとして許容。厳密化は「ロード完了フラグ」導入の follow-up 候補）。
+- **共有ストア**: `PhloxCore/Shared/SharedSessionStore`。App Group の JSON キーは v1 のまま、`SharedSessionSummary` の既存5項目に optional な `displayState: String?` を足す。未読・無応答は解決済みの値で渡し、エージェント種別や UI 型は保存しない。旧データは英語ラベル・補足から復元し、未知の値は状態不明にする。日付は `millisecondsSince1970` のまま。
+- **書き込み**: `SharedSessionWriter.write(summaries:)` が入力順のまま保存し、成功後に `WidgetCenter.shared.reloadTimelines`。`DesignSystemIOS/SessionGlanceProjection` の `write(sessions:)` が `Session.displayState`（共有の判定規則）を最小の表示値へ変換する。本体の一覧状態変更から呼び、拡張は最新の `updatedAt` の1件を選ぶ。
+- **空の扱い**: `AppRoot.writeSharedSessionState()` は未取得・通信失敗のときは直近値を保持する。取得成功の `.loaded([])` / `.empty` は空を保存し、削除後に古いセッションを残さない（段階7で従来の非空ガードを置換）。
+- **配色**: 状態の色の数値は `PhloxCore/SessionGlanceState` で共有し、`IOSColor` も参照する。拡張には `DesignSystemIOS`（Markdown 等を含む）の依存を足さず、SwiftUI への変換だけを `GlanceStyle` に置く。端末の `colorScheme` に従い、アプリの `ThemeStore` は参照しない。背景・状態別の地の透明度は `GlanceCatalog` の値。
+- **遷移**: セッションの表示に `widgetURL(phlox://session/<id>)`。通知と同じ保留経路を使う（ADR 0011 の段階7追記）。空表示にはセッション URL を付けない。
 - **表示**: `SessionStatusWidget`（`StaticConfiguration`、`.accessoryRectangular`＋`.systemSmall` の2ファミリ）。`TimelineProvider` はストア読み取り失敗時（App Group 未設定・decode 失敗等）に空配列へフォールバックし、ウィジェット自体はクラッシュさせない。
 
 ## 結果

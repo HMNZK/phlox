@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-17
+last-verified: 2026-10-18
 ---
 
 # 0020: iOS アプリを再設計の見本どおりに作り直す（実装計画）
@@ -133,8 +133,10 @@ iPhone アプリの UI を、Claude Design で作った再設計の見本（版 
 
 ### 段階 7 — アプリ外の表示（S）
 
-- ウィジェット・Live Activity・Dynamic Island・通知の色を新しい配色に合わせる（無応答の紫、記号はここだけ残す）。
-- 完了: Glance* の盤面と一致する。
+- ウィジェット・Live Activity・Dynamic Island は記号＋日本語の状態、端末の外観、無応答の紫へ更新する。`displayState` の解決結果だけを App Group に渡す。色の数値は `IOSColor` と共通化し、拡張は `PhloxCore` だけに依存する。
+- `phlox://session/<id>` を通知と同じ保留経路へ渡し、解除・一覧取得成功後に詳細（承認・質問カード含む）へ進む。存在しなければ一覧＋F8。「終了」は作らない。
+- 描画は拡張の実 View を `UIHostingController` に載せ、iOS 26・18 のライト／ダークを `GlanceCatalog` と比較する。Dynamic Island・通知の OS の枠は描画テストの対象外。通知本文は Mac の生成文言を維持し、許可時期は変更しない。
+- 記録: [段階7作業記録](0027-ios-redesign-stage7-worklog.md)。見本との残差・検証範囲は同記録に残す。
 
 ### 段階 8 — 見比べ・まとめのレビュー・資料の仕上げ（M）
 

@@ -124,6 +124,7 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - path: PhloxMobileSnapshotTests
+      - path: PhloxWidget/Views
     dependencies:
       - target: PhloxMobile
     settings:

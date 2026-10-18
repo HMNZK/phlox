@@ -33,6 +33,8 @@ struct DesignSnapshotRenderTests {
             DSNavigationChrome.installUIKitAppearanceIfNeeded()
         }
 
+        try await renderGlanceSnapshots(output: output, osSuffix: osSuffix)
+
         for screen in [UITestingSupport.Screen.sessionList] {
             let environment = AppEnvironment.uiTesting(scenario: .goldenPath, screen: screen)
             let list = SessionListViewModel(repository: environment.sessionRepository, api: environment.apiClient)
@@ -813,6 +815,65 @@ struct DesignSnapshotRenderTests {
                 image, name: "\(snapshot.name)-428x926-light\(osSuffix).png", to: output,
                 expectedSize: size, expectedScale: 2
             )
+        }
+    }
+
+    private func renderGlanceSnapshots(output: URL, osSuffix: String) async throws {
+        for dark in [false, true] {
+            let samples: [SharedSessionSummary?] = SessionGlanceState.allCases.map { state in
+                SharedSessionSummary(
+                    id: state.rawValue, statusLabel: state.label, title: "refactor: ControlServer proxy",
+                    detail: "phlox", updatedAt: Date().addingTimeInterval(-120), displayState: state.rawValue
+                )
+            } + [nil]
+            let widgets = VStack(spacing: 16) {
+                ForEach(samples.indices, id: \.self) { index in
+                    HStack(spacing: 28) {
+                        Text(samples[index]?.glanceState.rawValue ?? "empty")
+                            .font(.caption).frame(width: 90, alignment: .leading)
+                        SessionStatusWidgetView(summary: samples[index])
+                            .padding(14).frame(width: 170, height: 170)
+                            .background(GlanceStyle.card(dark: dark), in: RoundedRectangle(cornerRadius: 24))
+                        SessionStatusWidgetView(summary: samples[index], rectangular: true)
+                            .padding(.horizontal, 10).padding(.vertical, 8)
+                            .frame(width: 172, height: 76)
+                            .background(.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                    }
+                }
+            }
+            .padding(24)
+            .frame(width: 560, height: 2080)
+            .background(GlanceStyle.color(dark ? 0x0B0B0D : 0xECECF1))
+            .environment(\.colorScheme, dark ? .dark : .light)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            let widgetSize = CGSize(width: 560, height: 2080)
+            let widgetImage = try await windowImage(widgets, size: widgetSize, safeArea: .zero, scale: 2, dark: dark)
+            try writeSnapshot(widgetImage, name: "glanceWidgets-\(dark ? "dark" : "light")\(osSuffix).png",
+                              to: output, expectedSize: widgetSize, expectedScale: 2)
+
+            let codes = ["session_completed", "approval_pending", "question_pending", "session_error",
+                         "session_stalled", "session_exited", "future"]
+            let activities = VStack(spacing: 18) {
+                ForEach(codes, id: \.self) { code in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(code).font(.caption)
+                        SessionLiveActivityView(state: .init(
+                            sessionId: "snapshot", sessionName: "refactor: ControlServer proxy", status: code,
+                            summary: code == "future" ? "Mac から届いた未知の状態の補足" : SessionGlanceState(activityStatus: code).label
+                        ))
+                        .frame(width: 404)
+                        .background(GlanceStyle.card(dark: dark).opacity(0.82), in: RoundedRectangle(cornerRadius: 24))
+                    }
+                }
+            }
+            .padding(24).frame(width: 452, height: 1060)
+            .background(GlanceStyle.color(dark ? 0x0B0B0D : 0xECECF1))
+            .environment(\.colorScheme, dark ? .dark : .light)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            let activitySize = CGSize(width: 452, height: 1060)
+            let activityImage = try await windowImage(activities, size: activitySize, safeArea: .zero, scale: 2, dark: dark)
+            try writeSnapshot(activityImage, name: "glanceLiveActivity-\(dark ? "dark" : "light")\(osSuffix).png",
+                              to: output, expectedSize: activitySize, expectedScale: 2)
         }
     }
 

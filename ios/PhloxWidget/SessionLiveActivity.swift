@@ -6,72 +6,54 @@ import WidgetKit
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SessionActivityAttributes.self) { context in
-            SessionLiveActivityView(state: context.state)
-                .activityBackgroundTint(Color(red: 0.08, green: 0.09, blue: 0.13))
-                .activitySystemActionForegroundColor(.white)
+            SessionLiveActivityContainer(state: context.state)
+                .widgetURL(SessionURL.make(sessionID: context.state.sessionId))
         } dynamicIsland: { context in
-            DynamicIsland {
+            let status = SessionGlanceState(activityStatus: context.state.status)
+            let ink = GlanceStyle.ink(status, dark: true, island: true)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: symbol(for: context.state.status))
+                    HStack(spacing: 8) {
+                        GlanceStatusSymbol(state: status).frame(width: 22, height: 22)
+                        Text(status.label).font(.caption.weight(.bold))
+                    }
+                    .foregroundStyle(ink)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(status.label)
                 }
-                DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.sessionName).lineLimit(1)
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text("Phlox").font(.caption).foregroundStyle(GlanceStyle.secondary(dark: true))
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.summary).lineLimit(2)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(context.state.sessionName).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            .foregroundStyle(GlanceStyle.text(dark: true))
+                        Text(context.state.summary).font(.caption).lineLimit(2)
+                            .foregroundStyle(GlanceStyle.secondary(dark: true))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
-                Image(systemName: symbol(for: context.state.status))
+                GlanceStatusSymbol(state: status).frame(width: 20, height: 20).foregroundStyle(ink)
+                    .accessibilityHidden(true)
             } compactTrailing: {
-                Text(shortStatus(context.state.status))
+                Text(status.label).font(.caption.weight(.bold)).foregroundStyle(ink)
             } minimal: {
-                Image(systemName: symbol(for: context.state.status))
+                GlanceStatusSymbol(state: status).frame(width: 20, height: 20).foregroundStyle(ink)
             }
-        }
-    }
-
-    private func symbol(for status: String) -> String {
-        sessionActivitySymbol(for: status)
-    }
-
-    private func shortStatus(_ status: String) -> String {
-        switch status {
-        case "session_completed": "Done"
-        case "session_exited": "End"
-        case "session_error": "Error"
-        default: "Wait"
+            .widgetURL(SessionURL.make(sessionID: context.state.sessionId))
+            .keylineTint(ink)
         }
     }
 }
 
-/// 状態ごとの記号。パソコンの通知の種類と 1 対 1。
-private func sessionActivitySymbol(for status: String) -> String {
-    switch status {
-    case "session_completed": "checkmark.circle.fill"
-    case "approval_pending": "exclamationmark.circle.fill"
-    case "question_pending": "questionmark.circle.fill"
-    case "session_error": "xmark.octagon.fill"
-    case "session_stalled": "hourglass.circle.fill"
-    case "session_exited": "stop.circle.fill"
-    default: "circle.dotted.circle.fill"
-    }
-}
-
-private struct SessionLiveActivityView: View {
+private struct SessionLiveActivityContainer: View {
+    @Environment(\.colorScheme) private var colorScheme
     let state: SessionActivityAttributes.ContentState
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: sessionActivitySymbol(for: state.status))
-                .font(.title2)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(state.sessionName).font(.headline).lineLimit(1)
-                Text(state.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(state.sessionName), \(state.summary)")
+        SessionLiveActivityView(state: state)
+            .activityBackgroundTint(GlanceStyle.card(dark: colorScheme == .dark).opacity(0.82))
+            .activitySystemActionForegroundColor(GlanceStyle.text(dark: colorScheme == .dark))
     }
 }

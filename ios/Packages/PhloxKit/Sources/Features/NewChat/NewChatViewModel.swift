@@ -151,7 +151,7 @@ public final class NewChatViewModel {
     public private(set) var selectedPermission: String?
     public private(set) var planMode = false
     public private(set) var projectValidationMessage: String?
-    public private(set) var creationError: String?
+    public private(set) var creationErrorPresentation: ErrorPresentation?
     public private(set) var attachmentError: String?
     public private(set) var progressStage: NewChatProgressStage = .idle
     public private(set) var progressHistory: [NewChatProgressStage] = [.idle]
@@ -448,7 +448,7 @@ public final class NewChatViewModel {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         projectValidationMessage = nil
-        creationError = nil
+        creationErrorPresentation = nil
         attachmentError = nil
         transition(to: .creating)
         let backupText = inputText
@@ -458,7 +458,7 @@ public final class NewChatViewModel {
         do {
             prepared = try await ImageAttachmentPreparer.prepare(backupItems.map { $0.send.data })
         } catch {
-            attachmentError = error.localizedDescription
+            attachmentError = "画像を読み込めませんでした"
             transition(to: .idle)
             return
         }
@@ -476,8 +476,15 @@ public final class NewChatViewModel {
         let session: Session
         do {
             session = try await api.spawn(request)
+        } catch let error as PhloxError {
+            creationErrorPresentation = error.presentation
+            transition(to: .idle)
+            focusRequest &+= 1
+            return
         } catch {
-            creationError = "セッションを作成できませんでした。指示は入力欄に戻しました（\(Self.spawnFailureReason(error))）"
+            creationErrorPresentation = Self.unknownSpawnFailurePresentation(
+                technicalDetail: Self.spawnFailureReason(error)
+            )
             transition(to: .idle)
             focusRequest &+= 1
             return
@@ -550,8 +557,8 @@ public final class NewChatViewModel {
         readyWaitSeconds = waitSeconds
     }
 
-    func seedCreationErrorForSnapshot(_ message: String, text: String) {
-        creationError = message
+    func seedSpawnFailureForSnapshot(reason: String, text: String) {
+        creationErrorPresentation = PhloxError.spawnRejected(reason: reason).presentation
         inputText = text
         inputCursorUTF16 = text.utf16.count
         focusRequest &+= 1
@@ -632,6 +639,16 @@ public final class NewChatViewModel {
     private static func spawnFailureReason(_ error: Error) -> String {
         if case let PhloxError.spawnRejected(reason) = error { return reason }
         if let error = error as? PhloxError { return error.presentation.message }
-        return "Mac に接続できません"
+        return String(describing: error)
+    }
+
+    private static func unknownSpawnFailurePresentation(technicalDetail: String) -> ErrorPresentation {
+        ErrorPresentation(
+            title: "セッションの作成結果を確認できませんでした",
+            message: "Mac から作成の結果を受け取れませんでした。",
+            recoveryAction: "送信",
+            nextStep: "一覧を更新して、セッションが作成されていないことを確かめてください。",
+            technicalDetail: technicalDetail
+        )
     }
 }

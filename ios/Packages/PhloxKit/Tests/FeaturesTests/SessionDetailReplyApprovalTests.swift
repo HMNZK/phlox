@@ -187,7 +187,10 @@ final class SessionDetailReplyApprovalTests: XCTestCase {
         await vm.respond(to: approval, decision: .decline)
 
         XCTAssertEqual(vm.currentReplyApproval?.id, approval.id)
-        XCTAssertEqual(vm.replyApprovalError, "承認を送信できませんでした（Mac に接続できません）")
+        XCTAssertEqual(
+            vm.replyApprovalError,
+            "応答を送れませんでした。「拒否」は Mac に届いていません。もう一度選んでください。応答の送信に失敗しました · Mac に接続できません"
+        )
         XCTAssertNil(vm.replyApprovalResult)
     }
 

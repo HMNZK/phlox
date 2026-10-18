@@ -12,43 +12,43 @@ struct QRScanScreenTests {
 
     @Test("notPairingURL は専用の日本語メッセージ")
     func notPairingURLMessage() {
-        #expect(QRScanCopy.message(for: .notPairingURL) == "ペアリング用の QR コードではありません")
-        #expect(QRScanLogic.parse("https://example.com/pair?v=1") == .failure("ペアリング用の QR コードではありません"))
+        #expect(QRScanCopy.message(for: .notPairingURL) == "ペアリング用の QR ではありません")
+        #expect(QRScanLogic.parse("https://example.com/pair?v=1") == .failure("ペアリング用の QR ではありません"))
     }
 
     @Test("unsupportedVersion は専用の日本語メッセージ")
     func unsupportedVersionMessage() {
-        #expect(QRScanCopy.message(for: .unsupportedVersion("2")) == "未対応の QR バージョンです")
+        #expect(QRScanCopy.message(for: .unsupportedVersion("2")) == "この QR の版には対応していません")
         #expect(
             QRScanLogic.parse("phlox://pair?v=2&host=1.2.3.4&port=1&token=\(validToken)")
-                == .failure("未対応の QR バージョンです")
+                == .failure("この QR の版には対応していません")
         )
     }
 
     @Test("missingHost は専用の日本語メッセージ")
     func missingHostMessage() {
-        #expect(QRScanCopy.message(for: .missingHost) == "ホスト情報が見つかりません")
+        #expect(QRScanCopy.message(for: .missingHost) == "QR に接続先がありません")
         #expect(
             QRScanLogic.parse("phlox://pair?v=1&port=8765&token=\(validToken)")
-                == .failure("ホスト情報が見つかりません")
+                == .failure("QR に接続先がありません")
         )
     }
 
     @Test("invalidPort は専用の日本語メッセージ")
     func invalidPortMessage() {
-        #expect(QRScanCopy.message(for: .invalidPort) == "ポート番号が不正です")
+        #expect(QRScanCopy.message(for: .invalidPort) == "ポート番号が正しくありません")
         #expect(
             QRScanLogic.parse("phlox://pair?v=1&host=1.2.3.4&port=0&token=\(validToken)")
-                == .failure("ポート番号が不正です")
+                == .failure("ポート番号が正しくありません")
         )
     }
 
     @Test("invalidToken は専用の日本語メッセージ")
     func invalidTokenMessage() {
-        #expect(QRScanCopy.message(for: .invalidToken) == "トークンが不正です")
+        #expect(QRScanCopy.message(for: .invalidToken) == "QR のトークンが正しくありません")
         #expect(
             QRScanLogic.parse("phlox://pair?v=1&host=1.2.3.4&port=8765&token=short")
-                == .failure("トークンが不正です")
+                == .failure("QR のトークンが正しくありません")
         )
     }
 
@@ -65,11 +65,81 @@ struct QRScanScreenTests {
         #expect(payload.name == "Mac")
     }
 
-    @Test("successMessage は name あり/なしで文言が変わる")
+    @Test("成功の見出しは name を含み、再接続の案内は接続先を保つ")
     func successMessages() {
-        #expect(QRScanCopy.successMessage(name: "Lab") == "接続しました（Lab）")
-        #expect(QRScanCopy.successMessage(name: nil) == "接続しました")
-        #expect(QRScanCopy.successMessage(name: "") == "接続しました")
+        #expect(QRScanCopy.successTitle(name: "Lab") == "接続しました（Lab）")
+        #expect(QRScanCopy.successTitle(name: nil) == "接続しました")
+        #expect(QRScanCopy.successTitle(name: "") == "接続しました")
+        #expect(QRScanCopy.reconnectTitle == "QR で再接続")
+        #expect(QRScanCopy.reconnectGuidance == "読み取れるまで、今の接続先は変わりません。")
+    }
+
+    @Test("P1 から P5 はカタログの文言・順序・技術値を使う")
+    func pairingErrorsHaveCatalogCopy() {
+        let cases: [(PairingPayloadError, String, String, String, String)] = [
+            (
+                .notPairingURL,
+                "ペアリング用の QR ではありません",
+                "読み取った QR は Phlox の接続用ではありません。",
+                "Mac の Phlox が表示したペアリング用の QR を読み取ってください。",
+                "https://example.com/menu"
+            ),
+            (
+                .unsupportedVersion("2"),
+                "この QR の版には対応していません",
+                "QR の版（v）が無いか、このアプリが読めない版です。",
+                "iPhone と Mac の Phlox を両方とも最新にしてから、QR を表示し直してください。",
+                "phlox://pair?v=2&host=…"
+            ),
+            (
+                .missingHost,
+                "QR に接続先がありません",
+                "QR の中に Mac のアドレス（host）が入っていません。",
+                "Mac で QR を表示し直して、もう一度読み取ってください。",
+                "phlox://pair?v=1&port=8765&token=…"
+            ),
+            (
+                .invalidPort,
+                "ポート番号が正しくありません",
+                "QR の中のポート番号が、使える範囲（1〜65535）にありません。",
+                "Mac の Phlox の設定でポートを確かめ、QR を表示し直してください。",
+                "port=99999"
+            ),
+            (
+                .invalidToken,
+                "QR のトークンが正しくありません",
+                "QR の中の接続の鍵（トークン）の形が違います。",
+                "Mac で QR を表示し直して、もう一度読み取ってください。",
+                "token=…（64 桁の小文字 16 進ではない）"
+            ),
+        ]
+        for (error, title, cause, nextStep, detail) in cases {
+            let presentation = QRScanCopy.presentation(for: error)
+            #expect(presentation.title == title)
+            #expect(presentation.cause == cause)
+            #expect(presentation.nextStep == nextStep)
+            #expect(presentation.technicalDetail == detail)
+            #expect(presentation.recoveryAction == "もう一度スキャン")
+            #expect(presentation.isNeutral == false)
+        }
+    }
+
+    @Test("P6 と K1 はカタログどおりの文言・操作を持つ")
+    func imageQRAndCameraFailuresHaveCatalogCopy() {
+        let p6 = QRScanCopy.imageQRNotFoundPresentation
+        #expect(p6.title == "画像から QR を見つけられません")
+        #expect(p6.cause == "選んだ画像の中に、読み取れる QR がありませんでした。")
+        #expect(p6.nextStep == "QR 全体がはっきり写ったスクリーンショットを選んでください。")
+        #expect(p6.technicalDetail == nil)
+        #expect(p6.recoveryAction == "写真から読み取る")
+
+        let k1 = QRScanCopy.cameraUnavailablePresentation
+        #expect(k1.title == "カメラを使えません")
+        #expect(k1.cause == "カメラへのアクセスが許可されていません。")
+        #expect(k1.nextStep == "Mac の QR をスクリーンショットにして、写真から読み取れます。")
+        #expect(k1.technicalDetail == nil)
+        #expect(k1.recoveryAction == "写真から読み取る")
+        #expect(k1.isNeutral)
     }
 
     @Test("PairingURLNormalizer は scheme/host を lowercase 化する")

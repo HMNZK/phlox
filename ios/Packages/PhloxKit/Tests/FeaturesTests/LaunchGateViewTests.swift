@@ -12,8 +12,11 @@ final class LaunchGateViewTests: XCTestCase {
         XCTAssertEqual(LaunchGateCopy.tagline, "エージェントを止めないリモコン")
     }
 
-    func testAuthenticatingStatusMatchesCamp() {
-        XCTAssertEqual(LaunchGateCopy.authenticating, "Face ID で認証中…")
+    func testLockAndAuthenticationCopyMatchesCamp() {
+        XCTAssertEqual(LaunchGateCopy.locked, "ロックされています")
+        XCTAssertEqual(LaunchGateCopy.faceIDUnlock, "Face ID で解除")
+        XCTAssertEqual(LaunchGateCopy.authenticationFailed, "認証できませんでした")
+        XCTAssertTrue(LaunchGateCopy.authenticationFailureBody.contains("パスコードで解除してください"))
     }
 
     func testKeychainFooterMatchesCamp() {
@@ -32,9 +35,7 @@ final class LaunchGateViewTests: XCTestCase {
         XCTAssertEqual(LaunchGateMetrics.logoCornerRadius, 22)
     }
 
-    func testFaceIDFrameMetricsMatchCamp() {
-        XCTAssertEqual(LaunchGateMetrics.faceIDFrameSize, 66)
-        XCTAssertEqual(LaunchGateMetrics.faceIDCornerRadius, 16)
-        XCTAssertEqual(LaunchGateMetrics.faceIDBorderWidth, 2)
+    func testUnlockButtonMetricsMatchCamp() {
+        XCTAssertEqual(LaunchGateMetrics.unlockButtonHeight, 52)
     }
 }

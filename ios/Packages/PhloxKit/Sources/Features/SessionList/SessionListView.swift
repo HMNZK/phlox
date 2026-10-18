@@ -642,43 +642,34 @@ private struct SessionListErrorCard: View {
     let onRetry: () -> Void
     let onQRScan: () -> Void
 
-    private var title: String {
-        switch error {
-        case .unauthorized: "Mac に接続を断られました"
-        case .server(let status, _) where status >= 500: "Mac の Phlox でエラーが起きました"
-        default: error.presentation.title
-        }
-    }
-
-    private var message: String {
-        switch error {
-        case .unauthorized:
-            "この iPhone に保存した接続の鍵（トークン）が、Mac 側で使えなくなっています。Mac で QR を表示し、読み取り直してください。"
-        case .server(let status, _) where status >= 500:
-            "要求を処理している途中で、Mac 側で問題が起きました。少し待って再試行してください。続くときは Mac の Phlox を再起動してください。"
-        default: error.presentation.message
-        }
-    }
-
-    private var actionTitle: String {
-        if case .unauthorized = error { return "QR で再接続" }
-        return error.presentation.recoveryAction ?? "再試行"
-    }
+    private var presentation: ErrorPresentation { error.presentation }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.m) {
-            Text(title)
+            Text(presentation.title)
                 .font(DSFont.title.weight(.bold))
-                .foregroundStyle(IOSColor.status.error)
-            Text(message)
+                .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
+            Text(presentation.cause)
                 .font(DSFont.subheadline)
                 .foregroundStyle(IOSColor.text.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if !presentation.nextStep.isEmpty {
+                Text(presentation.nextStep)
+                    .font(DSFont.subheadline)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let detail = presentation.technicalDetail {
+                Text(detail)
+                    .font(DSFont.campMonoCaption)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Button(action: {
                 if case .unauthorized = error { onQRScan() }
                 else { onRetry() }
             }) {
-                Text(actionTitle)
+                Text(presentation.recoveryAction ?? "再試行")
                     .font(DSFont.headline)
                     .foregroundStyle(IOSColor.accentOnFill)
                     .frame(maxWidth: .infinity, minHeight: 50)

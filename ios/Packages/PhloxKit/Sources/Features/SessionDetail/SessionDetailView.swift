@@ -57,13 +57,16 @@ public struct SessionDetailView: View {
     @State private var renameSelection: TextSelection?
     #endif
     @Environment(\.locale) private var locale
+    private let scrollToBottomOnAppear: Bool
     let onDelete: () -> Void
 
     public init(
         viewModel: SessionDetailViewModel,
+        scrollToBottomOnAppear: Bool = true,
         onDelete: @escaping () -> Void
     ) {
         self._viewModel = State(initialValue: viewModel)
+        self.scrollToBottomOnAppear = scrollToBottomOnAppear
         self.onDelete = onDelete
     }
 
@@ -113,7 +116,11 @@ public struct SessionDetailView: View {
                             scrollViewportHeight = height
                         }
                         // 本文が初めて届いたときは必ず最下部へ寄せ、以降だけ距離で追従を判定する。
-                        .onChange(of: viewModel.chatMessages) { scrollToBottomForContentChange(proxy) }
+                        .onChange(of: viewModel.chatMessages) {
+                            if scrollToBottomOnAppear {
+                                scrollToBottomForContentChange(proxy)
+                            }
+                        }
                         .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
                         .onChange(of: pendingTranscriptScrollTarget) { _, target in
                             guard let target else { return }
@@ -135,7 +142,11 @@ public struct SessionDetailView: View {
                             transcriptScrollGeneration += 1
                             scrollFollowState.reset()
                         }
-                        .onAppear { scrollToBottomForContentChange(proxy) }
+                        .onAppear {
+                            if scrollToBottomOnAppear {
+                                scrollToBottomForContentChange(proxy)
+                            }
+                        }
                     }
                     replyArea
                 }
@@ -400,11 +411,17 @@ public struct SessionDetailView: View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
             if case .failed(let message) = viewModel.sendState,
                message != viewModel.attachmentError {
-                errorLine(message)
+                if let presentation = viewModel.sendErrorPresentation {
+                    catalogError(presentation)
+                } else {
+                    errorLine(message)
+                }
             }
             if let settingsError = viewModel.settingsChangeError { errorLine(settingsError) }
             if let attachmentError = viewModel.attachmentError { errorLine(attachmentError) }
-            if let approvalError = viewModel.replyApprovalError ?? viewModel.approvalLoadError {
+            if let presentation = viewModel.replyApprovalPresentation ?? viewModel.approvalLoadPresentation {
+                catalogError(presentation)
+            } else if let approvalError = viewModel.replyApprovalError ?? viewModel.approvalLoadError {
                 errorLine(approvalError)
             }
             if let result = viewModel.replyApprovalResult {
@@ -485,6 +502,33 @@ public struct SessionDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12)
             .accessibilityAddTraits(.isStaticText)
+    }
+
+    private func catalogError(_ presentation: ErrorPresentation) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            Text(presentation.title)
+                .font(DSFont.captionStrong)
+                .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
+            Text(presentation.cause)
+                .font(DSFont.caption)
+                .foregroundStyle(IOSColor.text.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !presentation.nextStep.isEmpty {
+                Text(presentation.nextStep)
+                    .font(DSFont.caption)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let technicalDetail = presentation.technicalDetail {
+                Text(technicalDetail)
+                    .font(DSFont.campMonoCaption)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .combine)
     }
 
     private var shouldShowInputBar: Bool {

@@ -20,10 +20,16 @@ final class DeleteConfirmationViewModelTests: XCTestCase {
                                              onDeleted: {})
         await vm.confirmDelete()
         if case .failed(let message) = vm.state {
-            XCTAssertFalse(message.isEmpty)
+            XCTAssertTrue(message.contains("セッションは消えずに残っています。"))
+            XCTAssertTrue(message.contains("閉じるか、もう一度削除します。"))
+            XCTAssertTrue(message.hasSuffix("HTTP 403 許可が必要です"))
         } else {
             XCTFail("expected .failed")
         }
+        XCTAssertEqual(vm.failurePresentation?.title, "削除できませんでした")
+        XCTAssertEqual(vm.failurePresentation?.cause, "セッションは消えずに残っています。")
+        XCTAssertEqual(vm.failurePresentation?.nextStep, "閉じるか、もう一度削除します。")
+        XCTAssertEqual(vm.failurePresentation?.technicalDetail, "HTTP 403 許可が必要です")
     }
 
     func testCascadeCountMessage() {

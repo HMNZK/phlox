@@ -54,4 +54,14 @@ final class AppModelTests: XCTestCase {
         model.authState = .locked
         XCTAssertEqual(model.state, .locked)
     }
+
+    func testPairingURLWaitsForBootstrapAndUnlock() {
+        let model = AppModel(authState: .locked, hasConnectionConfig: true)
+        XCTAssertFalse(model.canOpenPairingURL(bootstrapComplete: false))
+        XCTAssertFalse(model.canOpenPairingURL(bootstrapComplete: true))
+
+        model.authState = .unlocked
+        XCTAssertFalse(model.canOpenPairingURL(bootstrapComplete: false))
+        XCTAssertTrue(model.canOpenPairingURL(bootstrapComplete: true))
+    }
 }

@@ -61,6 +61,8 @@ public extension DSFont {
 
     /// 一覧最上部の大タイトル。iOS 標準の large title と同じ見た目にする。
     static let largeTitle = Font.largeTitle.weight(.bold)
+    /// 起動画面の Phlox ロゴ文字。
+    static var appBrandMark: Font { .system(size: 48, weight: .bold, design: .rounded) }
     /// 画面タイトル（カンプ各ヘッダ）。
     static let title1 = Font.title.weight(.semibold)
     /// セクション見出し（大）。

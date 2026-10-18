@@ -288,7 +288,7 @@ struct NewChatViewModelTests {
     }
 
     @Test("作成失敗は Mac の理由を表示し、本文を残して準備待ちへ進まない")
-    func spawnFailureKeepsTextAndReason() async {
+    func spawnFailureKeepsTextAndReason() async throws {
         let (viewModel, api) = makeViewModel(spawn: .failure(.spawnRejected(reason: "workspace is locked")))
         await viewModel.load()
         viewModel.selectProject(id: project.id)
@@ -297,8 +297,26 @@ struct NewChatViewModelTests {
         await viewModel.send { _, _ in Issue.record("作成失敗では遷移しない") }
 
         #expect(viewModel.inputText == "元の指示")
-        #expect(viewModel.creationError == "セッションを作成できませんでした。指示は入力欄に戻しました（workspace is locked）")
+        let presentation = try #require(viewModel.creationErrorPresentation)
+        #expect(presentation.title == "セッションを作れませんでした")
+        #expect(presentation.cause == "Mac がこの作成を受け付けませんでした。Mac にセッションは作られていません。")
+        #expect(presentation.nextStep == "理由を確かめてから、もう一度送信してください。指示は入力欄に戻してあります。")
+        #expect(presentation.technicalDetail == "workspace is locked")
         #expect(await api.events == ["spawn"])
+    }
+
+    @Test("画像の準備失敗は A5 の文言を出し、セッションを作らない")
+    func imagePreparationFailureUsesCatalogCopy() async {
+        let (viewModel, api) = makeViewModel()
+        await viewModel.load()
+        viewModel.selectProject(id: project.id)
+        viewModel.inputText = "この画像を見て"
+        await viewModel.addAttachments([SendAttachment(mediaType: "image/png", data: Data([0x00]))])
+
+        await viewModel.send { _, _ in Issue.record("画像準備失敗では遷移しない") }
+
+        #expect(viewModel.attachmentError == "画像を読み込めませんでした")
+        #expect(await api.events.isEmpty)
     }
 
     @Test("準備待ちが間に合わなければ作成済みセッションへ本文と添付を戻す")

@@ -62,6 +62,8 @@ extension AppEnvironment {
             return listEnvironment(sessions: listSessions, state: .loaded(listSessions))
         case .listMulti:
             return listEnvironment(sessions: listMultiSessions, state: .loaded(listMultiSessions))
+        case .listManyTop, .listManyScrolled:
+            return listEnvironment(sessions: listManySessions, state: .loaded(listManySessions))
         case .listAllAttention:
             return listEnvironment(sessions: listAttentionSessions, state: .loaded(listAttentionSessions))
         case .listLoading:
@@ -256,6 +258,134 @@ extension AppEnvironment {
                 projectId: "simple-budget", projectName: "SimpleBudget", updatedAt: Date()
             ),
         ]
+    }
+
+    private static var listManySessions: [Session] {
+        let attention = [
+            Session(
+                id: "many-approval", name: "add /approvals endpoint", agent: .codex,
+                status: .awaitingApproval(prompt: "Add the approvals endpoint"), subtitle: "承認待ち",
+                projectId: "phlox", projectName: "Phlox", hasUnseenCompletion: true, updatedAt: Date()
+            ),
+            Session(
+                id: "many-question", name: "Tulip", agent: .claudeCode,
+                status: .awaitingUserQuestion, subtitle: "質問あり",
+                projectId: "phlox", projectName: "Phlox", hasUnseenCompletion: true, updatedAt: Date()
+            ),
+            Session(
+                id: "many-approval-lily", name: "Lily", agent: .codex,
+                status: .awaitingApproval(prompt: "Apply patch?"), subtitle: "承認待ち",
+                projectId: "phlox", projectName: "Phlox", hasUnseenCompletion: true, updatedAt: Date()
+            ),
+        ]
+        let phlox = [
+            Session(
+                id: "many-refactor", name: "refactor: ControlServer proxy", agent: .codex,
+                status: .running, subtitle: "実行中", projectId: "phlox", projectName: "Phlox",
+                hasUnseenCompletion: true, updatedAt: Date()
+            ),
+            Session(
+                id: "many-proxy-tests", name: "ProxyRouter のテストを追加", agent: .claudeCode,
+                status: .running, subtitle: "実行中", projectId: "phlox", projectName: "Phlox",
+                parentSessionId: "many-refactor", updatedAt: Date()
+            ),
+            Session(
+                id: "many-routing-table", name: "ルーティング表の整理", agent: .codex,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "phlox", projectName: "Phlox",
+                hasUnseenCompletion: true, parentSessionId: "many-refactor", updatedAt: Date()
+            ),
+            Session(
+                id: "many-rose", name: "Rose", agent: .claudeCode,
+                status: .error(message: "Request failed"), subtitle: "エラー", projectId: "phlox", projectName: "Phlox",
+                hasUnseenCompletion: true, updatedAt: Date()
+            ),
+            Session(
+                id: "many-iris", name: "Iris", agent: .codex,
+                status: .running, subtitle: "実行中", projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "many-write-tests", name: "write unit tests", agent: .codex,
+                status: .idle, subtitle: "", projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "many-reachability", name: "fix: reachability timeout", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+            Session(
+                id: "many-adr", name: "docs: ADR 0043 draft", agent: .claudeCode,
+                status: .idle, subtitle: "", projectId: "phlox", projectName: "Phlox", updatedAt: Date()
+            ),
+        ]
+        let simpleBudget = [
+            Session(
+                id: "many-csv", name: "CSV 取り込みの重複判定を修正", agent: .codex,
+                status: .running, subtitle: "実行中", projectId: "simple-budget", projectName: "SimpleBudget", updatedAt: Date()
+            ),
+            Session(
+                id: "many-test-data", name: "テストデータの生成", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "simple-budget", projectName: "SimpleBudget",
+                parentSessionId: "many-csv", updatedAt: Date()
+            ),
+            Session(
+                id: "many-key", name: "重複キーの調査", agent: .codex,
+                status: .idle, subtitle: "", projectId: "simple-budget", projectName: "SimpleBudget",
+                parentSessionId: "many-csv", updatedAt: Date()
+            ),
+            Session(
+                id: "many-log", name: "ログの整形", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "simple-budget", projectName: "SimpleBudget",
+                parentSessionId: "many-csv", updatedAt: Date()
+            ),
+            Session(
+                id: "many-clover", name: "Clover", agent: .claudeCode,
+                status: .running, subtitle: "無応答", projectId: "simple-budget", projectName: "SimpleBudget",
+                isStalled: true, hasUnseenCompletion: true, statusEnteredAt: Date(timeIntervalSince1970: 400), updatedAt: Date()
+            ),
+            Session(
+                id: "many-mint", name: "Mint", agent: .codex,
+                status: .idle, subtitle: "", projectId: "simple-budget", projectName: "SimpleBudget", updatedAt: Date()
+            ),
+            Session(
+                id: "many-monthly", name: "add monthly report export", agent: .codex,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "simple-budget", projectName: "SimpleBudget", updatedAt: Date()
+            ),
+        ]
+        let landingPage = [
+            Session(
+                id: "many-hero", name: "hero section copy update", agent: .claudeCode,
+                status: .running, subtitle: "実行中", projectId: "landing-page", projectName: "landing-page",
+                hasUnseenCompletion: true, updatedAt: Date()
+            ),
+            Session(
+                id: "many-lighthouse", name: "lighthouse fixes", agent: .codex,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "landing-page", projectName: "landing-page", updatedAt: Date()
+            ),
+            Session(
+                id: "many-fern", name: "Fern", agent: .claudeCode,
+                status: .idle, subtitle: "", projectId: "landing-page", projectName: "landing-page", updatedAt: Date()
+            ),
+        ]
+        let dotfiles = [
+            Session(
+                id: "many-zsh", name: "zsh startup profiling", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了", projectId: "dotfiles", projectName: "dotfiles", updatedAt: Date()
+            ),
+            Session(
+                id: "many-moss", name: "Moss", agent: .codex,
+                status: .idle, subtitle: "", projectId: "dotfiles", projectName: "dotfiles", updatedAt: Date()
+            ),
+        ]
+        let unassigned = [
+            Session(
+                id: "many-daisy", name: "Daisy", agent: .codex,
+                status: .starting, subtitle: "起動中", updatedAt: Date()
+            ),
+            Session(
+                id: "many-ivy", name: "Ivy", agent: .claudeCode,
+                status: .completed(exitCode: 0), subtitle: "完了", updatedAt: Date()
+            ),
+        ]
+        return attention + phlox + simpleBudget + landingPage + dotfiles + unassigned
     }
 
     private static var listAttentionSessions: [Session] {

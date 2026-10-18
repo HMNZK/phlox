@@ -4,33 +4,19 @@ import PhloxCore
 
 /// カンプ⑥の寸法トークン。design.md §⑥ / ios-design.html。
 enum LaunchGateMetrics {
-    /// ブランドロゴ正方形（84px）。
     static let logoSize: CGFloat = 84
-    /// ロゴ内アイコン（42px）。
-    static let logoIconSize: CGFloat = 42
-    /// ロゴ角丸（22px = `DSRadius.dialog`）。
     static let logoCornerRadius = DSRadius.dialog
-    /// Face ID 枠正方形（66px）。
-    static let faceIDFrameSize: CGFloat = 66
-    /// Face ID アイコン（34px）。
-    static let faceIDIconSize: CGFloat = 34
-    /// Face ID 枠角丸（16px = `DSRadius.actionSheet`）。
-    static let faceIDCornerRadius = DSRadius.actionSheet
-    /// Face ID 緑枠の線幅（2px = `DSSpacing.xxs`）。
-    static let faceIDBorderWidth = DSSpacing.xxs
-    /// タグライン上の Face ID セクション余白（54px）。
-    static let faceIDTopSpacing: CGFloat = 54
-    /// 下部「パスコードを使用」の下余白（42px）。
-    static let passcodeBottomPadding: CGFloat = 42
-    /// カンプのロゴ内花弁アイコン（SF Symbol）。
-    static let logoSymbolName = "sparkle"
+    static let unlockButtonHeight: CGFloat = 52
 }
 
 /// カンプ⑥の文言（テスト可能なコピー層）。
 enum LaunchGateCopy {
     static let brandName = "Phlox"
     static let tagline = "エージェントを止めないリモコン"
-    static let authenticating = "Face ID で認証中…"
+    static let locked = "ロックされています"
+    static let faceIDUnlock = "Face ID で解除"
+    static let authenticationFailed = "認証できませんでした"
+    static let authenticationFailureBody = "Face ID で本人を確かめられませんでした。もう一度 Face ID を試すか、パスコードで解除してください。"
     static let keychainFooter = "トークンは Keychain に保護されています。認証するまで Mac には接続しません。"
     static let passcodeFallback = "パスコードを使用"
 }
@@ -39,10 +25,16 @@ enum LaunchGateCopy {
 public struct LaunchGateView: View {
     @State private var viewModel: LaunchGateViewModel
     let onUnlocked: () -> Void
+    private let automaticallyAuthenticates: Bool
 
-    public init(viewModel: LaunchGateViewModel, onUnlocked: @escaping () -> Void) {
+    public init(
+        viewModel: LaunchGateViewModel,
+        onUnlocked: @escaping () -> Void,
+        automaticallyAuthenticates: Bool = true
+    ) {
         self._viewModel = State(initialValue: viewModel)
         self.onUnlocked = onUnlocked
+        self.automaticallyAuthenticates = automaticallyAuthenticates
     }
 
     public var body: some View {
@@ -51,7 +43,7 @@ public struct LaunchGateView: View {
 
             VStack(spacing: 0) {
                 brandLogo
-                    .padding(.bottom, DSSpacing.xl)
+                    .padding(.bottom, DSSpacing.l)
 
                 Text(LaunchGateCopy.brandName)
                     .font(DSFont.title1.weight(.bold))
@@ -62,11 +54,37 @@ public struct LaunchGateView: View {
                     .foregroundStyle(DSColor.textSecondary)
                     .padding(.top, DSSpacing.xs + DSSpacing.xxs)
 
-                faceIDSection
-                    .padding(.top, LaunchGateMetrics.faceIDTopSpacing)
+                if viewModel.errorMessage != nil {
+                    authenticationFailureCard
+                        .padding(.top, DSSpacing.s)
+                } else {
+                    statusText
+                        .padding(.top, DSSpacing.l)
+                }
 
-                statusText
-                    .padding(.top, DSSpacing.l + DSSpacing.xxs)
+            }
+            .padding(.horizontal, DSSpacing.xl + DSSpacing.m)
+
+            Spacer()
+
+            VStack(spacing: DSSpacing.m) {
+                Button {
+                    Task { await authenticate() }
+                } label: {
+                    Label(LaunchGateCopy.faceIDUnlock, systemImage: DSIcon.faceID)
+                        .font(DSFont.headline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: LaunchGateMetrics.unlockButtonHeight)
+                        .foregroundStyle(IOSColor.accentOnFill)
+                        .background(IOSColor.accent, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier(AccessibilityID.launchGateUnlock)
+
+                Button(LaunchGateCopy.passcodeFallback) {
+                    Task { await authenticate() }
+                }
+                .font(DSFont.subheadline.weight(.semibold))
+                .foregroundStyle(IOSColor.accent)
 
                 Text(LaunchGateCopy.keychainFooter)
                     .font(DSFont.footnote)
@@ -75,21 +93,15 @@ public struct LaunchGateView: View {
                     .padding(.top, DSSpacing.s)
                     .padding(.horizontal, DSSpacing.xl)
             }
-            .padding(.horizontal, DSSpacing.xl + DSSpacing.m)
-
-            Spacer()
-
-            Button(LaunchGateCopy.passcodeFallback) {
-                Task { await authenticate() }
-            }
-            .font(DSFont.subheadline.weight(.semibold))
-            .foregroundStyle(IOSColor.accent)
-            .accessibilityIdentifier(AccessibilityID.launchGateUnlock)
-            .padding(.bottom, LaunchGateMetrics.passcodeBottomPadding)
+            .padding(.horizontal, DSSpacing.xl)
+            .padding(.bottom, DSSpacing.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DSColor.background)
-        .task { await authenticate() }
+        .background(IOSColor.bg.base)
+        .task {
+            guard automaticallyAuthenticates else { return }
+            await authenticate()
+        }
     }
 
     private var brandLogo: some View {
@@ -97,45 +109,42 @@ public struct LaunchGateView: View {
             .fill(IOSColor.accent)
             .frame(width: LaunchGateMetrics.logoSize, height: LaunchGateMetrics.logoSize)
             .overlay {
-                Image(systemName: LaunchGateMetrics.logoSymbolName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: LaunchGateMetrics.logoIconSize, height: LaunchGateMetrics.logoIconSize)
+                Text("P")
+                    .font(DSFont.appBrandMark)
                     .foregroundStyle(IOSColor.accentOnFill)
             }
-    }
-
-    private var faceIDSection: some View {
-        Button {
-            Task { await authenticate() }
-        } label: {
-            RoundedRectangle(cornerRadius: LaunchGateMetrics.faceIDCornerRadius, style: .continuous)
-                .strokeBorder(IOSColor.status.success, lineWidth: LaunchGateMetrics.faceIDBorderWidth)
-                .frame(width: LaunchGateMetrics.faceIDFrameSize, height: LaunchGateMetrics.faceIDFrameSize)
-                .overlay {
-                    Image(systemName: DSIcon.faceID)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: LaunchGateMetrics.faceIDIconSize, height: LaunchGateMetrics.faceIDIconSize)
-                        .foregroundStyle(IOSColor.status.success)
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(LaunchGateCopy.authenticating))
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "lock")
+                    .font(DSFont.footnote.weight(.bold))
+                    .foregroundStyle(DSColor.textPrimary)
+                    .frame(width: 32, height: 32)
+                    .background(IOSColor.bg.card, in: Circle())
+                    .overlay(Circle().strokeBorder(IOSColor.bg.base, lineWidth: 3))
+                    .offset(x: 8, y: 8)
+            }
     }
 
     @ViewBuilder
     private var statusText: some View {
-        if let message = viewModel.errorMessage {
-            Text(message)
-                .font(DSFont.subheadline.weight(.semibold))
+        Text(viewModel.state == .authenticating ? "認証しています" : LaunchGateCopy.locked)
+            .font(DSFont.subheadline.weight(.semibold))
+            .foregroundStyle(DSColor.textPrimary)
+    }
+
+    private var authenticationFailureCard: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            Text(LaunchGateCopy.authenticationFailed)
+                .font(DSFont.subheadline.weight(.bold))
                 .foregroundStyle(IOSColor.status.error)
-                .multilineTextAlignment(.center)
-        } else {
-            Text(LaunchGateCopy.authenticating)
-                .font(DSFont.subheadline.weight(.semibold))
+            Text(LaunchGateCopy.authenticationFailureBody)
+                .font(DSFont.footnote)
                 .foregroundStyle(DSColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .background(IOSColor.status.errorBackground, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func authenticate() async {

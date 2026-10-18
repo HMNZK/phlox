@@ -18,6 +18,7 @@ public final class DeleteConfirmationViewModel {
     public let sessionName: String
     public let cascadeCount: Int
     public var state: State = .idle
+    public private(set) var failurePresentation: ErrorPresentation?
 
     public init(
         sessionID: String,
@@ -63,14 +64,39 @@ public final class DeleteConfirmationViewModel {
     /// 二段確認後にのみ呼ばれる（View の confirmationDialog から）。
     public func confirmDelete() async {
         state = .deleting
+        failurePresentation = nil
         do {
             try await api.remove(sessionID: sessionID)
             state = .deleted
             onDeleted()
         } catch let error as PhloxError {
-            state = .failed(error.presentation.message)
+            let technicalDetail = error.presentation.technicalDetail ?? "削除に失敗しました"
+            let presentation = Self.failurePresentation(cascadeCount: cascadeCount, technicalDetail: technicalDetail)
+            failurePresentation = presentation
+            state = .failed(Self.failureMessage(presentation))
         } catch {
-            state = .failed("削除に失敗しました")
+            let presentation = Self.failurePresentation(cascadeCount: cascadeCount, technicalDetail: nil)
+            failurePresentation = presentation
+            state = .failed(Self.failureMessage(presentation))
         }
+    }
+
+    private static func failurePresentation(cascadeCount: Int, technicalDetail: String?) -> ErrorPresentation {
+        let retainedSessions = cascadeCount == 0
+            ? "セッションは消えずに残っています。"
+            : "セッションと子孫 \(cascadeCount) 件は、どれも消えずに残っています。"
+        return ErrorPresentation(
+            title: "削除できませんでした",
+            message: retainedSessions,
+            recoveryAction: "もう一度削除",
+            nextStep: "閉じるか、もう一度削除します。",
+            technicalDetail: technicalDetail
+        )
+    }
+
+    private static func failureMessage(_ presentation: ErrorPresentation) -> String {
+        [presentation.cause, presentation.nextStep, presentation.technicalDetail]
+            .compactMap { $0 }
+            .joined(separator: "\n")
     }
 }

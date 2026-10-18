@@ -7,6 +7,7 @@ struct SessionDetailDestination: View {
     let session: Session
     let api: PhloxAPI
     let recovery: SessionDetailRecovery?
+    let scrollToBottomOnAppear: Bool
     let onDelete: () -> Void
 
     @State private var detailVM: SessionDetailViewModel
@@ -15,6 +16,7 @@ struct SessionDetailDestination: View {
         session: Session,
         api: PhloxAPI,
         recovery: SessionDetailRecovery? = nil,
+        scrollToBottomOnAppear: Bool = true,
         isNewSession: Bool = false,
         initialAttachmentPreviews: [String: [Data]] = [:],
         initialExpandedMessageIDs: Set<String> = [],
@@ -23,6 +25,7 @@ struct SessionDetailDestination: View {
         self.session = session
         self.api = api
         self.recovery = recovery
+        self.scrollToBottomOnAppear = scrollToBottomOnAppear
         self.onDelete = onDelete
         let viewModel = SessionDetailViewModel(
             session: session,
@@ -40,6 +43,7 @@ struct SessionDetailDestination: View {
         session: Session,
         api: PhloxAPI,
         recovery: SessionDetailRecovery? = nil,
+        scrollToBottomOnAppear: Bool = true,
         isNewSession: Bool = false,
         initialAttachmentPreviews: [String: [Data]] = [:],
         initialExpandedMessageIDs: Set<String> = [],
@@ -49,6 +53,7 @@ struct SessionDetailDestination: View {
         self.session = session
         self.api = api
         self.recovery = recovery
+        self.scrollToBottomOnAppear = scrollToBottomOnAppear
         self.onDelete = onDelete
         let viewModel = SessionDetailViewModel(
             session: session,
@@ -68,6 +73,7 @@ struct SessionDetailDestination: View {
     var body: some View {
         SessionDetailView(
             viewModel: detailVM,
+            scrollToBottomOnAppear: scrollToBottomOnAppear,
             onDelete: onDelete
         )
     }

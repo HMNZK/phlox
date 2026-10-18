@@ -90,6 +90,33 @@ final class SessionDetailViewModelTests: XCTestCase {
         if case .failed = vm.sendState {} else { XCTFail("expected .failed") }
     }
 
+    func testImagePreparationFailureUsesA5CopyAndKeepsDraft() async {
+        let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
+        vm.inputText = "この画像を見て"
+        vm.addAttachments([SendAttachment(mediaType: "image/png", data: Data([0x00]))])
+
+        await vm.sendMessage()
+
+        XCTAssertEqual(vm.attachmentError, "画像を読み込めませんでした")
+        XCTAssertEqual(vm.inputText, "[Image #1] この画像を見て")
+        XCTAssertEqual(vm.attachments.count, 1)
+    }
+
+    func testRateLimitedSendKeepsNeutralCatalogColorAndTechnicalDetail() async {
+        let vm = SessionDetailViewModel(
+            session: session(.running),
+            api: MockAPI(sendOutcome: .failure(.rateLimited(retryAfter: 12)))
+        )
+        vm.inputText = "送信したい内容"
+
+        await vm.sendMessage()
+
+        XCTAssertEqual(vm.sendErrorPresentation?.title, "送信できませんでした")
+        XCTAssertTrue(vm.sendErrorPresentation?.isNeutral == true)
+        XCTAssertEqual(vm.sendErrorPresentation?.technicalDetail, "HTTP 429 · Retry-After: 12")
+        XCTAssertEqual(vm.inputText, "送信したい内容")
+    }
+
     func testSendMessageIgnoresEmptyInput() async {
         let mock = MockAPI()
         let vm = SessionDetailViewModel(session: session(.running), api: mock)

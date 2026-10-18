@@ -4,14 +4,31 @@ import Foundation
 /// UI（E4-x / E5-2）はこれを使ってエラーバナーやリトライ導線を組み立てる。
 public struct ErrorPresentation: Sendable, Equatable {
     public let title: String
-    public let message: String
+    public let cause: String
+    public let nextStep: String
+    public let technicalDetail: String?
     /// 回復アクションのボタン文言（なければ nil）。
     public let recoveryAction: String?
+    public let isNeutral: Bool
 
-    public init(title: String, message: String, recoveryAction: String?) {
+    public var message: String {
+        [cause, nextStep].filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    public init(
+        title: String,
+        message: String,
+        recoveryAction: String?,
+        nextStep: String = "",
+        technicalDetail: String? = nil,
+        isNeutral: Bool = false
+    ) {
         self.title = title
-        self.message = message
+        self.cause = message
+        self.nextStep = nextStep
+        self.technicalDetail = technicalDetail
         self.recoveryAction = recoveryAction
+        self.isNeutral = isNeutral
     }
 }
 
@@ -21,57 +38,76 @@ public extension PhloxError {
         switch self {
         case .unauthorized:
             return ErrorPresentation(
-                title: "認証が必要です",
-                message: "トークンが無効か期限切れです。接続設定からトークンを再設定してください。",
-                recoveryAction: "接続設定を開く"
+                title: "Mac に接続を断られました",
+                message: "この iPhone に保存した接続の鍵（トークン）が、Mac 側で使えなくなっています。",
+                recoveryAction: "QR で再接続",
+                nextStep: "Mac で QR を表示し、読み取り直してください。",
+                technicalDetail: "HTTP 401 Unauthorized"
             )
         case .unreachable:
             return ErrorPresentation(
-                title: "Mac に接続できません",
-                message: "ネットワークが圏外か、Mac がスリープしている可能性があります。",
-                recoveryAction: "再試行"
+                title: "Mac に届きません",
+                message: "Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。",
+                recoveryAction: "再試行",
+                nextStep: "Mac を起こし、Tailscale をオンにしてから再試行してください。",
+                technicalDetail: "Mac から応答がありません"
             )
         case .rateLimited(let retryAfter):
             return ErrorPresentation(
-                title: "混雑しています",
-                message: "リクエストが多すぎます。\(retryAfter) 秒後に再試行してください。",
-                recoveryAction: "再試行"
+                title: "Mac が混み合っています",
+                message: "短い間に要求が集中したため、Mac が受け付けを止めています。",
+                recoveryAction: "再試行（\(retryAfter) 秒）",
+                nextStep: "\(retryAfter) 秒後に再試行できます。",
+                technicalDetail: "HTTP 429 · Retry-After: \(retryAfter)",
+                isNeutral: true
             )
         case .spawnRejected(let reason):
             return ErrorPresentation(
-                title: "セッションを開始できません",
-                message: reason,
-                recoveryAction: nil
+                title: "セッションを作れませんでした",
+                message: "Mac がこの作成を受け付けませんでした。Mac にセッションは作られていません。",
+                recoveryAction: "送信",
+                nextStep: "理由を確かめてから、もう一度送信してください。指示は入力欄に戻してあります。",
+                technicalDetail: reason
             )
         case .notFound:
             return ErrorPresentation(
-                title: "見つかりません",
-                message: "対象のセッションは削除されたか存在しません。",
-                recoveryAction: "一覧に戻る"
+                title: "このセッションは見つかりません",
+                message: "Mac 側で削除されたか、終了して片付けられました。",
+                recoveryAction: "一覧に戻る",
+                nextStep: "一覧に戻って、ほかのセッションを開いてください。",
+                technicalDetail: "HTTP 404"
             )
         case .unsupported:
             return ErrorPresentation(
-                title: "Mac の更新が必要です",
-                message: "接続先の Mac はこの設定に対応していません。",
-                recoveryAction: nil
+                title: "Mac の応答を読めません",
+                message: "iPhone と Mac の Phlox のバージョンが合っていないと起きます。",
+                recoveryAction: nil,
+                nextStep: "App Store と Mac の両方で Phlox を最新にしてください。",
+                technicalDetail: "この機能は接続先の Mac に対応していません"
             )
         case .server(let status, let message):
             return ErrorPresentation(
-                title: "サーバエラー (\(status))",
-                message: message ?? "Mac 側で問題が発生しました。しばらくして再試行してください。",
-                recoveryAction: "再試行"
+                title: "Mac の Phlox でエラーが起きました",
+                message: "要求を処理している途中で、Mac 側で問題が起きました。",
+                recoveryAction: "再試行",
+                nextStep: "少し待って再試行してください。続くときは Mac の Phlox を再起動してください。",
+                technicalDetail: message.map { "HTTP \(status) \($0)" } ?? "HTTP \(status)"
             )
         case .decoding(let wrapped):
             return ErrorPresentation(
-                title: "応答を解釈できません",
-                message: "Mac 側との形式が一致しません。アプリ/サーバの更新が必要かもしれません。(\(wrapped.description))",
-                recoveryAction: nil
+                title: "Mac の応答を読めません",
+                message: "iPhone と Mac の Phlox のバージョンが合っていないと起きます。",
+                recoveryAction: nil,
+                nextStep: "App Store と Mac の両方で Phlox を最新にしてください。",
+                technicalDetail: "decode: \(wrapped.description)"
             )
         case .transport(let wrapped):
             return ErrorPresentation(
-                title: "通信エラー",
-                message: "通信中に問題が発生しました。(\(wrapped.description))",
-                recoveryAction: "再試行"
+                title: "通信が途中で切れました",
+                message: "電波が弱いか、Wi‑Fi とモバイル通信が切り替わりました。",
+                recoveryAction: "再試行",
+                nextStep: "通信が落ち着いたら再試行してください。",
+                technicalDetail: wrapped.description
             )
         }
     }

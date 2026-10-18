@@ -5,12 +5,25 @@ import PhloxCore
 public struct ConnectFailure: Equatable, Sendable {
     public let title: String
     public let message: String
+    public let nextStep: String?
     public let detail: String?
+    public let isNeutral: Bool
+    public let checklist: [String]
 
-    public init(title: String, message: String, detail: String? = nil) {
+    public init(
+        title: String,
+        message: String,
+        nextStep: String? = nil,
+        detail: String? = nil,
+        isNeutral: Bool = false,
+        checklist: [String] = []
+    ) {
         self.title = title
         self.message = message
+        self.nextStep = nextStep
         self.detail = detail
+        self.isNeutral = isNeutral
+        self.checklist = checklist
     }
 }
 
@@ -39,6 +52,13 @@ public final class AppModel {
     public var isConnecting: Bool = false
     /// 接続待ちがタイムアウトで失敗したときの原因（画面表示用）。nil の間はリッチな接続中アニメーションを出す。
     public var connectFailure: ConnectFailure?
+    public var connectionWaitSeconds = 0
+    public var connectedMacName = "Mac"
+
+    /// Pairing URL は起動時設定の復元とロック解除が完了するまでルーティングしない。
+    public func canOpenPairingURL(bootstrapComplete: Bool) -> Bool {
+        bootstrapComplete && authState == .unlocked
+    }
 
     public init(
         authState: AuthState = .locked,

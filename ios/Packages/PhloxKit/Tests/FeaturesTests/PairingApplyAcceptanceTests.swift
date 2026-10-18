@@ -40,6 +40,7 @@ struct PairingApplyAcceptanceTests {
         #expect(configStore.saved == [ConnectionConfig(host: "100.64.12.34", port: 8765)])
         #expect(tokenStore.saved == [token])
         #expect(vm.phase == .success(name: "Studio"))
+        #expect(vm.appliedName == "Studio")
     }
 
     @Test("name 無しの成功は .success(name: nil)")
@@ -47,6 +48,7 @@ struct PairingApplyAcceptanceTests {
         let vm = PairingApplyViewModel(tokenStore: SpyTokenStore(), configStore: SpyConfigStore(), probe: { _, _ in true })
         await vm.apply(PairingPayload(host: "100.64.12.34", port: 8765, token: token, name: nil))
         #expect(vm.phase == .success(name: nil))
+        #expect(vm.appliedName == nil)
     }
 
     @Test("probe 失敗でも保存は保持され、再スキャン案内の .unreachable になる")
@@ -59,8 +61,7 @@ struct PairingApplyAcceptanceTests {
         #expect(configStore.saved == [ConnectionConfig(host: "100.64.99.99", port: 1234)])
         #expect(tokenStore.saved == [token])
         #expect(vm.phase == .unreachable(guidance: PairingCopy.unreachableGuidance))
-        #expect(PairingCopy.unreachableGuidance.contains("再表示"))
-        #expect(PairingCopy.unreachableGuidance.contains("スキャン"))
+        #expect(PairingCopy.unreachableGuidance.contains("Mac 側で QR を表示し直してから、もう一度読み取ってください。"))
     }
 
     @Test("probe には保存したのと同じ config と token が渡る")

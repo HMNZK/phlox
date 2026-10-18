@@ -70,12 +70,15 @@ public final class SessionDetailViewModel {
     /// reasoning / command / fileChange 行の展開状態（message.id キー。ポーリング差し替え後も保持）。
     public private(set) var expandedMessageIDs: Set<String> = []
     public private(set) var sendState: SendState = .idle
+    private(set) var sendErrorPresentation: ErrorPresentation?
     public private(set) var isRecoveringInitialSend = false
     public private(set) var loadError: String?
     public private(set) var approvals: [Approval] = []
     private(set) var approvalLoadError: String?
+    private(set) var approvalLoadPresentation: ErrorPresentation?
     private(set) var replyApprovalIndex = 0
     private(set) var replyApprovalError: String?
+    private(set) var replyApprovalPresentation: ErrorPresentation?
     private(set) var replyApprovalResult: ReplyApprovalResult?
     private(set) var replyApprovalDiffInitiallyExpanded = false
     private(set) var isReplyApprovalResponding = false
@@ -244,7 +247,8 @@ public final class SessionDetailViewModel {
             displayName = trimmed
             isRenamePresented = false
         } catch {
-            renameError = (error as? PhloxError)?.presentation.message ?? "通信中に問題が発生しました。"
+            let presentation = (error as? PhloxError)?.presentation
+            renameError = presentation?.technicalDetail ?? presentation?.message ?? "通信中に問題が発生しました。"
             isRenamePresented = false
         }
     }
@@ -578,6 +582,7 @@ public final class SessionDetailViewModel {
         guard !session.isPTY, session.agent == .codex else {
             approvals = []
             approvalLoadError = nil
+            approvalLoadPresentation = nil
             return
         }
         do {
@@ -585,12 +590,15 @@ public final class SessionDetailViewModel {
                 $0.sessionID == session.id && $0.kind == .codex
             }
             approvalLoadError = nil
-        } catch let error as PhloxError {
+            approvalLoadPresentation = nil
+        } catch is PhloxError {
             approvals = []
-            approvalLoadError = error.presentation.message
+            approvalLoadPresentation = Self.approvalLoadFailurePresentation
+            approvalLoadError = approvalLoadPresentation?.message
         } catch {
             approvals = []
-            approvalLoadError = "承認情報の取得に失敗しました"
+            approvalLoadPresentation = Self.approvalLoadFailurePresentation
+            approvalLoadError = approvalLoadPresentation?.message
         }
     }
 
@@ -642,6 +650,7 @@ public final class SessionDetailViewModel {
         guard count > 0 else { return }
         replyApprovalIndex = min(max(index, 0), count - 1)
         replyApprovalError = nil
+        replyApprovalPresentation = nil
         replyApprovalResult = nil
     }
 
@@ -649,6 +658,7 @@ public final class SessionDetailViewModel {
         guard replyApprovalResult != nil, !replyApprovals.isEmpty else { return }
         replyApprovalResult = nil
         replyApprovalError = nil
+        replyApprovalPresentation = nil
         replyApprovalIndex = min(max(replyApprovalIndex, 0), replyApprovals.count - 1)
     }
 
@@ -659,6 +669,7 @@ public final class SessionDetailViewModel {
         else { return }
 
         replyApprovalError = nil
+        replyApprovalPresentation = nil
         replyApprovalResult = nil
         isReplyApprovalResponding = true
         defer { isReplyApprovalResponding = false }
@@ -694,7 +705,8 @@ public final class SessionDetailViewModel {
                 remainingCount: remainingCount
             )
         } catch {
-            replyApprovalError = "承認を送信できませんでした（Mac に接続できません）"
+            replyApprovalError = Self.replyApprovalFailureCopy(decision)
+            replyApprovalPresentation = Self.replyApprovalFailurePresentation(decision)
         }
     }
 
@@ -711,6 +723,39 @@ public final class SessionDetailViewModel {
         case rejected
     }
 
+    private static func replyApprovalFailureCopy(_ decision: ApprovalDecision) -> String {
+        "応答を送れませんでした。「\(replyApprovalActionLabel(decision))」は Mac に届いていません。もう一度選んでください。応答の送信に失敗しました · Mac に接続できません"
+    }
+    private static func replyApprovalFailurePresentation(_ decision: ApprovalDecision) -> ErrorPresentation {
+        ErrorPresentation(
+            title: "応答を送れませんでした",
+            message: "「\(replyApprovalActionLabel(decision))」は Mac に届いていません。",
+            recoveryAction: nil,
+            nextStep: "もう一度選んでください。",
+            technicalDetail: "応答の送信に失敗しました · Mac に接続できません"
+        )
+    }
+    private static let approvalLoadFailurePresentation = ErrorPresentation(
+        title: "承認の内容を読み込めませんでした",
+        message: "承認待ちですが、何を許可するかを Mac から受け取れませんでした。",
+        recoveryAction: nil,
+        nextStep: "内容が読めるまで承認・却下は押せません。読み込み直しています。",
+        technicalDetail: "承認情報の取得に失敗しました"
+    )
+    private static func sendFailurePresentation(
+        technicalDetail: String?,
+        isNeutral: Bool = false
+    ) -> ErrorPresentation {
+        ErrorPresentation(
+            title: "送信できませんでした",
+            message: "本文と添付は入力欄に戻しました。",
+            recoveryAction: nil,
+            nextStep: "送信ボタンで送り直せます。",
+            technicalDetail: technicalDetail,
+            isNeutral: isNeutral
+        )
+    }
+
     #if DEBUG
     public enum ReplySnapshotState: Sendable {
         case approvalFailure
@@ -722,7 +767,8 @@ public final class SessionDetailViewModel {
     public func configureReplySnapshot(_ state: ReplySnapshotState) {
         switch state {
         case .approvalFailure:
-            replyApprovalError = "承認を送信できませんでした（Mac に接続できません）"
+            replyApprovalError = Self.replyApprovalFailureCopy(.accept)
+            replyApprovalPresentation = Self.replyApprovalFailurePresentation(.accept)
         case .approvalResult(let actionLabel, let remainingCount):
             if let currentReplyApproval {
                 respondedReplyApprovalIDs.insert(currentReplyApproval.id)
@@ -982,6 +1028,7 @@ public final class SessionDetailViewModel {
         let backupModel = selectedModelPickerEntryID
         let backupSessionID = session.id
         sendState = .sending
+        sendErrorPresentation = nil
         let prepared: [PreparedImageAttachment]
         do {
             prepared = try await ImageAttachmentPreparer.prepare(backupItems.map { $0.send.data })
@@ -991,8 +1038,8 @@ public final class SessionDetailViewModel {
                 return
             }
         } catch {
-            attachmentError = error.localizedDescription
-            sendState = .failed(error.localizedDescription)
+            attachmentError = "画像を読み込めませんでした"
+            sendState = .failed("画像を読み込めませんでした")
             return
         }
         do {
@@ -1009,13 +1056,20 @@ public final class SessionDetailViewModel {
                 pendingAttachmentSends.append(.init(text: text, previews: backupItems.map(\.previewData)))
             }
             sendState = .idle
+            sendErrorPresentation = nil
             attachmentError = nil
             isRecoveringInitialSend = false
             await refresh() // 送信後に即時更新（以降はポーリングが追従）
         } catch let error as PhloxError {
-            sendState = .failed("送信に失敗しました · \(error.presentation.title)")
+            let technicalDetail = error.presentation.technicalDetail ?? error.presentation.message
+            sendErrorPresentation = Self.sendFailurePresentation(
+                technicalDetail: technicalDetail,
+                isNeutral: error.presentation.isNeutral
+            )
+            sendState = .failed(sendErrorPresentation?.message ?? error.presentation.message)
         } catch {
-            sendState = .failed("送信に失敗しました")
+            sendErrorPresentation = Self.sendFailurePresentation(technicalDetail: nil)
+            sendState = .failed(sendErrorPresentation?.message ?? "送信できませんでした")
         }
     }
 
@@ -1139,10 +1193,13 @@ public final class SessionDetailViewModel {
     }
 
     private static func messageFetchFailure(for error: PhloxError) -> String {
+        let technicalDetail: String
         if case .server(let status, _) = error {
-            return "メッセージの取得に失敗しました · HTTP \(status)"
+            technicalDetail = "HTTP \(status)"
+        } else {
+            technicalDetail = error.presentation.technicalDetail ?? error.presentation.title
         }
-        return "メッセージの取得に失敗しました · \(error.presentation.message)"
+        return "メッセージの取得に失敗しました · \(technicalDetail)"
     }
 
     private func fetchTurnUsageIfAvailable() async {

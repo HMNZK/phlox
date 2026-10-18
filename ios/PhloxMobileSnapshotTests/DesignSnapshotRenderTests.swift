@@ -34,6 +34,7 @@ struct DesignSnapshotRenderTests {
         }
 
         try await renderGlanceSnapshots(output: output, osSuffix: osSuffix)
+        try await renderPairSettingsSnapshots(output: output, osSuffix: osSuffix)
 
         for screen in [UITestingSupport.Screen.sessionList] {
             let environment = AppEnvironment.uiTesting(scenario: .goldenPath, screen: screen)
@@ -65,7 +66,7 @@ struct DesignSnapshotRenderTests {
                 let safeArea = width == 428
                     ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
                     : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
-                let scale: CGFloat = width == 428 ? 3 : 2
+                let scale: CGFloat = 2
                 let image = try await windowImage(
                     content,
                     size: size,
@@ -153,32 +154,73 @@ struct DesignSnapshotRenderTests {
                     SettingsView(
                         viewModel: SettingsViewModel(settings: settings),
                         connectionViewModel: connection,
-                        onQRScan: {}
+                        onQRScan: {},
+                        reachability: reachability,
+                        lastFetchedAt: offline ? Date().addingTimeInterval(-180) : list.lastFetchedAt
                     )
                 }
                 .dsCampNavigationChrome()
             }
-            .environment(\.colorScheme, .light)
-            .environment(\.dynamicTypeSize, .large)
-            .environment(\.locale, Locale(identifier: "ja_JP"))
-            .frame(width: 428, height: 926)
-
             let size = CGSize(width: 428, height: 926)
             print("rendering shell snapshot: \(screen.rawValue)")
             let image = try await windowImage(
-                content,
+                content
+                    .environment(\.colorScheme, .light)
+                    .environment(\.dynamicTypeSize, .large)
+                    .environment(\.locale, Locale(identifier: "ja_JP"))
+                    .frame(width: size.width, height: size.height),
                 size: size,
                 safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
-                scale: 3,
+                scale: 2,
                 dark: false
             )
             try writeSnapshot(
                 image,
-                name: "\(screen.fileName)-428x926-light\(osSuffix).png",
+                name: "\(screen.snapshotName)-428x926-light\(osSuffix).png",
                 to: output,
                 expectedSize: size,
-                expectedScale: 3
+                expectedScale: 2
             )
+
+            if screen == .sessionShell {
+                var variants: [(name: String, width: CGFloat, height: CGFloat, dark: Bool, ax5: Bool)] = [
+                    ("ShellDark", 428, 926, true, false),
+                    ("ShellDT", 428, 926, false, true),
+                    ("ShellSE", 375, 667, false, false),
+                ]
+                if iOSMajor == "18" {
+                    variants.append(("Shell18", 428, 926, false, false))
+                }
+                for variant in variants {
+                    let variantTheme = AppearancePreference.system.themeID(
+                        systemColorScheme: variant.dark ? .dark : .light
+                    )
+                    preferences.set(variantTheme, forKey: ThemeStore.themeKey)
+                    DSNavigationChrome.installUIKitAppearanceIfNeeded(for: variantTheme)
+                    let variantSize = CGSize(width: variant.width, height: variant.height)
+                    let variantSafeArea = variant.width == 428
+                        ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
+                        : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+                    let variantImage = try await windowImage(
+                        content
+                            .environment(\.colorScheme, variant.dark ? .dark : .light)
+                            .environment(\.dynamicTypeSize, variant.ax5 ? .accessibility5 : .large)
+                            .environment(\.locale, Locale(identifier: "ja_JP"))
+                            .frame(width: variantSize.width, height: variantSize.height),
+                        size: variantSize,
+                        safeArea: variantSafeArea,
+                        scale: 2,
+                        dark: variant.dark
+                    )
+                    try writeSnapshot(
+                        variantImage,
+                        name: "\(variant.name)-\(Int(variant.width))x\(Int(variant.height))-\(variant.dark ? "dark" : "light")\(variant.ax5 ? "-ax5" : "")\(osSuffix).png",
+                        to: output,
+                        expectedSize: variantSize,
+                        expectedScale: 2
+                    )
+                }
+            }
         }
 
         let listScreens: [UITestingSupport.Screen] = [
@@ -218,9 +260,11 @@ struct DesignSnapshotRenderTests {
             case .list:
                 [(428, 926, false, false), (428, 926, true, false)]
             case .listSE:
-                [(375, 667, false, false)]
+                [(375, 667, false, false), (375, 667, true, false)]
             case .listDT:
                 [(428, 926, false, true)]
+            case .listMulti, .listLoading, .listEmpty, .listOffHost:
+                [(428, 926, false, false), (428, 926, true, false)]
             default:
                 [(428, 926, false, false)]
             }
@@ -253,14 +297,18 @@ struct DesignSnapshotRenderTests {
                     onShowSessionList: {},
                     onReconnect: {}
                 ) {
-                    NavigationStack { sessionList }
+                    NavigationStack {
+                        sessionList
+                    }
                         .dsCampNavigationChrome()
                 } settings: {
                     NavigationStack {
                         SettingsView(
                             viewModel: SettingsViewModel(settings: settings),
                             connectionViewModel: connection,
-                            onQRScan: {}
+                            onQRScan: {},
+                            reachability: reachability,
+                            lastFetchedAt: list.lastFetchedAt
                         )
                     }
                     .dsCampNavigationChrome()
@@ -273,7 +321,7 @@ struct DesignSnapshotRenderTests {
                 let safeArea = layout.width == 428
                     ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
                     : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
-                let scale: CGFloat = layout.width == 428 ? 3 : 2
+                let scale: CGFloat = 2
                 let image = try await windowImage(
                     content,
                     size: size,
@@ -288,8 +336,84 @@ struct DesignSnapshotRenderTests {
                     expectedSize: size,
                     expectedScale: scale
                 )
+                let darkBoardName: String? = switch screen {
+                case .list: "ListDark"
+                case .listMulti: "ListMultiDark"
+                case .listLoading: "ListLoadingDark"
+                case .listEmpty: "ListEmptyDark"
+                case .listOffHost: "ListOffHostDark"
+                case .listSE: "ListSEDark"
+                default: nil
+                }
+                if layout.dark, let darkBoardName {
+                    try writeSnapshot(
+                        image,
+                        name: "\(darkBoardName)-\(Int(layout.width))x\(Int(layout.height))-dark\(osSuffix).png",
+                        to: output,
+                        expectedSize: size,
+                        expectedScale: scale
+                    )
+                }
             }
         }
+
+        let manyEnvironment = AppEnvironment.uiTesting(scenario: .goldenPath, screen: .listManyTop)
+        let manyList = SessionListViewModel(
+            repository: manyEnvironment.sessionRepository,
+            api: manyEnvironment.apiClient
+        )
+        await manyList.observe()
+        try #require(manyList.allSessions.count == 25)
+        #expect(manyList.allSessions.filter(\.needsAttention).count == 3)
+        for (name, anchor) in [("ListManyTop", UnitPoint.top), ("ListManyScrolled", UnitPoint.bottom)] {
+            let manySessionList = SessionListView(
+                viewModel: manyList,
+                reachability: .online,
+                endpoint: "100.64.0.1:8765",
+                onSelectDetail: { _ in },
+                onAddSession: { _ in }
+            )
+            let content = AppShellView(
+                selection: .constant(AppTab.sessions),
+                navigationState: SessionNavigationState.resolve(
+                    listState: manyList.state,
+                    lastKnownSessions: manyList.lastKnownSessions,
+                    reachability: .online
+                ),
+                reachability: .online,
+                lastFetchedAt: manyList.lastFetchedAt,
+                host: "100.64.0.1",
+                hidesTabBar: false,
+                hidesAccessory: false,
+                onOpenSession: { _ in }, onShowSessionList: {}, onReconnect: {}
+            ) {
+                NavigationStack { manySessionList.defaultScrollAnchor(anchor) }
+                    .dsCampNavigationChrome()
+            } settings: {
+                NavigationStack { EmptyView() }
+                    .dsCampNavigationChrome()
+            }
+            .environment(\.colorScheme, .light)
+            .environment(\.dynamicTypeSize, .large)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            .frame(width: 428, height: 926)
+            let size = CGSize(width: 428, height: 926)
+            let image = try await windowImage(
+                content,
+                size: size,
+                safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
+                scale: 2,
+                dark: false
+            )
+            try writeSnapshot(
+                image,
+                name: "\(name)-428x926-light\(osSuffix).png",
+                to: output,
+                expectedSize: size,
+                expectedScale: 2
+            )
+        }
+        manyList.stop()
 
         for dark in [false, true] {
             let themeID = AppearancePreference.system.themeID(systemColorScheme: dark ? .dark : .light)
@@ -305,7 +429,7 @@ struct DesignSnapshotRenderTests {
                 content,
                 size: size,
                 safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
-                scale: 3,
+                scale: 2,
                 dark: dark
             )
             try writeSnapshot(
@@ -313,7 +437,7 @@ struct DesignSnapshotRenderTests {
                 name: "components-428x926-\(dark ? "dark" : "light")\(osSuffix).png",
                 to: output,
                 expectedSize: size,
-                expectedScale: 3
+                expectedScale: 2
             )
         }
 
@@ -329,12 +453,25 @@ struct DesignSnapshotRenderTests {
             .init(name: "ReplyHaiku", modelName: "Haiku 5.5", showsEffort: false),
             .init(name: "ReplyInputDT", isAccessibilitySize: true),
             .init(name: "ReplyAttach", text: "この2枚の502の画面を見て原因を探して [Image #1] [Image #2]", attachmentCount: 2),
+            .init(name: "ReplyAttachDark", dark: true, text: "この2枚の502の画面を見て原因を探して [Image #1] [Image #2]", attachmentCount: 2),
             .init(
                 name: "ReplyAttachErr",
                 text: "ログの画面 [Image #1] [Image #2] [Image #3] [Image #4]",
                 attachmentCount: 4,
                 attachmentError: "画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。"
             ),
+            .init(name: "ReplyAttachErrDim", text: "ログの画面 [Image #1]", attachmentCount: 1,
+                  attachmentError: "画像は各辺8000ピクセルまでです。必要な部分を切り出してください"),
+            .init(name: "ReplyAttachErrDimDark", dark: true, text: "ログの画面 [Image #1]", attachmentCount: 1,
+                  attachmentError: "画像は各辺8000ピクセルまでです。必要な部分を切り出してください"),
+            .init(name: "ReplyAttachErrDimSE", width: 375, height: 667, text: "ログの画面 [Image #1]", attachmentCount: 1,
+                  attachmentError: "画像は各辺8000ピクセルまでです。必要な部分を切り出してください"),
+            .init(name: "ReplyAttachErrLoad", text: "ログの画面 [Image #1] [Image #2]", attachmentCount: 2,
+                  attachmentError: "画像を読み込めませんでした"),
+            .init(name: "ReplyAttachErrSize", text: "ログの画面 [Image #1] [Image #2]", attachmentCount: 2,
+                  attachmentError: "画像は1枚あたり20MBまでです"),
+            .init(name: "ReplyAttachErrTotal", text: "ログの画面 [Image #1] [Image #2] [Image #3]", attachmentCount: 3,
+                  attachmentError: "画像は合計80MBまでです"),
             .init(name: "ReplyDark", dark: true),
             .init(name: "UsageNormal"),
             .init(name: "UsageLow", usageStyle: .low),
@@ -343,8 +480,20 @@ struct DesignSnapshotRenderTests {
             .init(name: "UsageRefresh", usageState: .loading),
             .init(name: "UsageNormalDT", isAccessibilitySize: true),
             .init(name: "UsageNormalDark", dark: true),
+            .init(name: "UsageNormalSE", width: 375, height: 667, showsSessionDetailChrome: true),
+            .init(name: "UsageLowDT", isAccessibilitySize: true, usageStyle: .low, showsSessionDetailChrome: true),
+            .init(name: "UsageLowDark", dark: true, usageStyle: .low, showsSessionDetailChrome: true),
+            .init(name: "UsageLowSE", width: 375, height: 667, usageStyle: .low, showsSessionDetailChrome: true),
+            .init(name: "UsageNaDT", isAccessibilitySize: true, usageStyle: .unavailable, showsSessionDetailChrome: true),
+            .init(name: "UsageNaDark", dark: true, usageStyle: .unavailable, showsSessionDetailChrome: true),
+            .init(name: "UsageNaSE", width: 375, height: 667, usageStyle: .unavailable, showsSessionDetailChrome: true),
             .init(name: "UsagePop", showsUsagePopover: true),
+            .init(name: "UsagePopDT", isAccessibilitySize: true, showsUsagePopover: true, showsSessionDetailChrome: true),
+            .init(name: "UsagePopSE", width: 375, height: 667, showsUsagePopover: true, showsSessionDetailChrome: true),
             .init(name: "UsagePopDark", dark: true, showsUsagePopover: true),
+            .init(name: "UsageStaleDT", isAccessibilitySize: true, usageState: .failed, showsSessionDetailChrome: true),
+            .init(name: "UsageStaleDark", dark: true, usageState: .failed, showsSessionDetailChrome: true),
+            .init(name: "UsageStaleSE", width: 375, height: 667, usageState: .failed, showsSessionDetailChrome: true),
         ]
 
         let attachmentPreviews = [
@@ -402,24 +551,55 @@ struct DesignSnapshotRenderTests {
                 isPopoverPresented: scenario.showsUsagePopover
             )
             .padding(.horizontal, DSSpacing.xl)
-            content = AnyView(
-                ZStack(alignment: .bottom) {
-                    snapshotTranscript(for: scenario)
-                        .frame(width: size.width, height: size.height)
-                    VStack(spacing: DSSpacing.s) {
-                        inputBar
-                        usageRow
-                    }
-                    .padding(.bottom, DSSpacing.m)
+            let page = ZStack(alignment: .bottom) {
+                snapshotTranscript(for: scenario, alignsWithChatBoard: scenario.showsSessionDetailChrome)
+                    .frame(width: size.width, height: size.height)
+                VStack(spacing: DSSpacing.s) {
+                    inputBar
+                    usageRow
                 }
-                .frame(width: size.width, height: size.height)
-                .background(DSColor.background)
-                .environment(\.colorScheme, scenario.dark ? .dark : .light)
-                .environment(\.dynamicTypeSize, scenario.isAccessibilitySize ? .accessibility5 : .large)
-                .environment(\.locale, Locale(identifier: "ja_JP"))
-            )
+                .padding(.bottom, DSSpacing.m)
+            }
+            .frame(width: size.width, height: size.height)
+            .background(DSColor.background)
+            .environment(\.colorScheme, scenario.dark ? .dark : .light)
+            .environment(\.dynamicTypeSize, scenario.isAccessibilitySize ? .accessibility5 : .large)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            if scenario.showsSessionDetailChrome {
+                content = AnyView(
+                    NavigationStack {
+                        page
+                            .modifier(DSSessionNavigationChrome(
+                                title: "refactor: ControlServer proxy",
+                                subtitle: Text("完了").foregroundColor(IOSColor.text.tertiary)
+                                    + Text(" · Claude Code").foregroundColor(IOSColor.text.secondary)
+                            ) {
+                                Button {} label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(DSFont.headline.weight(.semibold))
+                                }
+                                .accessibilityLabel("セッションメニュー")
+                            })
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button {} label: {
+                                        Image(systemName: "house")
+                                            .font(DSFont.headline)
+                                            .frame(width: DSTouch.minSize, height: DSTouch.minSize)
+                                            .glassSurface(.roundButton)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("セッション一覧に戻る")
+                                }
+                            }
+                    }
+                    .dsCampNavigationChrome()
+                )
+            } else {
+                content = AnyView(page)
+            }
 
-            let scale: CGFloat = scenario.width == 428 ? 3 : 2
+            let scale: CGFloat = 2
             let image = try await windowImage(
                 content,
                 size: size,
@@ -435,40 +615,6 @@ struct DesignSnapshotRenderTests {
                 expectedScale: scale
             )
         }
-
-        let modelEntries = [
-            SessionDetailViewModel.ModelPickerEntry(kind: .claudeCode, modelID: "opus", displayName: "Opus (1M context)"),
-            SessionDetailViewModel.ModelPickerEntry(kind: .claudeCode, modelID: "sonnet", displayName: "Sonnet 5"),
-            SessionDetailViewModel.ModelPickerEntry(kind: .claudeCode, modelID: "haiku", displayName: "Haiku 5.5"),
-        ]
-        let modelThemeID = AppearancePreference.system.themeID(systemColorScheme: .light)
-        preferences.set(modelThemeID, forKey: ThemeStore.themeKey)
-        DSNavigationChrome.installUIKitAppearanceIfNeeded(for: modelThemeID)
-        let selectedModelID = modelEntries[1].id
-        let modelSheetContent = ModelPickerSnapshotHost(
-            entries: modelEntries,
-            selectedEntryID: selectedModelID,
-            agentName: AgentKind.claudeCode.displayName,
-            defaultEntryID: modelEntries[0].id
-        )
-        .environment(\.colorScheme, .light)
-        .environment(\.dynamicTypeSize, .large)
-        .environment(\.locale, Locale(identifier: "ja_JP"))
-        .frame(width: 428, height: 926)
-        let modelImage = try await windowImage(
-            modelSheetContent,
-            size: CGSize(width: 428, height: 926),
-            safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
-            scale: 3,
-            dark: false
-        )
-        try writeSnapshot(
-            modelImage,
-            name: "ReplyModel-428x926-light\(osSuffix).png",
-            to: output,
-            expectedSize: CGSize(width: 428, height: 926),
-            expectedScale: 3
-        )
 
         try await renderNewChatSnapshots(output: output, variables: variables, osSuffix: osSuffix)
     }
@@ -580,6 +726,21 @@ struct DesignSnapshotRenderTests {
             message: "swift test が終了コード 1 で失敗しました: ProxyRouterTests.testForwardsApprovals2 — XCTAssertEqual failed: (\"502\") is not equal to (\"200\")"
         )
         let runningMessages = [userFirst, reasoning] + readCommands + [agent, subAgent, fileA, fileB] + lastToolCommands + [buildMessage]
+        let runningBlockCount = SessionDetailToolCallGrouping.visibleSlice(
+            from: runningMessages,
+            blockLimit: Int.max
+        ).blocks.count
+        let tailPadding = (0..<max(0, 50 - runningBlockCount)).map { index in
+            ChatMessage.agent(id: "chat-long-tail-\(index)", text: "ProxyRouter の変更を確認しています。")
+        }
+        let olderMessages = (0..<412).map { index in
+            if index.isMultiple(of: 2) {
+                ChatMessage.user(id: "chat-long-old-user-\(index)", text: "以前の作業を確認してください。")
+            } else {
+                ChatMessage.agent(id: "chat-long-old-agent-\(index)", text: "前の作業記録です。")
+            }
+        }
+        let longChatMessages = olderMessages + runningMessages + tailPadding
         let stallMessages = [userFirst, reasoning] + readCommands + [agent, fileA, fileB] + lastToolCommands + [buildMessage]
         let idleMessages = [fileA, fileB] + lastToolCommands + [richReply, .turnCost(id: "chat-turn-cost", costUSD: 0.42)]
         let doneMessages: [ChatMessage] = [
@@ -723,7 +884,7 @@ struct DesignSnapshotRenderTests {
             snapshotAttachmentData(color: .systemOrange, label: "502"),
             snapshotAttachmentData(color: .systemBlue, label: "LOG"),
         ]
-        let cases: [SessionDetailSnapshotCase] = [
+        var cases: [SessionDetailSnapshotCase] = [
             .init(name: detailName, session: detailSession, messages: .success(detailRecentMessages), approvals: [approval]),
             .init(name: "ChatLoading", session: chatSession("loading", .running), messages: .suspended),
             .init(name: "ChatEmpty", session: chatSession("empty", .idle), messages: .success([])),
@@ -731,6 +892,22 @@ struct DesignSnapshotRenderTests {
             .init(name: "ChatUnsupported", session: Session(id: "pty", name: chatName, agent: .claudeCode, status: .running, backend: "pty", updatedAt: snapshotDate), messages: .success(stallMessages)),
             .init(name: "ChatSendFail", session: chatSession("send-failed", .idle), messages: .success([lastToolCommands[0], lastToolCommands[1], lastToolCommands[2], richReply]), recovery: SessionDetailRecovery(text: "失敗しているテストを先に直して", attachments: [], errorMessage: "送信に失敗しました · Mac に接続できません"), isNewSession: true),
             .init(name: "Chat", session: chatSession("chat", .running), messages: .success(runningMessages), attachmentPreviews: ["chat-user": attachmentPreviews], statusAge: 38),
+            .init(name: "ChatLong", session: chatSession("chat-long", .running), messages: .success(longChatMessages), statusAge: 38, startsAtTop: true),
+            .init(
+                name: "ChatSub",
+                session: Session(
+                    id: "sub-agent", name: "サブエージェント", agent: .claudeCode,
+                    status: .running, projectName: "Phlox", backend: "explore-map", updatedAt: snapshotDate
+                ),
+                messages: .success([
+                    .user(id: "sub-user", text: "ControlServer と MobileProxy のテストを一覧にして、転送に関わるものに印を付けて"),
+                    .reasoning(id: "sub-reasoning", text: "テストファイルを検索し、転送処理を扱うテストを見分けます。"),
+                    .command(id: "sub-command", command: "rg --files -g \"*Tests.swift\"", output: "50 件のテストファイルを確認しました。"),
+                    .agent(id: "sub-agent-result", text: "テストは 2 パッケージで合計 50 件です。転送に関わるものに印を付けました。\n\n• ★ ProxyRouterTests.testForwardsSessions\n• ★ ProxyRouterTests.testForwardsApprovals\n• AuthTests.testRejectsExpiredToken"),
+                ]),
+                statusAge: 28
+            ),
+            .init(name: "DraftCreated", session: chatSession("draft-created", .running), messages: .success([userFirst]), isNewSession: true),
             .init(name: "ChatStall", session: chatSession("stalled", .running, stalled: true), messages: .success(stallMessages), attachmentPreviews: ["chat-user": attachmentPreviews]),
             .init(name: "ChatIdle", session: chatSession("idle", .idle), messages: .success(idleMessages), usage: usage42),
             .init(name: "ChatDone", session: chatSession("done", .completed(exitCode: 0)), messages: .success(doneMessages), usage: usage16),
@@ -752,12 +929,67 @@ struct DesignSnapshotRenderTests {
             .init(name: "ReplyQuestionFail", session: chatSession("reply-question-fail", .awaitingUserQuestion), messages: .success([agent, .command(id: "reply-question-fail-tests", command: testCommand, output: testOutput), pendingDeploymentQuestionFail]), statusAge: 12, replyState: .questionFailure(requestID: "deploy-test-request")),
         ]
 
+        let baseCases = cases
+        let detailVariants: [(base: String, name: String, width: CGFloat, height: CGFloat, dark: Bool, ax5: Bool)] = [
+            ("Chat", "ChatDark", 428, 926, true, false),
+            ("Chat", "ChatDT", 428, 926, false, true),
+            ("Chat", "ChatSE", 375, 667, false, false),
+            ("Chat", "ChatSEDark", 375, 667, true, false),
+            ("ChatError", "ChatErrorDark", 428, 926, true, false),
+            ("ChatExpandCmd", "ChatExpandCmdDT", 428, 926, false, true),
+            ("ChatExpandCmd", "ChatExpandCmdDark", 428, 926, true, false),
+            ("ChatExpandDiff", "ChatExpandDiffDark", 428, 926, true, false),
+            ("ChatFetchErr", "ChatFetchErrDark", 428, 926, true, false),
+            ("ChatIdle", "ChatIdleDark", 428, 926, true, false),
+            ("ChatQuestion", "ChatQuestionDark", 428, 926, true, false),
+            ("ChatSendFail", "ChatSendFailDark", 428, 926, true, false),
+            ("ChatStall", "ChatStallDT", 428, 926, false, true),
+            ("ChatStall", "ChatStallDark", 428, 926, true, false),
+            ("ChatSub", "ChatSubDark", 428, 926, true, false),
+            ("ChatThinking", "ChatThinkingDark", 428, 926, true, false),
+            ("ChatUnsupported", "ChatUnsupportedDark", 428, 926, true, false),
+            (detailName, "DetailDT", 428, 926, false, true),
+            (detailName, "DetailDark", 428, 926, true, false),
+            (detailName, "DetailSE", 375, 667, false, false),
+            (detailName, "ListTapDetail", 428, 926, false, false),
+            ("ReplyCodex", "ReplyApprovalDark", 428, 926, true, false),
+            ("ReplyApprovalDiff", "ReplyApprovalDiffDT", 428, 926, false, true),
+            ("ReplyApprovalDiff", "ReplyApprovalDiffDark", 428, 926, true, false),
+            ("ReplyApprovalDiff", "ReplyApprovalDiffSE", 375, 667, false, false),
+            ("ReplyApprovalFail", "ReplyApprovalFailDark", 428, 926, true, false),
+            ("ReplyCodex", "ReplyApprovalSEDark", 375, 667, true, false),
+            ("Reply", "ReplySE", 375, 667, false, false),
+            ("Reply", "ReplySEDark", 375, 667, true, false),
+            ("ReplyQuestion", "ReplyQuestionDT", 428, 926, false, true),
+            ("ReplyQuestion", "ReplyQuestionDark", 428, 926, true, false),
+            ("ReplyQuestion", "ReplyQuestionSE", 375, 667, false, false),
+            ("ChatDone", "ReplyDone", 428, 926, false, false),
+            ("ChatError", "ReplyError", 428, 926, false, false),
+        ]
+        for variant in detailVariants {
+            guard var snapshot = baseCases.first(where: { $0.name == variant.base }) else {
+                throw SnapshotError.bodyDidNotRender
+            }
+            snapshot.name = variant.name
+            snapshot.width = variant.width
+            snapshot.height = variant.height
+            snapshot.isDark = variant.dark
+            snapshot.isAccessibilitySize = variant.ax5
+            cases.append(snapshot)
+        }
+
         let environment = AppEnvironment.uiTesting(scenario: .goldenPath)
         let list = SessionListViewModel(repository: environment.sessionRepository, api: environment.apiClient)
         await list.observe()
         defer { list.stop() }
 
         for snapshot in cases {
+            let themeID = AppearancePreference.system.themeID(
+                systemColorScheme: snapshot.isDark ? .dark : .light
+            )
+            UserDefaults.standard.set(themeID, forKey: ThemeStore.themeKey)
+            DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
+
             let session = snapshot.session.isStalled || snapshot.statusAge != nil
                 ? Session(
                     id: snapshot.session.id, name: snapshot.session.name, agent: snapshot.session.agent,
@@ -778,7 +1010,7 @@ struct DesignSnapshotRenderTests {
             let navigationState = SessionNavigationState.resolve(
                 listState: list.state, lastKnownSessions: list.lastKnownSessions, reachability: .online
             )
-            let size = CGSize(width: 428, height: 926)
+            let size = CGSize(width: snapshot.width, height: snapshot.height)
             let content = SessionDetailSnapshotHost(
                 list: list, navigationState: navigationState, snapshot: snapshot,
                 session: session, api: api
@@ -787,15 +1019,17 @@ struct DesignSnapshotRenderTests {
                 api: api, agents: UITestUsageFixtures.values(for: .normal), state: .loaded,
                 lastSuccessfulAt: UITestUsageFixtures.asOfDate, now: { UITestUsageFixtures.asOfDate }
             ))
-            .environment(\.colorScheme, .light)
+            .environment(\.colorScheme, snapshot.isDark ? .dark : .light)
             .environment(\.dynamicTypeSize, snapshot.isAccessibilitySize ? .accessibility5 : .large)
             .environment(\.locale, Locale(identifier: "ja_JP"))
             .frame(width: size.width, height: size.height)
 
             let image = try await windowImage(
                 content, size: size,
-                safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0),
-                scale: 2, dark: false, settleDelay: .milliseconds(800),
+                safeArea: snapshot.width == 428
+                    ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
+                    : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0),
+                scale: 2, dark: snapshot.isDark, settleDelay: .milliseconds(800),
                 waitUntilReady: {
                     switch snapshot.messages {
                     case .suspended:
@@ -812,9 +1046,253 @@ struct DesignSnapshotRenderTests {
                 }
             )
             try writeSnapshot(
-                image, name: "\(snapshot.name)-428x926-light\(osSuffix).png", to: output,
+                image, name: "\(snapshot.name)-\(Int(snapshot.width))x\(Int(snapshot.height))-\(snapshot.isDark ? "dark" : "light")\(snapshot.isAccessibilitySize ? "-ax5" : "")\(osSuffix).png", to: output,
                 expectedSize: size, expectedScale: 2
             )
+        }
+    }
+
+    private func renderPairSettingsSnapshots(output: URL, osSuffix: String) async throws {
+        let pairScenes: [(name: String, width: CGFloat, height: CGFloat, dark: Bool, ax5: Bool)] = [
+            ("Pair", 428, 926, false, false), ("PairDark", 428, 926, true, false),
+            ("PairDT", 428, 926, false, true), ("PairSE", 375, 667, false, false),
+            ("PairSEDark", 375, 667, true, false), ("PairNoCam", 428, 926, false, false),
+            ("PairApplying", 428, 926, false, false), ("PairRescanDone", 428, 926, false, false),
+            ("PairParseErr", 428, 926, false, false), ("PairParseErrDark", 428, 926, true, false),
+            ("PairConnecting", 428, 926, false, false),
+            ("PairConnectFail", 428, 926, false, false), ("PairConnectFailDT", 428, 926, false, true),
+            ("PairConnectFailDark", 428, 926, true, false), ("PairUnreach", 428, 926, false, false),
+            ("PairTestFail", 428, 926, false, false), ("PairTestFailDark", 428, 926, true, false),
+            ("PairTestOk", 428, 926, false, false), ("PairTesting", 428, 926, false, false),
+            ("PairSettings", 428, 926, false, false), ("PairGate", 428, 926, false, false),
+            ("PairGateDark", 428, 926, true, false), ("PairGateFail", 428, 926, false, false),
+        ]
+        let config = ConnectionConfig(host: "100.64.0.1", port: 8765)
+
+        for scene in pairScenes {
+            let themeID = AppearancePreference.system.themeID(systemColorScheme: scene.dark ? .dark : .light)
+            UserDefaults.standard.set(themeID, forKey: ThemeStore.themeKey)
+            DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
+            let tokenStore = InMemoryTokenStore(token: "snapshot-token")
+            let configStore = InMemoryConnectionConfigStore(
+                ["PairSettings", "PairTestFail", "PairTestFailDark", "PairTestOk", "PairTesting", "PairUnreach"].contains(scene.name)
+                    ? config : nil
+            )
+            let connection = ConnectionSettingsViewModel(
+                tokenStore: tokenStore,
+                configStore: configStore,
+                probe: { _, _ in true }
+            )
+            switch scene.name {
+            case "PairTestFail", "PairTestFailDark":
+                connection.banner = .failure(ConnectionSettingsCopy.testFailureMessage)
+                connection.seedReachabilityForSnapshot(false)
+            case "PairTestOk":
+                connection.banner = .success(ConnectionSettingsCopy.testSuccessMessage)
+                connection.seedReachabilityForSnapshot(true)
+            case "PairTesting":
+                connection.isTesting = true
+                connection.seedReachabilityForSnapshot(true)
+            case "PairSettings":
+                connection.seedReachabilityForSnapshot(true)
+            default:
+                break
+            }
+
+            let content: AnyView
+            var listToStop: SessionListViewModel?
+            switch scene.name {
+            case "PairGate", "PairGateDark", "PairGateFail":
+                let gate = LaunchGateViewModel(authenticator: StubAuthenticator(allows: false))
+                if scene.name == "PairGateFail" { gate.state = .failed("認証できませんでした") }
+                content = AnyView(LaunchGateView(viewModel: gate, onUnlocked: {}, automaticallyAuthenticates: false))
+            case "PairConnecting":
+                content = AnyView(ConnectingOverlayView(
+                    failure: nil,
+                    deviceName: "Ryosuke's Mac",
+                    endpoint: "100.64.0.1:8765",
+                    elapsedSeconds: 8,
+                    onRetry: {}, onDismiss: {}
+                ))
+            case "PairConnectFail", "PairConnectFailDT", "PairConnectFailDark":
+                content = AnyView(ConnectingOverlayView(
+                    failure: ConnectFailure(
+                        title: "Mac から一覧を読み込めませんでした",
+                        message: "接続先は保存しました。20 秒待っても Mac から応答がありません。",
+                        nextStep: "Mac で次の 3 つを確かめてから、再試行してください。",
+                        detail: "GET http://100.64.0.1:8765/sessions · 20 秒で無応答",
+                        checklist: [
+                            "Mac がスリープしていない",
+                            "Mac で Phlox が起動している",
+                            "Mac と iPhone の Tailscale がオンになっている",
+                        ]
+                    ),
+                    deviceName: "Ryosuke's Mac",
+                    endpoint: "100.64.0.1:8765",
+                    elapsedSeconds: 20,
+                    onRetry: {}, onDismiss: {}
+                ))
+            case "PairApplying", "PairRescanDone", "PairParseErr", "PairParseErrDark", "PairNoCam", "PairUnreach":
+                let apply = PairingApplyViewModel(tokenStore: tokenStore, configStore: configStore, probe: { _, _ in true })
+                if scene.name == "PairApplying" {
+                    apply.seedPhaseForSnapshot(.applying, connection: config)
+                } else if scene.name == "PairUnreach" {
+                    apply.seedPhaseForSnapshot(.unreachable(guidance: PairingCopy.unreachableGuidance), connection: config)
+                } else if scene.name == "PairRescanDone" {
+                    apply.seedPhaseForSnapshot(
+                        .success(name: "Ryosuke's Mac"),
+                        connection: ConnectionConfig(host: "100.64.0.7", port: 8765)
+                    )
+                }
+                let scannedString = scene.name == "PairParseErr" || scene.name == "PairParseErrDark"
+                    ? "phlox://pair?v=2&host=100.64.0.1&port=8765&token=snapshot"
+                    : nil
+                content = AnyView(NavigationStack {
+                    QRScanScreen(
+                        applyViewModel: apply,
+                        initialScannedString: scannedString,
+                        isReconnection: scene.name == "PairRescanDone",
+                        previousEndpoint: scene.name == "PairRescanDone" ? "100.64.0.1:8765" : nil
+                    )
+                }.dsCampNavigationChrome())
+            case "PairSettings", "PairTestFail", "PairTestFailDark", "PairTestOk", "PairTesting":
+                let environment = AppEnvironment.uiTesting(scenario: .empty, screen: .sessionShell)
+                let list = SessionListViewModel(repository: environment.sessionRepository, api: environment.apiClient)
+                await list.observe()
+                listToStop = list
+                let navigationState = SessionNavigationState.resolve(
+                    listState: list.state,
+                    lastKnownSessions: list.lastKnownSessions,
+                    reachability: .online
+                )
+                content = AnyView(
+                    AppShellView(
+                        selection: .constant(.settings),
+                        navigationState: navigationState,
+                        reachability: .online,
+                        lastFetchedAt: list.lastFetchedAt,
+                        host: "100.64.0.1",
+                        hidesTabBar: false,
+                        hidesAccessory: true,
+                        onOpenSession: { _ in },
+                        onShowSessionList: {},
+                        onReconnect: {}
+                    ) {
+                        NavigationStack {
+                            SessionListView(
+                                viewModel: list,
+                                reachability: .online,
+                                onSelectDetail: { _ in },
+                                onAddSession: { _ in }
+                            )
+                        }.dsCampNavigationChrome()
+                    } settings: {
+                        NavigationStack {
+                            PairConnectionSettingsSnapshotView(
+                                connectionViewModel: connection,
+                                onQRScan: {}
+                            )
+                        }.dsCampNavigationChrome()
+                    }
+                    .frame(width: scene.width, height: scene.height)
+                )
+            default:
+                content = AnyView(NavigationStack {
+                    ConnectionSettingsView(viewModel: connection, onQRScan: {})
+                }.dsCampNavigationChrome())
+            }
+            let size = CGSize(width: scene.width, height: scene.height)
+            let safeArea = scene.width == 428
+                ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
+                : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+            let image = try await windowImage(
+                content.environment(\.colorScheme, scene.dark ? .dark : .light)
+                    .environment(\.dynamicTypeSize, scene.ax5 ? .accessibility5 : .large)
+                    .environment(\.locale, Locale(identifier: "ja_JP")),
+                size: size, safeArea: safeArea, scale: 2, dark: scene.dark
+            )
+            try writeSnapshot(
+                image,
+                name: "\(scene.name)-\(Int(scene.width))x\(Int(scene.height))-\(scene.dark ? "dark" : "light")\(scene.ax5 ? "-ax5" : "")\(osSuffix).png",
+                to: output, expectedSize: size, expectedScale: 2
+            )
+            listToStop?.stop()
+        }
+
+        let settingsScenes: [(name: String, width: CGFloat, height: CGFloat, dark: Bool, ax5: Bool)] = [
+            ("SetUse", 428, 926, false, false), ("SetDark", 428, 926, true, false),
+            ("SetDT", 428, 926, false, true), ("SetSE", 375, 667, false, false),
+            ("SetSEDark", 375, 667, true, false), ("SetDisc", 428, 926, false, false),
+            ("SetDiscDark", 428, 926, true, false), ("FlowUsage", 428, 926, false, false),
+        ]
+        for scene in settingsScenes {
+            let themeID = AppearancePreference.system.themeID(systemColorScheme: scene.dark ? .dark : .light)
+            UserDefaults.standard.set(themeID, forKey: ThemeStore.themeKey)
+            DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
+            let environment = AppEnvironment.uiTesting(scenario: .goldenPath, screen: .sessionShell)
+            let list = SessionListViewModel(repository: environment.sessionRepository, api: environment.apiClient)
+            await list.observe()
+            let navigationState = SessionNavigationState.resolve(
+                listState: list.state, lastKnownSessions: list.lastKnownSessions, reachability: .online
+            )
+            let settings = AppSettings(store: InMemoryAppSettingsStore(
+                faceIDEnabled: scene.name != "FlowUsage",
+                notificationsEnabled: true,
+                appearance: scene.dark ? .dark : .system
+            ))
+            let connection = ConnectionSettingsViewModel(
+                tokenStore: environment.tokenStore,
+                configStore: InMemoryConnectionConfigStore(ConnectionConfig(host: "100.64.0.1", port: 8765)),
+                probe: { _, _ in true }
+            )
+            if scene.name == "SetDisc" || scene.name == "SetDiscDark" {
+                connection.seedReachabilityForSnapshot(false)
+            } else if scene.name != "FlowUsage" {
+                connection.seedReachabilityForSnapshot(true)
+            }
+            let reachability: Reachability = scene.name == "SetDisc" || scene.name == "SetDiscDark"
+                ? .unreachableHost : .online
+            let content = AppShellView(
+                selection: .constant(.settings), navigationState: navigationState,
+                reachability: reachability,
+                lastFetchedAt: reachability == .online ? list.lastFetchedAt : Date().addingTimeInterval(-180),
+                host: "100.64.0.1",
+                hidesTabBar: false, hidesAccessory: false,
+                onOpenSession: { _ in }, onShowSessionList: {}, onReconnect: {}
+            ) {
+                NavigationStack {
+                    SessionListView(viewModel: list, reachability: .online, onSelectDetail: { _ in }, onAddSession: { _ in })
+                }.dsCampNavigationChrome()
+            } settings: {
+                NavigationStack {
+                    SettingsView(
+                        viewModel: SettingsViewModel(settings: settings),
+                        connectionViewModel: connection,
+                        onQRScan: {},
+                        biometricTypeOverride: scene.width == 375 ? .touchID : nil,
+                        reachability: scene.name == "SetDisc" || scene.name == "SetDiscDark" ? .unreachableHost : .online,
+                        lastFetchedAt: scene.name == "SetDisc" || scene.name == "SetDiscDark"
+                            ? Date().addingTimeInterval(-180)
+                            : Date()
+                    )
+                }.dsCampNavigationChrome()
+            }
+            .environment(\.colorScheme, scene.dark ? .dark : .light)
+            .environment(\.dynamicTypeSize, scene.ax5 ? .accessibility5 : .large)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            .frame(width: scene.width, height: scene.height)
+
+            let size = CGSize(width: scene.width, height: scene.height)
+            let safeArea = scene.width == 428
+                ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
+                : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+            let image = try await windowImage(content, size: size, safeArea: safeArea, scale: 2, dark: scene.dark)
+            try writeSnapshot(
+                image,
+                name: "\(scene.name)-\(Int(scene.width))x\(Int(scene.height))-\(scene.dark ? "dark" : "light")\(scene.ax5 ? "-ax5" : "")\(osSuffix).png",
+                to: output, expectedSize: size, expectedScale: 2
+            )
+            list.stop()
         }
     }
 
@@ -905,13 +1383,15 @@ struct DesignSnapshotRenderTests {
             Layout(name: "DraftFromProject", width: 428, height: 926, dark: false, ax5: false),
             Layout(name: "DraftSuggest", width: 428, height: 926, dark: false, ax5: false),
             Layout(name: "DraftEntryEmpty", width: 428, height: 926, dark: false, ax5: false),
-            Layout(name: "DraftModel", width: 428, height: 926, dark: false, ax5: false),
-            Layout(name: "DraftModelNa", width: 428, height: 926, dark: false, ax5: false),
             Layout(name: "DraftPermDanger", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftPermDangerCodex", width: 428, height: 926, dark: false, ax5: false),
             Layout(name: "DraftMoreSE", width: 375, height: 667, dark: false, ax5: false),
+            Layout(name: "DraftMoreDT", width: 428, height: 926, dark: false, ax5: true),
             Layout(name: "DraftCreating", width: 428, height: 926, dark: false, ax5: false),
+            Layout(name: "DraftCreatingDark", width: 428, height: 926, dark: true, ax5: false),
             Layout(name: "DraftFailed", width: 428, height: 926, dark: false, ax5: false),
             Layout(name: "DraftSE", width: 375, height: 667, dark: false, ax5: false),
+            Layout(name: "DraftSEDark", width: 375, height: 667, dark: true, ax5: false),
             Layout(name: "DraftDT", width: 428, height: 926, dark: false, ax5: true),
             Layout(name: "DraftDark", width: 428, height: 926, dark: true, ax5: false),
         ]
@@ -921,11 +1401,12 @@ struct DesignSnapshotRenderTests {
             let defaults = try #require(UserDefaults(suiteName: suiteName))
             defer { defaults.removePersistentDomain(forName: suiteName) }
             let store = NewChatSettingsStore(defaults: defaults)
+            let selectedKind: AgentKind = layout.name == "DraftPermDangerCodex" ? .codex : .claudeCode
             store.record(
-                kind: .claudeCode,
-                model: "sonnet",
+                kind: selectedKind,
+                model: selectedKind == .codex ? "gpt-6.1-sol" : "sonnet",
                 effort: "high",
-                permission: "manual",
+                permission: selectedKind == .codex ? ":danger-full-access" : "manual",
                 planMode: false,
                 projectKey: layout.name == "DraftEntryEmpty" ? "deleted-project" : "project-phlox"
             )
@@ -933,7 +1414,7 @@ struct DesignSnapshotRenderTests {
             let entry: SessionComposeDraft = layout.name == "DraftFromProject"
                 ? SessionComposeDraft(project: "SimpleBudget", projectID: "project-simple-budget")
                 : SessionComposeDraft(project: "")
-            let api = NewChatSnapshotAPI(cursorUnavailable: layout.name == "DraftModelNa")
+            let api = NewChatSnapshotAPI()
             let viewModel = NewChatViewModel(api: api, entryProject: entry, settingsStore: store)
             await viewModel.load()
 
@@ -941,7 +1422,7 @@ struct DesignSnapshotRenderTests {
             case "DraftFromProject": "次は何を作りますか？"
             case "DraftSuggest": "今日の課題を教えてください"
             case "DraftEntryEmpty": "何をお手伝いしましょうか？"
-            case "DraftSE": "さあ、始めましょう"
+            case "DraftSE", "DraftSEDark": "さあ、始めましょう"
             case "DraftDT": "アイデアを形にしましょう"
             case "DraftDark": "今日は何を進めますか？"
             case "DraftFailed": "さあ、始めましょう"
@@ -955,19 +1436,21 @@ struct DesignSnapshotRenderTests {
                 viewModel.inputText = "README の手順を最新の CLI に合わせて直して"
                 viewModel.inputCursorUTF16 = viewModel.inputText.utf16.count
                 await viewModel.send { _, _ in }
-            case "DraftModel", "DraftModelNa":
-                viewModel.isModelPickerPresented = true
             case "DraftPermDanger":
                 viewModel.inputText = "CI の設定を直して、通るまで回して"
                 viewModel.inputCursorUTF16 = viewModel.inputText.utf16.count
                 viewModel.selectPermission("bypassPermissions")
-            case "DraftMoreSE":
+            case "DraftPermDangerCodex":
+                viewModel.inputText = "CI の設定を直して、通るまで回して"
+                viewModel.inputCursorUTF16 = viewModel.inputText.utf16.count
+                viewModel.selectPermission(":danger-full-access")
+            case "DraftMoreSE", "DraftMoreDT":
                 showsMoreSettings = true
-            case "DraftCreating":
+            case "DraftCreating", "DraftCreatingDark":
                 viewModel.seedProgressForSnapshot(text: "ProxyRouter のテストを流して、落ちたら直して", waitSeconds: 4)
             case "DraftFailed":
-                viewModel.seedCreationErrorForSnapshot(
-                    "セッションを作成できませんでした。指示は入力欄に戻しました（workspace \"phlox\" is locked by another spawn）",
+                viewModel.seedSpawnFailureForSnapshot(
+                    reason: "workspace \"phlox\" is locked by another spawn",
                     text: "ProxyRouter のテストを流して、落ちたら直して"
                 )
             default:
@@ -999,7 +1482,7 @@ struct DesignSnapshotRenderTests {
             let safeArea = layout.width == 428
                 ? UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0)
                 : UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
-            let scale: CGFloat = layout.width == 428 ? 3 : 2
+            let scale: CGFloat = 2
             let image = try await windowImage(
                 content,
                 size: size,
@@ -1134,7 +1617,11 @@ struct DesignSnapshotRenderTests {
             return true
         }
         guard rendered else { return false }
-        let bodyRegions = [height / 4..<height * 3 / 4, height / 12..<height * 7 / 12]
+        let bodyRegions = [
+            height / 4..<height * 3 / 4,
+            height / 12..<height * 7 / 12,
+            height * 3 / 4..<height * 11 / 12,
+        ]
         for yRange in bodyRegions {
             var colors: [Int: Int] = [:]
             var rows = Set<Int>()
@@ -1186,7 +1673,10 @@ struct DesignSnapshotRenderTests {
         )
     }
 
-    private func snapshotTranscript(for scenario: InputBarSnapshotScenario) -> some View {
+    private func snapshotTranscript(
+        for scenario: InputBarSnapshotScenario,
+        alignsWithChatBoard: Bool = false
+    ) -> some View {
         let usageBoard = scenario.name.hasPrefix("Usage")
         let runningBoard = scenario.name == "ReplyRunText"
         let command = usageBoard
@@ -1199,7 +1689,11 @@ struct DesignSnapshotRenderTests {
                 : "テストは 50 件すべて成功しました。次は何をしますか？"
 
         return VStack(alignment: .leading, spacing: DSSpacing.l) {
-            Spacer(minLength: 0)
+            if alignsWithChatBoard && scenario.isAccessibilitySize {
+                EmptyView()
+            } else {
+                Spacer(minLength: alignsWithChatBoard ? 300 : 0)
+            }
             HStack(spacing: DSSpacing.s) {
                 Image(systemName: "chevron.right")
                     .font(DSFont.captionStrong)
@@ -1217,7 +1711,7 @@ struct DesignSnapshotRenderTests {
                 .foregroundStyle(DSColor.textPrimary)
             if usageBoard {
                 Text("$0.42 · 入力 18.2k · 出力 1.9k · コンテキスト 22%")
-                    .font(DSFont.caption)
+                    .font(alignsWithChatBoard && scenario.isAccessibilitySize ? DSFont.footnote : DSFont.caption)
                     .foregroundStyle(DSColor.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -1226,7 +1720,7 @@ struct DesignSnapshotRenderTests {
                     .font(DSFont.body)
                     .foregroundStyle(DSColor.textSecondary)
             }
-            Spacer(minLength: 150)
+            Spacer(minLength: alignsWithChatBoard ? 0 : 150)
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1253,8 +1747,60 @@ struct DesignSnapshotRenderTests {
     private enum SnapshotError: Error { case bodyDidNotRender }
 }
 
+@MainActor
+private struct PairConnectionSettingsSnapshotView: View {
+    @State private var faceIDEnabled = true
+    let connectionViewModel: ConnectionSettingsViewModel
+    let onQRScan: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("設定")
+                    .font(DSFont.largeTitle)
+                    .foregroundStyle(IOSColor.text.primary)
+                    .padding(.bottom, DSSpacing.xs)
+
+                ConnectionSettingsSection(viewModel: connectionViewModel, onQRScan: onQRScan)
+
+                Text("接続先は、Mac の Phlox が表示する QR から設定します。")
+                    .font(DSFont.footnote)
+                    .foregroundStyle(DSColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, DSSpacing.m)
+
+                VStack(alignment: .leading, spacing: DSSpacing.s) {
+                    DSSectionLabel("セキュリティ")
+                    HStack {
+                        Text("Face ID でロック")
+                            .font(DSFont.body)
+                            .foregroundStyle(DSColor.textPrimary)
+                        Spacer(minLength: DSSpacing.s)
+                        Toggle("Face ID でロック", isOn: $faceIDEnabled)
+                            .labelsHidden()
+                            .tint(IOSColor.toggleOn)
+                    }
+                    .padding(.horizontal, DSSpacing.m)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                    .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+
+                    Text("起動時とバックグラウンドからの復帰時に認証します。")
+                        .font(DSFont.footnote)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .padding(.horizontal, DSSpacing.m)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, DSSpacing.m)
+        }
+        .background(IOSColor.bg.base)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
 private struct SessionDetailSnapshotCase {
-    let name: String
+    var name: String
     let session: Session
     let messages: SessionDetailSnapshotMessages
     var approvals: [Approval] = []
@@ -1264,7 +1810,11 @@ private struct SessionDetailSnapshotCase {
     var attachmentPreviews: [String: [Data]] = [:]
     var expandedMessageIDs: Set<String> = []
     var statusAge: TimeInterval?
+    var width: CGFloat = 428
+    var height: CGFloat = 926
+    var isDark = false
     var isAccessibilitySize = false
+    var startsAtTop = false
     var replyState: SessionDetailViewModel.ReplySnapshotState?
 }
 
@@ -1305,6 +1855,7 @@ private struct SessionDetailSnapshotHost: View {
                     if case .sessionDetail = route {
                         SessionDetailDestination(
                             session: session, api: api, recovery: snapshot.recovery,
+                            scrollToBottomOnAppear: !snapshot.startsAtTop,
                             isNewSession: snapshot.isNewSession,
                             initialAttachmentPreviews: snapshot.attachmentPreviews,
                             initialExpandedMessageIDs: snapshot.expandedMessageIDs,
@@ -1520,8 +2071,6 @@ private struct NewChatMoreSettingsSnapshotPanel: View {
 }
 
 private struct NewChatSnapshotAPI: PhloxAPI {
-    let cursorUnavailable: Bool
-
     func listSessions() async throws -> [Session] { [] }
 
     func spawn(_ request: SpawnRequest) async throws -> Session {
@@ -1538,9 +2087,6 @@ private struct NewChatSnapshotAPI: PhloxAPI {
     }
 
     func agentModels(kind: AgentKind) async throws -> AgentModels {
-        if kind == .cursor && cursorUnavailable {
-            throw PhloxError.server(status: 503, message: "取得できません")
-        }
         switch kind {
         case .claudeCode:
             return AgentModels(models: [
@@ -1627,46 +2173,6 @@ private struct NewChatSnapshotAPI: PhloxAPI {
     func respond(approvalID: String, decision: ApprovalDecision) async throws {}
 }
 
-private struct ModelPickerSnapshotHost: View {
-    let entries: [SessionDetailViewModel.ModelPickerEntry]
-    let selectedEntryID: String?
-    let agentName: String
-    let defaultEntryID: String?
-
-    @State private var isPresented = false
-
-    var body: some View {
-        NavigationStack {
-            VStack {
-                Spacer()
-                Text("テストの出力を確認しています")
-                    .font(DSFont.body)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(DSColor.background)
-        }
-        .sheet(isPresented: $isPresented) {
-            ModelPickerSheet(
-                entries: entries,
-                selectedEntryID: selectedEntryID,
-                agentName: agentName,
-                defaultEntryID: defaultEntryID,
-                isChangingModelID: nil,
-                failureMessage: nil,
-                onSelect: { _ in },
-                onDismiss: {}
-            )
-            .presentationDetents([.height(680)])
-            .presentationDragIndicator(.visible)
-        }
-        .task {
-            await Task.yield()
-            isPresented = true
-        }
-    }
-}
-
 private struct InputBarSnapshotScenario {
     let name: String
     let width: CGFloat
@@ -1686,6 +2192,7 @@ private struct InputBarSnapshotScenario {
     let usageState: UsageViewModel.State
     let usageLastSuccessfulAt: Date?
     let showsUsagePopover: Bool
+    let showsSessionDetailChrome: Bool
 
     init(
         name: String,
@@ -1705,7 +2212,8 @@ private struct InputBarSnapshotScenario {
         usageStyle: UITestUsageFixtures.Style = .normal,
         usageState: UsageViewModel.State = .loaded,
         usageLastSuccessfulAt: Date? = UITestUsageFixtures.asOfDate,
-        showsUsagePopover: Bool = false
+        showsUsagePopover: Bool = false,
+        showsSessionDetailChrome: Bool = false
     ) {
         self.name = name
         self.width = width
@@ -1725,6 +2233,7 @@ private struct InputBarSnapshotScenario {
         self.usageState = usageState
         self.usageLastSuccessfulAt = usageLastSuccessfulAt
         self.showsUsagePopover = showsUsagePopover
+        self.showsSessionDetailChrome = showsSessionDetailChrome
     }
 }
 

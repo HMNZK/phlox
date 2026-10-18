@@ -23,7 +23,7 @@ last-verified: 2026-10-18
 
 | サブモジュール | 現行構成 |
 |---|---|
-| `Features/ConnectionSettings` | 接続設定画面。QR 適用済みの接続先を読み取り専用で表示し、接続／再接続は「QRで接続」から行う。保存済み接続先への疎通テストを持つ。到達性は `ReachabilityMonitor`（`NWPathMonitor`＋`/sessions` healthCheck）が保持し、QR ペアリング完了・手動「再接続を試す」で `refresh()` により経路イベントを待たず即再判定する（→ [ADR 0019](../adr/0019-reachability-on-demand-refresh.md)）。QR ペアリング直後は全画面「接続中…」オーバーレイ（`AppModel.isConnecting`／`AppRoot.ConnectingOverlayView`）を出し、その閉じ判定を到達性ではなく**セッション一覧の取得成功**（`PairingConnectGate`＋`SessionListViewModel.state`）でゲートしてオフライン画面の一瞬のちらつきを隠す。オーバーレイ本体はリッチな中央アニメーション `DSConnectingIndicator`（`Canvas`＋`TimelineView(.animation)` のレーダー状リング＋回転円弧＋脈動スパーク・Reduce Motion 時は静的）で、タイムアウト時は閉じずに原因（`AppModel.connectFailure`＝一覧エラー優先／無ければオフライン画面と同一コピー）と再試行/閉じるを同じ画面に表示する（→ [ADR 0021](../adr/0021-connecting-overlay-gated-on-session-list-load.md)） |
+| `Features/ConnectionSettings` | QR で接続先とトークンを適用し、接続先の読み取り表示・疎通テスト・再接続を提供する。到達性は `ReachabilityMonitor`（`NWPathMonitor`＋`/sessions` healthCheck）が保持し、QR ペアリング完了・手動「再接続を試す」で `refresh()` により即再判定する（→ [ADR 0019](../adr/0019-reachability-on-demand-refresh.md)）。QR 適用後は一覧の取得成功まで接続オーバーレイを保ち、端末名・接続先・経過秒数を表示する。20 秒で未応答なら C1 の説明・確認項目・再試行・閉じるを表示する（→ [ADR 0021](../adr/0021-connecting-overlay-gated-on-session-list-load.md)） |
 | `Features/Pairing` | `QRScanScreen`、`PairingApplyViewModel`、`QRImageDecoder`。QR から読み取った host・port・token を検証して接続設定へ一括適用する |
 | `Features/Settings` | `@Observable` の `AppSettings` と `AppSettingsStoring`。`UserDefaults` 永続化の Face ID（**既定オフ** → [ADR 0017](../adr/0017-face-id-launch-gate-default-off.md)）、通知（既定オン）、外観（`AppearancePreference.system/light/dark`）と About を提供する |
 | `Features/SessionList` | 一覧画面。`SessionListProjection` が対応待ち 4 種（承認待ち・質問あり・エラー・無応答）、`GET /projects` 順のプロジェクト欄、未割当の「その他」、同じプロジェクト内の親子木、折りたたみ時の状態内訳を View 非依存で作る。古い Mac がプロジェクト一覧を返さない場合は、セッションが届いた順で欄を並べる。対応待ち行はプロジェクト欄に重ねない。行は名前と状態語だけで、未読名を semibold、実行中名に Reduce Motion 対応の 1 回の光の帯を表示する。子は既定で閉じ、開閉状態は `SessionListView` のメモリだけに保つ。`SessionListView` は一覧・スケルトン・接続判定・空・オフライン・取得エラーを表示する。3 秒ごとの一覧取得はセッションだけを更新し、引っ張って更新ではセッション・プロジェクト・使用量を並行して再取得する。到達性が未判定の間は読み込み表示を続け、判定後に必要なオフライン表示へ移る（→ [ADR 0027](../adr/0027-session-list-probe-before-offline.md)） |
@@ -33,6 +33,12 @@ last-verified: 2026-10-18
 | `Features/AppShell` | 下部固定タブバーの状態機械。`AppTab`（`.sessions/.settings` の 2 種。wave-4 で `.overview`（→ [ADR 0007](../adr/0007-remove-overview-tab.md)）、再設計で `.usage`（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)）を削除）と `AppShellViewModel.selectTab(_:)`（現在は単純な選択更新のみ。旧・俯瞰タブ再選択トグルは削除済み） |
 
 ## アプリルートの設定反映
+
+### ペアリング・エラー・設定（再設計段階 8a）
+
+`AppRoot` は復元処理とロック解除が完了するまで `phlox://pair` を保留する。QR 成功時に受け取った Mac 名を接続オーバーレイへ渡し、初回は一覧の取得成功で閉じる。設定からの再接続は設定画面に留まる。QR のパース失敗・カメラ不可・画像内 QR 不在・疎通失敗は `QRScanCopy` / `PairingCopy`、初回 20 秒失敗は `ConnectFailure`、API 失敗は `PhloxError.presentation` から表示する。各表示は見出し、原因、次の操作、等幅の技術値の順で組み、HTTP 429 は `isNeutral` を引き継いで無彩色にする。
+
+`SettingsView` の区画順は接続 → 通知 → セキュリティ → 外観 → このアプリについて。セキュリティ欄は Face ID / Touch ID の端末名に合わせ、使用量用の設定欄は置かない。DotGothic16 のライセンス行と本文は「このアプリについて」に残す。
 
 ### 外観のライブ反映
 

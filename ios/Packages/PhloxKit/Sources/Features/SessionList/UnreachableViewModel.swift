@@ -36,17 +36,28 @@ public final class UnreachableViewModel {
     public var cardMessage: String {
         switch reachability {
         case .offlineNetwork:
-            "iPhone が圏外か、機内モードになっています。通信が戻ると自動でつなぎ直します。"
+            "iPhone が圏外か、機内モードになっています。"
         case .unreachableHost:
-            "Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。Mac を起こすと自動でつなぎ直します。"
+            "Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。"
         default:
             "Mac からの応答を待っています。最大 20 秒ほどかかります。"
         }
     }
 
-    public var technicalDetail: String? {
+    public var nextStep: String {
+        switch reachability {
+        case .offlineNetwork:
+            "通信が戻ると自動でつなぎ直します。"
+        case .unreachableHost:
+            "Mac を起こすと自動でつなぎ直します。すぐ試すときはボタンを押してください。"
+        default:
+            "このままお待ちください。"
+        }
+    }
+
+    public func technicalDetail(now: Date = Date()) -> String? {
         guard reachability == .unreachableHost, let endpoint else { return nil }
-        return "\(endpoint) · 無応答"
+        return "\(endpoint) · \(lastUpdatedText(now: now) ?? "最終取得なし")"
     }
 
     public func lastUpdatedText(now: Date = Date()) -> String? {

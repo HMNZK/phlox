@@ -85,7 +85,7 @@ import PhloxCore
         await vm.commitRename()
 
         #expect(vm.displayName == "Rose")
-        #expect(vm.renameError == "boom")
+        #expect(vm.renameError == "HTTP 500 boom")
         #expect(!vm.isRenamePresented)
     }
 }

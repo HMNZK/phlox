@@ -4,8 +4,8 @@ import XCTest
 // QR 専用設定画面の文言と読み取り専用表示の契約を保証する。
 final class ConnectionSettingsViewTests: XCTestCase {
     func testTitleAndSubtitleDescribeQRSetup() {
-        XCTAssertEqual(ConnectionSettingsCopy.title, "接続設定")
-        XCTAssertEqual(ConnectionSettingsCopy.subtitle, "Mac の Phlox に QR コードで接続")
+        XCTAssertEqual(ConnectionSettingsCopy.title, "Mac とつなぐ")
+        XCTAssertEqual(ConnectionSettingsCopy.subtitle, "Mac で動いている Claude Code・Codex・Cursor のセッションを、この iPhone から見て、応答できるようにします。")
     }
 
     func testConnectionSectionDescribesReadOnlyDestination() {
@@ -15,20 +15,21 @@ final class ConnectionSettingsViewTests: XCTestCase {
     }
 
     func testQRButtonTitlesCoverInitialConnectionAndReconnection() {
-        XCTAssertEqual(ConnectionSettingsCopy.connectButtonTitle, "QR で接続")
+        XCTAssertEqual(ConnectionSettingsCopy.connectButtonTitle, "QR を読み取る")
         XCTAssertEqual(ConnectionSettingsCopy.reconnectButtonTitle, "QR で再接続")
     }
 
     func testTestConnectionSuccessBannerCopy() {
-        XCTAssertEqual(ConnectionSettingsCopy.testSuccessMessage, "接続成功 · GET /sessions → 200")
+        XCTAssertEqual(ConnectionSettingsCopy.testSuccessMessage, "GET /sessions → 200 · 16:42 に確認")
+        XCTAssertTrue(ConnectionSettingsCopy.successMessage(at: Date()).range(of: #"^GET /sessions → 200 · \d{2}:\d{2} に確認$"#, options: .regularExpression) != nil)
     }
 
     func testTestConnectionFailureBannerCopy() {
-        XCTAssertEqual(ConnectionSettingsCopy.testFailureMessage, "到達不可 · Mac がスリープ中の可能性")
+        XCTAssertEqual(ConnectionSettingsCopy.testFailureMessage, "Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。確かめてから、もう一度テストしてください。")
     }
 
     func testMissingConnectionGuidanceRequiresQR() {
-        XCTAssertEqual(ConnectionSettingsCopy.noConnectionMessage, "QR コードを読み取って接続してください")
+        XCTAssertEqual(ConnectionSettingsCopy.noConnectionMessage, "QR コードを読み取って、接続先を保存してください。")
     }
 
     func testTestConnectionButtonTitleRemainsAvailable() {

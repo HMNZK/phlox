@@ -41,7 +41,12 @@ final class ConnectionSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.0, config)
         XCTAssertEqual(calls.first?.1, "stored-token")
-        XCTAssertEqual(vm.banner, .success(ConnectionSettingsCopy.testSuccessMessage))
+        guard case .success(let message) = vm.banner else {
+            return XCTFail("成功時は成功バナーを表示する")
+        }
+        XCTAssertTrue(message.range(of: #"^GET /sessions → 200 · \d{2}:\d{2} に確認$"#, options: .regularExpression) != nil)
+        XCTAssertEqual(vm.connectionStatus, "接続中")
+        XCTAssertEqual(vm.lastTestWasReachable, true)
     }
 
     func testTestConnectionFailureShowsFailureBanner() async {
@@ -54,6 +59,8 @@ final class ConnectionSettingsViewModelTests: XCTestCase {
         await vm.testConnection()
 
         XCTAssertEqual(vm.banner, .failure(ConnectionSettingsCopy.testFailureMessage))
+        XCTAssertEqual(vm.connectionStatus, "Mac に届きません")
+        XCTAssertEqual(vm.lastTestWasReachable, false)
     }
 
     func testTestConnectionWithoutSavedConfigShowsGuidanceAndDoesNotProbe() async {

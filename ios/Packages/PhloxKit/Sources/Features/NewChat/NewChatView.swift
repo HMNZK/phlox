@@ -43,7 +43,10 @@ public struct NewChatView: View {
                     .padding(.bottom, 10)
             }
 
-            if let message = viewModel.creationError ?? viewModel.projectValidationMessage {
+            if let presentation = viewModel.creationErrorPresentation {
+                catalogError(presentation)
+                    .padding(.bottom, 8)
+            } else if let message = viewModel.projectValidationMessage {
                 errorLine(message)
                     .padding(.bottom, 8)
             }
@@ -268,6 +271,33 @@ public struct NewChatView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DSSpacing.m)
             .accessibilityAddTraits(.isStaticText)
+    }
+
+    private func catalogError(_ presentation: ErrorPresentation) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            Text(presentation.title)
+                .font(DSFont.captionStrong)
+                .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
+            Text(presentation.cause)
+                .font(DSFont.caption)
+                .foregroundStyle(IOSColor.text.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !presentation.nextStep.isEmpty {
+                Text(presentation.nextStep)
+                    .font(DSFont.caption)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let technicalDetail = presentation.technicalDetail {
+                Text(technicalDetail)
+                    .font(DSFont.campMonoCaption)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DSSpacing.m)
+        .accessibilityElement(children: .combine)
     }
 }
 

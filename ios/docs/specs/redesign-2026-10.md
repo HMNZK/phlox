@@ -339,6 +339,10 @@ last-verified: 2026-10-18
 - AC-11-3: 設定の区画は 接続 → 通知 → セキュリティ → 外観 → このアプリについて。使用量の区画と「残りの表し方」は無い。セキュリティは端末に合わせて「Face ID でロック」か「Touch ID でロック」の片方（`SetUse`・`SetSE`）。このアプリについてに DotGothic16 のライセンス表示を足す。
 - AC-11-4: エラーの文言は `Errors` のカタログ（F1〜F8・U1〜U3・P1〜P6・Q1・C1・T1・G1・K1・D1〜D6・A1〜A5）。型は「何が起きたか → なぜ・今どうなっているか → 次にどうするか → 技術値は等幅で最後」。記号は付けない。429（F3）は赤にせず無彩色。
 
+段階 8a で AC-11-1・11-3・11-4 の表示を実装し、盤面の場面を描画テストへ追加した。AC-11-2 では通知は既存の保留・解除後処理を維持したが、`phlox://pair` は起動復元とロック解除より先に処理される経路があったため、両方が完了するまで保留するよう修正した。画面・文言の対応と未撮影の盤面は [作業記録0028](../delivery/0028-ios-redesign-stage8-worklog.md) に記録する。
+
+`Errors.dc.html` の詳細エラー表には D1・D3〜D6 はあるが D2 は存在しない。D2 の文言は作らず、作業記録に未解決として残す。
+
 ## 12. アプリ外の表示（`Glance*`・`GlanceSpec`）
 
 - AC-12-1: ウィジェット・Live Activity・Dynamic Island・通知は記号と文言で状態を示す（ロック画面は OS が単色にするため）。記号は SF Symbols: 起動中 `circle.dashed`・実行中（円弧）・待機 `pause.circle`・承認待ち `exclamationmark.shield`・質問あり `questionmark.bubble`・完了 `checkmark.circle`・エラー `exclamationmark.triangle`・無応答 `hourglass`・状態不明 `questionmark.circle`（`DS` 4 章・`GlanceCatalog`）。

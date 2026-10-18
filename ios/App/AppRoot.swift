@@ -24,6 +24,8 @@ struct AppRoot: View {
     @State private var selectedTab: AppTab? = .sessions
     @State private var scrollToTopRequest = 0
     @State private var qrScanInitialPayload: String?
+    @State private var deferredPairingURLString: String?
+    @State private var hasBootstrapped = false
     @State private var showsMissingSession = false
     @Binding private var pendingPairingURLString: String?
     private let configStore = UserDefaultsConnectionConfigStore()
@@ -80,7 +82,10 @@ struct AppRoot: View {
             .onChange(of: pushCoordinator.pendingSessionID) { _, _ in
                 handlePendingPushNavigation()
             }
-            .onChange(of: model.state) { _, _ in handlePendingPushNavigation() }
+            .onChange(of: model.state) { _, _ in
+                handlePendingPushNavigation()
+                applyPendingPairingURLIfReady()
+            }
             .onChange(of: model.reachability) { _, _ in handlePendingPushNavigation() }
             .onChange(of: listVM?.lastFetchedAt) { _, _ in handlePendingPushNavigation() }
             .onChange(of: listVM?.state) { _, _ in
@@ -120,12 +125,14 @@ struct AppRoot: View {
             }
             .onChange(of: pendingPairingURLString) { _, urlString in
                 guard let urlString else { return }
-                openQRScan(with: urlString)
-                pendingPairingURLString = nil
+                receivePairingURL(urlString)
             }
             .task {
                 handlePendingPushNavigation()
                 writeSharedSessionState()
+                if let pendingPairingURLString {
+                    receivePairingURL(pendingPairingURLString)
+                }
                 await bootstrap()
             }
     }
@@ -135,6 +142,9 @@ struct AppRoot: View {
         if model.isConnecting {
             ConnectingOverlayView(
                 failure: model.connectFailure,
+                deviceName: model.connectedMacName,
+                endpoint: connectionEndpoint,
+                elapsedSeconds: model.connectionWaitSeconds,
                 onRetry: { Task { await connectAfterPairing() } },
                 onDismiss: { model.isConnecting = false }
             )
@@ -351,6 +361,8 @@ struct AppRoot: View {
             QRScanDestination(
                 makeApplyViewModel: makePairingApplyViewModel,
                 initialScannedString: qrScanInitialPayload,
+                isReconnection: model.hasConnectionConfig,
+                previousEndpoint: configStore.load().map { "\($0.host):\($0.port)" },
                 onApplied: qrScanOnApplied(using: router)
             )
             .onAppear { qrScanInitialPayload = nil }
@@ -378,7 +390,9 @@ struct AppRoot: View {
         SettingsView(
             viewModel: SettingsViewModel(settings: appSettings),
             connectionViewModel: makeConnectionSettingsViewModel(),
-            onQRScan: onQRScan
+            onQRScan: onQRScan,
+            reachability: model.reachability,
+            lastFetchedAt: listVM?.lastFetchedAt
         )
     }
 
@@ -408,6 +422,19 @@ struct AppRoot: View {
         }
     }
 
+    private func receivePairingURL(_ payloadString: String) {
+        deferredPairingURLString = payloadString
+        pendingPairingURLString = nil
+        applyPendingPairingURLIfReady()
+    }
+
+    private func applyPendingPairingURLIfReady() {
+        guard model.canOpenPairingURL(bootstrapComplete: hasBootstrapped),
+              let payloadString = deferredPairingURLString else { return }
+        deferredPairingURLString = nil
+        openQRScan(with: payloadString)
+    }
+
     private func openQRScan(
         with payloadString: String? = nil,
         using router: NavigationRouter
@@ -417,9 +444,10 @@ struct AppRoot: View {
     }
 
     /// 初回セットアップ（`setupRequired`）で QR 適用成功後にセッション一覧へ進める。
-    private func qrScanOnApplied(using router: NavigationRouter) -> (() -> Void)? {
+    private func qrScanOnApplied(using router: NavigationRouter) -> ((String?) -> Void)? {
         guard case .setupRequired = model.state else { return nil }
-        return {
+        return { name in
+            model.connectedMacName = name ?? "Mac"
             model.hasConnectionConfig = true
             router.popToRoot()
             Task { await connectAfterPairing() }
@@ -433,6 +461,7 @@ struct AppRoot: View {
     private func connectAfterPairing() async {
         model.isConnecting = true
         model.connectFailure = nil
+        model.connectionWaitSeconds = 0
         let start = Date()
         let timeout: TimeInterval = 20
         while true {
@@ -440,6 +469,7 @@ struct AppRoot: View {
             model.reachability = await environment.reachability.current
             await listVM?.refresh()
             let elapsed = Date().timeIntervalSince(start)
+            model.connectionWaitSeconds = Int(elapsed)
             let state = listVM?.state ?? .loading
             if !PairingConnectGate.shouldContinueConnecting(
                 listState: state,
@@ -460,21 +490,25 @@ struct AppRoot: View {
     /// 接続失敗時に画面へ出す原因。一覧のエラーがあれば優先し、無ければ到達性ベースの文言（オフライン画面と同一コピー）。
     private func makeConnectFailure(listState: SessionsState) -> ConnectFailure {
         if case .error(let error) = listState {
+            let presentation = error.presentation
             return ConnectFailure(
-                title: "接続できませんでした",
-                message: error.presentation.message,
-                detail: nil
+                title: presentation.title,
+                message: presentation.cause,
+                nextStep: presentation.nextStep,
+                detail: presentation.technicalDetail,
+                isNeutral: presentation.isNeutral
             )
         }
-        let unreachable = UnreachableViewModel(
-            reachability: model.reachability,
-            endpoint: connectionEndpoint,
-            onRetry: {}
-        )
         return ConnectFailure(
-            title: unreachable.cardTitle,
-            message: unreachable.cardMessage,
-            detail: unreachable.technicalDetail
+            title: "Mac から一覧を読み込めませんでした",
+            message: "接続先は保存しました。20 秒待っても Mac から応答がありません。",
+            nextStep: "Mac で次の 3 つを確かめてから、再試行してください。",
+            detail: "GET http://\(connectionEndpoint)/sessions · 20 秒で無応答",
+            checklist: [
+                "Mac がスリープしていない",
+                "Mac で Phlox が起動している",
+                "Mac と iPhone の Tailscale がオンになっている",
+            ]
         )
     }
 
@@ -501,6 +535,8 @@ struct AppRoot: View {
         } else {
             model.hasConnectionConfig = configStore.load() != nil
         }
+        hasBootstrapped = true
+        applyPendingPairingURLIfReady()
         await observeReachability()
     }
 
@@ -575,14 +611,17 @@ private struct NewChatDestination: View {
 
 /// QR ペアリング直後の全画面オーバーレイ。接続待ちの間はリッチな中央アニメーション＋「接続中…」を出し、
 /// タイムアウト時は原因（`ConnectFailure`）と再試行/閉じるを同じ画面に表示する（背面のちらつきを隠す）。
-private struct ConnectingOverlayView: View {
+struct ConnectingOverlayView: View {
     let failure: ConnectFailure?
+    let deviceName: String
+    let endpoint: String
+    let elapsedSeconds: Int
     let onRetry: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
         ZStack {
-            DSColor.background.ignoresSafeArea()
+            IOSColor.bg.base.ignoresSafeArea()
             if let failure {
                 failedContent(failure)
             } else {
@@ -593,44 +632,141 @@ private struct ConnectingOverlayView: View {
     }
 
     private var connectingContent: some View {
-        VStack(spacing: DSSpacing.l) {
-            DSConnectingIndicator(size: 132)
-            Text("接続中…")
-                .font(DSFont.title2)
+        VStack(spacing: DSSpacing.s) {
+            ZStack {
+                Circle()
+                    .stroke(IOSColor.text.tertiary.opacity(0.22), lineWidth: 2)
+                Circle()
+                    .trim(from: 0, to: 0.24)
+                    .stroke(IOSColor.text.secondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 44, height: 44)
+            .accessibilityHidden(true)
+            Text("Mac に接続しています…")
+                .font(DSFont.title)
                 .foregroundStyle(DSColor.textPrimary)
+            Text(deviceName)
+                .font(DSFont.headline)
+                .foregroundStyle(DSColor.textPrimary)
+            Text(endpoint)
+                .font(DSFont.campMonoCaption)
+                .foregroundStyle(DSColor.textSecondary)
+            Text("セッションの一覧を読み込んでいます（\(elapsedSeconds) 秒）")
+                .font(DSFont.subheadline)
+                .foregroundStyle(DSColor.textSecondary)
+                .multilineTextAlignment(.center)
+            Text("20 秒たっても読み込めないときは、原因を表示します")
+                .font(DSFont.footnote)
+                .foregroundStyle(DSColor.textTertiary)
+                .multilineTextAlignment(.center)
+                .padding(.top, DSSpacing.s)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("接続中"))
     }
 
     private func failedContent(_ failure: ConnectFailure) -> some View {
-        VStack(spacing: DSSpacing.m) {
-            Image(systemName: "wifi.exclamationmark")
-                .font(DSFont.iconConnectionFailure)
-                .foregroundStyle(IOSColor.status.error)
-                .padding(.bottom, DSSpacing.xs)
-            Text(failure.title)
-                .font(DSFont.title2)
-                .foregroundStyle(DSColor.textPrimary)
-                .multilineTextAlignment(.center)
-            Text(failure.message)
-                .font(DSFont.body)
-                .foregroundStyle(DSColor.textSecondary)
-                .multilineTextAlignment(.center)
-            if let detail = failure.detail {
-                Text(detail)
-                    .font(DSFont.campMono)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .padding(.top, DSSpacing.xxs)
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(alignment: .center, spacing: DSSpacing.m) {
+                    Text(failure.title)
+                        .font(DSFont.title)
+                        .foregroundStyle(failure.isNeutral ? DSColor.textPrimary : IOSColor.status.error)
+                        .multilineTextAlignment(.center)
+                    Text(displayMessage(for: failure))
+                        .font(DSFont.subheadline)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if failure.checklist.isEmpty, let nextStep = failure.nextStep, !nextStep.isEmpty {
+                        Text(nextStep)
+                            .font(DSFont.subheadline)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !failure.checklist.isEmpty {
+                        VStack(spacing: 0) {
+                            ForEach(Array(failure.checklist.enumerated()), id: \.offset) { index, check in
+                                Label(check, systemImage: checkIcon(at: index))
+                                    .font(DSFont.subheadline)
+                                    .foregroundStyle(DSColor.textPrimary)
+                                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                                    .padding(.horizontal, DSSpacing.l)
+                                    .padding(.vertical, 6)
+                                if index < failure.checklist.count - 1 {
+                                    Divider().overlay(DSColor.separator)
+                                }
+                            }
+                        }
+                        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+                        .padding(.top, DSSpacing.xxs)
+                    }
+                    if let detail = failure.detail {
+                        Text(detail)
+                            .font(DSFont.campMonoCaption)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, DSSpacing.xl)
+                .padding(.top, DSSpacing.xl)
+                .padding(.bottom, 180)
             }
-            VStack(spacing: DSSpacing.s) {
-                DSButton("再試行", variant: .primary, action: onRetry)
-                DSButton("閉じる", variant: .secondary, action: onDismiss)
+            .scrollIndicators(.hidden)
+
+            VStack(spacing: DSSpacing.xxs) {
+                Button(action: onRetry) {
+                    Text("再試行")
+                        .font(DSFont.headline.weight(.semibold))
+                        .foregroundStyle(IOSColor.accentOnFill)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(IOSColor.accent, in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Button("閉じる", action: onDismiss)
+                    .font(DSFont.headline.weight(.semibold))
+                    .foregroundStyle(IOSColor.accent)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .buttonStyle(.plain)
+                if !failure.checklist.isEmpty {
+                    Text("閉じると一覧に進み、接続が戻るのを待ちます")
+                        .font(DSFont.caption)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
-            .padding(.top, DSSpacing.m)
+            .padding(.horizontal, DSSpacing.xl)
+            .padding(.bottom, DSSpacing.m)
+            .background {
+                LinearGradient(
+                    colors: [IOSColor.bg.base.opacity(0), IOSColor.bg.base],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea(edges: .bottom)
+            }
         }
-        .padding(.horizontal, DSSpacing.xl)
-        .frame(maxWidth: 420)
+        .frame(maxWidth: 480, maxHeight: .infinity)
+    }
+
+    private func checkIcon(at index: Int) -> String {
+        switch index {
+        case 0: "moon"
+        case 1: "terminal"
+        default: "link"
+        }
+    }
+
+    private func displayMessage(for failure: ConnectFailure) -> String {
+        guard !failure.checklist.isEmpty,
+              let nextStep = failure.nextStep,
+              !nextStep.isEmpty else { return failure.message }
+        return "\(failure.message) \(nextStep)"
     }
 }
 
@@ -638,15 +774,21 @@ private struct ConnectingOverlayView: View {
 private struct QRScanDestination: View {
     @State private var applyViewModel: PairingApplyViewModel
     let initialScannedString: String?
-    let onApplied: (() -> Void)?
+    let isReconnection: Bool
+    let previousEndpoint: String?
+    let onApplied: ((String?) -> Void)?
 
     init(
         makeApplyViewModel: @escaping () -> PairingApplyViewModel,
         initialScannedString: String?,
-        onApplied: (() -> Void)? = nil
+        isReconnection: Bool,
+        previousEndpoint: String?,
+        onApplied: ((String?) -> Void)? = nil
     ) {
         _applyViewModel = State(initialValue: makeApplyViewModel())
         self.initialScannedString = initialScannedString
+        self.isReconnection = isReconnection
+        self.previousEndpoint = previousEndpoint
         self.onApplied = onApplied
     }
 
@@ -654,6 +796,8 @@ private struct QRScanDestination: View {
         QRScanScreen(
             applyViewModel: applyViewModel,
             initialScannedString: initialScannedString,
+            isReconnection: isReconnection,
+            previousEndpoint: previousEndpoint,
             onApplied: onApplied
         )
     }

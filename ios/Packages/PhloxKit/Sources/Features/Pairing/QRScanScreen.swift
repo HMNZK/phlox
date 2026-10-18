@@ -10,36 +10,90 @@ import UIKit
 
 /// 文言（テスト可能なコピー層）。
 public enum QRScanCopy {
-    public static let title = "QR でスキャン"
-    public static let settingsEntryButtonTitle = "QR でスキャン"
-    public static let subtitle = "Mac に表示されたペアリング用 QR を読み取ります"
-    public static let cameraUnavailableGuidance =
-        "カメラを利用できません。シミュレーターの場合は「写真から読み取る」で QR 画像を選択してください。"
+    public static let title = "QR を読み取る"
+    public static let reconnectTitle = "QR で再接続"
+    public static let settingsEntryButtonTitle = "QR で再接続"
+    public static let subtitle = "Mac に表示した QR を枠に入れてください。遠いときはピンチで拡大できます。"
+    public static let cameraUnavailableGuidance = "カメラへのアクセスが許可されていません。"
     public static let pickPhotoButtonTitle = "写真から読み取る"
-    public static let noQRInImage = "画像から QR コードを読み取れませんでした"
-    public static let applying = "接続情報を適用しています…"
-    public static let scanAgainButtonTitle = "もう一度スキャンする"
+    public static let noQRInImage = "画像から QR を見つけられません"
+    public static let noQRInImageGuidance = "QR 全体がはっきり写ったスクリーンショットを選んでください。"
+    public static let applying = "接続先を保存しています…"
+    public static let scanAgainButtonTitle = "もう一度スキャン"
+    public static let reconnectGuidance = "読み取れるまで、今の接続先は変わりません。"
+    public static let reconnectSuccessMessage = "これからは新しい接続先から一覧を読み込みます。"
+
+    public static var cameraUnavailablePresentation: ErrorPresentation {
+        ErrorPresentation(
+            title: "カメラを使えません",
+            message: cameraUnavailableGuidance,
+            recoveryAction: pickPhotoButtonTitle,
+            nextStep: "Mac の QR をスクリーンショットにして、写真から読み取れます。",
+            isNeutral: true
+        )
+    }
+
+    public static var imageQRNotFoundPresentation: ErrorPresentation {
+        ErrorPresentation(
+            title: noQRInImage,
+            message: "選んだ画像の中に、読み取れる QR がありませんでした。",
+            recoveryAction: pickPhotoButtonTitle,
+            nextStep: noQRInImageGuidance
+        )
+    }
 
     public static func message(for error: PairingPayloadError) -> String {
+        presentation(for: error).title
+    }
+
+    public static func presentation(for error: PairingPayloadError) -> ErrorPresentation {
         switch error {
         case .notPairingURL:
-            return "ペアリング用の QR コードではありません"
-        case .unsupportedVersion:
-            return "未対応の QR バージョンです"
+            return ErrorPresentation(
+                title: "ペアリング用の QR ではありません",
+                message: "読み取った QR は Phlox の接続用ではありません。",
+                recoveryAction: "もう一度スキャン",
+                nextStep: "Mac の Phlox が表示したペアリング用の QR を読み取ってください。",
+                technicalDetail: "https://example.com/menu"
+            )
+        case .unsupportedVersion(let version):
+            return ErrorPresentation(
+                title: "この QR の版には対応していません",
+                message: "QR の版（v）が無いか、このアプリが読めない版です。",
+                recoveryAction: "もう一度スキャン",
+                nextStep: "iPhone と Mac の Phlox を両方とも最新にしてから、QR を表示し直してください。",
+                technicalDetail: "phlox://pair?v=\(version ?? "未指定")&host=…"
+            )
         case .missingHost:
-            return "ホスト情報が見つかりません"
+            return ErrorPresentation(
+                title: "QR に接続先がありません",
+                message: "QR の中に Mac のアドレス（host）が入っていません。",
+                recoveryAction: "もう一度スキャン",
+                nextStep: "Mac で QR を表示し直して、もう一度読み取ってください。",
+                technicalDetail: "phlox://pair?v=1&port=8765&token=…"
+            )
         case .invalidPort:
-            return "ポート番号が不正です"
+            return ErrorPresentation(
+                title: "ポート番号が正しくありません",
+                message: "QR の中のポート番号が、使える範囲（1〜65535）にありません。",
+                recoveryAction: "もう一度スキャン",
+                nextStep: "Mac の Phlox の設定でポートを確かめ、QR を表示し直してください。",
+                technicalDetail: "port=99999"
+            )
         case .invalidToken:
-            return "トークンが不正です"
+            return ErrorPresentation(
+                title: "QR のトークンが正しくありません",
+                message: "QR の中の接続の鍵（トークン）の形が違います。",
+                recoveryAction: "もう一度スキャン",
+                nextStep: "Mac で QR を表示し直して、もう一度読み取ってください。",
+                technicalDetail: "token=…（64 桁の小文字 16 進ではない）"
+            )
         }
     }
 
-    public static func successMessage(name: String?) -> String {
-        if let name, !name.isEmpty {
-            return "接続しました（\(name)）"
-        }
-        return "接続しました"
+    public static func successTitle(name: String?) -> String {
+        guard let name, !name.isEmpty else { return "接続しました" }
+        return "接続しました（\(name)）"
     }
 }
 
@@ -95,11 +149,15 @@ public enum QRScanAppliedCallbackLogic {
 /// カメラ不可（シミュレータ・権限拒否）: 案内文言＋「写真から読み取る」(PhotosPicker) のみ表示。
 /// 読み取り文字列 → PairingPayloadParser.parse → 成功なら PairingApplyViewModel.apply → 結果表示。
 public struct QRScanScreen: View {
+    @Environment(\.dismiss) private var dismiss
     @Bindable private var applyViewModel: PairingApplyViewModel
     private let initialScannedString: String?
-    private let onApplied: (() -> Void)?
+    private let isReconnection: Bool
+    private let previousEndpoint: String?
+    private let onApplied: ((String?) -> Void)?
 
     @State private var parseErrorMessage: String?
+    @State private var parseErrorPresentation: ErrorPresentation?
     @State private var hasConsumedInitialPayload = false
     @State private var isScannerPaused = false
     @State private var isRescanning = false
@@ -112,19 +170,22 @@ public struct QRScanScreen: View {
     public init(
         applyViewModel: PairingApplyViewModel,
         initialScannedString: String? = nil,
-        onApplied: (() -> Void)? = nil
+        isReconnection: Bool = false,
+        previousEndpoint: String? = nil,
+        onApplied: ((String?) -> Void)? = nil
     ) {
         self.applyViewModel = applyViewModel
         self.initialScannedString = initialScannedString
+        self.isReconnection = isReconnection
+        self.previousEndpoint = previousEndpoint
         self.onApplied = onApplied
     }
 
     public var body: some View {
         scanBody
-            .background(DSColor.background)
-            .navigationTitle(QRScanCopy.title)
+            .background(Color.black.ignoresSafeArea())
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             #endif
             .task(id: initialScannedString) {
                 await processInitialPayloadIfNeeded()
@@ -141,7 +202,7 @@ public struct QRScanScreen: View {
                     hasAlreadyFired: hasFiredOnApplied
                 ) else { return }
                 hasFiredOnApplied = true
-                onApplied?()
+                onApplied?(applyViewModel.appliedName)
             }
     }
 
@@ -161,39 +222,63 @@ public struct QRScanScreen: View {
     }
 
     private var scrollableContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DSSpacing.l) {
-                header
-                scanContent
-                statusSection
+        ZStack(alignment: .bottom) {
+            IOSColor.bg.scanner.ignoresSafeArea()
+            VStack(spacing: 0) {
+                if shouldShowScanner && cameraScannerUnavailable {
+                    Spacer(minLength: 0)
+                    cameraUnavailableFallback.offset(y: -43)
+                    Spacer(minLength: 0)
+                } else if shouldShowScanner {
+                    Text(scannerGuidance)
+                        .font(DSFont.subheadline)
+                        .foregroundStyle(.white.opacity(0.82))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, DSSpacing.l)
+                        .padding(.top, DSSpacing.l)
+                    Spacer(minLength: 0)
+                } else {
+                    Spacer(minLength: 0)
+                }
             }
-            .padding(DSSpacing.l)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .top) {
+                navigationHeader
+                    .padding(.horizontal, DSSpacing.m)
+            }
+
+            statusSection
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Text(QRScanCopy.subtitle)
-                .font(DSFont.subheadline)
-                .foregroundStyle(DSColor.textSecondary)
+    private var navigationHeader: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                Image(systemName: "chevron.left")
+                    .font(DSFont.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.08), in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isReconnection ? "設定へ戻る" : "接続設定へ戻る")
+
+            Spacer(minLength: 0)
+            Text(isReconnection ? QRScanCopy.reconnectTitle : QRScanCopy.title)
+                .font(DSFont.headline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+
+            Color.clear.frame(width: 44, height: 44)
         }
     }
 
     /// カメラ不可（シミュレータ・権限拒否）のときだけ案内を出す。
     /// カメラ利用可能な実スキャン中は `fullScreenScanner` が画面全体に描画する。
-    @ViewBuilder
-    private var scanContent: some View {
-        if shouldShowScanner {
-            #if os(iOS)
-            if !isCameraScannerAvailable {
-                cameraUnavailableFallback
-            }
-            #else
-            cameraUnavailableFallback
-            #endif
-        }
-    }
-
     private var shouldShowScanner: Bool {
         switch applyViewModel.phase {
         case .idle:
@@ -205,13 +290,42 @@ public struct QRScanScreen: View {
         }
     }
 
+    private var cameraScannerUnavailable: Bool {
+        #if os(iOS)
+        !isCameraScannerAvailable
+        #else
+        true
+        #endif
+    }
+
     private var cameraUnavailableFallback: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.m) {
-            Text(QRScanCopy.cameraUnavailableGuidance)
-                .font(DSFont.body)
-                .foregroundStyle(DSColor.textSecondary)
+        VStack(spacing: DSSpacing.l) {
+            ZStack {
+                Image(systemName: "camera")
+                    .font(DSFont.title2.weight(.regular))
+                    .foregroundStyle(.white)
+                Path { path in
+                    path.move(to: CGPoint(x: 18, y: 18))
+                    path.addLine(to: CGPoint(x: 46, y: 46))
+                }
+                .stroke(.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            }
+            .frame(width: 64, height: 64)
+            .background(Color.white.opacity(0.12), in: Circle())
+            Text(QRScanCopy.cameraUnavailablePresentation.title)
+                .font(DSFont.title2.weight(.semibold))
+                .foregroundStyle(.white)
+            Text(QRScanCopy.cameraUnavailablePresentation.message)
+                .font(DSFont.subheadline)
+                .foregroundStyle(.white.opacity(0.75))
+                .multilineTextAlignment(.center)
             photoPickerButton
+            Text("設定アプリでカメラを許可")
+                .font(DSFont.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.8))
         }
+        .padding(.horizontal, DSSpacing.xl)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -219,46 +333,79 @@ public struct QRScanScreen: View {
         #if os(iOS)
         PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
             HStack(spacing: DSSpacing.s) {
-                Image(systemName: "photo.on.rectangle")
+                Image(systemName: "photo")
                 Text(QRScanCopy.pickPhotoButtonTitle)
                     .font(DSFont.headline)
             }
-            .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
-            .foregroundStyle(IOSColor.accent)
-            .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                    .strokeBorder(DSColor.border, lineWidth: 1)
-            )
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .foregroundStyle(Color.black)
+            .background(Color.white, in: Capsule())
         }
         .buttonStyle(.plain)
         #endif
     }
 
-    @ViewBuilder
     private var statusSection: some View {
-        if let parseErrorMessage {
-            DSResultBanner(message: parseErrorMessage, isError: true)
-            scanAgainButton
-        }
+        VStack(alignment: .leading, spacing: DSSpacing.m) {
+            if let parseErrorMessage {
+                VStack(alignment: .leading, spacing: DSSpacing.m) {
+                    if let parseErrorPresentation {
+                        PairingErrorCard(presentation: parseErrorPresentation)
+                    } else {
+                        Text(parseErrorMessage)
+                            .font(DSFont.body)
+                            .foregroundStyle(.white)
+                    }
+                    if parseErrorPresentation?.recoveryAction == QRScanCopy.pickPhotoButtonTitle {
+                        photoPickerButton
+                    } else {
+                        scanAgainButton
+                    }
+                }
+            }
 
+            phaseStatusSection
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var phaseStatusSection: some View {
         switch applyViewModel.phase {
         case .idle:
             EmptyView()
         case .applying:
-            VStack(spacing: DSSpacing.m) {
-                DSConnectingIndicator(size: 96)
-                Text(QRScanCopy.applying)
-                    .font(DSFont.body)
-                    .foregroundStyle(DSColor.textSecondary)
+            HStack(alignment: .top, spacing: DSSpacing.m) {
+                staticProgressIndicator
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    Text(QRScanCopy.applying)
+                        .font(DSFont.headline)
+                        .foregroundStyle(DSColor.textPrimary)
+                    Text("読み取った QR から接続先を取り出しました。")
+                        .font(DSFont.subheadline)
+                        .foregroundStyle(DSColor.textSecondary)
+                    if let config = applyViewModel.applyingConnection {
+                        Text("\(config.host):\(String(config.port))")
+                            .font(DSFont.campMonoCaption)
+                            .foregroundStyle(DSColor.textSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, DSSpacing.xl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
         case .success(let name) where !isRescanning:
-            DSResultBanner(message: QRScanCopy.successMessage(name: name), isError: false)
-        case .unreachable(let guidance) where !isRescanning:
-            DSResultBanner(message: guidance, isError: true)
-            scanAgainButton
+            PairingSuccessCard(
+                title: QRScanCopy.successTitle(name: name),
+                message: isReconnection ? QRScanCopy.reconnectSuccessMessage : "新しい接続先からセッション一覧を読み込みます。",
+                endpoint: applyViewModel.applyingConnection.map { "\($0.host):\($0.port)" }
+            )
+        case .unreachable where !isRescanning:
+            VStack(alignment: .leading, spacing: DSSpacing.m) {
+                PairingErrorCard(presentation: PairingCopy.unreachablePresentation)
+                scanAgainButton
+            }
         case .success, .unreachable:
             EmptyView()
         }
@@ -271,14 +418,33 @@ public struct QRScanScreen: View {
             Text(QRScanCopy.scanAgainButtonTitle)
                 .font(DSFont.headline)
                 .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
-                .foregroundStyle(IOSColor.accent)
-                .background(DSColor.surfaceElevated, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+                .foregroundStyle(IOSColor.accentOnFill)
+                .background(IOSColor.accent, in: Capsule())
                 .overlay(
                     RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
                         .strokeBorder(DSColor.border, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private var staticProgressIndicator: some View {
+        ZStack {
+            Circle()
+                .stroke(IOSColor.text.tertiary.opacity(0.22), lineWidth: 2)
+            Circle()
+                .trim(from: 0, to: 0.24)
+                .stroke(IOSColor.text.secondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 32, height: 32)
+        .accessibilityHidden(true)
+    }
+
+    private var scannerGuidance: String {
+        guard isReconnection else { return QRScanCopy.subtitle }
+        guard let previousEndpoint else { return QRScanCopy.reconnectGuidance }
+        return "読み取れるまで、今の接続先 \(previousEndpoint) は変わりません。"
     }
 
     private func handleScannedString(_ string: String) {
@@ -289,14 +455,19 @@ public struct QRScanScreen: View {
 
         switch QRScanLogic.parse(string) {
         case .success(let payload):
+            parseErrorPresentation = nil
             Task { await applyViewModel.apply(payload) }
         case .failure(let message):
             parseErrorMessage = message
+            if case .failure(let error) = PairingPayloadParser.parse(string) {
+                parseErrorPresentation = QRScanCopy.presentation(for: error)
+            }
         }
     }
 
     private func resetForRescan() {
         parseErrorMessage = nil
+        parseErrorPresentation = nil
         isScannerPaused = false
         isRescanning = true
         #if os(iOS)
@@ -327,13 +498,18 @@ public struct QRScanScreen: View {
         QRDataScannerRepresentable { handleScannedString($0) }
             .ignoresSafeArea(edges: .bottom)
             .overlay(alignment: .top) {
-                Text(QRScanCopy.subtitle)
-                    .font(DSFont.subheadline)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .padding(DSSpacing.m)
-                    .frame(maxWidth: .infinity)
-                    .background(.black.opacity(0.45))
+                VStack(spacing: DSSpacing.xs) {
+                    navigationHeader
+                        .padding(.horizontal, DSSpacing.m)
+                    Text(scannerGuidance)
+                        .font(DSFont.subheadline)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, DSSpacing.m)
+                        .padding(.bottom, DSSpacing.m)
+                }
+                .frame(maxWidth: .infinity)
+                .background(.black.opacity(0.45))
             }
     }
 
@@ -343,21 +519,84 @@ public struct QRScanScreen: View {
         guard applyViewModel.phase != .applying else { return }
         parseErrorMessage = nil
 
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: data),
-              let cgImage = image.cgImage
-        else {
-            parseErrorMessage = QRScanCopy.noQRInImage
-            return
-        }
-
-        if let string = QRImageDecoder.decodeQRString(from: cgImage) {
-            handleScannedString(string)
-        } else {
-            parseErrorMessage = QRScanCopy.noQRInImage
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data),
+                  let cgImage = image.cgImage else {
+                showQRNotFoundInPhoto()
+                return
+            }
+            if let string = QRImageDecoder.decodeQRString(from: cgImage) {
+                handleScannedString(string)
+            } else {
+                showQRNotFoundInPhoto()
+            }
+        } catch {
+            showQRNotFoundInPhoto()
         }
     }
+
+    private func showQRNotFoundInPhoto() {
+        parseErrorMessage = QRScanCopy.noQRInImage
+        parseErrorPresentation = QRScanCopy.imageQRNotFoundPresentation
+    }
     #endif
+}
+
+private struct PairingErrorCard: View {
+    let presentation: ErrorPresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.s) {
+            Text(presentation.title)
+                .font(DSFont.headline.weight(.semibold))
+                .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
+            Text(presentation.cause)
+                .font(DSFont.body)
+                .foregroundStyle(IOSColor.text.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !presentation.nextStep.isEmpty {
+                Text(presentation.nextStep)
+                    .font(DSFont.body)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let detail = presentation.technicalDetail {
+                Text(detail)
+                    .font(DSFont.campMonoCaption)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(DSSpacing.m)
+        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+    }
+}
+
+private struct PairingSuccessCard: View {
+    let title: String
+    let message: String
+    let endpoint: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            Text(title)
+                .font(DSFont.headline)
+                .foregroundStyle(IOSColor.status.success)
+            Text(message)
+                .font(DSFont.body)
+                .foregroundStyle(IOSColor.text.secondary)
+            if let endpoint {
+                Text(endpoint)
+                    .font(DSFont.campMonoCaption)
+                    .foregroundStyle(IOSColor.text.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(DSSpacing.m)
+        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+    }
 }
 
 #if os(iOS)

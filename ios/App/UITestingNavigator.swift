@@ -40,6 +40,7 @@ enum UITestingNavigator {
         case .connectionSettings, .sessionList, .launchGate, .unreachable, .empty,
              .sessionShell, .sessionShellNoAttention, .sessionShellScrolled, .sessionShellOffline,
              .list, .listMulti, .listCollapsed, .listChildrenExpanded, .listAllAttention,
+             .listManyTop, .listManyScrolled,
              .listLoading, .listJudging, .listEmpty, .listOffNet, .listOffHost, .listOffUnknown,
              .listError, .listError401, .listSE, .listDT:
             break

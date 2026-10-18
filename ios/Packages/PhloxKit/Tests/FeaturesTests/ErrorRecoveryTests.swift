@@ -16,15 +16,18 @@ final class ErrorRecoveryTests: XCTestCase {
         XCTAssertTrue(vm.cardMessage.contains("圏外"))
     }
 
-    // 2. Mac に届かない → 接続先と無応答を等幅の詳細として示す
-    func testUnreachableHostShowsEndpointAndNoResponse() {
-        let vm = UnreachableViewModel(reachability: .unreachableHost, endpoint: "100.64.0.1:8765", onRetry: {})
-        XCTAssertEqual(vm.technicalDetail, "100.64.0.1:8765 · 無応答")
+    // 2. Mac に届かない → 接続先と最終取得時刻を等幅の詳細として示す
+    func testUnreachableHostShowsEndpointAndLastFetchInTechnicalLine() {
+        let fetchedAt = Date(timeIntervalSince1970: 1_000)
+        let vm = UnreachableViewModel(
+            reachability: .unreachableHost, endpoint: "100.64.0.1:8765", lastUpdated: fetchedAt, onRetry: {}
+        )
+        XCTAssertEqual(vm.technicalDetail(now: fetchedAt.addingTimeInterval(180)), "100.64.0.1:8765 · 最終取得 3 分前")
     }
 
-    // 3. 401 → 再認証導線（接続設定へ）
+    // 3. 401 → QR 再接続導線
     func testUnauthorizedOffersReauthRoute() {
-        XCTAssertEqual(PhloxError.unauthorized.presentation.recoveryAction, "接続設定を開く")
+        XCTAssertEqual(PhloxError.unauthorized.presentation.recoveryAction, "QR で再接続")
     }
 
     // 4. 429 → spawn カウントダウン: wave-4 で spawn 画面（SpawnViewModel）を廃止したため supersede。

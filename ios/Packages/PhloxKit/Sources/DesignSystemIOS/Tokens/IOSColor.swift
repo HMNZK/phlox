@@ -11,6 +11,7 @@ public enum IOSColor {
     public static var stop: Color { themed(0xD62F26, 0xE5483F) }
     public static var badge: Color { themed(0xD62F26, 0xE5483F) }
     public static var listRunningGlow: Color { themed(0xC9C9D0, 0xFFFFFF) }
+    public static var toggleOn: Color { themed(0x34C759, 0x30B85A) }
 
     public static var text: TextColors { TextColors() }
     public static var status: StatusColors { StatusColors() }
@@ -41,11 +42,16 @@ public enum IOSColor {
         }
         public var caution: Color { IOSColor.themed(0x8A5300, 0xF4BD68) }
         public var success: Color { IOSColor.statusColor(.done) }
+        public var successBackground: Color {
+            IOSColor.isLight ? IOSColor.color(0xE3F4E8) : IOSColor.color(0x34C759, opacity: 0.16)
+        }
         public var neutral: Color { IOSColor.statusColor(.running) }
     }
 
     public struct BackgroundColors {
         public var base: Color { IOSColor.themed(0xF2F2F7, 0x000000) }
+        public var scanner: Color { IOSColor.color(0x0E0E10) }
+        public var appearancePreviewLight: Color { IOSColor.color(0xF0F0F5) }
         public var card: Color { IOSColor.themed(0xFFFFFF, 0x1C1C1E) }
         public var raised: Color { IOSColor.themed(0xE4E4EB, 0x2C2C30) }
         public var code: Color { IOSColor.themed(0xF7F6FA, 0x141416) }

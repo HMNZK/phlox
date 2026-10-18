@@ -44,6 +44,8 @@ enum UITestingSupport {
         case sessionShellDetail
         case list
         case listMulti
+        case listManyTop
+        case listManyScrolled
         case listCollapsed
         case listChildrenExpanded
         case listAllAttention
@@ -74,6 +76,8 @@ enum UITestingSupport {
             case .sessionShellDetail: "12-session-shell-detail"
             case .list: "13-list"
             case .listMulti: "14-list-multi"
+            case .listManyTop: "28-list-many-top"
+            case .listManyScrolled: "29-list-many-scrolled"
             case .listCollapsed: "15-list-collapsed"
             case .listChildrenExpanded: "16-list-children-expanded"
             case .listAllAttention: "17-list-all-attention"
@@ -106,6 +110,8 @@ enum UITestingSupport {
             case .sessionShellDetail: "⑫ 下部ナビ（セッション画面）"
             case .list: "⑬ 一覧（対応待ち・プロジェクト・子）"
             case .listMulti: "⑭ 一覧（複数プロジェクト）"
+            case .listManyTop: "㉘ 一覧（25 セッション・先頭）"
+            case .listManyScrolled: "㉙ 一覧（25 セッション・スクロール）"
             case .listCollapsed: "⑮ 一覧（閉じた欄の内訳）"
             case .listChildrenExpanded: "⑯ 一覧（子セッション展開）"
             case .listAllAttention: "⑰ 一覧（4 種の対応待ち）"
@@ -124,8 +130,15 @@ enum UITestingSupport {
 
         var snapshotName: String {
             switch self {
+            case .sessionShell: "Shell"
+            case .sessionShellNoAttention: "ShellNoAttention"
+            case .sessionShellScrolled: "ShellScrolled"
+            case .sessionShellOffline: "ShellOffline"
+            case .sessionShellDetail: "ShellDetail"
             case .list: "List"
             case .listMulti: "ListMulti"
+            case .listManyTop: "ListManyTop"
+            case .listManyScrolled: "ListManyScrolled"
             case .listCollapsed: "ListCollapsed"
             case .listChildrenExpanded: "ListChildrenExpanded"
             case .listAllAttention: "ListAllAttention"

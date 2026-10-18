@@ -5,12 +5,12 @@ import PhloxCore
 public struct DeleteConfirmationView: View {
     private enum AlertItem: Identifiable {
         case confirmation
-        case failure(String)
+        case failure(ErrorPresentation)
 
         var id: String {
             switch self {
             case .confirmation: "confirmation"
-            case .failure: "failure"
+            case .failure(let presentation): "failure-\(presentation.technicalDetail ?? "")"
             }
         }
     }
@@ -56,11 +56,11 @@ public struct DeleteConfirmationView: View {
                         },
                         secondaryButton: .cancel(Text("キャンセル"), action: onCancel)
                     )
-                case .failure(let message):
+                case .failure(let presentation):
                     Alert(
-                        title: Text("削除できませんでした"),
-                        message: Text(message),
-                        primaryButton: .default(Text("もう一度削除")) {
+                        title: Text(presentation.title),
+                        message: failureMessage(presentation),
+                        primaryButton: .default(Text(presentation.recoveryAction ?? "もう一度削除")) {
                             Task { await viewModel.confirmDelete() }
                         },
                         secondaryButton: .cancel(Text("閉じる"), action: onCancel)
@@ -68,9 +68,19 @@ public struct DeleteConfirmationView: View {
                 }
             }
             .onChange(of: viewModel.state) { _, state in
-                if case .failed(let message) = state {
-                    alert = .failure(message)
+                if case .failed = state, let presentation = viewModel.failurePresentation {
+                    alert = .failure(presentation)
                 }
             }
+    }
+
+    private func failureMessage(_ presentation: ErrorPresentation) -> Text {
+        var message = AttributedString([presentation.cause, presentation.nextStep].joined(separator: "\n"))
+        if let technicalDetail = presentation.technicalDetail {
+            var detail = AttributedString("\n\(technicalDetail)")
+            detail.font = .system(.footnote, design: .monospaced)
+            message.append(detail)
+        }
+        return Text(message)
     }
 }

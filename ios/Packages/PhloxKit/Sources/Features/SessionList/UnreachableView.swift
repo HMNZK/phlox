@@ -19,7 +19,11 @@ public struct UnreachableView: View {
                 .font(DSFont.subheadline)
                 .foregroundStyle(IOSColor.text.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if let detail = viewModel.technicalDetail {
+            Text(viewModel.nextStep)
+                .font(DSFont.subheadline)
+                .foregroundStyle(IOSColor.text.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let detail = viewModel.technicalDetail() {
                 Text(detail)
                     .font(DSFont.campMonoCaption)
                     .foregroundStyle(IOSColor.text.secondary)

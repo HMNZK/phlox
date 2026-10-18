@@ -8,8 +8,9 @@ final class UnreachableViewModelTests: XCTestCase {
         let model = UnreachableViewModel(reachability: .offlineNetwork)
 
         XCTAssertEqual(model.cardTitle, "インターネットにつながっていません")
-        XCTAssertEqual(model.cardMessage, "iPhone が圏外か、機内モードになっています。通信が戻ると自動でつなぎ直します。")
-        XCTAssertNil(model.technicalDetail)
+        XCTAssertEqual(model.cardMessage, "iPhone が圏外か、機内モードになっています。")
+        XCTAssertEqual(model.nextStep, "通信が戻ると自動でつなぎ直します。")
+        XCTAssertNil(model.technicalDetail())
     }
 
     func testUnreachableHostShowsRedStateDetailAndLastFetchFooter() {
@@ -21,7 +22,9 @@ final class UnreachableViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(model.cardTitle, "Mac に届きません")
-        XCTAssertEqual(model.technicalDetail, "100.64.0.1:8765 · 無応答")
+        XCTAssertEqual(model.cardMessage, "Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。")
+        XCTAssertTrue(model.nextStep.contains("Mac を起こすと自動でつなぎ直します"))
+        XCTAssertEqual(model.technicalDetail(now: fetchedAt.addingTimeInterval(180)), "100.64.0.1:8765 · 最終取得 3 分前")
         XCTAssertEqual(model.lastUpdatedText(now: fetchedAt.addingTimeInterval(180)), "最終取得 3 分前")
         XCTAssertEqual(
             model.footerText(now: fetchedAt.addingTimeInterval(180)),
@@ -34,7 +37,8 @@ final class UnreachableViewModelTests: XCTestCase {
 
         XCTAssertEqual(model.cardTitle, "接続を確かめています")
         XCTAssertEqual(model.cardMessage, "Mac からの応答を待っています。最大 20 秒ほどかかります。")
-        XCTAssertNil(model.technicalDetail)
+        XCTAssertEqual(model.nextStep, "このままお待ちください。")
+        XCTAssertNil(model.technicalDetail())
     }
 
     func testFooterExplainsWhenThereWasNoSuccessfulFetch() {

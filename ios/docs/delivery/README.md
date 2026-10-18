@@ -37,3 +37,4 @@ last-verified: 2026-07-30
 - `delivery/0025-ios-redesign-stage5-worklog.md` … 再設計の段階 5（新規チャット画面）の作業記録
 - `delivery/0026-ios-redesign-stage6-worklog.md` … 再設計の段階 6a〜6c（セッション画面・会話表示・承認と質問カード）の作業記録
 - `delivery/0027-ios-redesign-stage7-worklog.md` … 再設計の段階7（ウィジェット・Live Activity・Dynamic Island と通知からの遷移）の作業記録
+- `delivery/0028-ios-redesign-stage8-worklog.md` … 再設計の段階8a（起動・接続・設定・エラー文言と描画場面の追加）の作業記録

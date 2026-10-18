@@ -121,4 +121,17 @@ struct SessionDetailLoadingWhiteboxTests {
         #expect(viewModel.presentationState.transcript == .fetchError)
         #expect(viewModel.loadError == "メッセージの取得に失敗しました · HTTP 502")
     }
+
+    @Test("通信失敗は説明文でなく技術値を最後に表示する")
+    func fetchTransportFailureKeepsTechnicalDetailLast() async {
+        let viewModel = SessionDetailViewModel(
+            session: makeSession(),
+            api: MockAPI(messagesOutcome: .failure(.transport(WrappedError(description: "NSURLError -1005"))))
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.presentationState.transcript == .fetchError)
+        #expect(viewModel.loadError == "メッセージの取得に失敗しました · NSURLError -1005")
+    }
 }

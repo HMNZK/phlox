@@ -136,17 +136,14 @@ func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -
   ]
 }
 ```
-- モデル選択非対応セッション（codex app-server・復元失敗プレースホルダ等、
-  実際に設定を適用できないもの）: 200 + `"selectedModel": null` + `"availableModels": []`
-  （クライアントはチップ非表示にする）。GET と POST の能力ゲートは同一
-  （`canApplySpawnAgentSettings`）。
+- Claude Code・Cursor は起動設定のモデル候補、Codex app-server は `listModels` の候補を返す（`ChatSessionViewModel.controlModelChoices`）。
+- モデル選択非対応セッション（復元失敗プレースホルダ等、実際に設定を適用できないもの）: 200 + `"selectedModel": null` + `"availableModels": []`（クライアントはチップ非表示にする）。
 - 未知のセッション id: 404
 
 ### POST /sessions/{id}/model
 
 - body: `{"model": "sonnet"}`
-- 成功: 200（適用は macOS 側 `ChatSessionViewModel.setSpawnAgentModel` 経由＝
-  model/permission/effort のフルスナップショット適用で、permission-mode を失わない）
+- 成功: 200。macOS 側 `ChatSessionViewModel.applyControlModel` から、Claude Code・Cursor は `setSpawnAgentModel`、Codex app-server は `setModel` へ渡す。Claude Code・Cursor は model/permission/effort の完全な設定を適用し、permission-mode を保持する。
 - 未知 id・モデル選択非対応セッション: 404
 - body 不正（model 欠落・空文字）: 400
 - 2026-10-17 改版（§8.8）: Mac が変更を受け付けない状態（権限の切り替え中）は **409** `{"error":"settings update in progress"}`（以前は 500）。Codex の thread 開始前は 425（従来どおり）。本当の適用失敗は 500 のまま。

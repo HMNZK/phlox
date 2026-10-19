@@ -136,4 +136,15 @@ enum ReplyApprovalPolicy {
 struct ReplyApprovalResult: Equatable {
     let actionLabel: String
     let remainingCount: Int
+    var nextSessionName: String? = nil
+    var nextIsQuestion: Bool = false
+    var nextAttention: SessionNavigationState.AttentionItem? = nil
+
+    var nextName: String? { nextAttention?.name ?? nextSessionName }
+
+    var nextStatusLabel: String? {
+        if let nextAttention { return nextAttention.statusLabel }
+        guard nextSessionName != nil else { return nil }
+        return nextIsQuestion ? "質問あり" : "承認待ち"
+    }
 }

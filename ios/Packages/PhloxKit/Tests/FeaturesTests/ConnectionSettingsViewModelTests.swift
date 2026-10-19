@@ -13,6 +13,29 @@ final class ConnectionSettingsViewModelTests: XCTestCase {
         }
     }
 
+    private actor SuspendedProbe {
+        private var result: CheckedContinuation<Bool, Never>?
+        private var started: CheckedContinuation<Void, Never>?
+
+        func run() async -> Bool {
+            await withCheckedContinuation { continuation in
+                result = continuation
+                started?.resume()
+                started = nil
+            }
+        }
+
+        func waitUntilStarted() async {
+            if result != nil { return }
+            await withCheckedContinuation { started = $0 }
+        }
+
+        func finish() {
+            result?.resume(returning: true)
+            result = nil
+        }
+    }
+
     private func makeVM(
         tokenStore: TokenStore = InMemoryTokenStore(),
         configStore: ConnectionConfigStoring = InMemoryConnectionConfigStore(),
@@ -61,6 +84,18 @@ final class ConnectionSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.banner, .failure(ConnectionSettingsCopy.testFailureMessage))
         XCTAssertEqual(vm.connectionStatus, "Mac に届きません")
         XCTAssertEqual(vm.lastTestWasReachable, false)
+        XCTAssertEqual(vm.currentConnection, "saved:8765")
+        XCTAssertTrue(vm.hasConnectionConfig)
+    }
+
+    func testOnlyMissingDestinationIsShownAsNotConfigured() {
+        let missing = makeVM()
+        XCTAssertEqual(missing.currentConnection, "未設定")
+        XCTAssertFalse(missing.hasConnectionConfig)
+
+        let saved = makeVM(configStore: InMemoryConnectionConfigStore(ConnectionConfig(host: "saved", port: 8765)))
+        XCTAssertEqual(saved.currentConnection, "saved:8765")
+        XCTAssertTrue(saved.hasConnectionConfig)
     }
 
     func testTestConnectionWithoutSavedConfigShowsGuidanceAndDoesNotProbe() async {
@@ -92,5 +127,49 @@ final class ConnectionSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.currentConnection, ConnectionSettingsCopy.notConnectedValue)
         XCTAssertFalse(vm.hasConnectionConfig)
         XCTAssertEqual(vm.qrButtonTitle, ConnectionSettingsCopy.connectButtonTitle)
+    }
+
+    func testRefreshClearsOldProbeResultWhenEndpointChanges() async {
+        let store = InMemoryConnectionConfigStore(ConnectionConfig(host: "first", port: 9000))
+        let vm = makeVM(configStore: store)
+        await vm.testConnection()
+        XCTAssertEqual(vm.lastTestWasReachable, true)
+
+        store.save(ConnectionConfig(host: "second", port: 9123))
+        vm.refresh()
+
+        XCTAssertEqual(vm.currentConnection, "second:9123")
+        XCTAssertNil(vm.lastTestWasReachable)
+        XCTAssertEqual(vm.connectionStatus, "保存済み")
+        XCTAssertEqual(vm.banner, .none)
+    }
+
+    func testRefreshKeepsProbeResultForSameEndpoint() async {
+        let vm = makeVM(configStore: InMemoryConnectionConfigStore(ConnectionConfig(host: "saved", port: 9000)))
+        await vm.testConnection()
+        let banner = vm.banner
+
+        vm.refresh()
+
+        XCTAssertEqual(vm.lastTestWasReachable, true)
+        XCTAssertEqual(vm.banner, banner)
+    }
+
+    func testProbeCompletionDoesNotMarkChangedEndpointAsConnected() async {
+        let store = InMemoryConnectionConfigStore(ConnectionConfig(host: "first", port: 9000))
+        let probe = SuspendedProbe()
+        let vm = makeVM(configStore: store, probe: { _, _ in await probe.run() })
+        let pending = Task { await vm.testConnection() }
+        await probe.waitUntilStarted()
+
+        store.save(ConnectionConfig(host: "second", port: 9123))
+        vm.refresh()
+        await probe.finish()
+        await pending.value
+
+        XCTAssertEqual(vm.currentConnection, "second:9123")
+        XCTAssertNil(vm.lastTestWasReachable)
+        XCTAssertEqual(vm.banner, .none)
+        XCTAssertFalse(vm.isTesting)
     }
 }

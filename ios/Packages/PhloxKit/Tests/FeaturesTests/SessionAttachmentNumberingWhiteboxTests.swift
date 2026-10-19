@@ -24,7 +24,9 @@ struct SessionAttachmentNumberingWhiteboxTests {
     }
 
     private func image(bytes: Int = 1024) -> SendAttachment {
-        SendAttachment(mediaType: "image/png", data: Data(count: bytes))
+        var data = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")!
+        data.append(Data(count: max(0, bytes - data.count)))
+        return SendAttachment(mediaType: "image/png", data: data)
     }
 
     @Test
@@ -40,12 +42,16 @@ struct SessionAttachmentNumberingWhiteboxTests {
         let vm = makeViewModel()
         vm.inputText = "draft"
         vm.inputCursorUTF16 = 3
-        vm.addAttachments(Array(repeating: image(), count: SessionDetailViewModel.maxAttachmentCount + 1))
+        vm.addAttachments(Array(repeating: image(), count: SessionDetailViewModel.maxAttachmentCount))
+        let items = vm.attachmentItems
+        let text = vm.inputText
+        let cursor = vm.inputCursorUTF16
+        vm.addAttachments([image()])
 
-        #expect(vm.attachmentItems.isEmpty)
-        #expect(vm.inputText == "draft")
-        #expect(vm.inputCursorUTF16 == 3)
-        #expect(vm.attachmentError != nil)
+        #expect(vm.attachmentItems == items)
+        #expect(vm.inputText == text)
+        #expect(vm.inputCursorUTF16 == cursor)
+        #expect(vm.attachmentError == "画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。")
     }
 
     @Test

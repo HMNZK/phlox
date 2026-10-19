@@ -70,7 +70,12 @@ public struct SessionNavigationState: Equatable, Sendable {
             accessory = .offline
             attentionItems = []
         case .unknown:
-            return SessionNavigationState(attentionItems: [], badgeCount: badgeCount, accessory: nil)
+            // 判定待ちの締切を超えると、到達性は unknown のまま一覧が offline になる。
+            guard case .offline = listState else {
+                return SessionNavigationState(attentionItems: [], badgeCount: badgeCount, accessory: nil)
+            }
+            accessory = .offline
+            attentionItems = []
         case .online:
             guard case .loaded(let sessions) = listState, !sessions.isEmpty else {
                 return SessionNavigationState(attentionItems: [], badgeCount: badgeCount, accessory: nil)

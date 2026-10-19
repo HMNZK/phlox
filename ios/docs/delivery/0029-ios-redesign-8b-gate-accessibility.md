@@ -1,0 +1,41 @@
+# 最大文字サイズの認証失敗ゲート
+
+## Face IDアイコンの縦位置修正
+
+差分freeze: 明示中央HStackへ置換した。最新製品SHA256 `dc243a26c5e1470d33c45f5a62c68229f6a8c30de98d5cfac8fc2c9464b2bc55`。parse/既存lint/diffcheckは各exit0。修正後の実AX5描画・全文OCR・44pt・normal見本比較は未実走で専任へ渡す。before source/赤PNGの実内容と各SHAはverification/gate-icon-alignment/OWNER.mdに記録。
+
+Gate18の新helperは2case pass/親5scroll ACK/36PNG（親報告）だが、375/428のretry-original-crop.pngを本担当も開き、複数行retryの白いFace IDアイコンが黒Capsuleの上側丸角から薄い背景へはみ出すことを確認した。OCR全文合格をこのコントラスト問題の合格へ読み替えない。原因はLabelの複数行titleに対するアイコン配置で、自然高になったボタンの中央へアイコンが揃っていない。
+
+修正前製品SHA0349a1b66f718343c7ad850fbb7c11cb8a83659705724f519fd7bc4649b257e5の実内容と赤PNG2枚をverification/gate-icon-alignmentへ保全後、Labelを明示HStack(alignment:center)のImage＋Textへ置換する。Imageは装飾としてAXから隠し、ボタンの全文labelを維持する。font/copy/既存padding/Capsule/min52/自然高/スクロール/44pt契約は保持し、font縮小・clipでの隠蔽・背景形状変更はしない。Root製品や他担当sourceは変更しない。parse/lint/diffcheck後、再描画/通常見本比較は専任へ渡す。
+
+## 修正後source凍結（実描画未検証）
+
+LaunchGateをScrollView＋viewport最小高へ変更し、既存Spacer/normal余白/コピー/font/最小操作高を保持した。各Text/Labelは必要な自然高を保ち、主操作の縦paddingは最小52pt内に収まる通常文字では高さを増やさず、大文字で必要なときだけ増える。認証/失敗/再試行の処理は変更していない。
+
+新testはidentifierが取得できない公開AX nodeを完全一致label＋button trait＋有限非ゼロframeで一意選択する。offscreenのAX nodeが未公開でも、有効な実ScrollViewがある場合だけ公開スクロール後の再解決を許し、最後は実frame完全可視とOCR全文を必須にする。元tagline/見出し/retry/footerの期待を維持し、親指示の認証失敗本文全文も追加した。原文を省略した別の期待は追加していない。
+
+構文parse/compact-test経由の既存lint/git diff --checkは各exit0。新unit/iOS compile-link/BFT/実green/normal見本比較は未実行で専任へ引継ぐ。最新SHA256: 製品=`0349a1b66f718343c7ad850fbb7c11cb8a83659705724f519fd7bc4649b257e5`、専用test=`34f0ff65dd08cbf6a1f97b7750db590c229832caf8d354d563d0838b65439c18`、通常fixture=`a4333ec1af842874ef2a95be9147bb43a8e6bc5be2258badfd8ef19c4bec77d2`。旧source archive=`3b057fc8...ef04aa2`は保持し、旧red画像/contextと紐付けた。
+
+所有: ios_integration_fixes。LaunchGateView、専用GateAccessibilityAcceptanceTests、新規PairGateFailAX5/PairGateFailAX5SE2 fixture。現段階はtest-onlyで製品を変更しない。
+
+## red→greenを通じて維持する契約
+
+本物LaunchGateView/VMのfailed状態をstub authenticatorで描画し、OSの認証許可は要求しない。globalAX5を要求し、同じ実UIWindowScene内の428x926/375x667 host viewportを検査する。375は仮想host寸法であり物理SEでの確認とは表記しない。
+
+初期PNG/rawAX/公開UILabelの実font（取得できた分）/native categoryに対応する公開preferred font値/OCRを必ず保存する。見出し「認証できませんでした」・主操作「もう一度 Face ID」・footer全文が、実viewport内にある場合はそのframeを同PNGから切り出してOCR全文を要求する。正規化は空白除去のみ。viewport外なら有効で内容が溢れる本物UIScrollViewがなければ失敗。有ればnonce/180秒期限のreadyJSONで親CUA公開スクロールを要求し、実frameの完全可視と同PNGのOCR全文で到達を検査する。任意offset書込・文字縮小・DT cap・期待文言短縮はしない。全対象の初期同時表示は要求しない。
+
+最初は旧製品のまま同契約を実行してredの画像/文字認識を保存する。修正は別のsource変更通知とし、同一の登録検査を再実行する。Visionの認識誤りと実省略は保存PNGで区別し、OCR失敗を黙って合格へ変えない。
+
+## 未実行
+
+## 旧製品redと修正契約
+
+native-gate-baseline-ios26の保存画像/context/OCRを確認した。428/375両caseでtaglineと赤見出しが実際に省略され、親報告は1定義2case/6issues。428の初期画像でもretry/footerに末尾省略が見える。375は一部要素がwindow外へ押し出される。全高VStackはスクロール不能で、error本文だけが自然高を要求し、周辺Text/Labelが縦圧縮された。旧版ソースSHA3b057fc8は保存済みで変更しない。
+
+正攻法修正は同じ内容をScrollViewへ置き、viewport以上の最小高だけをGeometryReaderのproposalから与える。通常サイズで従来のSpacer配置/余白を維持し、内容が高いときは自然高でスクロールする。本文/見出し/説明/操作labelは縦圧縮を拒否し、主操作の最小52ptとpasscodeの44ptを保ちながら必要時に高くする。文字縮小/DT上限/文言短縮は行わない。
+
+retryのrawAXには全文labelと有限frameが存在し、identifierは空だった。旧selectorはUIAccessibilityIdentificationへのcastを必須にしており、製品ボタン欠落とは判定できない。新selectorはidentifierが取れない場合、公開の完全一致label＋button trait＋有限非ゼロframeで一意に選択する。OCR全文/可達/44pt期待は維持し、raw traitsも次runへ記録する。
+
+test-only凍結: frontend parse（構文のみ）exit0、compact-test経由の既存make lint exit0、git diff --check exit0。LaunchGateの製品は本担当で変更せず旧版SHA `3b057fc8...ef04aa2`をverification/gate-accessibility/source-archiveへ保存した。固定source SHAとrun設定は同OWNER.mdへ記録。BFT/型チェック/実red診断は未実行で専任へ引継ぐ。
+
+fixture差分完成後のgit diff --checkのみ本担当で実施し、BFT/旧製品red診断は専任へ渡す。製品修正はred根拠確認後。

@@ -54,7 +54,7 @@ public enum IOSColor {
         public var appearancePreviewLight: Color { IOSColor.color(0xF0F0F5) }
         public var card: Color { IOSColor.themed(0xFFFFFF, 0x1C1C1E) }
         public var raised: Color { IOSColor.themed(0xE4E4EB, 0x2C2C30) }
-        public var code: Color { IOSColor.themed(0xF7F6FA, 0x141416) }
+        public var code: Color { IOSColor.themed(0xE9E9EE, 0x1C1C1E) }
         public var fill: Color {
             IOSColor.isLight ? IOSColor.color(0x767680, opacity: 0.12) : IOSColor.color(0x767680, opacity: 0.28)
         }

@@ -7,12 +7,14 @@ enum ConnectionSettingsCopy {
     static let subtitle = "Mac で動いている Claude Code・Codex・Cursor のセッションを、この iPhone から見て、応答できるようにします。"
     static let connectionSection = "接続"
     static let currentConnectionLabel = "現在の接続先"
-    static let notConnectedValue = "未接続"
+    static let notConnectedValue = "未設定"
     static let connectButtonTitle = "QR を読み取る"
     static let reconnectButtonTitle = "QR で再接続"
     static let testConnectionButtonTitle = "疎通テスト"
     static let testConnectionIcon = "waveform.path.ecg"
+    #if DEBUG
     static let testSuccessMessage = "GET /sessions → 200 · 16:42 に確認"
+    #endif
     static let testFailureMessage = "Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。確かめてから、もう一度テストしてください。"
     static let noConnectionMessage = "QR コードを読み取って、接続先を保存してください。"
 
@@ -56,15 +58,19 @@ public final class ConnectionSettingsViewModel {
         self.configStore = configStore
         self.probe = probe
         self.connectionConfig = configStore.load()
+        #if DEBUG
         seedForScreenshotIfNeeded()
+        #endif
     }
 
+    #if DEBUG
     private func seedForScreenshotIfNeeded() {
         guard ProcessInfo.processInfo.arguments.contains("-UIScreen=connectionSettings") else { return }
         connectionConfig = ConnectionConfig(host: "100.64.0.1", port: 8765)
         banner = .none
         lastTestWasReachable = true
     }
+    #endif
 
     public var currentConnection: String {
         guard let connectionConfig else { return ConnectionSettingsCopy.notConnectedValue }
@@ -91,10 +97,16 @@ public final class ConnectionSettingsViewModel {
 
     /// QR 適用後に戻った場合を含め、永続化済みの接続先を表示へ反映する。
     public func refresh() {
-        connectionConfig = configStore.load()
+        let savedConfig = configStore.load()
+        if connectionConfig != savedConfig {
+            lastTestWasReachable = nil
+            banner = .none
+        }
+        connectionConfig = savedConfig
     }
 
     public func testConnection() async {
+        guard !isTesting else { return }
         guard let connectionConfig else {
             banner = .failure(ConnectionSettingsCopy.noConnectionMessage)
             return
@@ -103,6 +115,10 @@ public final class ConnectionSettingsViewModel {
         let token = try? await tokenStore.load()
         let reachable = await probe(connectionConfig, token)
         isTesting = false
+        guard self.connectionConfig == connectionConfig, configStore.load() == connectionConfig else {
+            refresh()
+            return
+        }
         lastTestWasReachable = reachable
         banner = reachable
             ? .success(ConnectionSettingsCopy.successMessage(at: Date()))

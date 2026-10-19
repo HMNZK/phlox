@@ -43,6 +43,7 @@ enum ChatRowKind: Equatable {
 
 /// セッション詳細画面（カンプ③）。承認リクエスト + 会話 + 入力バー。
 public struct SessionDetailView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.usageViewModel) private var usageViewModel
     @State private var viewModel: SessionDetailViewModel
     @State private var distanceFromBottom: CGFloat = 0
@@ -57,6 +58,8 @@ public struct SessionDetailView: View {
     @State private var renameSelection: TextSelection?
     #endif
     @Environment(\.locale) private var locale
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let scrollToBottomOnAppear: Bool
     let onDelete: () -> Void
 
@@ -75,27 +78,28 @@ public struct SessionDetailView: View {
             VStack(spacing: 0) {
                 if viewModel.session.isPTY {
                     EmptyView()
+                } else if viewModel.isSessionMissing {
+                    Color.clear
                 } else {
                     renameFailureBanner
                     ScrollViewReader { proxy in
                         ScrollView {
-                            VStack(alignment: .leading, spacing: DSSpacing.m) {
-                                transcriptSection
-                                // 末尾アンカー: 新着メッセージ/出力で最下部へスクロールするため。
-                                Color.clear
-                                    .frame(height: 1)
-                                    .id(Self.bottomAnchorID)
-                                    .background(
-                                        GeometryReader { proxy in
-                                            Color.clear.preference(
-                                                key: BottomAnchorMaxYKey.self,
-                                                value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).maxY
-                                            )
-                                        }
-                                    )
+                            VStack(alignment: .leading, spacing: 0) {
+                                VStack(alignment: .leading, spacing: DSSpacing.m) {
+                                    transcriptSection
+                                    if !scrollsReplyWithTranscript {
+                                        transcriptBottomAnchor
+                                    }
+                                }
+                                .padding(DSSpacing.l)
+                                if scrollsReplyWithTranscript {
+                                    replyAreaContent(availableHeight: geometry.size.height)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    transcriptBottomAnchor
+                                }
                             }
-                            .padding(DSSpacing.l)
-                            .animation(.easeInOut(duration: 0.25), value: viewModel.sendState)
+                            .frame(minHeight: scrollViewportHeight, alignment: .bottom)
+                            .animation(reduceMotion ? nil : DSMotion.disclosure, value: viewModel.sendState)
                         }
                         .frame(maxHeight: .infinity)
                         .scrollDismissesKeyboard(.interactively)
@@ -148,7 +152,9 @@ public struct SessionDetailView: View {
                             }
                         }
                     }
-                    replyArea
+                    if !scrollsReplyWithTranscript {
+                        replyAreaContent(availableHeight: geometry.size.height)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -196,7 +202,9 @@ public struct SessionDetailView: View {
             guard let error else { return }
             UIAccessibility.post(
                 notification: .announcement,
-                argument: "会話を読み込めませんでした。Mac から会話の内容を受け取れませんでした。\(error)"
+                argument: viewModel.isSessionMissing
+                    ? "このセッションは見つかりません。Mac 側で削除されたか、終了して片付けられました。一覧に戻って、ほかのセッションを開いてください。"
+                    : "会話を読み込めませんでした。Mac から会話の内容を受け取れませんでした。\(error)"
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -224,20 +232,35 @@ public struct SessionDetailView: View {
     @ViewBuilder
     private func transcriptStateOverlay(in geometry: GeometryProxy) -> some View {
         if viewModel.session.isPTY {
-            VStack(spacing: 0) {
-                Text("このセッションは iPhone では表示できません。Mac")
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Text("で開いてください")
-                    .lineLimit(1)
-            }
+            Text("このセッションは iPhone では表示できません。Mac で開いてください")
                 .font(DSFont.subheadline)
                 .foregroundStyle(IOSColor.text.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
+                .lineSpacing(6)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 32)
                 .frame(maxWidth: .infinity)
                 .offset(y: stateTopOffset(in: geometry))
                 .accessibilityElement(children: .combine)
+        } else if viewModel.isSessionMissing {
+            VStack(alignment: .leading, spacing: DSSpacing.s) {
+                Text("このセッションは見つかりません")
+                    .font(DSFont.headline)
+                Text("Mac 側で削除されたか、終了して片付けられました。")
+                    .font(DSFont.subheadline)
+                Text("一覧に戻って、ほかのセッションを開いてください。")
+                    .font(DSFont.subheadline)
+                Button("一覧に戻る") { dismiss() }
+                    .font(DSFont.body)
+                    .frame(minHeight: DSTouch.minSize)
+                Text(viewModel.loadError ?? "HTTP 404")
+                    .font(DSFont.sessionDetailTechnical)
+                    .foregroundStyle(IOSColor.text.secondary)
+            }
+            .foregroundStyle(IOSColor.text.primary)
+            .padding(DSSpacing.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .offset(y: stateTopOffset(in: geometry))
         } else {
             transcriptStateContent
                 .frame(maxWidth: .infinity)
@@ -251,42 +274,49 @@ public struct SessionDetailView: View {
         case .loading:
             VStack(spacing: DSSpacing.m) {
                 ProgressView()
+                    .scaleEffect(1.5)
+                    .frame(width: 30, height: 30)
                 Text("会話を読み込んでいます…")
                     .font(DSFont.subheadline)
                     .foregroundStyle(IOSColor.text.secondary)
             }
             .frame(maxWidth: .infinity)
         case .empty:
-            VStack(alignment: .center, spacing: DSSpacing.s) {
+            VStack(alignment: .center, spacing: 10) {
                 Image(systemName: "bubble.left")
                     .font(DSFont.sessionEmptyIcon)
                     .foregroundStyle(IOSColor.text.secondary)
                     .frame(width: 60, height: 60)
                     .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 Text("まだ会話はありません")
-                    .font(DSFont.headline)
+                    .font(DSFont.title.weight(.bold))
                     .foregroundStyle(IOSColor.text.primary)
+                    .padding(.top, 4)
                 Text("このセッションにはまだメッセージがありません。下の入力欄から指示を送ると、ここに会話が表示されます。")
                     .font(DSFont.subheadline)
                     .foregroundStyle(IOSColor.text.secondary)
                     .multilineTextAlignment(.center)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 32)
             .frame(maxWidth: .infinity)
         case .fetchError:
             VStack(alignment: .leading, spacing: DSSpacing.s) {
                 Text("会話を読み込めませんでした")
-                    .font(DSFont.headline)
+                    .font(DSFont.title.weight(.bold))
                     .foregroundStyle(IOSColor.status.error)
                 Text("Mac から会話の内容を受け取れませんでした。3 秒ごとに読み込み直しています。続くときは一覧に戻って開き直してください。")
                     .font(DSFont.subheadline)
                     .foregroundStyle(IOSColor.text.primary)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(viewModel.loadError ?? "メッセージの取得に失敗しました")
                     .font(DSFont.sessionDetailTechnical)
                     .foregroundStyle(IOSColor.text.secondary)
                     .textSelection(.enabled)
             }
-            .padding(DSSpacing.m)
+            .padding(DSSpacing.l)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(IOSColor.status.errorBackground, in: RoundedRectangle(cornerRadius: 16))
             .padding(.horizontal, 20)
@@ -384,12 +414,11 @@ public struct SessionDetailView: View {
                     DSAttachmentStripItem(id: $0.id, number: $0.number, previewData: $0.previewData)
                 },
                 contextLabel: viewModel.inputContextDisplayName,
-                onAddAttachments: { candidates in
-                    Task { await viewModel.addAttachmentsFromPicker(candidates) }
+                onAddAttachments: { results in
+                    Task { await viewModel.addAttachmentLoadResults(results) }
                 },
                 onRemoveAttachment: { viewModel.removeAttachment(at: $0) },
                 onAttachmentLimitReached: { viewModel.attachmentLimitReached() },
-                onAttachmentLoadFailure: { viewModel.attachmentLoadFailed() },
                 isRunning: viewModel.showsStopButton,
                 onStop: {
                     Task { await viewModel.stop() }
@@ -406,8 +435,26 @@ public struct SessionDetailView: View {
         }
     }
 
-    /// 送信失敗 → 承認 → 質問 → 入力欄の順で下端に積む。
-    private var replyArea: some View {
+    private var transcriptBottomAnchor: some View {
+        Color.clear
+            .frame(height: 1)
+            .id(Self.bottomAnchorID)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: BottomAnchorMaxYKey.self,
+                        value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).maxY
+                    )
+                }
+            )
+    }
+
+    private var scrollsReplyWithTranscript: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
+    /// 送信失敗 → 承認 → 質問 → 入力欄の順で積む。
+    private func replyAreaContent(availableHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
             if case .failed(let message) = viewModel.sendState,
                message != viewModel.attachmentError {
@@ -417,8 +464,10 @@ public struct SessionDetailView: View {
                     errorLine(message)
                 }
             }
-            if let settingsError = viewModel.settingsChangeError { errorLine(settingsError) }
-            if let attachmentError = viewModel.attachmentError { errorLine(attachmentError) }
+            if let settingsError = viewModel.settingsChangeError { errorLine(settingsError, maximumLines: nil) }
+            if let attachmentError = viewModel.attachmentError {
+                errorLine(attachmentError, maximumLines: dynamicTypeSize.isAccessibilitySize ? nil : 2)
+            }
             if let presentation = viewModel.replyApprovalPresentation ?? viewModel.approvalLoadPresentation {
                 catalogError(presentation)
             } else if let approvalError = viewModel.replyApprovalError ?? viewModel.approvalLoadError {
@@ -430,14 +479,14 @@ public struct SessionDetailView: View {
                     result: result,
                     index: 0,
                     count: 0,
-                    isResponding: false,
+                    isResponding: viewModel.isReplyApprovalResponding,
                     isKeyboardVisible: false,
                     onDecision: { _ in },
                     onPrevious: {},
                     onNext: {},
-                    onShowNext: { viewModel.showNextReplyApproval() }
+                    onShowNext: { Task { await viewModel.showNextAttention() } }
                 )
-                .padding(.horizontal, DSSpacing.l)
+                .padding(.horizontal, DSSpacing.m)
             } else if let approval = viewModel.currentReplyApproval {
                 ReplyApprovalCard(
                     approval: approval,
@@ -449,16 +498,16 @@ public struct SessionDetailView: View {
                     onDecision: { decision in Task { await viewModel.respond(to: approval, decision: decision) } },
                     onPrevious: { viewModel.moveReplyApproval(to: viewModel.replyApprovalIndex - 1) },
                     onNext: { viewModel.moveReplyApproval(to: viewModel.replyApprovalIndex + 1) },
-                    onShowNext: { viewModel.showNextReplyApproval() },
-                    initiallyShowsDiff: viewModel.replyApprovalDiffInitiallyExpanded
+                    onShowNext: { Task { await viewModel.showNextAttention() } },
+                    initiallyShowsDiff: viewModel.replyApprovalDiffInitiallyExpanded,
+                    maxContentHeight: min(360, max(60, availableHeight * 0.25))
                 )
-                .padding(.horizontal, DSSpacing.l)
+                .padding(.horizontal, DSSpacing.m)
             }
 
-            ForEach(pendingQuestions) { question in
+            ForEach(viewModel.replyApprovalResult == nil ? pendingQuestions : []) { question in
                 if viewModel.questionAnswerFailureRequestID == question.requestId {
                     errorLine("回答を送信できませんでした。選んだ内容は残っています")
-                        .padding(.horizontal, DSSpacing.l)
                 }
                 UserQuestionCard(
                     requestId: question.requestId,
@@ -466,21 +515,26 @@ public struct SessionDetailView: View {
                     answers: question.answers,
                     state: question.state,
                     usesInputBarForFreeText: question.usesInputBarForFreeText,
+                    maxContentHeight: min(360, max(60, availableHeight * 0.25)),
                     onSubmit: { requestId, answers in
                         await viewModel.answerQuestion(requestId: requestId, answers: answers)
                     }
                 )
-                .padding(.horizontal, DSSpacing.l)
+                .padding(.horizontal, DSSpacing.m)
                 .id(question.id)
             }
 
             if presentation.showsStartingBanner {
-                Text("セッションを起動しています。準備ができると入力できます")
+                HStack(spacing: DSSpacing.s) {
+                    ProgressView()
+                    Text("セッションを起動しています。準備ができると入力できます")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                     .font(DSFont.subheadline)
                     .foregroundStyle(DSColor.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(DSSpacing.m)
-                    .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+                    .background(DSColor.fillSubtle, in: Capsule())
                     .padding(.horizontal, 12)
             } else if shouldShowInputBar {
                 inputBarSection
@@ -494,11 +548,11 @@ public struct SessionDetailView: View {
         .padding(.bottom, DSSpacing.m)
     }
 
-    private func errorLine(_ message: String) -> some View {
+    private func errorLine(_ message: String, maximumLines: Int? = 1) -> some View {
         Text(message)
-            .font(DSFont.captionStrong)
+            .font(DSFont.inputBar(.error, for: dynamicTypeSize).weight(.semibold))
             .foregroundStyle(IOSColor.status.error)
-            .lineLimit(1)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : maximumLines)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12)
             .accessibilityAddTraits(.isStaticText)
@@ -507,15 +561,16 @@ public struct SessionDetailView: View {
     private func catalogError(_ presentation: ErrorPresentation) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(presentation.title)
-                .font(DSFont.captionStrong)
+                .font(DSFont.iosCaption2.weight(.medium))
                 .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
+                .fixedSize(horizontal: false, vertical: true)
             Text(presentation.cause)
-                .font(DSFont.caption)
+                .font(DSFont.iosCaption2)
                 .foregroundStyle(IOSColor.text.primary)
                 .fixedSize(horizontal: false, vertical: true)
             if !presentation.nextStep.isEmpty {
                 Text(presentation.nextStep)
-                    .font(DSFont.caption)
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(IOSColor.text.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -561,7 +616,8 @@ public struct SessionDetailView: View {
     }
 
     private var pendingPlainQuestion: PendingQuestion? {
-        pendingQuestions.first(where: \.usesInputBarForFreeText)
+        guard viewModel.replyApprovalResult == nil else { return nil }
+        return pendingQuestions.first(where: \.usesInputBarForFreeText)
     }
 
     private var transcriptMessages: [ChatMessage] {
@@ -653,7 +709,7 @@ public struct SessionDetailView: View {
         )
         let lastTranscriptID = visibleTranscriptMessages.last?.id
         let latestTurnCostID = SessionDetailTranscriptPresentation.latestTurnCostID(in: transcriptMessages)
-        return VStack(alignment: .leading, spacing: DSSpacing.m) {
+        return VStack(alignment: .leading, spacing: 14) {
             if slice.hiddenCount > 0 {
                 loadEarlierMessagesButton(hiddenCount: slice.hiddenCount)
             }
@@ -684,21 +740,23 @@ public struct SessionDetailView: View {
 
     private func stalledStatusRow(elapsed: TimeInterval) -> some View {
         HStack(spacing: 10) {
-            Text("無応答 \(SessionDetailPresentationState.elapsedClock(elapsed))")
-                .font(DSFont.sessionDetailTechnical.weight(.semibold))
+            (Text("無応答 ") + Text(SessionDetailPresentationState.elapsedClock(elapsed))
+                .font(DSFont.subheadline.monospaced().weight(.semibold)))
+                .font(DSFont.subheadline.weight(.semibold))
                 .foregroundStyle(IOSColor.status.stalled)
-            Spacer(minLength: DSSpacing.s)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Button {
                 Task { await viewModel.stop() }
             } label: {
                 Text("中断")
-                    .font(DSFont.sessionDetailSubtitle.weight(.semibold))
+                    .font(DSFont.subheadline.weight(.semibold))
                     .foregroundStyle(IOSColor.text.primary)
                     .padding(.horizontal, 18)
                     .frame(minHeight: DSTouch.minSize)
                     .background(IOSColor.bg.fill, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DSPressFeedbackStyle())
+            .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel("中断（実行を止める）")
         }
         .padding(.vertical, 6)
@@ -719,16 +777,14 @@ public struct SessionDetailView: View {
             pendingTranscriptScrollTarget = decision.scrollTarget
         } label: {
             Text("以前のメッセージを表示（残り \(hiddenCount) 件）")
-                .font(DSFont.captionStrong)
-                .foregroundStyle(DSColor.textSecondary)
+                .font(DSFont.subheadline.weight(.medium))
+                .foregroundStyle(IOSColor.accent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DSSpacing.s)
-                .background(
-                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .fill(DSColor.fillSubtle)
-                )
+                .frame(minHeight: DSTouch.minSize)
+                .background(IOSColor.bg.fill, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityIdentifier("SessionDetail.loadEarlierMessages")
     }
 
@@ -860,12 +916,15 @@ public struct SessionDetailView: View {
             if case let .turnCost(id, costUSD) = message,
                let line = SessionDetailUsageFormat.line(
                 costUSD: costUSD,
-                for: id == latestTurnCostID ? viewModel.turnUsage : nil
+                for: id == latestTurnCostID ? viewModel.turnUsage : nil,
+                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
                ) {
                 Text(line)
                     .font(DSFont.sessionDetailUsage)
                     .foregroundStyle(IOSColor.text.tertiary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .accessibilityIdentifier(id == latestTurnCostID ? "SessionDetailTurnUsage" : "SessionDetailTurnCost")
             }
@@ -915,8 +974,8 @@ public struct SessionDetailView: View {
 
     /// 末尾アンカーまでスクロールして最下部へ寄せる。初回は即時、更新時はアニメーション。
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
-        if animated {
-            withAnimation(.easeOut(duration: 0.2)) {
+        if animated && !reduceMotion {
+            withAnimation(DSMotion.followNewContent) {
                 proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
             }
         } else {
@@ -927,7 +986,8 @@ public struct SessionDetailView: View {
     /// 本文が最初に届いたときだけ距離を無視して最下部へ寄せる。
     private func scrollToBottomForContentChange(_ proxy: ScrollViewProxy) {
         let shouldAnimate = Self.shouldAnimateScroll(
-            hasPerformedInitialScroll: scrollFollowState.hasPerformedInitialScroll
+            hasPerformedInitialScroll: scrollFollowState.hasPerformedInitialScroll,
+            reduceMotion: reduceMotion
         )
         let hasContent = Self.hasRenderableContent(
             visibleMessages: viewModel.visibleMessages
@@ -945,8 +1005,8 @@ public struct SessionDetailView: View {
     }
 
     /// 初回だけ位置を即時に確定し、以後の追従だけをアニメーションするか。
-    static func shouldAnimateScroll(hasPerformedInitialScroll: Bool) -> Bool {
-        hasPerformedInitialScroll
+    static func shouldAnimateScroll(hasPerformedInitialScroll: Bool, reduceMotion: Bool = false) -> Bool {
+        hasPerformedInitialScroll && !reduceMotion
     }
 
     /// 最下部付近にいる時だけ追従スクロールする（上へ読み戻り中は引き戻さない）。
@@ -1024,8 +1084,8 @@ enum SessionDetailUsageFormat {
         line(costUSD: nil, for: usage)
     }
 
-    static func line(costUSD: Double?, for usage: TurnUsage?) -> String? {
-        SessionDetailTranscriptPresentation.turnUsageLine(costUSD: costUSD, usage: usage)
+    static func line(costUSD: Double?, for usage: TurnUsage?, isAccessibilitySize: Bool = false) -> String? {
+        SessionDetailTranscriptPresentation.turnUsageLine(costUSD: costUSD, usage: usage, isAccessibilitySize: isAccessibilitySize)
     }
 }
 

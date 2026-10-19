@@ -77,6 +77,28 @@ struct SessionNavigationStateTests {
         #expect(judging.accessory == nil)
     }
 
+    @Test("到達性の未判定中は帯を隠し、一覧の判定締切後は再接続を出す")
+    func showsReconnectAfterUnknownReachabilityTimesOut() {
+        let lastKnown = [session("approval", status: .awaitingApproval(prompt: "approve"))]
+        let judging = SessionNavigationState.resolve(
+            listState: .loading,
+            lastKnownSessions: lastKnown,
+            reachability: .unknown
+        )
+        #expect(judging.accessory == nil)
+        #expect(judging.badgeCount == 1)
+
+        // Repository は判定締切後も reachability が unknown なら offline を通知する。
+        let timedOut = SessionNavigationState.resolve(
+            listState: .offline,
+            lastKnownSessions: lastKnown,
+            reachability: .unknown
+        )
+        #expect(timedOut.accessory == .offline)
+        #expect(timedOut.badgeCount == 1)
+        #expect(timedOut.attentionItems.isEmpty)
+    }
+
     @Test("オフラインでは最後のバッジ件数を残して到達不可の欄へ替える")
     func preservesBadgeCountWhileOffline() {
         let lastKnown = [

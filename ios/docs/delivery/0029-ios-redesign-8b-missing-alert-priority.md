@@ -1,0 +1,17 @@
+# セッション不在アラートとロック画面の優先順位
+
+所有: ios_integration_fixes。変更対象はAppRootのみ。他の未コミット差分とnative tab表示完了経路を保持する。
+
+## 原因と変更契約
+
+r32の登録回帰relockDismissesMissingSessionNativeAlertBeforeGateで、本物の不在アラート表示後にmodel.lockedへ遷移しても、SwiftUI.PlatformAlertController「このセッションは見つかりません」が1件残った。gate-priority-timeout-state.jsonにはlocked・認証画面可視も記録された（親/専任報告）。証拠はverificationのremaining/native-final-ios26/root-missing-alert-relock-r32-output/MissingSessionAlertRelock-ios26.2-B711E52C-C786-4DD4-970A-8B9C11754175配下。実残存の観測はred根拠だが、実行全体は容量不足でwrapper中断130・console0・xcresult未finalであり、test exit65とは扱わない。
+
+外側alertのStateは画面分岐とは独立し、sessions終了後も残っていた。既存model.stateの非sessions分岐でcancelPendingNewChatを維持し、showsMissingSession=falseを加える。通知処理は従来どおりsessionsでのみ許可し、失効した不在アラートをunlock後に再提示しない。公開Stateで解除し、controller強制dismiss/private API/任意待機は使わない。
+
+AC3-9はロック画面が前面にあること。既存native回帰の実アラート→ロックでalert不在/認証可視を再検査する。期待値・fixtureは変更しない。修正前AppRoot実内容SHAffe535d5はverificationのmissing-alert-priority/AppRoot-before.swiftへ保全済み。ENOSPC時は製品未変更で停止し、空き回復後の親GOで再開した。
+
+## 検証
+
+parse・標準lint・diffcheck・SHAを追記する。build/link/unit/native再実行は専任へ渡す。実動作は再検査前には未検証。
+
+凍結SHA256: AppRoot `69295b26f5e11f958917f614fcaef9730cf99509c4ece4b2b073429864c40daa`。修正前実内容との比較で、非sessions時のalert解除だけが変わったことを確認した。Shell668a/DSPlatform3eccは不変。構文parse・compact-test経由の標準make lint・git diff --checkは各exit0。型チェック/build/link/unit/nativeは未実行。専任の同native auto r33へ渡す。適用patch/hashはverificationのmissing-alert-priorityへ保存した。

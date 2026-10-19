@@ -2,8 +2,12 @@ import SwiftUI
 import DesignSystemIOS
 import LocalAuthentication
 import PhloxCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public struct SettingsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: SettingsViewModel
     private let connectionViewModel: ConnectionSettingsViewModel
     private let onQRScan: () -> Void
@@ -79,12 +83,12 @@ public struct SettingsView: View {
                                 appearance: appearance,
                                 isSelected: settings.appearance == appearance
                             ) {
-                                settings.appearance = appearance
+                                withAnimation(DSMotion.appearance) { settings.appearance = appearance }
                             }
                         }
                     }
                     .padding(DSSpacing.s)
-                    .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+                    .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.actionSheet, style: .continuous))
                     Text("選ぶとすぐに切り替わります。")
                         .font(DSFont.footnote)
                         .foregroundStyle(DSColor.textSecondary)
@@ -117,11 +121,12 @@ public struct SettingsView: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel("DotGothic16 のライセンス、SIL Open Font License 1.1")
                     }
-                    .padding(DSSpacing.m)
-                    .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+                    .padding(DSSpacing.l)
+                    .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.actionSheet, style: .continuous))
                 }
             }
-            .padding(DSSpacing.l)
+            .padding(.horizontal, 20)
+            .padding(.top, DSSpacing.l)
             .padding(.bottom, DSSpacing.m)
         }
         .background(IOSColor.bg.base)
@@ -136,14 +141,21 @@ public struct SettingsView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
-            DSSectionLabel(title)
+            sectionLabel(title)
             content()
         }
     }
 
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(DSFont.footnote.weight(.semibold))
+            .foregroundStyle(DSColor.textSecondary)
+            .padding(.horizontal, DSSpacing.xs)
+    }
+
     private var settingsConnectionSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
-            DSSectionLabel("接続")
+            sectionLabel("接続")
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(connectionTitle)
@@ -160,10 +172,10 @@ public struct SettingsView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DSSpacing.m)
+                .padding(.horizontal, DSSpacing.l)
                 .padding(.vertical, DSSpacing.m)
 
-                Divider().overlay(DSColor.separator).padding(.leading, DSSpacing.m)
+                Divider().overlay(DSColor.separator).padding(.leading, DSSpacing.l)
                 settingsConnectionAction("QR で再接続", icon: "qrcode.viewfinder", action: onQRScan)
                 Divider().overlay(DSColor.separator).padding(.leading, 58)
 
@@ -173,6 +185,7 @@ public struct SettingsView: View {
                     HStack(spacing: DSSpacing.m) {
                         Image(systemName: ConnectionSettingsCopy.testConnectionIcon)
                             .font(DSFont.headline)
+                            .dynamicTypeSize(.large)
                             .frame(width: 30, height: 30)
                             .background(IOSColor.bg.fill, in: RoundedRectangle(cornerRadius: DSRadius.s))
                         Text(ConnectionSettingsCopy.testConnectionButtonTitle)
@@ -180,16 +193,17 @@ public struct SettingsView: View {
                         Spacer(minLength: 0)
                     }
                     .foregroundStyle(DSColor.textPrimary)
-                    .padding(.horizontal, DSSpacing.m)
+                    .padding(.horizontal, DSSpacing.l)
+                    .padding(.vertical, 6)
                     .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DSPressFeedbackStyle())
                 .disabled(connectionViewModel.isTesting || !connectionViewModel.hasConnectionConfig)
                 .accessibilityLabel(ConnectionSettingsCopy.testConnectionButtonTitle)
 
                 settingsConnectionTestResult
             }
-            .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+            .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.actionSheet, style: .continuous))
 
             if isConnectionUnreachable {
                 Text("Mac がスリープしているか、Mac か iPhone の Tailscale が切れています。Mac を起こすと自動でつなぎ直します。")
@@ -211,6 +225,7 @@ public struct SettingsView: View {
             HStack(spacing: DSSpacing.m) {
                 Image(systemName: icon)
                     .font(DSFont.headline)
+                    .dynamicTypeSize(.large)
                     .frame(width: 30, height: 30)
                     .background(IOSColor.bg.fill, in: RoundedRectangle(cornerRadius: DSRadius.s))
                 Text(title)
@@ -221,10 +236,11 @@ public struct SettingsView: View {
                     .foregroundStyle(IOSColor.text.tertiary)
             }
             .foregroundStyle(DSColor.textPrimary)
-            .padding(.horizontal, DSSpacing.m)
+            .padding(.horizontal, DSSpacing.l)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityLabel(title)
         .accessibilityAddTraits(.isButton)
     }
@@ -233,57 +249,76 @@ public struct SettingsView: View {
     private var settingsConnectionTestResult: some View {
         if connectionViewModel.isTesting {
             HStack(alignment: .top, spacing: DSSpacing.m) {
-                ProgressView().tint(DSColor.textSecondary)
+                TimelineView(.animation(paused: reduceMotion)) { context in
+                    let rotation = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.9) / 0.9 * 360
+                    ZStack {
+                        Circle().stroke(DSColor.textTertiary.opacity(0.35), lineWidth: 2)
+                        Circle().trim(from: 0, to: 0.25)
+                            .stroke(DSColor.textSecondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .rotationEffect(.degrees(rotation))
+                    }
+                    .frame(width: 18, height: 18)
+                    .accessibilityHidden(true)
+                }
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                    Text("確かめています…").font(DSFont.headline).foregroundStyle(DSColor.textPrimary)
+                    Text("確かめています…").font(DSFont.subheadline.weight(.semibold)).foregroundStyle(DSColor.textPrimary)
                     Text("GET http://\(connectionViewModel.currentConnection)/sessions")
-                        .font(DSFont.campMonoCaption)
+                        .font(DSFont.campMonospaced(relativeTo: .footnote))
                         .foregroundStyle(DSColor.textSecondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(DSSpacing.m)
-            .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
-            .padding(DSSpacing.m)
+            .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
+            .padding(.horizontal, DSSpacing.m)
+            .padding(.bottom, DSSpacing.m)
         } else {
             switch connectionViewModel.banner {
             case .none:
                 EmptyView()
             case .success(let message):
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                    Text("接続できました").font(DSFont.headline).foregroundStyle(IOSColor.status.success)
-                    Text(message).font(DSFont.campMonoCaption).foregroundStyle(DSColor.textSecondary)
+                    Text("接続できました").font(DSFont.subheadline.weight(.semibold)).foregroundStyle(IOSColor.status.success)
+                    Text(message).font(DSFont.campMonospaced(relativeTo: .footnote)).foregroundStyle(DSColor.textSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(DSSpacing.m)
-                .background(IOSColor.bg.fill, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
-                .padding(DSSpacing.m)
+                .background(IOSColor.status.successBackground, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
+                .padding(.horizontal, DSSpacing.m)
+                .padding(.bottom, DSSpacing.m)
             case .failure(let message):
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                    Text("Mac に届きません").font(DSFont.headline).foregroundStyle(IOSColor.status.error)
-                    Text(message).font(DSFont.body).foregroundStyle(DSColor.textPrimary)
-                    Text("GET /sessions · 無応答").font(DSFont.campMonoCaption).foregroundStyle(DSColor.textSecondary)
+                    Text("Mac に届きません").font(DSFont.subheadline.weight(.semibold)).foregroundStyle(IOSColor.status.error)
+                    Text(message)
+                        .font(DSFont.footnote)
+                        .lineSpacing(DSSpacing.xxs)
+                        .foregroundStyle(DSColor.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("GET /sessions · 無応答").font(DSFont.campMonospaced(relativeTo: .footnote)).foregroundStyle(DSColor.textSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(DSSpacing.m)
-                .background(IOSColor.status.errorBackground, in: RoundedRectangle(cornerRadius: DSRadius.s, style: .continuous))
-                .padding(DSSpacing.m)
+                .background(IOSColor.status.errorBackground, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
+                .padding(.horizontal, DSSpacing.m)
+                .padding(.bottom, DSSpacing.m)
             }
         }
     }
 
     private var connectionTitle: String {
+        guard connectionViewModel.hasConnectionConfig else { return ConnectionSettingsCopy.notConnectedValue }
         if isConnectionUnreachable { return "Mac に届きません" }
         if connectionViewModel.lastTestWasReachable == true || reachability == .online { return "Mac と接続中" }
-        return connectionViewModel.hasConnectionConfig ? "接続先を保存しました" : ConnectionSettingsCopy.notConnectedValue
+        return "接続先を保存しました"
     }
 
     private var connectionTitleColor: Color {
-        isConnectionUnreachable ? IOSColor.status.error : IOSColor.status.success
+        guard connectionViewModel.hasConnectionConfig else { return DSColor.textSecondary }
+        return isConnectionUnreachable ? IOSColor.status.error : IOSColor.status.success
     }
 
     private var isConnectionUnreachable: Bool {
-        connectionViewModel.lastTestWasReachable == false || reachability == .unreachableHost
+        connectionViewModel.hasConnectionConfig && (connectionViewModel.lastTestWasReachable == false || reachability == .unreachableHost)
     }
 
     private var lastFetchedDescription: String {
@@ -331,8 +366,9 @@ private struct SettingsToggleRow: View {
         HStack(spacing: DSSpacing.m) {
             Image(systemName: icon)
                 .font(DSFont.headline)
+                .dynamicTypeSize(.large)
                 .foregroundStyle(DSColor.textPrimary)
-                .frame(width: 32, height: 32)
+                .frame(width: 30, height: 30)
                 .background(IOSColor.bg.fill, in: RoundedRectangle(cornerRadius: DSRadius.s))
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
@@ -349,8 +385,10 @@ private struct SettingsToggleRow: View {
                 .labelsHidden()
                 .tint(IOSColor.toggleOn)
         }
-        .padding(DSSpacing.m)
-        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous))
+        .padding(.horizontal, DSSpacing.l)
+        .padding(.vertical, 6)
+        .frame(minHeight: 52)
+        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: DSRadius.actionSheet, style: .continuous))
     }
 }
 
@@ -363,8 +401,16 @@ private struct AppearanceChoice: View {
         Button(action: action) {
             VStack(spacing: DSSpacing.xs) {
                 HStack(spacing: 0) {
+                    #if canImport(UIKit)
+                    // 外観の見本は、現在のアプリの外観に依存しない標準色で描く。
+                    Rectangle().fill(Color(uiColor: (appearance == .dark ? UIColor.secondarySystemBackground : .systemGroupedBackground)
+                        .resolvedColor(with: UITraitCollection(userInterfaceStyle: appearance == .dark ? .dark : .light))))
+                    Rectangle().fill(Color(uiColor: (appearance == .system ? UIColor.secondarySystemBackground : .systemBackground)
+                        .resolvedColor(with: UITraitCollection(userInterfaceStyle: appearance == .light ? .light : .dark))))
+                    #else
                     Rectangle().fill(appearance == .dark ? Color.black : IOSColor.bg.appearancePreviewLight)
                     Rectangle().fill(appearance == .light ? Color.white : Color.black)
+                    #endif
                 }
                 .frame(width: 54, height: 36)
                 .clipShape(RoundedRectangle(cornerRadius: DSRadius.s))
@@ -380,7 +426,7 @@ private struct AppearanceChoice: View {
             .background(isSelected ? IOSColor.bg.fill : Color.clear, in: RoundedRectangle(cornerRadius: DSRadius.m))
             .overlay(RoundedRectangle(cornerRadius: DSRadius.m).strokeBorder(isSelected ? DSColor.textPrimary : Color.clear, lineWidth: 2))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityLabel(appearance.label)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

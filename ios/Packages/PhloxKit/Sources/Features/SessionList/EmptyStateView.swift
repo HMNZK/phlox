@@ -37,7 +37,7 @@ public struct EmptyStateView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 330)
             Text(EmptyStateCopy.projectNote)
-                .font(DSFont.auxiliary)
+                .font(DSFont.iosCaption)
                 .foregroundStyle(IOSColor.text.tertiary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
@@ -52,7 +52,7 @@ public struct EmptyStateView: View {
                     .background(IOSColor.accent, in: Capsule())
                     .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DSPressFeedbackStyle())
             .accessibilityLabel(EmptyStateCopy.ctaTitle)
             .padding(.top, 17)
         }

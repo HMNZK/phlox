@@ -43,7 +43,7 @@ struct SessionDetailLoadingWhiteboxTests {
     func missingMessagesCompleteInitialLoadingWithoutError() async {
         let viewModel = SessionDetailViewModel(
             session: makeSession(),
-            api: MockAPI(messagesOutcome: .failure(.notFound))
+            api: MockAPI(sessions: [makeSession()], messagesOutcome: .failure(.notFound))
         )
 
         await viewModel.load()
@@ -52,6 +52,38 @@ struct SessionDetailLoadingWhiteboxTests {
         #expect(viewModel.presentationState.transcript == .empty)
         #expect(!viewModel.showsChat)
         #expect(viewModel.loadError == nil)
+    }
+
+    @Test("メッセージ404で一覧にも存在しないセッションは空の会話にしない")
+    func deletedSessionIsMissingAndRecoversWhenMessagesReturn() async {
+        let api = MockAPI(messagesOutcome: .failure(.notFound))
+        let viewModel = SessionDetailViewModel(session: makeSession(), api: api)
+
+        await viewModel.load()
+
+        #expect(viewModel.isSessionMissing)
+        #expect(viewModel.loadError == "HTTP 404 · session s1")
+        #expect(viewModel.presentationState.transcript == .fetchError)
+
+        await api.setMessagesOutcome(.success([.agent(id: "m1", text: "復帰")]))
+        await viewModel.refresh()
+
+        #expect(!viewModel.isSessionMissing)
+        #expect(viewModel.loadError == nil)
+        #expect(viewModel.chatMessages == [.agent(id: "m1", text: "復帰")])
+    }
+
+    @Test("表示済みの会話があっても削除の404を隠さない")
+    func deletedSessionAfterLoadIsMissing() async {
+        let api = MockAPI(messagesOutcome: .success([.agent(id: "m1", text: "既存")]))
+        let viewModel = SessionDetailViewModel(session: makeSession(), api: api)
+        await viewModel.load()
+        await api.setMessagesOutcome(.failure(.server(status: 404, message: "missing")))
+
+        await viewModel.refresh()
+
+        #expect(viewModel.isSessionMissing)
+        #expect(viewModel.chatMessages == [.agent(id: "m1", text: "既存")])
     }
 
     @Test("メッセージ取得失敗後も初回ロードを完了する")

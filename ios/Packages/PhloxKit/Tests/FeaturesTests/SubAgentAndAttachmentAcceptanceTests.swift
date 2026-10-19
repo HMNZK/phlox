@@ -3,12 +3,11 @@ import Testing
 import PhloxCore
 import Features
 
-/// task-10 受け入れテスト（PM 著・実装役はアサーション編集禁止）。
+/// task-10 受け入れテスト。段階8bのユーザー指示でAC-6-18へ更新。
 /// 画像添付 UI 統合の観測可能な振る舞いを凍結する:
-///  1. 画像添付: 最大4枚・1枚4MiB・計8MiB。超過は弾いてメッセージ表示。送信で SendRequest.images に載せ、
+///  1. 画像添付: 最大4枚・1枚20MB・計80MB。超過画像だけを弾いてメッセージ表示。送信で SendRequest.images に載せ、
 ///     成功でクリア・失敗で復元。
-/// 添付の上限違反は「バッチ全体を弾く」契約（部分採用しない）。
-/// acceptance_tests のアサーションは変更禁止。ハーネス欠陥は PM 承認のうえ MockAPI 部分のみ修理可。
+/// 旧バッチ全拒否契約からの変更根拠は0029-ios-redesign-8b-attachments.mdに記録。
 @MainActor
 struct SubAgentAndAttachmentAcceptanceTests {
     private func makeSession(status: SessionStatus = .idle) -> Session {
@@ -35,14 +34,14 @@ struct SubAgentAndAttachmentAcceptanceTests {
         #expect(vm.attachmentError == nil)
     }
 
-    @Test("5枚目を含むバッチは弾いてエラーを表示する")
+    @Test("5枚目だけを弾いてエラーを表示する")
     func rejectsBatchExceedingCountLimit() {
         let vm = SessionDetailViewModel(session: makeSession(), api: MockAPI())
 
         vm.addAttachments([image(mib: 1), image(mib: 1), image(mib: 1), image(mib: 1), image(mib: 1)])
 
-        #expect(vm.attachments.count <= 4, "上限を超えて保持しない")
-        #expect(vm.attachmentError != nil, "超過理由を表示する")
+        #expect(vm.attachments.count == 4, "先頭4枚は保持する")
+        #expect(vm.attachmentError == "画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。")
     }
 
     @Test("1枚20MB超の添付は弾く")
@@ -55,15 +54,22 @@ struct SubAgentAndAttachmentAcceptanceTests {
         #expect(vm.attachmentError != nil)
     }
 
-    @Test("超過画像を含むバッチは部分採用しない")
-    func rejectsBatchContainingOversizedImage() {
+    @Test("超過画像だけを除外し既存画像・有効画像・本文を保持する")
+    func rejectsOnlyOversizedImage() {
         let vm = SessionDetailViewModel(session: makeSession(), api: MockAPI())
-
+        vm.inputText = "本文"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        let existing = image(mib: 1)
+        vm.addAttachments([existing])
+        let existingItem = vm.attachmentItems[0]
+        let valid = image(mib: 0.5)
         // 受理可能な画像と20MBを1バイト超える画像のバッチ。
-        vm.addAttachments([image(mib: 1), image(mib: 20_000_001.0 / (1024 * 1024))])
+        vm.addAttachments([valid, image(mib: 20_000_001.0 / (1024 * 1024))])
 
-        #expect(vm.attachments.isEmpty)
-        #expect(vm.attachmentError != nil)
+        #expect(vm.attachments == [existing, valid])
+        #expect(vm.attachmentItems[0] == existingItem)
+        #expect(vm.inputText == "本文 [Image #1] [Image #2] ")
+        #expect(vm.attachmentError == "画像は1枚あたり20MBまでです")
     }
 
     // MARK: - 2. 添付つき送信

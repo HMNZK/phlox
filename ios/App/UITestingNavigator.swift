@@ -33,7 +33,7 @@ enum UITestingNavigator {
         case .sessionDetail:
             router.push(.sessionDetail(id: "sess-rose"))
         case .sessionShellDetail:
-            router.push(.sessionDetail(id: "attention-approval"))
+            router.push(.sessionDetail(id: "list-approval"))
         case .deleteConfirmation:
             router.push(.sessionDetail(id: "sess-rose"))
             router.present(.deleteConfirmation(id: "sess-rose", cascadeCount: 3))

@@ -101,12 +101,13 @@ public enum ImageAttachmentPreparer {
 
     /// プレビューの失敗はプレースホルダ表示にする。送信時はprepareでエラーを通知する。
     public static func preview(_ data: Data) -> Data? {
-        do {
-            let (source, _, _) = try checkedSource(data)
-            return try encode(thumbnail(source, edge: 112), usePNG: true)
-        } catch {
-            return nil
-        }
+        try? validatedPreview(data)
+    }
+
+    /// 添付受理時の検査とプレビュー生成を一度で行い、失敗の種類を呼び出し側へ返す。
+    public static func validatedPreview(_ data: Data) throws -> Data {
+        let (source, _, _) = try checkedSource(data)
+        return try encode(thumbnail(source, edge: 112), usePNG: true)
     }
 
     private static func checkedSource(_ data: Data) throws -> (CGImageSource, Int, Int) {

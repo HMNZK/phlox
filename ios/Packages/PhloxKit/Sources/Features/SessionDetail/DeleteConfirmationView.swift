@@ -5,12 +5,12 @@ import PhloxCore
 public struct DeleteConfirmationView: View {
     private enum AlertItem: Identifiable {
         case confirmation
-        case failure(ErrorPresentation)
+        case failure(generation: Int, presentation: ErrorPresentation)
 
         var id: String {
             switch self {
             case .confirmation: "confirmation"
-            case .failure(let presentation): "failure-\(presentation.technicalDetail ?? "")"
+            case .failure(let generation, _): "failure-\(generation)"
             }
         }
     }
@@ -56,7 +56,7 @@ public struct DeleteConfirmationView: View {
                         },
                         secondaryButton: .cancel(Text("キャンセル"), action: onCancel)
                     )
-                case .failure(let presentation):
+                case .failure(_, let presentation):
                     Alert(
                         title: Text(presentation.title),
                         message: failureMessage(presentation),
@@ -67,9 +67,9 @@ public struct DeleteConfirmationView: View {
                     )
                 }
             }
-            .onChange(of: viewModel.state) { _, state in
-                if case .failed = state, let presentation = viewModel.failurePresentation {
-                    alert = .failure(presentation)
+            .onChange(of: viewModel.failureGeneration) { _, generation in
+                if let presentation = viewModel.failurePresentation {
+                    alert = .failure(generation: generation, presentation: presentation)
                 }
             }
     }

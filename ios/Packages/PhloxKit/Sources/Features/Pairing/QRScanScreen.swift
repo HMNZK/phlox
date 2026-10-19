@@ -46,7 +46,7 @@ public enum QRScanCopy {
         presentation(for: error).title
     }
 
-    public static func presentation(for error: PairingPayloadError) -> ErrorPresentation {
+    public static func presentation(for error: PairingPayloadError, scannedString: String? = nil) -> ErrorPresentation {
         switch error {
         case .notPairingURL:
             return ErrorPresentation(
@@ -54,15 +54,15 @@ public enum QRScanCopy {
                 message: "読み取った QR は Phlox の接続用ではありません。",
                 recoveryAction: "もう一度スキャン",
                 nextStep: "Mac の Phlox が表示したペアリング用の QR を読み取ってください。",
-                technicalDetail: "https://example.com/menu"
+                technicalDetail: safeInputDetail(scannedString)
             )
-        case .unsupportedVersion(let version):
+        case .unsupportedVersion:
             return ErrorPresentation(
                 title: "この QR の版には対応していません",
                 message: "QR の版（v）が無いか、このアプリが読めない版です。",
                 recoveryAction: "もう一度スキャン",
                 nextStep: "iPhone と Mac の Phlox を両方とも最新にしてから、QR を表示し直してください。",
-                technicalDetail: "phlox://pair?v=\(version ?? "未指定")&host=…"
+                technicalDetail: safeInputDetail(scannedString)
             )
         case .missingHost:
             return ErrorPresentation(
@@ -70,7 +70,7 @@ public enum QRScanCopy {
                 message: "QR の中に Mac のアドレス（host）が入っていません。",
                 recoveryAction: "もう一度スキャン",
                 nextStep: "Mac で QR を表示し直して、もう一度読み取ってください。",
-                technicalDetail: "phlox://pair?v=1&port=8765&token=…"
+                technicalDetail: safeInputDetail(scannedString)
             )
         case .invalidPort:
             return ErrorPresentation(
@@ -78,7 +78,7 @@ public enum QRScanCopy {
                 message: "QR の中のポート番号が、使える範囲（1〜65535）にありません。",
                 recoveryAction: "もう一度スキャン",
                 nextStep: "Mac の Phlox の設定でポートを確かめ、QR を表示し直してください。",
-                technicalDetail: "port=99999"
+                technicalDetail: safeInputDetail(scannedString)
             )
         case .invalidToken:
             return ErrorPresentation(
@@ -89,6 +89,38 @@ public enum QRScanCopy {
                 technicalDetail: "token=…（64 桁の小文字 16 進ではない）"
             )
         }
+    }
+
+    /// 未知のURLはオリジンだけ。ペアリングURLは既知の接続パラメータだけを表示する。
+    /// userinfo・パス・未知のクエリ・fragment に含まれる資格情報を画面へ転記しない。
+    private static func safeInputDetail(_ input: String?) -> String? {
+        guard let input, let components = URLComponents(string: input),
+              let scheme = components.scheme, let host = components.host else { return nil }
+        guard scheme == "phlox", host == "pair" else {
+            guard ["http", "https"].contains(scheme.lowercased()) else { return nil }
+            var origin = URLComponents()
+            origin.scheme = scheme
+            origin.host = host
+            origin.port = components.port
+            return origin.string
+        }
+        let items = components.queryItems ?? []
+        var detail = "phlox://pair"
+        var separator = "?"
+        for key in ["v", "host", "port"] {
+            guard let item = items.first(where: { $0.name == key }) else { continue }
+            let value = item.value ?? ""
+            let allowed = key == "host"
+                ? CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-:[]")
+                : CharacterSet(charactersIn: "0123456789+-")
+            let safeValue = value.unicodeScalars.allSatisfy { allowed.contains($0) } ? value : "…"
+            detail += "\(separator)\(key)=\(safeValue)"
+            separator = "&"
+        }
+        if items.contains(where: { $0.name == "token" }) {
+            detail += "\(separator)token=…"
+        }
+        return detail
     }
 
     public static func successTitle(name: String?) -> String {
@@ -224,6 +256,9 @@ public struct QRScanScreen: View {
     private var scrollableContent: some View {
         ZStack(alignment: .bottom) {
             IOSColor.bg.scanner.ignoresSafeArea()
+            if !shouldShowScanner {
+                scannerFrame
+            }
             VStack(spacing: 0) {
                 if shouldShowScanner && cameraScannerUnavailable {
                     Spacer(minLength: 0)
@@ -244,7 +279,8 @@ public struct QRScanScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .top) {
                 navigationHeader
-                    .padding(.horizontal, DSSpacing.m)
+                    .padding(.horizontal, DSSpacing.l)
+                    .padding(.top, DSSpacing.xs)
             }
 
             statusSection
@@ -263,7 +299,7 @@ public struct QRScanScreen: View {
                     .background(Color.white.opacity(0.08), in: Circle())
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DSPressFeedbackStyle())
             .accessibilityLabel(isReconnection ? "設定へ戻る" : "接続設定へ戻る")
 
             Spacer(minLength: 0)
@@ -280,6 +316,7 @@ public struct QRScanScreen: View {
     /// カメラ不可（シミュレータ・権限拒否）のときだけ案内を出す。
     /// カメラ利用可能な実スキャン中は `fullScreenScanner` が画面全体に描画する。
     private var shouldShowScanner: Bool {
+        guard parseErrorMessage == nil else { return false }
         switch applyViewModel.phase {
         case .idle:
             return true
@@ -317,12 +354,15 @@ public struct QRScanScreen: View {
                 .foregroundStyle(.white)
             Text(QRScanCopy.cameraUnavailablePresentation.message)
                 .font(DSFont.subheadline)
+                .lineSpacing(DSSpacing.xs)
                 .foregroundStyle(.white.opacity(0.75))
                 .multilineTextAlignment(.center)
             photoPickerButton
+                .padding(.top, 10)
             Text("設定アプリでカメラを許可")
-                .font(DSFont.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.8))
+                .font(DSFont.headline.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(minHeight: 44)
         }
         .padding(.horizontal, DSSpacing.xl)
         .frame(maxWidth: .infinity)
@@ -350,21 +390,24 @@ public struct QRScanScreen: View {
             if let parseErrorMessage {
                 VStack(alignment: .leading, spacing: DSSpacing.m) {
                     if let parseErrorPresentation {
-                        PairingErrorCard(presentation: parseErrorPresentation)
+                        PairingErrorCard(presentation: parseErrorPresentation) {
+                            if parseErrorPresentation.recoveryAction == QRScanCopy.pickPhotoButtonTitle {
+                                photoPickerButton
+                            } else {
+                                scanAgainButton
+                            }
+                        }
                     } else {
                         Text(parseErrorMessage)
                             .font(DSFont.body)
                             .foregroundStyle(.white)
                     }
-                    if parseErrorPresentation?.recoveryAction == QRScanCopy.pickPhotoButtonTitle {
-                        photoPickerButton
-                    } else {
-                        scanAgainButton
-                    }
                 }
             }
 
-            phaseStatusSection
+            if parseErrorMessage == nil {
+                phaseStatusSection
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -383,10 +426,11 @@ public struct QRScanScreen: View {
                         .foregroundStyle(DSColor.textPrimary)
                     Text("読み取った QR から接続先を取り出しました。")
                         .font(DSFont.subheadline)
+                        .lineSpacing(DSSpacing.xs)
                         .foregroundStyle(DSColor.textSecondary)
                     if let config = applyViewModel.applyingConnection {
                         Text("\(config.host):\(String(config.port))")
-                            .font(DSFont.campMonoCaption)
+                            .font(DSFont.campMonospaced(relativeTo: .footnote))
                             .foregroundStyle(DSColor.textSecondary)
                     }
                 }
@@ -402,8 +446,7 @@ public struct QRScanScreen: View {
                 endpoint: applyViewModel.applyingConnection.map { "\($0.host):\($0.port)" }
             )
         case .unreachable where !isRescanning:
-            VStack(alignment: .leading, spacing: DSSpacing.m) {
-                PairingErrorCard(presentation: PairingCopy.unreachablePresentation)
+            PairingErrorCard(presentation: PairingCopy.unreachablePresentation) {
                 scanAgainButton
             }
         case .success, .unreachable:
@@ -417,15 +460,11 @@ public struct QRScanScreen: View {
         } label: {
             Text(QRScanCopy.scanAgainButtonTitle)
                 .font(DSFont.headline)
-                .frame(maxWidth: .infinity, minHeight: DSTouch.minSize)
+                .frame(maxWidth: .infinity, minHeight: 52)
                 .foregroundStyle(IOSColor.accentOnFill)
                 .background(IOSColor.accent, in: Capsule())
-                .overlay(
-                    RoundedRectangle(cornerRadius: DSRadius.m, style: .continuous)
-                        .strokeBorder(DSColor.border, lineWidth: 1)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPressFeedbackStyle())
     }
 
     private var staticProgressIndicator: some View {
@@ -437,7 +476,7 @@ public struct QRScanScreen: View {
                 .stroke(IOSColor.text.secondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
-        .frame(width: 32, height: 32)
+        .frame(width: 36, height: 36)
         .accessibilityHidden(true)
     }
 
@@ -445,6 +484,44 @@ public struct QRScanScreen: View {
         guard isReconnection else { return QRScanCopy.subtitle }
         guard let previousEndpoint else { return QRScanCopy.reconnectGuidance }
         return "読み取れるまで、今の接続先 \(previousEndpoint) は変わりません。"
+    }
+
+    private var scannerFrame: some View {
+        GeometryReader { geometry in
+            let fullHeight = geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom
+            let isCompact = geometry.size.width <= 375
+            let side: CGFloat = isCompact ? 230 : 260
+            let centerY = fullHeight * (isCompact ? 0.40 : 0.38) - geometry.safeAreaInsets.top
+            let frame = CGRect(x: (geometry.size.width - side) / 2, y: centerY - side / 2, width: side, height: side)
+            Path { path in
+                path.addRect(CGRect(origin: .zero, size: geometry.size))
+                path.addRoundedRect(in: frame, cornerSize: CGSize(width: 30, height: 30))
+            }
+            .fill(Color.black.opacity(0.42), style: FillStyle(eoFill: true))
+            Path { path in
+                for corner in 0..<4 {
+                    let x = corner % 2 == 0 ? frame.minX : frame.maxX
+                    let y = corner < 2 ? frame.minY : frame.maxY
+                    let dx: CGFloat = corner % 2 == 0 ? 1 : -1
+                    let dy: CGFloat = corner < 2 ? 1 : -1
+                    path.move(to: CGPoint(x: x, y: y + dy * 52))
+                    path.addLine(to: CGPoint(x: x, y: y + dy * 24))
+                    path.addQuadCurve(to: CGPoint(x: x + dx * 24, y: y), control: CGPoint(x: x, y: y))
+                    path.addLine(to: CGPoint(x: x + dx * 52, y: y))
+                }
+            }
+            .stroke(scannerFrameColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var scannerFrameColor: Color {
+        switch applyViewModel.phase {
+        case .applying: IOSColor.status.success
+        case .success: isRescanning ? .white : IOSColor.status.success
+        default: .white
+        }
     }
 
     private func handleScannedString(_ string: String) {
@@ -460,7 +537,7 @@ public struct QRScanScreen: View {
         case .failure(let message):
             parseErrorMessage = message
             if case .failure(let error) = PairingPayloadParser.parse(string) {
-                parseErrorPresentation = QRScanCopy.presentation(for: error)
+                parseErrorPresentation = QRScanCopy.presentation(for: error, scannedString: string)
             }
         }
     }
@@ -497,10 +574,12 @@ public struct QRScanScreen: View {
     private var fullScreenScanner: some View {
         QRDataScannerRepresentable { handleScannedString($0) }
             .ignoresSafeArea(edges: .bottom)
+            .overlay { scannerFrame }
             .overlay(alignment: .top) {
                 VStack(spacing: DSSpacing.xs) {
                     navigationHeader
-                        .padding(.horizontal, DSSpacing.m)
+                        .padding(.horizontal, DSSpacing.l)
+                        .padding(.top, DSSpacing.xs)
                     Text(scannerGuidance)
                         .font(DSFont.subheadline)
                         .foregroundStyle(.white)
@@ -543,8 +622,9 @@ public struct QRScanScreen: View {
     #endif
 }
 
-private struct PairingErrorCard: View {
+private struct PairingErrorCard<Recovery: View>: View {
     let presentation: ErrorPresentation
+    @ViewBuilder let recovery: () -> Recovery
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
@@ -552,24 +632,28 @@ private struct PairingErrorCard: View {
                 .font(DSFont.headline.weight(.semibold))
                 .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
             Text(presentation.cause)
-                .font(DSFont.body)
+                .font(DSFont.subheadline)
+                .lineSpacing(DSSpacing.xs)
                 .foregroundStyle(IOSColor.text.primary)
                 .fixedSize(horizontal: false, vertical: true)
             if !presentation.nextStep.isEmpty {
                 Text(presentation.nextStep)
-                    .font(DSFont.body)
+                    .font(DSFont.subheadline)
+                    .lineSpacing(DSSpacing.xs)
                     .foregroundStyle(IOSColor.text.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let detail = presentation.technicalDetail {
                 Text(detail)
-                    .font(DSFont.campMonoCaption)
+                    .font(DSFont.campMonospaced(relativeTo: .footnote))
                     .foregroundStyle(IOSColor.text.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            recovery()
+                .padding(.top, DSSpacing.s)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DSSpacing.m)
+        .padding(20)
         .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
     }
 }
@@ -585,16 +669,17 @@ private struct PairingSuccessCard: View {
                 .font(DSFont.headline)
                 .foregroundStyle(IOSColor.status.success)
             Text(message)
-                .font(DSFont.body)
+                .font(DSFont.subheadline)
+                .lineSpacing(DSSpacing.xs)
                 .foregroundStyle(IOSColor.text.secondary)
             if let endpoint {
                 Text(endpoint)
-                    .font(DSFont.campMonoCaption)
+                    .font(DSFont.campMonospaced(relativeTo: .footnote))
                     .foregroundStyle(IOSColor.text.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DSSpacing.m)
+        .padding(20)
         .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
     }
 }

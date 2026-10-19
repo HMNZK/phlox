@@ -135,4 +135,17 @@ struct SessionDetailTranscriptPresentationTests {
         #expect(SessionDetailTranscriptPresentation.turnUsageLine(costUSD: 0.0012, usage: nil) == "$0.0012")
         #expect(SessionDetailTranscriptPresentation.turnUsageLine(costUSD: nil, usage: TurnUsage(costUSD: nil, contextUsedTokens: nil, contextWindowTokens: nil)) == nil)
     }
+
+    @Test("拡大文字の使用量は金額と割合を別行へ送り、通常の値と優先を変えない")
+    func stacksTurnUsageWithoutDroppingValues() {
+        let usage = TurnUsage(costUSD: 0.5, contextUsedTokens: 44, contextWindowTokens: 200)
+        #expect(SessionDetailTranscriptPresentation.turnUsageLine(costUSD: 0.42, usage: usage, isAccessibilitySize: true)
+            == "$0.42\nコンテキスト 22%")
+        #expect(SessionDetailTranscriptPresentation.turnUsageLine(costUSD: nil, usage: usage, isAccessibilitySize: true)
+            == "$0.50\nコンテキスト 22%")
+        #expect(SessionDetailTranscriptPresentation.turnUsageLine(costUSD: nil, usage: TurnUsage(costUSD: nil, contextUsedTokens: 44, contextWindowTokens: 200), isAccessibilitySize: true)
+            == "コンテキスト 22%")
+        #expect(SessionDetailTranscriptPresentation.turnUsageLine(costUSD: 0.0012, usage: nil, isAccessibilitySize: true) == "$0.0012")
+        #expect(SessionDetailTranscriptPresentation.turnUsageLine(costUSD: nil, usage: nil, isAccessibilitySize: true) == nil)
+    }
 }

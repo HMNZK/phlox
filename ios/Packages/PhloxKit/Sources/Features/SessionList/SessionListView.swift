@@ -11,6 +11,7 @@ public struct SessionListView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.usageViewModel) private var usageViewModel
+    @ScaledMetric(relativeTo: .subheadline) private var attentionCountDiameter: CGFloat = 26
     @State private var isScrolledPastTitle = false
     @State private var expandedGroupIDs: Set<String>
     @State private var expandedSessionIDs: Set<String>
@@ -64,6 +65,8 @@ public struct SessionListView: View {
                     .padding(.horizontal, SessionListMetrics.horizontalPadding)
                     .padding(.bottom, DSSpacing.l)
                     .frame(minHeight: geometry.size.height, alignment: .top)
+                    // 非同期の取得・削除結果が実際に届いた時点の行配置へ適用する。
+                    .animation(reduceMotion ? nil : DSMotion.rowRemoval, value: viewModel.lastKnownSessions.map(\.id))
                 }
                 .background(IOSColor.bg.base)
                 .refreshable {
@@ -153,7 +156,7 @@ public struct SessionListView: View {
             if reachability == .unknown {
                 judgingView(minimumHeight: minimumHeight)
             } else {
-                skeletonList
+                skeletonList()
             }
         case .empty:
             EmptyStateView {
@@ -174,7 +177,7 @@ public struct SessionListView: View {
     }
 
     private func judgingView(minimumHeight: CGFloat) -> some View {
-        VStack(spacing: DSSpacing.l) {
+        VStack(spacing: DSSpacing.m) {
             ProgressView()
                 .controlSize(.large)
                 .tint(IOSColor.text.tertiary)
@@ -193,12 +196,12 @@ public struct SessionListView: View {
     }
 
     private func offlineContent(minimumHeight: CGFloat) -> some View {
-        ZStack(alignment: .top) {
-            skeletonList
-                .opacity(0.4)
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 0) {
             UnreachableView(viewModel: unreachableViewModel)
                 .padding(.top, DSSpacing.s)
+            skeletonList(isOffline: true)
+                .opacity(0.4)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .top)
     }
@@ -243,7 +246,7 @@ public struct SessionListView: View {
                 Text("\(viewModel.projection.attentionSessions.count)")
                     .font(DSFont.subheadline.weight(.semibold))
                     .foregroundStyle(IOSColor.text.primary)
-                    .frame(minWidth: 26, minHeight: 26)
+                    .frame(minWidth: attentionCountDiameter, minHeight: attentionCountDiameter)
                     .background(IOSColor.bg.raised, in: Circle())
                     .accessibilityHidden(true)
             }
@@ -297,7 +300,7 @@ public struct SessionListView: View {
                     .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DSPressFeedbackStyle())
                 .accessibilityLabel(
                     SessionListAccessibility.projectHeader(
                         name: group.title,
@@ -317,12 +320,12 @@ public struct SessionListView: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DSPressFeedbackStyle())
                     .accessibilityLabel(SessionListAccessibility.addSession(projectName: group.title))
                 }
             }
 
-            if isExpanded {
+            DSDisclosureContent(isExpanded: isExpanded) {
                 VStack(spacing: 0) {
                     treeRows(group.roots, depth: 0)
                 }
@@ -336,7 +339,7 @@ public struct SessionListView: View {
             ForEach(summary.entries) { entry in
                 let presentation = IOSStatusVocabulary.presentation(for: entry.state, locale: Locale(identifier: "ja_JP"))
                 Text(entry.label)
-                    .font(DSFont.caption.weight(entry.state == .doneUnread ? .medium : (presentation.weight?.fontWeight ?? .regular)))
+                    .font(DSFont.iosCaption2.weight(entry.state == .doneUnread ? .medium : (presentation.weight?.fontWeight ?? .regular)))
                     .foregroundStyle(entry.state == .doneUnread ? IOSColor.text.secondary : (presentation.color ?? IOSColor.text.tertiary))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -377,24 +380,22 @@ public struct SessionListView: View {
     }
 
     private func toggleGroup(_ id: String) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-            if expandedGroupIDs.contains(id) { expandedGroupIDs.remove(id) }
-            else { expandedGroupIDs.insert(id) }
-        }
+        if expandedGroupIDs.contains(id) { expandedGroupIDs.remove(id) }
+        else { expandedGroupIDs.insert(id) }
     }
 
     private func toggleSession(_ id: String) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-            if expandedSessionIDs.contains(id) { expandedSessionIDs.remove(id) }
-            else { expandedSessionIDs.insert(id) }
-        }
+        if expandedSessionIDs.contains(id) { expandedSessionIDs.remove(id) }
+        else { expandedSessionIDs.insert(id) }
     }
 
-    private var skeletonList: some View {
+    private func skeletonList(isOffline: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: SessionListMetrics.skeletonSectionSpacing) {
             skeletonSection(headingWidth: 90, rowWidths: [0.58, 0.4])
             skeletonSection(headingWidth: 120, rowWidths: [0.66, 0.44, 0.52, 0.38])
-            skeletonSection(headingWidth: 80, rowWidths: [0.48, 0.6])
+            if !isOffline {
+                skeletonSection(headingWidth: 80, rowWidths: [0.48, 0.6])
+            }
         }
         .padding(.top, SessionListMetrics.skeletonTopPadding)
         .accessibilityHidden(true)
@@ -499,15 +500,17 @@ private struct SessionListTreeRow: View {
                     .padding(.leading, SessionListMetrics.controlWidth + CGFloat(depth) * SessionListMetrics.childIndent)
             }
 
-            if isExpanded, !node.children.isEmpty {
-                SessionListTreeRows(
-                    nodes: node.children,
-                    depth: depth + 1,
-                    expandedSessionIDs: expandedSessionIDs,
-                    reduceMotion: reduceMotion,
-                    onToggle: onToggle,
-                    onSelect: onSelect
-                )
+            if !node.children.isEmpty {
+                DSDisclosureContent(isExpanded: isExpanded) {
+                    SessionListTreeRows(
+                        nodes: node.children,
+                        depth: depth + 1,
+                        expandedSessionIDs: expandedSessionIDs,
+                        reduceMotion: reduceMotion,
+                        onToggle: onToggle,
+                        onSelect: onSelect
+                    )
+                }
             }
         }
     }
@@ -525,9 +528,7 @@ private struct SessionListTreeRow: View {
                 .accessibilityHidden(true)
         } else {
             Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-                    onToggle(node.id)
-                }
+                onToggle(node.id)
             } label: {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(DSFont.caption.weight(.semibold))
@@ -535,7 +536,7 @@ private struct SessionListTreeRow: View {
                     .frame(width: SessionListMetrics.controlWidth, height: SessionListMetrics.rowHeight)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DSPressFeedbackStyle())
             .accessibilityLabel(
                 SessionListAccessibility.childDisclosure(
                     name: node.session.name,
@@ -573,7 +574,7 @@ private struct SessionListTreeRow: View {
             .frame(maxWidth: .infinity, minHeight: SessionListMetrics.rowHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(presentation.accessibilityLabel)
         .accessibilityAddTraits(.isButton)
@@ -589,6 +590,7 @@ private struct SessionListRunningName: View {
     let isSemibold: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var didSweep = false
 
     private var font: Font { DSFont.body.weight(isSemibold ? .semibold : .regular) }
@@ -600,6 +602,8 @@ private struct SessionListRunningName: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
             nameText
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                .truncationMode(.tail)
                 .fixedSize(horizontal: false, vertical: true)
             if let suffix {
                 Text(suffix)
@@ -622,6 +626,7 @@ private struct SessionListRunningName: View {
                     .mask {
                         Text(name)
                             .font(font)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -651,11 +656,13 @@ private struct SessionListErrorCard: View {
                 .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
             Text(presentation.cause)
                 .font(DSFont.subheadline)
+                .lineSpacing(5)
                 .foregroundStyle(IOSColor.text.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if !presentation.nextStep.isEmpty {
                 Text(presentation.nextStep)
                     .font(DSFont.subheadline)
+                    .lineSpacing(5)
                     .foregroundStyle(IOSColor.text.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -676,7 +683,7 @@ private struct SessionListErrorCard: View {
                     .background(IOSColor.accent, in: Capsule())
                     .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DSPressFeedbackStyle())
             .padding(.top, DSSpacing.l)
         }
         .padding(20)
@@ -696,14 +703,14 @@ private enum SessionListMetrics {
     static let childIndent: CGFloat = 22
     static let rowHeight: CGFloat = 48
     static let sectionSpacing: CGFloat = 14
-    static let attentionTopSpacing: CGFloat = 4
+    static let attentionTopSpacing: CGFloat = 16
     static let projectTopSpacing: CGFloat = 14
     static let skeletonSectionSpacing: CGFloat = 14
     static let skeletonHeadingGap: CGFloat = 10
     static let skeletonTopPadding: CGFloat = 26
     static let skeletonLeadingIndent: CGFloat = 36
     static let cardCornerRadius: CGFloat = 22
-    static let judgingTopPadding: CGFloat = 144
+    static let judgingTopPadding: CGFloat = 140
     static let titleCollapseThreshold: CGFloat = 40
 }
 

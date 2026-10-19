@@ -27,14 +27,14 @@ public extension DSFont {
         let size: CGFloat = switch role {
         case .textField: isAccessibilitySize ? 40 : 17
         case .chip: isAccessibilitySize ? 26 : 13
-        case .error: isAccessibilitySize ? 20 : 13
+        case .error: isAccessibilitySize ? 30 : 13
         case .caption: isAccessibilitySize ? 20 : 12
         case .addSymbol: isAccessibilitySize ? 26 : 14
         case .sendSymbol: isAccessibilitySize ? 26 : 17
         case .chipSymbol: isAccessibilitySize ? 26 : 14
         case .chevron: isAccessibilitySize ? 20 : 11
         case .moreSymbol: isAccessibilitySize ? 26 : 16
-        case .stopSymbol: isAccessibilitySize ? 22 : 13
+        case .stopSymbol: isAccessibilitySize ? 16 : 10
         case .removeSymbol: 10
         }
         return .system(size: size, design: .default)
@@ -42,7 +42,7 @@ public extension DSFont {
 
     /// 新規チャットの DotGothic16 見出し。仕様の Dynamic Type 段階に合わせて固定サイズを選ぶ。
     static func displayDot(for dynamicTypeSize: DynamicTypeSize) -> Font {
-        .custom("DotGothic16-Regular", size: displayDotSize(for: dynamicTypeSize))
+        .custom("DotGothic16-Regular", fixedSize: displayDotSize(for: dynamicTypeSize))
     }
 
     static func displayDotSize(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
@@ -57,6 +57,11 @@ public extension DSFont {
         case .accessibility5: 44
         @unknown default: 34
         }
+    }
+
+    /// 使用量の枠ラベルは、リングの拡大段階と揃える。
+    static func usageRingLabel(for dynamicTypeSize: DynamicTypeSize) -> Font {
+        .system(size: dynamicTypeSize.isAccessibilitySize ? 22 : 11)
     }
 
     /// 一覧最上部の大タイトル。iOS 標準の large title と同じ見た目にする。
@@ -79,15 +84,15 @@ public extension DSFont {
     static let footnote = Font.footnote
 
     /// セッション詳細のナビゲーション見出し（17 / semibold）。
-    static var sessionDetailTitle: Font { .system(size: 17, weight: .semibold) }
+    static var sessionDetailTitle: Font { .headline.weight(.semibold) }
     /// セッション詳細の補助ラベル・小ボタン（13 / regular）。
-    static var sessionDetailSubtitle: Font { .system(size: 13) }
+    static var sessionDetailSubtitle: Font { .footnote }
     /// セッション詳細の技術値（13 / monospaced）。
-    static var sessionDetailTechnical: Font { .system(size: 13, design: .monospaced) }
-    /// セッション詳細の思考カード本文（Mac と同じ 12.5pt）。
-    static var sessionDetailReasoning: Font { .system(size: 12.5) }
+    static var sessionDetailTechnical: Font { .system(.footnote, design: .monospaced) }
+    /// iPhone の思考カード本文（見本の補助本文 15pt、Dynamic Type 対応）。
+    static var sessionDetailReasoning: Font { .subheadline }
     /// ターン使用量の末尾行（12 / monospaced）。
-    static var sessionDetailUsage: Font { .system(size: 12, design: .monospaced) }
+    static var sessionDetailUsage: Font { .system(.caption, design: .monospaced) }
     /// 空状態の吹き出し記号（28）。
     static var sessionEmptyIcon: Font { .system(size: 28) }
 

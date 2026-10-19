@@ -79,6 +79,11 @@ public final class AppModel {
         Self.resolve(authState: authState, hasConnectionConfig: hasConnectionConfig, reachability: reachability)
     }
 
+    /// 認証ゲートを優先する。接続処理と失敗情報はロック中も保持する。
+    public var showsConnectingOverlay: Bool {
+        isConnecting && authState == .unlocked
+    }
+
     /// 3 段階分岐の純粋ロジック（テスト可能）。
     /// 未認証→locked、未設定→setupRequired、それ以外→sessions（到達不可は一覧内オーバーレイ）。
     public static func resolve(

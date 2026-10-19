@@ -120,6 +120,15 @@ struct SessionDetailInitialScrollTests {
         #expect(SessionDetailView.shouldAnimateScroll(hasPerformedInitialScroll: true))
     }
 
+    @MainActor
+    @Test("Reduce Motionでは初回も新着追従も位置を即時に確定する")
+    func reducedMotionNeverAnimatesFollowingScroll() {
+        #expect(!SessionDetailView.shouldAnimateScroll(hasPerformedInitialScroll: false, reduceMotion: true))
+        #expect(!SessionDetailView.shouldAnimateScroll(hasPerformedInitialScroll: true, reduceMotion: true))
+        #expect(ChatAutoFollowPolicy.shouldFollowBottom(distanceFromBottom: 80))
+        #expect(!ChatAutoFollowPolicy.shouldFollowBottom(distanceFromBottom: 81))
+    }
+
     // 例外のソース検査: `scrollToBottomForContentChange` は private な View メソッドで、SwiftUI の
     // ホストなしには呼べない。初回だけ即時にする正しさは評価順序に依存するため、ここで順序を守る。
     @Test("View は描画可能本文と初回状態の述語を経由してスクロールを決める")

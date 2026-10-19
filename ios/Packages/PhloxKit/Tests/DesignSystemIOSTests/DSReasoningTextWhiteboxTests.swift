@@ -3,6 +3,7 @@ import ChatRenderKit
 @testable import DesignSystemIOS
 
 @Suite("DSReasoningText 白箱")
+@MainActor
 struct DSReasoningTextWhiteboxTests {
     @Test("表示データは ChatReasoningPresentation と一致する", arguments: [
         "  # 調査\n本文  ",

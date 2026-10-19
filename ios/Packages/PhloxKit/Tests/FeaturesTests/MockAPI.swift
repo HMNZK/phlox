@@ -4,6 +4,7 @@ import PhloxCore
 /// Features の ViewModel テスト用に設定可能な PhloxAPI モック（actor で Sendable）。
 actor MockAPI: PhloxAPI {
     var sessions: [Session]
+    var listSessionsError: PhloxError?
     let approvalsList: [Approval]
     let spawnOutcome: Result<Session, PhloxError>
     let sendOutcome: Result<SendResult, PhloxError>
@@ -84,6 +85,7 @@ actor MockAPI: PhloxAPI {
 
     func listSessions() async throws -> [Session] {
         listSessionsCount += 1
+        if let listSessionsError { throw listSessionsError }
         return sessions
     }
     func agentSettings(kind: AgentKind) async throws -> AgentSettings? {
@@ -156,6 +158,10 @@ actor MockAPI: PhloxAPI {
     /// listSessions の結果を差し替える（running→idle 遷移の模擬に使う）。
     func setSessions(_ newSessions: [Session]) {
         sessions = newSessions
+    }
+
+    func setListSessionsError(_ error: PhloxError?) {
+        listSessionsError = error
     }
 
     func setInterruptOutcome(_ outcome: Result<Void, PhloxError>) {

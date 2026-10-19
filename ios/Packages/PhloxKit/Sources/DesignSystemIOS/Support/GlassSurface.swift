@@ -19,6 +19,10 @@ private struct GlassSurfaceModifier: ViewModifier {
                 content
                     .frame(minWidth: DSTouch.minSize, minHeight: DSTouch.minSize)
                     .glassEffect(.regular, in: glassShape)
+            case .card:
+                content
+                    .background(IOSColor.bg.card, in: glassShape)
+                    .glassEffect(.regular, in: glassShape)
             default:
                 content.glassEffect(.regular, in: glassShape)
             }

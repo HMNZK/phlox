@@ -34,7 +34,7 @@ public struct DSChatCodeCard<Header: View, Content: View>: View {
 
             content
         }
-        .background(DSColor.chatCard)
+        .background(IOSColor.bg.card)
         .clipShape(cardShape)
         .overlay {
             cardShape.strokeBorder(

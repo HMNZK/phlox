@@ -6,6 +6,8 @@ public struct DSReasoningText: View {
     let text: String
     let isExpanded: Bool
     let onToggle: (() -> Void)?
+    @ScaledMetric(relativeTo: .subheadline) private var lineSpacing = DSSpacing.chip
+    @ScaledMetric(relativeTo: .footnote) private var disclosureWidth = DSSpacing.s
 
     public init(text: String, isExpanded: Bool = false, onToggle: (() -> Void)? = nil) {
         self.text = text
@@ -31,7 +33,7 @@ public struct DSReasoningText: View {
                         Text("›")
                             .font(DSFont.sessionDetailSubtitle.weight(.semibold))
                             .foregroundStyle(IOSColor.text.tertiary)
-                            .frame(width: DSSpacing.s)
+                            .frame(width: disclosureWidth)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                         Text("思考")
                             .font(DSFont.sessionDetailSubtitle.weight(.semibold))
@@ -41,14 +43,14 @@ public struct DSReasoningText: View {
                     .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DSPressFeedbackStyle())
             } content: {
-                if isExpanded {
+                DSDisclosureContent(isExpanded: isExpanded) {
                     Text(bodyText)
                         .font(DSFont.sessionDetailReasoning)
                         .foregroundStyle(IOSColor.text.secondary)
                         .textSelection(.enabled)
-                        .lineSpacing(6)
+                        .lineSpacing(lineSpacing)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, DSSpacing.xxl)
@@ -59,7 +61,7 @@ public struct DSReasoningText: View {
             .accessibilityIdentifier("SessionDetailThinkingCard")
         } else {
             Text(bodyText)
-                .font(DSFont.caption)
+                .font(DSFont.iosCaption2)
                 .foregroundStyle(IOSColor.text.secondary)
                 .textSelection(.enabled)
         }

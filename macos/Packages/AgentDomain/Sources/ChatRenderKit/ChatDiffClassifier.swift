@@ -64,7 +64,7 @@ public enum ChatDiffClassifier {
                 id: index,
                 text: line,
                 kind: lineKind,
-                oldLineNumber: lineKind == .deletion ? oldLineNumber : nil,
+                oldLineNumber: lineKind == .deletion || (lineKind == .context && line != "\\ No newline at end of file") ? oldLineNumber : nil,
                 newLineNumber: lineKind == .addition || (lineKind == .context && line != "\\ No newline at end of file") ? newLineNumber : nil
             )
 
@@ -131,7 +131,7 @@ public enum ChatDiffClassifier {
 
     private static func hunkStartNumbers(in line: String) -> (old: Int, new: Int)? {
         let parts = line.split(separator: " ")
-        guard parts.count >= 3,
+        guard parts.count >= 4, parts[0] == "@@", parts[3] == "@@",
               let old = hunkStart(in: parts[1], marker: "-"),
               let new = hunkStart(in: parts[2], marker: "+") else {
             return nil
@@ -141,8 +141,11 @@ public enum ChatDiffClassifier {
 
     private static func hunkStart(in part: Substring, marker: Character) -> Int? {
         guard part.first == marker else { return nil }
-        let digits = part.dropFirst().prefix(while: \.isNumber)
-        guard !digits.isEmpty else { return nil }
-        return Int(digits)
+        let range = part.dropFirst().split(separator: ",", omittingEmptySubsequences: false)
+        guard (1...2).contains(range.count),
+              range.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) && Int($0) != nil }) else {
+            return nil
+        }
+        return Int(range[0])
     }
 }

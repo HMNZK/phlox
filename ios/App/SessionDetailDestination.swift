@@ -20,6 +20,8 @@ struct SessionDetailDestination: View {
         isNewSession: Bool = false,
         initialAttachmentPreviews: [String: [Data]] = [:],
         initialExpandedMessageIDs: Set<String> = [],
+        attentionSessions: [Session] = [],
+        onShowNextSession: (@MainActor (Session) -> Void)? = nil,
         onDelete: @escaping () -> Void
     ) {
         self.session = session
@@ -33,7 +35,9 @@ struct SessionDetailDestination: View {
             recovery: recovery,
             isNewSession: isNewSession,
             initialAttachmentPreviews: initialAttachmentPreviews,
-            initialExpandedMessageIDs: initialExpandedMessageIDs
+            initialExpandedMessageIDs: initialExpandedMessageIDs,
+            attentionSessions: attentionSessions,
+            onShowNextSession: onShowNextSession
         )
         _detailVM = State(initialValue: viewModel)
     }
@@ -48,6 +52,8 @@ struct SessionDetailDestination: View {
         initialAttachmentPreviews: [String: [Data]] = [:],
         initialExpandedMessageIDs: Set<String> = [],
         snapshotReplyState: SessionDetailViewModel.ReplySnapshotState?,
+        attentionSessions: [Session] = [],
+        onShowNextSession: (@MainActor (Session) -> Void)? = nil,
         onDelete: @escaping () -> Void
     ) {
         self.session = session
@@ -61,7 +67,9 @@ struct SessionDetailDestination: View {
             recovery: recovery,
             isNewSession: isNewSession,
             initialAttachmentPreviews: initialAttachmentPreviews,
-            initialExpandedMessageIDs: initialExpandedMessageIDs
+            initialExpandedMessageIDs: initialExpandedMessageIDs,
+            attentionSessions: attentionSessions,
+            onShowNextSession: onShowNextSession
         )
         if let snapshotReplyState {
             viewModel.configureReplySnapshot(snapshotReplyState)

@@ -1,26 +1,14 @@
-import Foundation
-import SwiftUI
-import DesignSystem
 import AgentDomain
+import DesignSystem
+import Foundation
+import ImageAttachmentKit
 import PhloxCore
+import SwiftUI
+
 #if os(iOS)
-import PhotosUI
-import UIKit
+    import PhotosUI
+    import UIKit
 #endif
-
-private struct DSInputBarPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
-            .opacity(configuration.isPressed ? 0.78 : 1)
-            .animation(
-                configuration.isPressed ? DSMotion.tapPress : DSMotion.tapRelease,
-                value: configuration.isPressed
-            )
-    }
-}
 
 /// 添付ストリップの1件（確定時に生成済みの小さいプレビューのみ。フル解像度は ViewModel 側で保持）。
 public struct DSAttachmentStripItem: Identifiable, Equatable, Sendable {
@@ -275,10 +263,9 @@ public struct DSInputBar: View {
     let settingsError: String?
     let contextLabel: String?
     let maxAttachments: Int
-    let onAddAttachments: (([SendAttachment]) -> Void)?
+    let onAddAttachments: (([Result<SendAttachment, Error>]) -> Void)?
     let onRemoveAttachment: ((Int) -> Void)?
     let onAttachmentLimitReached: (() -> Void)?
-    let onAttachmentLoadFailure: (() -> Void)?
     let isRunning: Bool
     let onStop: () -> Void
     let mode: DSInputBarMode
@@ -298,9 +285,12 @@ public struct DSInputBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isFocused: Bool
     @State private var measuredWidth: CGFloat = 0
+    @State private var placeholderNaturalHeight: CGFloat = 0
+    @State private var placeholderSingleLineHeight: CGFloat = 0
     @State private var pendingDangerousPermission: DSInputBarSettingOption?
     #if os(iOS)
     @State private var textSelection: TextSelection?
+    @State private var selectionDelivery = DSInputSelectionDelivery()
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var lastPushedCursorUTF16 = -1
     #endif
@@ -315,10 +305,9 @@ public struct DSInputBar: View {
         settingsError: String? = nil,
         contextLabel: String? = nil,
         maxAttachments: Int = 4,
-        onAddAttachments: (([SendAttachment]) -> Void)? = nil,
+        onAddAttachments: (([Result<SendAttachment, Error>]) -> Void)? = nil,
         onRemoveAttachment: ((Int) -> Void)? = nil,
         onAttachmentLimitReached: (() -> Void)? = nil,
-        onAttachmentLoadFailure: (() -> Void)? = nil,
         isRunning: Bool = false,
         onStop: @escaping () -> Void = {},
         mode: DSInputBarMode = .session,
@@ -346,7 +335,6 @@ public struct DSInputBar: View {
         self.onAddAttachments = onAddAttachments
         self.onRemoveAttachment = onRemoveAttachment
         self.onAttachmentLimitReached = onAttachmentLimitReached
-        self.onAttachmentLoadFailure = onAttachmentLoadFailure
         self.isRunning = isRunning
         self.onStop = onStop
         self.mode = mode
@@ -382,7 +370,7 @@ public struct DSInputBar: View {
 
     private var layout: DSInputBarLayout {
         DSInputBarLayout.resolve(
-            width: max(0, measuredWidth + (mode == .newChat ? 2 : -24)),
+            width: max(0, measuredWidth - 24),
             mode: mode,
             isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
             hasModel: model != nil,
@@ -429,8 +417,6 @@ public struct DSInputBar: View {
     public var body: some View {
         observeWidth(
             VStack(alignment: .leading, spacing: DSSpacing.chip) {
-                if let settingsError { errorLine(settingsError) }
-                if let attachmentError { errorLine(attachmentError) }
                 if let contextLabel, !contextLabel.isEmpty {
                     Label(contextLabel, systemImage: "arrow.triangle.branch")
                         .font(DSFont.inputBar(.caption, for: dynamicTypeSize))
@@ -438,11 +424,14 @@ public struct DSInputBar: View {
                         .lineLimit(1)
                         .padding(.horizontal, DSSpacing.m)
                 }
+                if let settingsError { errorLine(settingsError) }
+                if let attachmentError { errorLine(attachmentError) }
 
                 VStack(alignment: .leading, spacing: DSSpacing.chip) {
                     if !attachmentStrip.isEmpty { attachmentStripView }
                     inputTextField
                         .padding(.horizontal, 10)
+                        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 53 : 24, alignment: .topLeading)
 
                     controlsSection
                 }
@@ -451,32 +440,39 @@ public struct DSInputBar: View {
                 .padding(.bottom, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .glassSurface(.inputField)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .strokeBorder(IOSColor.text.primary.opacity(isFocused ? 0.4 : 0), lineWidth: 1.5)
+                        .allowsHitTesting(false)
+                }
                 .padding(.horizontal, 12)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
         )
         #if os(iOS)
-        .onChange(of: selectedPhotoItems) { _, items in
-            guard onAddAttachments != nil else { return }
-            Task { await importSelectedPhotos(items) }
-        }
-        .onAppear {
-            guard focusOnAppear else { return }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(180))
+            .onChange(of: selectedPhotoItems) { _, items in
+                guard onAddAttachments != nil else { return }
+                Task { await importSelectedPhotos(items) }
+            }
+            .onAppear {
+                guard focusOnAppear else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(180))
+                    isFocused = true
+                }
+            }
+            .onChange(of: focusRequest) { _, _ in
+                guard focusOnAppear else { return }
                 isFocused = true
             }
-        }
-        .onChange(of: focusRequest) { _, _ in
-            guard focusOnAppear else { return }
-            isFocused = true
-        }
-        .photosPicker(
-            isPresented: $isPhotoPickerPresented,
-            selection: $selectedPhotoItems,
-            maxSelectionCount: max(1, maxAttachments - attachmentStrip.count),
-            matching: .images
-        )
+            .photosPicker(
+                isPresented: $isPhotoPickerPresented,
+                selection: $selectedPhotoItems,
+                maxSelectionCount: max(1, maxAttachments - attachmentStrip.count),
+                selectionBehavior: .ordered,
+                matching: .images
+            )
         #endif
         .alert("確認なしで全部を許可しますか？", isPresented: dangerousPermissionAlertIsPresented) {
             Button("キャンセル", role: .cancel) {
@@ -539,16 +535,43 @@ public struct DSInputBar: View {
         Text(message)
             .font(DSFont.inputBar(.error, for: dynamicTypeSize).weight(.semibold))
             .foregroundStyle(IOSColor.status.error)
-            .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, DSSpacing.m)
+            .padding(.horizontal, 24)
             .accessibilityAddTraits(.isStaticText)
     }
 
     @ViewBuilder
     private var inputTextField: some View {
         let stylesAttachmentMarkers = Self.containsAttachmentMarker(in: text)
-        ZStack(alignment: .leading) {
+        let usesExpandedPlaceholder = dynamicTypeSize.isAccessibilitySize && text.isEmpty
+        let minimumTextLineCount = usesExpandedPlaceholder ? expandedPlaceholderMinimumLineCount : 1
+        ZStack(alignment: usesExpandedPlaceholder ? .topLeading : .leading) {
+            if usesExpandedPlaceholder {
+                placeholderText
+                    .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { height in
+                        guard height.isFinite, height >= 0 else { return }
+                        placeholderNaturalHeight = height
+                    }
+                    .background {
+                        Text(placeholder)
+                            .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
+                            .lineLimit(1)
+                            .fixedSize()
+                            .hidden()
+                            .accessibilityHidden(true)
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.size.height
+                            } action: { height in
+                                guard height.isFinite, height >= 0 else { return }
+                                placeholderSingleLineHeight = height
+                            }
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
             if stylesAttachmentMarkers {
                 Text(styledAttachmentMarkerText)
                     .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
@@ -559,15 +582,14 @@ public struct DSInputBar: View {
             }
         #if os(iOS)
             TextField(text: $text, selection: validatedTextSelection, axis: .vertical) {
-                placeholderText
+                if !usesExpandedPlaceholder { placeholderText }
             }
             .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
             .foregroundStyle(stylesAttachmentMarkers ? Color.clear : IOSColor.text.primary)
             .tint(IOSColor.accent)
-            .lineLimit(1...Self.maximumTextLineCount)
+            .lineLimit(minimumTextLineCount...max(Self.maximumTextLineCount, minimumTextLineCount))
             .focused($isFocused)
             .accessibilityLabel(Text(placeholder))
-            .onChange(of: textSelection) { _, selection in publishUserSelectionOffset(selection) }
             .onChange(of: cursorUTF16) { _, newCursor in
                 guard DSInputCursorMath.shouldPushSelection(
                     cursorUTF16: newCursor,
@@ -577,23 +599,30 @@ public struct DSInputBar: View {
             }
         #else
             TextField(text: $text, axis: .vertical) {
-                placeholderText
+                if !usesExpandedPlaceholder { placeholderText }
             }
             .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
             .foregroundStyle(stylesAttachmentMarkers ? Color.clear : IOSColor.text.primary)
             .tint(IOSColor.accent)
-            .lineLimit(1...Self.maximumTextLineCount)
+            .lineLimit(minimumTextLineCount...max(Self.maximumTextLineCount, minimumTextLineCount))
             .focused($isFocused)
             .accessibilityLabel(Text(placeholder))
         #endif
         }
+        .fixedSize(horizontal: false, vertical: usesExpandedPlaceholder)
+    }
+
+    private var expandedPlaceholderMinimumLineCount: Int {
+        guard placeholderNaturalHeight > 0, placeholderSingleLineHeight > 0 else { return 1 }
+        return max(1, Int(ceil(placeholderNaturalHeight / placeholderSingleLineHeight)))
     }
 
     private var placeholderText: some View {
         Text(placeholder)
             .foregroundStyle(IOSColor.text.tertiary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
+            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
     }
 
     private var styledAttachmentMarkerText: AttributedString {
@@ -622,49 +651,55 @@ public struct DSInputBar: View {
     }
 
     #if os(iOS)
-    private var validatedTextSelection: Binding<TextSelection?> {
-        Binding(
-            get: {
-                guard let selection = textSelection,
-                      case .selection(let range) = selection.indices,
-                      DSInputCursorMath.isSelectionValid(range, in: text)
-                else { return nil }
-                return selection
-            },
-            set: { selection in
-                guard textSelection != selection else { return }
-                textSelection = selection
-            }
-        )
-    }
-
-    private func applyExternalCursorToSelection() {
-        let count = text.utf16.count
-        if let normalized = DSInputCursorMath.normalizedCursorIfNeeded(cursorUTF16, textUTF16Count: count) {
-            cursorUTF16 = normalized
-            return
+        private var validatedTextSelection: Binding<TextSelection?> {
+            Binding(
+                get: {
+                    guard let selection = textSelection,
+                        case .selection(let range) = selection.indices,
+                        DSInputCursorMath.isSelectionValid(range, in: text)
+                    else { return nil }
+                    return selection
+                },
+                set: { selection in
+                    let capturedText = text
+                    let capturedCursor = cursorUTF16
+                    selectionDelivery.enqueue(isCurrent: {
+                        text == capturedText && cursorUTF16 == capturedCursor
+                    }) {
+                        if let selection,
+                           case .selection(let range) = selection.indices,
+                           !DSInputCursorMath.isSelectionValid(range, in: text) { return }
+                        if textSelection != selection { textSelection = selection }
+                        publishUserSelectionOffset(selection)
+                    }
+                }
+            )
         }
-        let clamped = DSInputCursorMath.clampedCursorUTF16(cursorUTF16, textUTF16Count: count)
-        lastPushedCursorUTF16 = clamped
-        let index = String.Index(utf16Offset: clamped, in: text)
-        textSelection = TextSelection(range: index..<index)
-    }
 
-    private func publishUserSelectionOffset(_ selection: TextSelection?) {
-        let capturedText = text
-        Task { @MainActor in
-            guard capturedText == text,
-                  let offset = Self.selectionLeadingUTF16Offset(from: selection, in: text),
-                  DSInputCursorMath.shouldPublishSelectionOffset(offset, boundCursorUTF16: cursorUTF16)
-            else { return }
+        private func applyExternalCursorToSelection() {
+            selectionDelivery.invalidate()
+            let count = text.utf16.count
+            if let normalized = DSInputCursorMath.normalizedCursorIfNeeded(cursorUTF16, textUTF16Count: count) {
+                cursorUTF16 = normalized
+                return
+            }
+            let clamped = DSInputCursorMath.clampedCursorUTF16(cursorUTF16, textUTF16Count: count)
+            lastPushedCursorUTF16 = clamped
+            let index = String.Index(utf16Offset: clamped, in: text)
+            textSelection = TextSelection(range: index..<index)
+        }
+
+        private func publishUserSelectionOffset(_ selection: TextSelection?) {
+            guard let offset = Self.selectionLeadingUTF16Offset(from: selection, in: text),
+                  DSInputCursorMath.shouldPublishSelectionOffset(offset, boundCursorUTF16: cursorUTF16) else { return }
+            lastPushedCursorUTF16 = offset
             cursorUTF16 = offset
         }
-    }
 
-    static func selectionLeadingUTF16Offset(from selection: TextSelection?, in text: String) -> Int? {
-        guard let selection, case .selection(let range) = selection.indices else { return nil }
-        return DSInputCursorMath.utf16Offset(of: range.lowerBound, in: text)
-    }
+        static func selectionLeadingUTF16Offset(from selection: TextSelection?, in text: String) -> Int? {
+            guard let selection, case .selection(let range) = selection.indices else { return nil }
+            return DSInputCursorMath.utf16Offset(of: range.lowerBound, in: text)
+        }
     #endif
 
     private var attachmentStripView: some View {
@@ -715,7 +750,7 @@ public struct DSInputBar: View {
                         .frame(width: 34, height: 34)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(DSInputBarPressStyle())
+                .buttonStyle(DSPressFeedbackStyle())
                 .offset(x: 8, y: -8)
                 .accessibilityLabel("添付 \(item.number) を削除")
             }
@@ -749,20 +784,50 @@ public struct DSInputBar: View {
         let layout = layout
         return Group {
             if layout.wrapsSecondRow {
-                let movesStrongPermission = layout.keepsStrongPermissionVisible && isStrongPermissionSelected
-                let movesSettingsMenu = dynamicTypeSize.isAccessibilitySize || !isStrongPermissionSelected
-                VStack(alignment: .leading, spacing: 0) {
-                    leadingControls(
-                        layout: layout,
-                        movesStrongPermissionToWrappedRow: movesStrongPermission,
-                        movesSettingsMenuToWrappedRow: movesSettingsMenu
-                    )
-                    HStack(spacing: controlSpacing) {
-                        if movesSettingsMenu { moreSettingsMenu }
-                        if movesStrongPermission { permissionMenu }
-                        Spacer(minLength: 0)
-                        if showsProjectSelector { projectSelector(iconOnly: layout.showsProjectIconOnly) }
-                        actionButtons
+                if dynamicTypeSize.isAccessibilitySize && !isStrongPermissionSelected {
+                    ViewThatFits(in: .horizontal) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: controlSpacing) {
+                                leadingControls(layout: layout)
+                                if showsProjectSelector { projectSelector(iconOnly: true) }
+                            }
+                            actionButtons
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                leadingControls(layout: layout, movesSettingsMenuToWrappedRow: true)
+                            }
+                            .frame(height: 58)
+                            HStack(spacing: controlSpacing) {
+                                moreSettingsMenu
+                                Spacer(minLength: 0)
+                                if showsProjectSelector { projectSelector(iconOnly: true) }
+                                actionButtons
+                            }
+                        }
+                    }
+                } else {
+                    let movesStrongPermission = layout.keepsStrongPermissionVisible && isStrongPermissionSelected
+                    let movesSettingsMenu = dynamicTypeSize.isAccessibilitySize || !isStrongPermissionSelected
+                    VStack(alignment: .leading, spacing: 0) {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            leadingControls(
+                                layout: layout,
+                                movesStrongPermissionToWrappedRow: movesStrongPermission,
+                                movesSettingsMenuToWrappedRow: movesSettingsMenu
+                            )
+                        }
+                        .frame(height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: controlSpacing) {
+                                if movesSettingsMenu { moreSettingsMenu }
+                                if movesStrongPermission { permissionMenu }
+                                Spacer(minLength: 0)
+                                if showsProjectSelector { projectSelector(iconOnly: layout.showsProjectIconOnly) }
+                                actionButtons
+                            }
+                        }
+                        .frame(height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
                     }
                 }
             } else {
@@ -775,6 +840,7 @@ public struct DSInputBar: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 60 : 36)
     }
 
     private var controlSpacing: CGFloat { dynamicTypeSize.isAccessibilitySize ? 6 : 3 }
@@ -1076,16 +1142,18 @@ public struct DSInputBar: View {
                     Text(projectName ?? "プロジェクト")
                         .font(DSFont.inputBar(.chip, for: dynamicTypeSize))
                         .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(DSFont.inputBar(.chevron, for: dynamicTypeSize).weight(.semibold))
                 }
+                Image(systemName: "chevron.down")
+                    .font(DSFont.inputBar(.chevron, for: dynamicTypeSize).weight(.semibold))
             }
-            .foregroundStyle(IOSColor.text.secondary)
-            .frame(minHeight: DSTouch.minSize)
+            .foregroundStyle(projectName == nil ? IOSColor.text.secondary : IOSColor.text.primary)
             .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 12 : 7)
+            .frame(height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
             .background(DSColor.fillSubtle, in: Capsule())
-            .contentShape(Capsule())
+            .fixedSize()
+            .contentShape(Rectangle().inset(by: -5))
         }
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityLabel("プロジェクト、\(projectName ?? "未選択")")
     }
 
@@ -1123,6 +1191,7 @@ public struct DSInputBar: View {
     ) -> some View {
         Button(action: action) {
             content()
+                .fixedSize()
                 .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 12 : 7)
                 .frame(height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
                 .background(fill, in: Capsule())
@@ -1130,9 +1199,10 @@ public struct DSInputBar: View {
                     minWidth: dynamicTypeSize.isAccessibilitySize ? 58 : 34,
                     minHeight: dynamicTypeSize.isAccessibilitySize ? 58 : 34
                 )
-                .contentShape(Rectangle())
+                .fixedSize()
+                .contentShape(Rectangle().inset(by: -5))
         }
-        .buttonStyle(DSInputBarPressStyle())
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityLabel(label)
     }
 
@@ -1158,21 +1228,26 @@ public struct DSInputBar: View {
                 if isLoading {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(IOSColor.accentOnFill)
+                        .tint(IOSColor.text.secondary)
                 } else {
                     Image(systemName: Self.sendButtonIconName)
                         .font(DSFont.inputBar(.sendSymbol, for: dynamicTypeSize).weight(.semibold))
                 }
             }
-            .foregroundStyle(actionState.sendIsEnabled ? IOSColor.accentOnFill : IOSColor.text.tertiary)
-            .frame(width: dynamicTypeSize.isAccessibilitySize ? 58 : 34, height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
+            .foregroundStyle(actionState.sendIsEnabled ? IOSColor.accentOnFill : IOSColor.text.secondary)
+            .frame(
+                width: dynamicTypeSize.isAccessibilitySize ? 58 : 34,
+                height: dynamicTypeSize.isAccessibilitySize ? 58 : 34
+            )
             .background(actionState.sendIsEnabled ? IOSColor.accent : DSColor.fillSubtle, in: Circle())
-            .frame(width: dynamicTypeSize.isAccessibilitySize ? 58 : 34, height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
-            .contentShape(Rectangle())
+            .frame(
+                width: dynamicTypeSize.isAccessibilitySize ? 58 : 34,
+                height: dynamicTypeSize.isAccessibilitySize ? 58 : 34
+            )
+            .contentShape(Rectangle().inset(by: -5))
         }
-        .buttonStyle(DSInputBarPressStyle())
+        .buttonStyle(DSPressFeedbackStyle())
         .disabled(!actionState.sendIsEnabled)
-        .opacity(actionState.sendIsEnabled ? 1 : 0.55)
         .accessibilityLabel(Text(isLoading ? "送信中" : Self.sendAccessibilityLabel))
     }
 
@@ -1181,12 +1256,18 @@ public struct DSInputBar: View {
             Image(systemName: Self.stopButtonIconName)
                 .font(DSFont.inputBar(.stopSymbol, for: dynamicTypeSize).weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: dynamicTypeSize.isAccessibilitySize ? 58 : 34, height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
-                .background(IOSColor.status.error, in: Circle())
-                .frame(width: dynamicTypeSize.isAccessibilitySize ? 58 : 34, height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
-                .contentShape(Rectangle())
+                .frame(
+                    width: dynamicTypeSize.isAccessibilitySize ? 58 : 34,
+                    height: dynamicTypeSize.isAccessibilitySize ? 58 : 34
+                )
+                .background(IOSColor.stop, in: Circle())
+                .frame(
+                    width: dynamicTypeSize.isAccessibilitySize ? 58 : 34,
+                    height: dynamicTypeSize.isAccessibilitySize ? 58 : 34
+                )
+                .contentShape(Rectangle().inset(by: -5))
         }
-        .buttonStyle(DSInputBarPressStyle())
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityLabel(Text(Self.stopAccessibilityLabel))
     }
 
@@ -1197,34 +1278,35 @@ public struct DSInputBar: View {
 
     private func openPhotoPicker() {
         #if os(iOS)
-        guard onAddAttachments != nil else { return }
-        selectedPhotoItems = []
-        // PhotosPicker presentation is driven by the button below.
-        isPhotoPickerPresented = true
+            guard onAddAttachments != nil else { return }
+            selectedPhotoItems = []
+            // PhotosPicker presentation is driven by the button below.
+            isPhotoPickerPresented = true
         #endif
     }
 
     #if os(iOS)
-    @State private var isPhotoPickerPresented = false
+        @State private var isPhotoPickerPresented = false
 
-    private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
-        defer { selectedPhotoItems = [] }
-        guard let onAddAttachments else { return }
-        var imported: [SendAttachment] = []
-        var failedToLoad = false
-        for item in items {
-            guard let data = try? await item.loadTransferable(type: Data.self) else {
-                failedToLoad = true
-                continue
+        private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
+            defer { selectedPhotoItems = [] }
+            guard let onAddAttachments else { return }
+            var imported: [Result<SendAttachment, Error>] = []
+            for item in items {
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
+                        imported.append(.failure(ImageAttachmentPreparationError.invalidImage))
+                        continue
+                    }
+                    imported.append(.success(SendAttachment(mediaType: "application/octet-stream", data: data)))
+                } catch {
+                    imported.append(.failure(error))
+                }
             }
-            imported.append(SendAttachment(mediaType: "application/octet-stream", data: data))
+            if !imported.isEmpty { onAddAttachments(imported) }
         }
-        if failedToLoad { onAttachmentLoadFailure?() }
-        if !imported.isEmpty { onAddAttachments(imported) }
-    }
     #endif
 }
-
 
 /// UTF-16 カーソル位置の正規化と公開タイミング（プラットフォーム非依存・白箱テスト対象）。
 enum DSInputCursorMath {

@@ -22,6 +22,8 @@ settings:
 packages:
   PhloxKit:
     path: Packages/PhloxKit
+  AgentDomain:
+    path: ../macos/Packages/AgentDomain
 
 targets:
   PhloxMobile:
@@ -127,6 +129,12 @@ targets:
       - path: PhloxWidget/Views
     dependencies:
       - target: PhloxMobile
+      - package: AgentDomain
+        product: AgentDomain
+        link: false
+      - package: AgentDomain
+        product: ImageAttachmentKit
+        link: false
     settings:
       base:
         GENERATE_INFOPLIST_FILE: "YES"
@@ -138,6 +146,8 @@ schemes:
         PhloxMobile: all
     test:
       config: Debug
+      commandLineArguments:
+        "-UITesting": true
       targets:
         - name: PhloxMobileSnapshotTests
           parallelizable: false

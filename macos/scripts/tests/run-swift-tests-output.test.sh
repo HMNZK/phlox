@@ -22,6 +22,7 @@ shift
 configuration=""
 testability="absent"
 package=""
+scratch=""
 mode="$command_name"
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -31,6 +32,9 @@ while [ "$#" -gt 0 ]; do
       shift 2 ;;
     --configuration=*) configuration="${1#--configuration=}"; shift ;;
     --package-path=*) package="${1#--package-path=}"; shift ;;
+    --scratch-path)
+      [ "$#" -ge 2 ] || { echo 'missing scratch path' >&2; exit 2; }
+      scratch="$2"; shift 2 ;;
     -Xswiftc)
       [ "$#" -ge 2 ] || { echo 'missing compiler argument' >&2; exit 2; }
       if [ "$2" = "-enable-testing" ]; then testability=enabled; fi
@@ -42,6 +46,9 @@ while [ "$#" -gt 0 ]; do
 done
 if [ -n "${FAKE_SWIFT_CALLS:-}" ]; then
   printf '%s %s %s %s\n' "$mode" "$configuration" "$package" "$testability" >> "$FAKE_SWIFT_CALLS"
+fi
+if [ -n "${FAKE_SWIFT_SCRATCH_CALLS:-}" ]; then
+  printf '%s\t%s\t%s\n' "$mode" "$package" "$scratch" >> "$FAKE_SWIFT_SCRATCH_CALLS"
 fi
 echo "build noise"
 echo "✔ Test run with 3 tests in 1 suite passed after 0.001 seconds."
@@ -123,5 +130,27 @@ assert_exit "$bad_configuration_exit" 1
 assert_contains "$bad_configuration" "debug または release"
 [ ! -s "$FAKE_SWIFT_CALLS" ] || { echo 'invalid configuration reached swift' >&2; exit 1; }
 unset FAKE_SWIFT_CALLS
+
+# 3経路が同じ専用領域を使い、パッケージ間では出力先を分離する。
+export FAKE_SWIFT_SCRATCH_CALLS="$TEMP_DIR/scratch-calls"
+scratch_root="$TEMP_DIR/scratch output"
+PATH="$TEMP_DIR/bin:$PATH" SWIFT_TEST_SCRATCH_ROOT="$scratch_root" \
+  "$RUNNER" AgentDomain DesignSystem > "$TEMP_DIR/scratch-output"
+for package in AgentDomain DesignSystem; do
+  for mode in build-tests bin-path test; do
+    expected="$(printf '%s\tPackages/%s\t%s/%s' "$mode" "$package" "$scratch_root" "$package")"
+    grep -Fxq "$expected" "$FAKE_SWIFT_SCRATCH_CALLS" || { echo "missing scratch route: $package $mode" >&2; exit 1; }
+  done
+done
+[ "$(wc -l < "$FAKE_SWIFT_SCRATCH_CALLS")" -eq 6 ] || { echo 'unexpected extra swift invocation' >&2; exit 1; }
+: > "$FAKE_SWIFT_SCRATCH_CALLS"
+set +e
+bad_scratch="$(PATH="$TEMP_DIR/bin:$PATH" SWIFT_TEST_SCRATCH_ROOT=relative "$RUNNER" AgentDomain 2>&1)"
+bad_scratch_exit=$?
+set -e
+assert_exit "$bad_scratch_exit" 1
+assert_contains "$bad_scratch" "絶対パス"
+[ ! -s "$FAKE_SWIFT_SCRATCH_CALLS" ] || { echo 'invalid scratch reached swift' >&2; exit 1; }
+unset FAKE_SWIFT_SCRATCH_CALLS
 
 echo "run-swift-tests-output.test: OK"

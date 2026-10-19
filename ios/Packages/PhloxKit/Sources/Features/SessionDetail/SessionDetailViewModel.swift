@@ -73,6 +73,7 @@ public final class SessionDetailViewModel {
     private(set) var sendErrorPresentation: ErrorPresentation?
     public private(set) var isRecoveringInitialSend = false
     public private(set) var loadError: String?
+    public private(set) var isSessionMissing = false
     public private(set) var approvals: [Approval] = []
     private(set) var approvalLoadError: String?
     private(set) var approvalLoadPresentation: ErrorPresentation?
@@ -84,6 +85,12 @@ public final class SessionDetailViewModel {
     private(set) var isReplyApprovalResponding = false
     private(set) var questionAnswerFailureRequestID: String?
     private var respondedReplyApprovalIDs: Set<String> = []
+    private var attentionSessions: [Session]
+    private let onShowNextSession: (@MainActor (Session) -> Void)?
+    private var isShowingNextAttention = false
+    #if DEBUG
+    private var isReplyResultSnapshot = false
+    #endif
     private let fallbackReplyDate: Date
     /// task-9: 実行中ターンの停止が可能か（interrupt 非対応=409 を観測したら false にして停止 UI を隠す）。
     public private(set) var canInterrupt: Bool = true
@@ -93,6 +100,8 @@ public final class SessionDetailViewModel {
 
     /// messagesDelta の since 引き渡し用 cursor（差分ポーリング）。
     private var messagesCursor: String?
+    /// 空の取得成功と通信失敗を分け、「次へ」で未確認のまま移動しない。
+    private var didFetchMessagesSuccessfully = false
 
     /// task-10: 送信に添付する画像（最大4枚・1枚4MiB・計8MiB）とストリップ用プレビュー。
     public private(set) var attachmentItems: [SessionAttachmentItem] = []
@@ -197,10 +206,14 @@ public final class SessionDetailViewModel {
         recovery: SessionDetailRecovery? = nil,
         isNewSession: Bool = false,
         initialAttachmentPreviews: [String: [Data]] = [:],
-        initialExpandedMessageIDs: Set<String> = []
+        initialExpandedMessageIDs: Set<String> = [],
+        attentionSessions: [Session] = [],
+        onShowNextSession: (@MainActor (Session) -> Void)? = nil
     ) {
         self.session = session
         self.api = api
+        self.attentionSessions = attentionSessions
+        self.onShowNextSession = onShowNextSession
         self.currentStatus = session.status
         self.fallbackReplyDate = Date()
         self.displayName = session.name
@@ -266,61 +279,67 @@ public final class SessionDetailViewModel {
         } catch {}
     }
 
-    /// 画像添付を追加する。上限違反のバッチは全体を弾き `attachmentError` を設定（部分採用しない）。
+    /// 不正な画像だけを除外し、選択順で最初の失敗を知らせる（AC-6-18）。
     /// 元画像と小さいプレビューを保持し、形式変換は送信前に行う。
     public func addAttachments(_ candidates: [SendAttachment]) {
-        appendAttachments(candidates, previews: nil)
+        appendAttachments(candidates.map { .success($0) }, previews: nil)
     }
 
     public func attachmentLimitReached() {
         attachmentError = ImageAttachmentLimits.countMessage
     }
 
-    public func attachmentLoadFailed() {
-        attachmentError = "画像を読み込めませんでした"
-    }
-
     /// Pickerからの画像はプレビューもメインスレッド外で作る。
     public func addAttachmentsFromPicker(_ candidates: [SendAttachment]) async {
-        guard candidates.count <= Self.maxAttachmentCount,
-              candidates.allSatisfy({ $0.data.count <= Self.maxAttachmentBytesPerImage }) else {
-            addAttachments(candidates)
-            return
-        }
+        await addAttachmentLoadResults(candidates.map { .success($0) })
+    }
+
+    public func addAttachmentLoadResults(_ candidates: [Result<SendAttachment, Error>]) async {
         let previews = await Task.detached(priority: .userInitiated) {
-            candidates.map { Self.makeAttachmentPreview(from: $0.data) }
+            candidates.map { candidate in
+                Result { try ImageAttachmentPreparer.validatedPreview(try candidate.get().data) }
+            }
         }.value
         appendAttachments(candidates, previews: previews)
     }
 
-    private func appendAttachments(_ candidates: [SendAttachment], previews: [Data]?) {
+    private func appendAttachments(_ candidates: [Result<SendAttachment, Error>], previews: [Result<Data, Error>]?) {
         guard !candidates.isEmpty else { return }
         attachmentError = nil
-        guard attachmentItems.count + candidates.count <= Self.maxAttachmentCount else {
-            attachmentError = ImageAttachmentLimits.countMessage
-            return
-        }
-        guard candidates.allSatisfy({ $0.data.count <= Self.maxAttachmentBytesPerImage }) else {
-            attachmentError = ImageAttachmentLimits.inputSizeMessage
-            return
-        }
-
         var normalizedItems: [SessionAttachmentItem] = []
         normalizedItems.reserveCapacity(candidates.count)
-        for (index, candidate) in candidates.enumerated() {
-            guard let send = Self.normalizeAttachment(candidate) else {
-                attachmentError = "画像を読み込めませんでした"
-                return
+        var totalBytes = attachmentItems.reduce(0) { $0 + $1.send.data.count }
+        for (index, loadResult) in candidates.enumerated() {
+            guard case .success(let candidate) = loadResult else {
+                attachmentError = attachmentError ?? "画像を読み込めませんでした"
+                continue
             }
-            let preview = previews?[index] ?? Self.makeAttachmentPreview(from: send.data)
+            guard attachmentItems.count + normalizedItems.count < Self.maxAttachmentCount else {
+                attachmentError = attachmentError ?? ImageAttachmentLimits.countMessage
+                continue
+            }
+            guard candidate.data.count <= Self.maxAttachmentBytesPerImage else {
+                attachmentError = attachmentError ?? ImageAttachmentLimits.inputSizeMessage
+                continue
+            }
+            guard totalBytes + candidate.data.count <= Self.maxAttachmentTotalBytes else {
+                attachmentError = attachmentError ?? ImageAttachmentLimits.inputTotalMessage
+                continue
+            }
+            let result = previews?[index] ?? Result { try ImageAttachmentPreparer.validatedPreview(candidate.data) }
+            let preview: Data
+            switch result {
+            case .success(let data): preview = data
+            case .failure(let error):
+                attachmentError = attachmentError ?? Self.attachmentFailureMessage(error)
+                continue
+            }
+            guard let send = Self.normalizeAttachment(candidate) else {
+                attachmentError = attachmentError ?? "画像を読み込めませんでした"
+                continue
+            }
+            totalBytes += candidate.data.count
             normalizedItems.append(SessionAttachmentItem(send: send, previewData: preview))
-        }
-
-        let combined = attachmentItems.map(\.send) + normalizedItems.map(\.send)
-        let totalBytes = combined.reduce(0) { $0 + $1.data.count }
-        if totalBytes > Self.maxAttachmentTotalBytes {
-            attachmentError = ImageAttachmentLimits.inputTotalMessage
-            return
         }
 
         var numberedItems: [SessionAttachmentItem] = []
@@ -655,11 +674,73 @@ public final class SessionDetailViewModel {
     }
 
     func showNextReplyApproval() {
-        guard replyApprovalResult != nil, !replyApprovals.isEmpty else { return }
+        guard replyApprovalResult != nil else { return }
         replyApprovalResult = nil
         replyApprovalError = nil
         replyApprovalPresentation = nil
-        replyApprovalIndex = min(max(replyApprovalIndex, 0), replyApprovals.count - 1)
+        replyApprovalIndex = min(max(replyApprovalIndex, 0), max(replyApprovals.count - 1, 0))
+    }
+
+    /// 移動は明示操作だけ。候補は押した時点で取得し直し、消えた候補へ進まない。
+    func showNextAttention() async {
+        guard replyApprovalResult != nil, !isReplyApprovalResponding, !isShowingNextAttention else { return }
+        #if DEBUG
+        isReplyResultSnapshot = false
+        #endif
+        isShowingNextAttention = true
+        defer { isShowingNextAttention = false }
+        replyApprovalError = nil
+        do {
+            attentionSessions = try await api.listSessions()
+        } catch {
+            replyApprovalError = "次の対応待ちを確認できませんでした。もう一度「次へ」を押してください。"
+            return
+        }
+        await loadApprovals()
+        _ = await adoptMessagesFromDelta(updateOnlyIfChanged: true)
+        guard approvalLoadError == nil, didFetchMessagesSuccessfully else {
+            replyApprovalError = "現在の対応待ちを確認できませんでした。もう一度「次へ」を押してください。"
+            return
+        }
+        updateReplyApprovalResult()
+        if !replyApprovals.isEmpty || pendingReplyQuestionCount > 0 {
+            showNextReplyApproval()
+        } else if let nextID = replyApprovalResult?.nextAttention?.id,
+                  let next = attentionSessions.first(where: { $0.id == nextID }),
+                  let onShowNextSession {
+            onShowNextSession(next)
+        }
+    }
+
+    private var pendingReplyQuestionCount: Int {
+        visibleMessages.filter { message in
+            guard case let .userQuestion(_, _, questions, _, .pending) = message else { return false }
+            return !questions.isEmpty && (session.agent != .claudeCode || !ReplyApproval.isClaudeToolPermissionQuestion(questions))
+        }.count
+    }
+
+    private func approvalResult(actionLabel: String) -> ReplyApprovalResult {
+        let hasLocal = !replyApprovals.isEmpty || pendingReplyQuestionCount > 0
+        let navigation = SessionNavigationState.resolve(
+            listState: .loaded(attentionSessions), lastKnownSessions: attentionSessions, reachability: .online
+        )
+        // 承認直後の古い一覧が自分を待ちとして返しても、詳細の残件を優先する。
+        let others = onShowNextSession == nil ? [] : navigation.attentionItems.filter { $0.id != session.id }
+        return ReplyApprovalResult(
+            actionLabel: actionLabel,
+            remainingCount: (hasLocal ? 1 : 0) + others.count,
+            nextSessionName: hasLocal ? displayName : nil,
+            nextIsQuestion: replyApprovals.isEmpty && pendingReplyQuestionCount > 0,
+            nextAttention: hasLocal ? nil : others.first
+        )
+    }
+
+    private func updateReplyApprovalResult() {
+        #if DEBUG
+        guard !isReplyResultSnapshot else { return }
+        #endif
+        guard let result = replyApprovalResult else { return }
+        replyApprovalResult = approvalResult(actionLabel: result.actionLabel)
     }
 
     func respond(to approval: ReplyApproval, decision: ApprovalDecision) async {
@@ -672,6 +753,9 @@ public final class SessionDetailViewModel {
         replyApprovalPresentation = nil
         replyApprovalResult = nil
         isReplyApprovalResponding = true
+        #if DEBUG
+        isReplyResultSnapshot = false
+        #endif
         defer { isReplyApprovalResponding = false }
 
         do {
@@ -700,10 +784,11 @@ public final class SessionDetailViewModel {
             respondedReplyApprovalIDs.insert(approval.id)
             let remainingCount = replyApprovals.count
             replyApprovalIndex = min(max(oldIndex, 0), max(remainingCount - 1, 0))
-            replyApprovalResult = ReplyApprovalResult(
-                actionLabel: Self.replyApprovalActionLabel(decision),
-                remainingCount: remainingCount
-            )
+            replyApprovalResult = approvalResult(actionLabel: Self.replyApprovalActionLabel(decision))
+            await refreshCurrentStatus()
+            await loadApprovals()
+            _ = await adoptMessagesFromDelta(updateOnlyIfChanged: true)
+            updateReplyApprovalResult()
         } catch {
             replyApprovalError = Self.replyApprovalFailureCopy(decision)
             replyApprovalPresentation = Self.replyApprovalFailurePresentation(decision)
@@ -759,7 +844,7 @@ public final class SessionDetailViewModel {
     #if DEBUG
     public enum ReplySnapshotState: Sendable {
         case approvalFailure
-        case approvalResult(actionLabel: String, remainingCount: Int)
+        case approvalResult(actionLabel: String, remainingCount: Int, nextSessionName: String? = nil, nextIsQuestion: Bool = false)
         case questionFailure(requestID: String)
         case expandedApprovalDiff
     }
@@ -769,12 +854,16 @@ public final class SessionDetailViewModel {
         case .approvalFailure:
             replyApprovalError = Self.replyApprovalFailureCopy(.accept)
             replyApprovalPresentation = Self.replyApprovalFailurePresentation(.accept)
-        case .approvalResult(let actionLabel, let remainingCount):
+        case .approvalResult(let actionLabel, let remainingCount, let nextSessionName, let nextIsQuestion):
+            isReplyResultSnapshot = true
             if let currentReplyApproval {
                 respondedReplyApprovalIDs.insert(currentReplyApproval.id)
                 replyApprovalIndex = min(replyApprovalIndex, max(replyApprovals.count - 1, 0))
             }
-            replyApprovalResult = ReplyApprovalResult(actionLabel: actionLabel, remainingCount: remainingCount)
+            replyApprovalResult = ReplyApprovalResult(
+                actionLabel: actionLabel, remainingCount: remainingCount,
+                nextSessionName: nextSessionName, nextIsQuestion: nextIsQuestion
+            )
         case .questionFailure(let requestID):
             questionAnswerFailureRequestID = requestID
         case .expandedApprovalDiff:
@@ -807,8 +896,9 @@ public final class SessionDetailViewModel {
         guard !session.isPTY else { return }
         await refreshCurrentStatus()
         await loadModelSettings()
-        if await adoptMessagesFromDelta(updateOnlyIfChanged: true) { return }
-        if showsChat { return }
+        if replyApprovalResult != nil { await loadApprovals() }
+        _ = await adoptMessagesFromDelta(updateOnlyIfChanged: true)
+        updateReplyApprovalResult()
     }
 
     /// モデル・設定の一覧を取得する。古い Mac や一時的な取得失敗では現在値を保つ。
@@ -1038,8 +1128,9 @@ public final class SessionDetailViewModel {
                 return
             }
         } catch {
-            attachmentError = "画像を読み込めませんでした"
-            sendState = .failed("画像を読み込めませんでした")
+            let message = Self.attachmentFailureMessage(error)
+            attachmentError = message
+            sendState = .failed(message)
             return
         }
         do {
@@ -1075,19 +1166,35 @@ public final class SessionDetailViewModel {
 
     /// messages 全量取得→非空なら採用。`load()` と delta フォールバック用。
     private func adoptNonEmptyMessages(updateOnlyIfChanged: Bool) async -> Bool {
+        didFetchMessagesSuccessfully = false
         let messages: [ChatMessage]
         do {
             messages = try await api.messages(sessionID: session.id)
+            didFetchMessagesSuccessfully = true
             loadError = nil
+            isSessionMissing = false
         } catch let error as PhloxError {
-            if case .notFound = error {
-                loadError = nil
+            let isNotFound: Bool = switch error {
+            case .notFound, .server(status: 404, message: _): true
+            default: false
+            }
+            if isNotFound {
+                // 古い取得口の404と削除済みを、一覧への存在確認で区別する。
+                do {
+                    let sessions = try await api.listSessions()
+                    isSessionMissing = !sessions.contains { $0.id == session.id }
+                    loadError = isSessionMissing ? "HTTP 404 · session \(session.id)" : nil
+                } catch {
+                    loadError = "セッションの存在を確認できませんでした · HTTP 404"
+                }
             } else if !showsChat {
                 loadError = Self.messageFetchFailure(for: error)
             }
+            didFetchMessagesSuccessfully = false
             return false
         } catch {
             if !showsChat { loadError = "メッセージの取得に失敗しました" }
+            didFetchMessagesSuccessfully = false
             return false
         }
         guard !messages.isEmpty else { return false }
@@ -1101,9 +1208,12 @@ public final class SessionDetailViewModel {
 
     /// messagesDelta 取得→snapshot 置換 / 差分 append。404・501 は `messages()` へフォールバック。
     private func adoptMessagesFromDelta(updateOnlyIfChanged: Bool) async -> Bool {
+        didFetchMessagesSuccessfully = false
         do {
             let delta = try await api.messagesDelta(sessionID: session.id, since: messagesCursor, wait: nil)
+            didFetchMessagesSuccessfully = true
             applyMessagesDelta(delta, updateOnlyIfChanged: updateOnlyIfChanged)
+            isSessionMissing = false
             if let cursor = delta.cursor {
                 messagesCursor = cursor
             }
@@ -1116,9 +1226,11 @@ public final class SessionDetailViewModel {
             return await adoptNonEmptyMessages(updateOnlyIfChanged: updateOnlyIfChanged)
         } catch let error as PhloxError {
             if !showsChat { loadError = Self.messageFetchFailure(for: error) }
+            didFetchMessagesSuccessfully = false
             return false
         } catch {
             if !showsChat { loadError = "メッセージの取得に失敗しました" }
+            didFetchMessagesSuccessfully = false
             return false
         }
     }
@@ -1168,8 +1280,9 @@ public final class SessionDetailViewModel {
 
     private func refreshCurrentStatus() async {
         let previousStatus = currentStatus
-        guard let sessions = try? await api.listSessions(),
-              let live = sessions.first(where: { $0.id == session.id }) else { return }
+        guard let sessions = try? await api.listSessions() else { return }
+        attentionSessions = sessions
+        guard let live = sessions.first(where: { $0.id == session.id }) else { return }
         session = live
         currentStatus = live.status
         if previousStatus == .running, currentStatus != .running {
@@ -1281,8 +1394,7 @@ public final class SessionDetailViewModel {
         }
     }
 
-    /// ストリップ用の小さいPNGプレビューをキャッシュする。
-    nonisolated static func makeAttachmentPreview(from data: Data) -> Data {
-        ImageAttachmentPreparer.preview(data) ?? Data()
+    private static func attachmentFailureMessage(_ error: Error) -> String {
+        (error as? ImageAttachmentPreparationError)?.errorDescription ?? "画像を読み込めませんでした"
     }
 }

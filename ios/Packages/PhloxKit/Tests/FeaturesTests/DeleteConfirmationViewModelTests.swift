@@ -38,11 +38,62 @@ final class DeleteConfirmationViewModelTests: XCTestCase {
         XCTAssertEqual(vm.deleteButtonLabel, "4 件を削除")
     }
 
+    func testImmediateIdenticalFailuresProduceDistinctPresentationEvents() async {
+        let api = MockAPI(removeError: .server(status: 503, message: "削除できません"))
+        var deletedCount = 0
+        let vm = DeleteConfirmationViewModel(
+            sessionID: "retry", cascadeCount: 2, api: api,
+            onDeleted: { deletedCount += 1 }
+        )
+        XCTAssertEqual(vm.failureGeneration, 0)
+
+        await vm.confirmDelete()
+        let firstState = vm.state
+        let firstPresentation = vm.failurePresentation
+        XCTAssertNotNil(firstPresentation)
+        XCTAssertEqual(vm.failureGeneration, 1)
+
+        await vm.confirmDelete()
+        XCTAssertEqual(vm.state, firstState)
+        XCTAssertEqual(vm.failurePresentation, firstPresentation)
+        XCTAssertEqual(vm.failureGeneration, 2, "同文の失敗でも再提示を通知する")
+        let removeCount = await api.removeCount
+        XCTAssertEqual(removeCount, 2)
+        XCTAssertEqual(deletedCount, 0)
+    }
+
     func testZeroCascadeMessage() {
         let vm = DeleteConfirmationViewModel(sessionID: "s1", cascadeCount: 0, api: MockAPI(), onDeleted: {})
         XCTAssertEqual(vm.message, "Mac 側のセッションと会話の記録が削除されます。元に戻せません。")
         XCTAssertEqual(vm.title, "“セッション” を削除しますか？")
         XCTAssertEqual(vm.deleteButtonLabel, "1 件を削除")
+    }
+
+    func testConcurrentDeleteAndPostSuccessCallsDoNotRepeatRemoval() async {
+        let api = SuspendedDeleteAPI()
+        var deletedCount = 0
+        let vm = DeleteConfirmationViewModel(
+            sessionID: "single-removal", cascadeCount: 0, api: api,
+            onDeleted: { deletedCount += 1 }
+        )
+        let first = Task { await vm.confirmDelete() }
+        await api.waitForFirstRemove()
+        XCTAssertEqual(vm.state, .deleting)
+
+        await vm.confirmDelete()
+        let pendingRemoveCount = await api.removeCount
+        XCTAssertEqual(pendingRemoveCount, 1)
+        XCTAssertEqual(deletedCount, 0)
+
+        await api.completeFirstRemove()
+        await first.value
+        XCTAssertEqual(vm.state, .deleted)
+        XCTAssertEqual(deletedCount, 1)
+        await vm.confirmDelete()
+        let finalRemoveCount = await api.removeCount
+        XCTAssertEqual(finalRemoveCount, 1)
+        XCTAssertEqual(deletedCount, 1)
+        XCTAssertEqual(vm.failureGeneration, 0)
     }
 
     func testTitleUsesSessionName() {
@@ -78,4 +129,39 @@ final class DeleteConfirmationViewModelTests: XCTestCase {
         let count = await mock.removeCount
         XCTAssertEqual(count, 0, "確認前に DELETE を呼ばない")
     }
+}
+
+private actor SuspendedDeleteAPI: PhloxAPI {
+    private(set) var removeCount = 0
+    private var firstRemove: CheckedContinuation<Void, Never>?
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func remove(sessionID: String) async throws {
+        removeCount += 1
+        if removeCount == 1 {
+            await withCheckedContinuation { continuation in
+                firstRemove = continuation
+                for waiter in startWaiters { waiter.resume() }
+                startWaiters.removeAll()
+            }
+        }
+    }
+
+    func waitForFirstRemove() async {
+        if removeCount > 0 { return }
+        await withCheckedContinuation { startWaiters.append($0) }
+    }
+
+    func completeFirstRemove() {
+        firstRemove?.resume()
+        firstRemove = nil
+    }
+
+    func listSessions() async throws -> [Session] { throw PhloxError.unsupported }
+    func spawn(_ request: SpawnRequest) async throws -> Session { throw PhloxError.unsupported }
+    func waitUntilReady(sessionID: String) async throws -> Bool { throw PhloxError.unsupported }
+    func send(_ request: SendRequest) async throws -> SendResult { throw PhloxError.unsupported }
+    func messages(sessionID: String) async throws -> [ChatMessage] { throw PhloxError.unsupported }
+    func approvals() async throws -> [Approval] { throw PhloxError.unsupported }
+    func respond(approvalID: String, decision: ApprovalDecision) async throws { throw PhloxError.unsupported }
 }

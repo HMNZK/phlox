@@ -1,10 +1,11 @@
-import SwiftUI
 import DesignSystemIOS
 import PhloxCore
+import SwiftUI
 
 /// 入力欄の下に置く、使用量の 1 行ボタン。
 public struct UsageRingRow: View {
     let viewModel: UsageViewModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @ScaledMetric(relativeTo: .caption) private var scaledRingDiameter: CGFloat = 18
     @ScaledMetric(relativeTo: .caption) private var scaledRingStroke: CGFloat = 2.6
@@ -21,36 +22,47 @@ public struct UsageRingRow: View {
             Button {
                 isPopoverPresented = true
             } label: {
-                HStack(spacing: 8) {
-                    agentLayout(agents)
-                    Spacer(minLength: 0)
-                    if let status = UsageRingPresentation.statusText(
-                        isRefreshing: viewModel.isRefreshing,
-                        isStale: viewModel.isStale,
-                        asOf: viewModel.asOfDate
-                    ) {
-                        Text(verbatim: status)
-                            .font(DSFont.iosCaption2)
-                            .foregroundStyle(IOSColor.text.secondary)
-                            .fixedSize()
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        stackedRow(agents)
+                    } else {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) {
+                                agentLayout(agents)
+                                Spacer(minLength: 0)
+                                if let status = UsageRingPresentation.statusText(
+                                    isRefreshing: viewModel.isRefreshing,
+                                    isStale: viewModel.isStale,
+                                    asOf: viewModel.asOfDate
+                                ) {
+                                    Text(verbatim: status)
+                                        .font(DSFont.iosCaption2)
+                                        .foregroundStyle(IOSColor.text.secondary)
+                                        .fixedSize()
+                                }
+                            }
+                            stackedRow(agents)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DSPressFeedbackStyle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: UsageRingPresentation.accessibilityLabel(
-                agents: agents,
-                isRefreshing: viewModel.isRefreshing,
-                isStale: viewModel.isStale,
-                asOf: viewModel.asOfDate
-            )))
+                        agents: agents,
+                        isRefreshing: viewModel.isRefreshing,
+                        isStale: viewModel.isStale,
+                        asOf: viewModel.asOfDate
+                    ))
+            )
             .accessibilityHint(UsageRingPresentation.rowAccessibilityHint)
             .accessibilityIdentifier("UsageRingRow.button")
             .popover(
                 isPresented: $isPopoverPresented,
-                attachmentAnchor: .point(UnitPoint(x: 0.06, y: 0)),
+                attachmentAnchor: .rect(.rect(CGRect(x: 0, y: 0, width: 18, height: 44))),
                 arrowEdge: .bottom
             ) {
                 UsageRingPopover(
@@ -64,16 +76,34 @@ public struct UsageRingRow: View {
         }
     }
 
+    private func stackedRow(_ agents: [UsageRingAgent]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            agentLayout(agents)
+            if let status = UsageRingPresentation.statusText(
+                isRefreshing: viewModel.isRefreshing,
+                isStale: viewModel.isStale,
+                asOf: viewModel.asOfDate
+            ) {
+                Text(verbatim: status)
+                    .font(DSFont.iosCaption2)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+            }
+        }
+    }
+
     private var ringDiameter: CGFloat { min(30, scaledRingDiameter) }
     private var ringStroke: CGFloat { min(4.3, scaledRingStroke) }
 
     @ViewBuilder
     private func agentLayout(_ agents: [UsageRingAgent]) -> some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 16) {
-                ForEach(agents) { agent in agentGroup(agent) }
+            if dynamicTypeSize != .accessibility5 {
+                HStack(spacing: 14) {
+                    ForEach(agents) { agent in agentGroup(agent) }
+                }
+                .fixedSize(horizontal: true, vertical: false)
             }
-            .fixedSize(horizontal: true, vertical: false)
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 16) {
@@ -85,14 +115,19 @@ public struct UsageRingRow: View {
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(agents) { agent in agentGroup(agent) }
+            }
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 
     private func agentGroup(_ agent: UsageRingAgent) -> some View {
-        HStack(spacing: 8) {
-            DSAgentBrandIcon(kind: agent.kind, size: min(30, ringDiameter))
+        HStack(spacing: 6) {
+            DSAgentBrandIcon(kind: agent.kind, size: dynamicTypeSize.isAccessibilitySize ? 26 : 15)
                 .accessibilityHidden(true)
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 ForEach(agent.buckets) { bucket in
                     HStack(spacing: 3) {
                         UsageRing(
@@ -103,9 +138,11 @@ public struct UsageRingRow: View {
                         )
                         if let ringLabel = bucket.ringLabel {
                             Text(verbatim: ringLabel)
-                                .font(DSFont.iosCaption2.weight(
-                                    bucket.isLow && !agent.isUnavailable ? .bold : .regular
-                                ))
+                                .font(
+                                    DSFont.usageRingLabel(for: dynamicTypeSize).weight(
+                                        bucket.isLow && !agent.isUnavailable ? .bold : .regular
+                                    )
+                                )
                                 .foregroundStyle(
                                     bucket.isLow && !agent.isUnavailable
                                         ? IOSColor.status.caution
@@ -132,9 +169,10 @@ private struct UsageRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(trackColor, lineWidth: lineWidth)
+                .strokeBorder(trackColor, lineWidth: lineWidth)
             if !isUnavailable, let fraction = bucket.remainingFraction {
                 Circle()
+                    .inset(by: lineWidth / 2)
                     .trim(from: 0, to: fraction)
                     .stroke(
                         ringColor,
@@ -159,34 +197,42 @@ private struct UsageRing: View {
 }
 
 private struct UsageRingPopover: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let agents: [UsageRingAgent]
     let isStale: Bool
     let asOf: Date?
     let now: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if isStale, let asOf {
-                Text(verbatim: UsageRingPresentation.staleNotice(asOf: asOf))
-                    .font(DSFont.iosCaption)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                if isStale, let asOf {
+                    Text(verbatim: UsageRingPresentation.staleNotice(asOf: asOf))
+                        .font(DSFont.iosCaption)
+                        .foregroundStyle(IOSColor.text.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !dynamicTypeSize.isAccessibilitySize {
+                    HStack(spacing: 8) {
+                        Text(verbatim: UsageRingPresentation.popoverColumnHeaders[0]).frame(
+                            width: 82, alignment: .leading)
+                        Text(verbatim: UsageRingPresentation.popoverColumnHeaders[1]).frame(
+                            width: 84, alignment: .leading)
+                        Text(verbatim: UsageRingPresentation.popoverColumnHeaders[2]).frame(
+                            maxWidth: .infinity, alignment: .leading)
+                    }
+                    .font(DSFont.footnote.weight(.semibold))
                     .foregroundStyle(IOSColor.text.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                }
 
-            HStack(spacing: 8) {
-                Text(verbatim: UsageRingPresentation.popoverColumnHeaders[0]).frame(width: 82, alignment: .leading)
-                Text(verbatim: UsageRingPresentation.popoverColumnHeaders[1]).frame(width: 84, alignment: .leading)
-                Text(verbatim: UsageRingPresentation.popoverColumnHeaders[2]).frame(maxWidth: .infinity, alignment: .leading)
+                ForEach(agents) { agent in
+                    agentSection(agent)
+                }
             }
-            .font(DSFont.footnote.weight(.semibold))
-            .foregroundStyle(IOSColor.text.secondary)
-
-            ForEach(agents) { agent in
-                agentSection(agent)
-            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
         .frame(width: 300, alignment: .leading)
         .presentationBackground(IOSColor.bg.menu)
         .presentationCornerRadius(18)
@@ -220,20 +266,37 @@ private struct UsageRingPopover: View {
         }
     }
 
+    @ViewBuilder
     private func bucketRow(_ bucket: UsageRingBucket, agent: AgentKind) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(verbatim: bucket.label)
-                .foregroundStyle(IOSColor.text.secondary)
-                .frame(width: 82, alignment: .leading)
-            Text(verbatim: UsageRingPresentation.valueText(for: bucket))
-                .fontWeight(bucket.isLow ? .bold : .regular)
-                .foregroundStyle(bucket.isLow ? IOSColor.status.caution : IOSColor.text.primary)
-                .frame(width: 84, alignment: .leading)
-            Text(verbatim: UsageRingPresentation.resetText(for: bucket, agent: agent, now: now) ?? "")
-                .foregroundStyle(IOSColor.text.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(verbatim: bucket.label)
+                    .foregroundStyle(IOSColor.text.secondary)
+                Text(verbatim: UsageRingPresentation.valueText(for: bucket))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(bucket.isLow ? IOSColor.status.caution : IOSColor.text.primary)
+                if let reset = UsageRingPresentation.resetText(for: bucket, agent: agent, now: now) {
+                    Text("リセット \(reset)")
+                        .foregroundStyle(IOSColor.text.secondary)
+                }
+            }
+            .font(DSFont.subheadline)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(verbatim: bucket.label)
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .frame(width: 82, alignment: .leading)
+                Text(verbatim: UsageRingPresentation.valueText(for: bucket))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(bucket.isLow ? IOSColor.status.caution : IOSColor.text.primary)
+                    .frame(width: 84, alignment: .leading)
+                Text(verbatim: UsageRingPresentation.resetText(for: bucket, agent: agent, now: now) ?? "")
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .font(DSFont.subheadline)
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .font(DSFont.subheadline)
-        .fixedSize(horizontal: false, vertical: true)
     }
 }

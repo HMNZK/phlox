@@ -123,7 +123,8 @@ struct SessionDetailFileChangeCard: View {
                         id: badge.id,
                         text: badge.text,
                         color: badge.kind == .addition ? DSColor.diffAdded : DSColor.diffRemoved,
-                        monospaced: true
+                        monospaced: true,
+                        weight: .semibold
                     )
                 },
                 isExpanded: isExpanded,
@@ -131,7 +132,7 @@ struct SessionDetailFileChangeCard: View {
                 onToggle: onToggle
             )
         } content: {
-            if isExpanded {
+            DSDisclosureContent(isExpanded: isExpanded) {
                 ScrollView(.horizontal, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: .zero) {
                         ForEach(data.lines) { line in
@@ -143,11 +144,15 @@ struct SessionDetailFileChangeCard: View {
                 .padding(.bottom, DSSpacing.s)
                 HStack {
                     Spacer(minLength: 0)
-                    Button("セクションをコピー") {
+                    Button {
                         ChatMessageCopyAction.copyToPasteboard(data.copyText)
+                    } label: {
+                        Text("セクションをコピー")
+                            .frame(minWidth: DSTouch.minSize, minHeight: DSTouch.minSize)
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .font(DSFont.caption)
+                    .buttonStyle(DSPressFeedbackStyle())
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(IOSColor.text.secondary)
                     .accessibilityIdentifier("SessionDetailFileChangeCard.copySection")
                 }

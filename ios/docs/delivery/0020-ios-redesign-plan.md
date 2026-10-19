@@ -162,7 +162,7 @@ iPhone アプリの UI を、Claude Design で作った再設計の見本（版 
 - 実行: `PATH=/opt/homebrew/bin:$PATH make -C ios snapshot SNAPSHOT_SIMULATOR_ID=<UDID>`。スキーム `PhloxMobileSnapshots`（UI テストを含まない）で `PhloxMobileSnapshotTests` だけを走らせ、`<worktree>/.verification/ios-redesign/snapshots/` に `<画面>-<幅>x<高さ>-<light|dark>[-ax5].png` を書き出す。`PHLOX_DESIGN_SNAPSHOTS=1` が無いときは何も書かずに成功する。`SNAPSHOT_SIMULATOR_ID` を省くと、利用できる最初の iPhone のシミュレーターを使う。
 - 描き方: `ImageRenderer` は `NavigationStack` を描けず禁止マークになったので、`UIWindow` に `UIHostingController` を載せて `drawHierarchy` で撮る（画素の検査で中身の有無を確かめてから書き出す）。
 - データ: `AppEnvironment.uiTesting(scenario:screen:)`（`run-simulator.sh --screen` と同じ見本のデータ）を `@testable import PhloxMobile` で使う。
-- 安全領域と倍率（段階 1 で足した）: 428×926 は上 47・下 34 の安全領域で 3 倍、375×667 は上 20・下 0 で 2 倍に書き出す。iOS の描画が OS の版で異なるため、部品を含む**すべての画面**の名前に `-ios<major>` を付ける（例: `sessionList-428x926-light-ios26.png`）。iOS 26 と iOS 18 の画像を同じ出力先に置いても上書きしない。
+- 安全領域と倍率: 428×926 は上 47・下 34、375×667 は上 20・下 0 の安全領域で、どちらも見本画像に合わせて 2 倍に書き出す。iOS の描画が OS の版で異なるため、部品を含む**すべての画面**の名前に `-ios<major>` を付ける（例: `sessionList-428x926-light-ios26.png`）。iOS 26 と iOS 18 の画像を同じ出力先に置いても上書きしない。
 - 段階 3〜6 の場面（新規チャット・使用量のリング・表示できない会話・承認のカード）の足し方: `ios/App/UITestingSupport.swift` の `UITestingSupport.Screen` に case を足し、`ios/App/AppEnvironment+UITesting.swift` の `environment(for:)` に見本のデータ、`ios/App/UITestingNavigator.swift` の `applyNavigation` に遷移を書く。`run-simulator.sh --list-screens` と描画テストの画面の一覧に同じ名前で足す。空の入口は今は足さない（中身の無い case を残さないため。各段階で画面と一緒に足す）。廃止する `spawn`・`chatAnswer`・`codexApproval`・`spawnError` は段階 1 で消す。
 
 ### 6.2 盤面の画像の書き出し（D4。2026-10-17 に試して描けた）

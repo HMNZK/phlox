@@ -136,37 +136,39 @@ struct SessionDetailToolCallGroupRow: View {
                     onToggle: onToggleGroup
                 )
             } content: {
-                if isExpanded {
-                    let rowsSlice = SessionDetailCommandGroupRowWindow.slice(
-                        items: items,
-                        lastTranscriptID: lastTranscriptID,
-                        isTurnRunning: isTurnRunning,
-                        limit: rowLimit
-                    )
-                    VStack(alignment: .leading, spacing: 0) {
-                        if rowsSlice.hiddenRowCount > 0 {
-                            Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
-                                rowLimit += SessionDetailCommandGroupRowWindow.expandStep
+                DSDisclosureContent(isExpanded: isExpanded) {
+                    if isExpanded {
+                        let rowsSlice = SessionDetailCommandGroupRowWindow.slice(
+                            items: items,
+                            lastTranscriptID: lastTranscriptID,
+                            isTurnRunning: isTurnRunning,
+                            limit: rowLimit
+                        )
+                        VStack(alignment: .leading, spacing: 0) {
+                            if rowsSlice.hiddenRowCount > 0 {
+                                Button("残り \(rowsSlice.hiddenRowCount) 件を表示") {
+                                    rowLimit += SessionDetailCommandGroupRowWindow.expandStep
+                                }
+                                .buttonStyle(DSPressFeedbackStyle())
+                                .font(DSFont.iosCaption2)
+                                .foregroundStyle(IOSColor.text.secondary)
+                                .frame(minHeight: DSTouch.minSize, alignment: .leading)
+                                .padding(.horizontal, DSSpacing.m)
+                                .accessibilityIdentifier("SessionDetailToolCallGroupRow.loadEarlierRows")
                             }
-                            .buttonStyle(.plain)
-                            .font(DSFont.caption)
-                            .foregroundStyle(IOSColor.text.secondary)
-                            .frame(minHeight: DSTouch.minSize, alignment: .leading)
-                            .padding(.horizontal, DSSpacing.m)
-                            .accessibilityIdentifier("SessionDetailToolCallGroupRow.loadEarlierRows")
-                        }
-                        ForEach(Array(rowsSlice.rows.enumerated()), id: \.element.id) { index, row in
-                            if index > 0 {
-                                Rectangle()
-                                    .fill(IOSColor.bg.separator)
-                                    .frame(height: 1)
+                            ForEach(Array(rowsSlice.rows.enumerated()), id: \.element.id) { index, row in
+                                if index > 0 {
+                                    Rectangle()
+                                        .fill(IOSColor.bg.separator)
+                                        .frame(height: 1)
+                                }
+                                SessionDetailCommandGroupToolRow(
+                                    row: row,
+                                    isExpanded: isMessageExpanded(row.id),
+                                    onToggle: { onToggleMessage(row.id) }
+                                )
+                                .id(row.id)
                             }
-                            SessionDetailCommandGroupToolRow(
-                                row: row,
-                                isExpanded: isMessageExpanded(row.id),
-                                onToggle: { onToggleMessage(row.id) }
-                            )
-                            .id(row.id)
                         }
                     }
                 }
@@ -192,36 +194,16 @@ private struct SessionDetailCommandGroupToolRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Button(action: onToggle) {
-                HStack(spacing: DSSpacing.xs) {
-                    Text("›")
-                        .font(DSFont.sessionDetailSubtitle.weight(.semibold))
-                        .foregroundStyle(IOSColor.text.tertiary)
-                        .frame(width: DSSpacing.s)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    Text(tool.label == "Bash" ? "コマンド" : tool.label)
-                        .font(DSFont.sessionDetailSubtitle.weight(.semibold))
-                        .foregroundStyle(IOSColor.text.primary)
-                        .lineLimit(1)
-                        .fixedSize()
-                    Text(summary)
-                        .font(DSFont.sessionDetailTechnical)
-                        .foregroundStyle(IOSColor.text.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if row.isRunning {
-                        badge("実行中", color: IOSColor.text.primary)
-                    } else if let exitCode = SessionDetailTranscriptPresentation.exitCode(in: row.output) {
-                        badge("exit \(exitCode)", color: exitCode == 0 ? IOSColor.text.tertiary : IOSColor.status.error)
-                    }
-                }
-                .padding(.horizontal, DSSpacing.m)
-                .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            if isExpanded {
+            SessionDetailTranscriptCardHeader(
+                label: tool.label == "Bash" ? "コマンド" : tool.label,
+                summary: summary,
+                badges: badges,
+                isExpanded: isExpanded,
+                allowsDisclosure: true,
+                onToggle: onToggle
+            )
+            .padding(.horizontal, DSSpacing.m)
+            DSDisclosureContent(isExpanded: isExpanded) {
                 SessionDetailCommandOutputView(
                     output: row.output,
                     copyText: ChatMessageCopyText.copyText(
@@ -233,11 +215,11 @@ private struct SessionDetailCommandGroupToolRow: View {
         .accessibilityIdentifier("SessionDetailCommandGroupToolRow")
     }
 
-    private func badge(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(DSFont.sessionDetailTechnical)
-            .monospacedDigit()
-            .foregroundStyle(color)
-            .fixedSize()
+    private var badges: [SessionDetailTranscriptBadge] {
+        if row.isRunning {
+            return [.init(id: "running", text: "実行中", color: IOSColor.text.primary, monospaced: true, weight: .regular)]
+        }
+        guard let exitCode = SessionDetailTranscriptPresentation.exitCode(in: row.output) else { return [] }
+        return [.init(id: "exit", text: "exit \(exitCode)", color: exitCode == 0 ? IOSColor.text.tertiary : IOSColor.status.error, monospaced: true, weight: .regular)]
     }
 }

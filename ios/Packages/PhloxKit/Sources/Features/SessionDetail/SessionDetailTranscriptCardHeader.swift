@@ -6,6 +6,7 @@ struct SessionDetailTranscriptBadge: Identifiable {
     let text: String
     let color: Color
     var monospaced = false
+    var weight: Font.Weight = .medium
 }
 
 struct SessionDetailTranscriptCardHeader: View {
@@ -15,6 +16,8 @@ struct SessionDetailTranscriptCardHeader: View {
     let isExpanded: Bool
     let allowsDisclosure: Bool
     let onToggle: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .footnote) private var disclosureWidth = DSSpacing.s
 
     var body: some View {
         Group {
@@ -22,7 +25,7 @@ struct SessionDetailTranscriptCardHeader: View {
                 Button(action: onToggle) {
                     headerContents
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DSPressFeedbackStyle())
                 .accessibilityValue(isExpanded ? "展開中" : "折りたたみ中")
             } else {
                 headerContents
@@ -32,37 +35,45 @@ struct SessionDetailTranscriptCardHeader: View {
     }
 
     private var headerContents: some View {
-        HStack(spacing: DSSpacing.xs) {
-            if allowsDisclosure {
-                Text("›")
+        let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
+        let layout = isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.xs))
+            : AnyLayout(HStackLayout(spacing: DSSpacing.xs))
+        return layout {
+            HStack(spacing: DSSpacing.xs) {
+                if allowsDisclosure {
+                    Text("›")
+                        .font(DSFont.sessionDetailSubtitle.weight(.semibold))
+                        .foregroundStyle(IOSColor.text.tertiary)
+                        .frame(width: disclosureWidth)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                Text(label)
                     .font(DSFont.sessionDetailSubtitle.weight(.semibold))
-                    .foregroundStyle(IOSColor.text.tertiary)
-                    .frame(width: DSSpacing.s)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .foregroundStyle(IOSColor.text.secondary)
+                    .lineLimit(isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: !isAccessibilitySize, vertical: true)
             }
-            Text(label)
-                .font(DSFont.sessionDetailSubtitle.weight(.semibold))
-                .foregroundStyle(IOSColor.text.secondary)
-                .lineLimit(1)
-                .fixedSize()
             if let summary, !summary.isEmpty {
                 Text(summary)
                     .font(DSFont.sessionDetailTechnical)
                     .foregroundStyle(IOSColor.text.primary)
-                    .lineLimit(1)
+                    .lineLimit(isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
+            } else if !isAccessibilitySize {
                 Spacer(minLength: 0)
             }
             ForEach(badges) { badge in
                 Text(badge.text)
-                    .font(badge.monospaced ? DSFont.sessionDetailTechnical : DSFont.sessionDetailSubtitle.weight(.medium))
+                    .font((badge.monospaced ? DSFont.sessionDetailTechnical : DSFont.sessionDetailSubtitle).weight(badge.weight))
                     .monospacedDigit()
                     .foregroundStyle(badge.color)
-                    .fixedSize()
+                    .fixedSize(horizontal: !isAccessibilitySize, vertical: true)
             }
         }
+        .padding(.vertical, isAccessibilitySize ? DSSpacing.chip : 0)
         .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityLabel(accessibilityLabel)

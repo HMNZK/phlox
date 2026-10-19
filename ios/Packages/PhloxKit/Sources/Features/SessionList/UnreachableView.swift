@@ -17,10 +17,12 @@ public struct UnreachableView: View {
                 .foregroundStyle(viewModel.reachability == .unreachableHost ? IOSColor.status.error : IOSColor.text.primary)
             Text(viewModel.cardMessage)
                 .font(DSFont.subheadline)
+                .lineSpacing(5)
                 .foregroundStyle(IOSColor.text.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(viewModel.nextStep)
                 .font(DSFont.subheadline)
+                .lineSpacing(5)
                 .foregroundStyle(IOSColor.text.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let detail = viewModel.technicalDetail() {

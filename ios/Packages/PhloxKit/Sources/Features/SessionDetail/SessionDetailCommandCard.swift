@@ -64,7 +64,7 @@ struct SessionDetailCommandCard: View {
                 onToggle: onToggle
             )
         } content: {
-            if isExpanded {
+            DSDisclosureContent(isExpanded: isExpanded) {
                 SessionDetailCommandOutputView(
                     output: data.output,
                     copyText: data.copyText.isEmpty ? nil : data.copyText

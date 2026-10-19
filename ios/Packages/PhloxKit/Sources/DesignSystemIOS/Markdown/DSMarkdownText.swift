@@ -5,7 +5,7 @@ import MarkdownUI
 /// チャット本文の Markdown とフェンス付きコードを描画する View。
 public struct DSMarkdownText: View {
     private let content: String
-    @ScaledMetric(relativeTo: .body) private var bodyLineSpacing: CGFloat = 9.35
+    @ScaledMetric(relativeTo: .body) private var bodyLineSpacing = DSSpacing.chip
 
     public init(_ content: String) {
         self.content = content
@@ -13,7 +13,7 @@ public struct DSMarkdownText: View {
 
     public var body: some View {
         let blocks = MarkdownBlockParser.blocks(from: content)
-        VStack(alignment: .leading, spacing: DSSpacing.s) {
+        VStack(alignment: .leading, spacing: DSSpacing.s + DSSpacing.xxs) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 switch block {
                 case let .paragraph(markdown):
@@ -38,11 +38,13 @@ public struct DSMarkdownText: View {
         }
         .code {
             FontFamilyVariant(.monospaced)
-            ForegroundColor(DSColor.chatAccent)
+            FontSize(.em(15.0 / 17.0))
+            ForegroundColor(DSColor.chatTextPrimary)
             BackgroundColor(DSColor.fillSubtle)
         }
         .link {
             ForegroundColor(DSColor.chatAccent)
+            UnderlineStyle(.single)
         }
         // NOTE: macOS RichMarkdownView と同方針。折り返した箇条書き項目の折り返し行が次項目と
         // 重なって潰れるのを防ぐため、list 項目に限定して縦サイズを確保する（table には波及しない）。
@@ -59,36 +61,51 @@ public struct DSMarkdownText: View {
         }
         .heading1 { configuration in
             configuration.label
+                .markdownTextStyle {
+                    FontWeight(.bold)
+                    FontSize(.em(2))
+                }
                 .fixedSize(horizontal: false, vertical: true)
         }
         .heading2 { configuration in
             configuration.label
+                .markdownTextStyle {
+                    FontWeight(.bold)
+                    FontSize(.em(1.5))
+                }
                 .fixedSize(horizontal: false, vertical: true)
         }
         .heading3 { configuration in
             configuration.label
+                .markdownTextStyle {
+                    FontWeight(.semibold)
+                    FontSize(.em(20.0 / 17.0))
+                }
                 .fixedSize(horizontal: false, vertical: true)
         }
         .heading4 { configuration in
             configuration.label
+                .markdownTextStyle { FontWeight(.semibold) }
                 .fixedSize(horizontal: false, vertical: true)
         }
         .heading5 { configuration in
             configuration.label
+                .markdownTextStyle { FontWeight(.semibold) }
                 .fixedSize(horizontal: false, vertical: true)
         }
         .heading6 { configuration in
             configuration.label
+                .markdownTextStyle { FontWeight(.semibold) }
                 .fixedSize(horizontal: false, vertical: true)
         }
         .table { configuration in
             configuration.label
-                .markdownTableBorderStyle(TableBorderStyle(color: .clear, width: 0))
+                .markdownTableBorderStyle(TableBorderStyle(color: DSColor.border, width: 1))
                 .markdownTableBackgroundStyle(
                     .alternatingRows(
+                        DSColor.fillSubtle,
                         Color.clear,
-                        Color.clear,
-                        header: Color.clear
+                        header: DSColor.fillSelected
                     )
                 )
                 .markdownMargin(top: DSSpacing.s, bottom: DSSpacing.s)
@@ -103,8 +120,8 @@ public struct DSMarkdownText: View {
                     ForegroundColor(DSColor.chatTextPrimary)
                     BackgroundColor(nil)
                 }
-                .padding(.vertical, DSSpacing.xs)
-                .padding(.horizontal, DSSpacing.s)
+                .padding(.vertical, DSSpacing.s)
+                .padding(.horizontal, DSSpacing.m)
         }
     }
 }
@@ -211,7 +228,7 @@ private struct HorizontallyScrollableMarkdownTable: View {
     let markdown: String
     let theme: Theme
     @State private var containerWidth: CGFloat = 0
-    @ScaledMetric(relativeTo: .body) private var bodyLineSpacing: CGFloat = 9.35
+    @ScaledMetric(relativeTo: .subheadline) private var bodyLineSpacing = DSSpacing.xs
 
     var body: some View {
         let contentWidth = MarkdownTableWidthEstimator.contentWidth(
@@ -221,7 +238,7 @@ private struct HorizontallyScrollableMarkdownTable: View {
         ScrollView(.horizontal, showsIndicators: true) {
             Markdown(markdown)
                 .markdownTheme(theme)
-                .font(DSFont.body)
+                .font(DSFont.subheadline)
                 .lineSpacing(bodyLineSpacing)
                 .frame(width: contentWidth, alignment: .leading)
         }

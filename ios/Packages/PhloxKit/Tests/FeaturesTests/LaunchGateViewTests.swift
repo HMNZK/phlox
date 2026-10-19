@@ -30,6 +30,11 @@ final class LaunchGateViewTests: XCTestCase {
         XCTAssertEqual(LaunchGateCopy.passcodeFallback, "パスコードを使用")
     }
 
+    func testUnlockTitleOffersRetryOnlyAfterAuthenticationFailure() {
+        XCTAssertEqual(LaunchGateCopy.unlockTitle(authenticationFailed: false), "Face ID で解除")
+        XCTAssertEqual(LaunchGateCopy.unlockTitle(authenticationFailed: true), "もう一度 Face ID")
+    }
+
     func testLogoMetricsMatchCamp() {
         XCTAssertEqual(LaunchGateMetrics.logoSize, 84)
         XCTAssertEqual(LaunchGateMetrics.logoCornerRadius, 22)

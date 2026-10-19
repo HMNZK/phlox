@@ -165,6 +165,8 @@ public final class NewChatViewModel {
     public var isModelPickerPresented = false
 
     public var isSending: Bool { progressStage != .idle }
+    public var canEditDraft: Bool { !isSending && !hasCreatedSession }
+    public var showsSubmittedConversation: Bool { isSending || hasCreatedSession }
 
     public var selectedProject: NewChatProject? {
         projects.first(where: { $0.id == selectedProjectID })
@@ -353,39 +355,52 @@ public final class NewChatViewModel {
         attachmentError = ImageAttachmentLimits.countMessage
     }
 
-    public func attachmentLoadFailed() {
-        attachmentError = "画像を読み込めませんでした"
+    public func addAttachments(_ candidates: [SendAttachment]) async {
+        await addAttachmentLoadResults(candidates.map { .success($0) })
     }
 
-    public func addAttachments(_ candidates: [SendAttachment]) async {
+    public func addAttachmentLoadResults(_ candidates: [Result<SendAttachment, Error>]) async {
         guard !candidates.isEmpty else { return }
-        attachmentError = nil
-        guard attachmentItems.count + candidates.count <= ImageAttachmentLimits.maxCount else {
-            attachmentError = ImageAttachmentLimits.countMessage
-            return
-        }
-        guard candidates.allSatisfy({ $0.data.count <= ImageAttachmentLimits.maxInputBytes }) else {
-            attachmentError = ImageAttachmentLimits.inputSizeMessage
-            return
-        }
-        let total = attachmentItems.reduce(0) { $0 + $1.send.data.count } + candidates.reduce(0) { $0 + $1.data.count }
-        guard total <= ImageAttachmentLimits.maxTotalInputBytes else {
-            attachmentError = ImageAttachmentLimits.inputTotalMessage
-            return
-        }
-
         let previews = await Task.detached(priority: .userInitiated) {
-            candidates.map { ImageAttachmentPreparer.preview($0.data) ?? Data() }
+            candidates.map { candidate in
+                Result { try ImageAttachmentPreparer.validatedPreview(try candidate.get().data) }
+            }
         }.value
+        attachmentError = nil
+        var total = attachmentItems.reduce(0) { $0 + $1.send.data.count }
         var numbers = attachmentItems.map(\.number)
-        for (index, candidate) in candidates.enumerated() {
+        for (index, result) in candidates.enumerated() {
+            guard case .success(let candidate) = result else {
+                attachmentError = attachmentError ?? "画像を読み込めませんでした"
+                continue
+            }
+            guard attachmentItems.count < ImageAttachmentLimits.maxCount else {
+                attachmentError = attachmentError ?? ImageAttachmentLimits.countMessage
+                continue
+            }
+            guard candidate.data.count <= ImageAttachmentLimits.maxInputBytes else {
+                attachmentError = attachmentError ?? ImageAttachmentLimits.inputSizeMessage
+                continue
+            }
+            guard total + candidate.data.count <= ImageAttachmentLimits.maxTotalInputBytes else {
+                attachmentError = attachmentError ?? ImageAttachmentLimits.inputTotalMessage
+                continue
+            }
+            let preview: Data
+            switch previews[index] {
+            case .success(let data): preview = data
+            case .failure(let error):
+                attachmentError = attachmentError ?? Self.attachmentFailureMessage(error)
+                continue
+            }
+            total += candidate.data.count
             let number = ComposerImagePlaceholder.nextNumber(after: numbers)
             numbers.append(number)
             let mediaType = Self.normalizedMediaType(candidate)
             attachmentItems.append(.init(
                 number: number,
                 send: SendAttachment(mediaType: mediaType, data: candidate.data),
-                previewData: previews[index]
+                previewData: preview
             ))
             let inserted = ComposerImagePlaceholder.inserting(
                 number: number,
@@ -439,7 +454,7 @@ public final class NewChatViewModel {
     }
 
     public func send(onCreated: @escaping (Session, SessionDetailRecovery?) -> Void) async {
-        guard !isSending else { return }
+        guard !isSending, !hasCreatedSession else { return }
         guard let project = selectedProject else {
             projectValidationMessage = "プロジェクトを選んでください"
             focusRequest &+= 1
@@ -450,15 +465,17 @@ public final class NewChatViewModel {
         projectValidationMessage = nil
         creationErrorPresentation = nil
         attachmentError = nil
-        transition(to: .creating)
         let backupText = inputText
         let backupItems = attachmentItems
+        submittedText = backupText
+        readyWaitSeconds = 0
+        transition(to: .creating)
 
         let prepared: [PreparedImageAttachment]
         do {
             prepared = try await ImageAttachmentPreparer.prepare(backupItems.map { $0.send.data })
         } catch {
-            attachmentError = "画像を読み込めませんでした"
+            attachmentError = Self.attachmentFailureMessage(error)
             transition(to: .idle)
             return
         }
@@ -499,10 +516,11 @@ public final class NewChatViewModel {
             planMode: planMode,
             projectKey: project.id
         )
-        submittedText = backupText
-        inputText = ""
-        inputCursorUTF16 = 0
-        attachmentItems = []
+        if inputText == backupText, attachmentItems.map(\.id) == backupItems.map(\.id) {
+            inputText = ""
+            inputCursorUTF16 = 0
+            attachmentItems = []
+        }
         transition(to: .waiting)
         readyWaitSeconds = 0
         let timer = Task { @MainActor in
@@ -548,12 +566,16 @@ public final class NewChatViewModel {
         }
     }
 
-    func seedProgressForSnapshot(text: String, waitSeconds: Int = 4) {
+    func seedProgressForSnapshot(
+        text: String,
+        waitSeconds: Int = 4,
+        stage: NewChatProgressStage = .waiting
+    ) {
         submittedText = text
         inputText = ""
         inputCursorUTF16 = 0
-        hasCreatedSession = true
-        transition(to: .waiting)
+        hasCreatedSession = stage != .creating
+        transition(to: stage)
         readyWaitSeconds = waitSeconds
     }
 
@@ -578,6 +600,9 @@ public final class NewChatViewModel {
     private func transition(to stage: NewChatProgressStage) {
         progressStage = stage
         progressHistory.append(stage)
+        if stage == .idle, !hasCreatedSession {
+            submittedText = nil
+        }
     }
 
     private func effortOptions(for kind: AgentKind, modelID: String?) -> [AgentSettingOption] {
@@ -634,6 +659,10 @@ public final class NewChatViewModel {
         if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return "image/png" }
         if data.starts(with: [0xFF, 0xD8]) { return "image/jpeg" }
         return candidate.mediaType
+    }
+
+    private static func attachmentFailureMessage(_ error: Error) -> String {
+        (error as? ImageAttachmentPreparationError)?.errorDescription ?? "画像を読み込めませんでした"
     }
 
     private static func spawnFailureReason(_ error: Error) -> String {

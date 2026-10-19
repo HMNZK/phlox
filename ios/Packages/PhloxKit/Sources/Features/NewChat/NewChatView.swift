@@ -1,7 +1,7 @@
-import SwiftUI
 import AgentDomain
 import DesignSystemIOS
 import PhloxCore
+import SwiftUI
 
 /// 新規チャットの作成画面。画面を開くたびに見出しを選び、入力欄へフォーカスする。
 public struct NewChatView: View {
@@ -27,43 +27,49 @@ public struct NewChatView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            if viewModel.hasCreatedSession {
-                createdConversation
-                Spacer(minLength: 12)
-            } else {
-                Spacer(minLength: 12)
-                greetingView
-                    .padding(.bottom, 20)
-                Spacer(minLength: 12)
-            }
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    if viewModel.showsSubmittedConversation {
+                        createdConversation
+                        Spacer(minLength: 12)
+                    } else {
+                        Spacer(minLength: 12)
+                        greetingView
+                            .padding(.bottom, 20)
+                        Spacer(minLength: 12)
+                    }
 
-            if viewModel.progressStage == .idle {
-                suggestionRow
-                    .padding(.bottom, 10)
-            }
+                    if viewModel.progressStage == .idle {
+                        suggestionRow
+                            .padding(.bottom, 10)
+                    }
 
-            if let presentation = viewModel.creationErrorPresentation {
-                catalogError(presentation)
-                    .padding(.bottom, 8)
-            } else if let message = viewModel.projectValidationMessage {
-                errorLine(message)
-                    .padding(.bottom, 8)
-            }
+                    if let presentation = viewModel.creationErrorPresentation {
+                        catalogError(presentation)
+                            .padding(.bottom, 8)
+                    } else if let message = viewModel.projectValidationMessage {
+                        errorLine(message)
+                            .padding(.bottom, 8)
+                    }
 
-            inputBar
-            if let usageViewModel, usageViewModel.shouldShowRow {
-                UsageRingRow(viewModel: usageViewModel)
-                    .padding(.horizontal, DSSpacing.xl)
-                    .padding(.top, DSSpacing.xs)
+                    inputBar
+                    if let usageViewModel, usageViewModel.shouldShowRow {
+                        UsageRingRow(viewModel: usageViewModel)
+                            .padding(.horizontal, DSSpacing.xl)
+                            .padding(.top, DSSpacing.xs)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                .padding(.top, 8)
             }
+            .defaultScrollAnchor(.bottom)
+            .scrollDismissesKeyboard(.interactively)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.top, 8)
         .background(IOSColor.bg.base.ignoresSafeArea())
         .navigationTitle("")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
         .sheet(isPresented: modelPickerBinding) {
             NewChatModelPickerSheet(
@@ -73,12 +79,9 @@ public struct NewChatView: View {
                 onSelect: viewModel.selectModel(entryID:),
                 onDismiss: { viewModel.isModelPickerPresented = false }
             )
-            .padding(.horizontal, 16)
-            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
-            .presentationBackground(.clear)
+            .presentationBackground(IOSColor.bg.sheet)
             .presentationCornerRadius(32)
-            .presentationDetents([.height(680)])
+            .presentationDetents([.height(680), .large])
             .presentationDragIndicator(.visible)
         }
         .task {
@@ -98,6 +101,9 @@ public struct NewChatView: View {
             .tracking(-0.1)
             .foregroundStyle(DSColor.textPrimary)
             .lineLimit(2)
+            .minimumScaleFactor(0.7)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 24)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier("newChat.greeting")
@@ -106,14 +112,20 @@ public struct NewChatView: View {
     private var createdConversation: some View {
         VStack(alignment: .leading, spacing: DSSpacing.m) {
             if let text = viewModel.submittedText {
-                Text(verbatim: text)
-                    .font(DSFont.body)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(DSSpacing.l)
-                    .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
+                HStack {
+                    Spacer(minLength: 36)
+                    Text(verbatim: text)
+                        .font(DSFont.body)
+                        .foregroundStyle(IOSColor.text.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(IOSColor.bg.fill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
             }
-            creationProgressCard
+            if viewModel.isSending {
+                creationProgressCard
+            }
         }
         .padding(.horizontal, DSSpacing.l)
         .padding(.top, 24)
@@ -121,47 +133,76 @@ public struct NewChatView: View {
     }
 
     private var creationProgressCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline) {
-                Text("作成しました")
-                    .font(DSFont.body.weight(.semibold))
-                    .foregroundStyle(IOSColor.status.success)
+                Text(viewModel.progressStage == .creating ? "セッションを作成しています…" : "作成しました")
+                    .font(DSFont.subheadline.weight(.semibold))
+                    .foregroundStyle(viewModel.progressStage == .creating ? DSColor.textPrimary : IOSColor.status.success)
                 Spacer()
+                if viewModel.progressStage == .creating {
+                    ProgressView()
+                        .tint(IOSColor.text.tertiary)
+                }
                 Text("\(viewModel.selectedProject?.name ?? "プロジェクト") · \(viewModel.selectedModelDisplayName)")
                     .font(DSFont.subheadline)
                     .foregroundStyle(IOSColor.text.secondary)
                     .lineLimit(1)
-            }
+            }.frame(minHeight: 36)
 
             HStack {
-                Text("準備ができるのを待っています…")
-                    .font(DSFont.body.weight(.semibold))
-                    .foregroundStyle(DSColor.textPrimary)
+                Text(readinessTitle)
+                    .font(DSFont.subheadline.weight(.semibold))
+                    .foregroundStyle(viewModel.progressStage == .creating ? IOSColor.text.secondary : DSColor.textPrimary)
                 Spacer(minLength: 8)
-                ProgressView()
-                    .tint(IOSColor.text.tertiary)
-                Text("\(viewModel.readyWaitSeconds) 秒")
-                    .font(DSFont.subheadline)
-                    .foregroundStyle(IOSColor.text.secondary)
-                    .fixedSize()
-            }
+                if viewModel.progressStage == .waiting {
+                    ProgressView()
+                        .tint(IOSColor.text.tertiary)
+                    Text("\(viewModel.readyWaitSeconds) 秒")
+                        .font(DSFont.subheadline)
+                        .foregroundStyle(IOSColor.text.secondary)
+                        .fixedSize()
+                } else if viewModel.progressStage == .sending {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(IOSColor.status.success)
+                        .accessibilityHidden(true)
+                } else {
+                    Text("作成できたら")
+                        .font(DSFont.subheadline)
+                        .foregroundStyle(IOSColor.text.secondary)
+                }
+            }.frame(minHeight: 36)
 
             HStack {
-                Text("指示を送る")
-                    .font(DSFont.body)
-                    .foregroundStyle(IOSColor.text.secondary)
-                Spacer()
-                Text("準備ができたら")
+                Text(viewModel.progressStage == .sending ? "指示を送っています…" : "指示を送る")
                     .font(DSFont.subheadline)
-                    .foregroundStyle(IOSColor.text.secondary)
-            }
+                    .foregroundStyle(viewModel.progressStage == .sending ? DSColor.textPrimary : IOSColor.text.secondary)
+                Spacer()
+                if viewModel.progressStage == .sending {
+                    ProgressView()
+                        .tint(IOSColor.text.tertiary)
+                } else {
+                    Text("準備ができたら")
+                        .font(DSFont.subheadline)
+                        .foregroundStyle(IOSColor.text.secondary)
+                }
+            }.frame(minHeight: 36)
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColor.surface, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
+        .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(IOSColor.bg.separator, lineWidth: 1)
+        }
+    }
+
+    private var readinessTitle: String {
+        switch viewModel.progressStage {
+        case .creating: "準備を待つ"
+        case .waiting: "準備ができるのを待っています…"
+        case .sending: "準備ができました"
+        case .idle: "準備を待つ"
         }
     }
 
@@ -173,23 +214,23 @@ public struct NewChatView: View {
                         viewModel.appendSuggestion(index)
                     } label: {
                         Text(verbatim: suggestion.title)
-                            .font(DSFont.body)
+                            .font(DSFont.subheadline.weight(.medium))
                             .lineLimit(1)
-                        .foregroundStyle(IOSColor.text.primary)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: DSTouch.minSize)
-                        .background(DSColor.surface, in: Capsule())
-                        .overlay(Capsule().strokeBorder(IOSColor.bg.separator, lineWidth: 1))
+                            .foregroundStyle(IOSColor.text.primary)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : 40)
+                            .background(IOSColor.bg.card, in: Capsule())
+                            .overlay(Capsule().strokeBorder(IOSColor.bg.separator, lineWidth: 1))
+                            .contentShape(Rectangle().inset(by: -2))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DSPressFeedbackStyle())
                     .accessibilityLabel("提案: \(suggestion.title)。入力欄に追記します")
                     .accessibilityIdentifier("newChat.suggestion.\(index + 1)")
                 }
             }
-            .padding(.horizontal, DSSpacing.s)
+            .padding(.horizontal, 16)
         }
         .contentMargins(.zero, for: .scrollContent)
-        .padding(.horizontal, DSSpacing.m)
         .accessibilityElement(children: .contain)
     }
 
@@ -227,10 +268,9 @@ public struct NewChatView: View {
                 },
                 attachmentError: viewModel.attachmentError,
                 maxAttachments: ImageAttachmentLimits.maxCount,
-                onAddAttachments: { candidates in Task { await viewModel.addAttachments(candidates) } },
+                onAddAttachments: { results in Task { await viewModel.addAttachmentLoadResults(results) } },
                 onRemoveAttachment: viewModel.removeAttachment(at:),
                 onAttachmentLimitReached: viewModel.attachmentLimitReached,
-                onAttachmentLoadFailure: viewModel.attachmentLoadFailed,
                 mode: .newChat,
                 model: (viewModel.selectedAgent, viewModel.selectedModelDisplayName),
                 onSelectModel: { viewModel.isModelPickerPresented = true },
@@ -244,6 +284,7 @@ public struct NewChatView: View {
             ) {
                 Task { await viewModel.send(onCreated: onCreated) }
             }
+            .disabled(!viewModel.canEditDraft)
             .onChange(of: viewModel.inputText) { oldValue, newValue in
                 viewModel.syncAttachmentsWithTextEdit(oldText: oldValue, newText: newValue)
             }
@@ -251,11 +292,17 @@ public struct NewChatView: View {
     }
 
     private var inputTextBinding: Binding<String> {
-        Binding(get: { viewModel.inputText }, set: { viewModel.inputText = $0 })
+        Binding(get: { viewModel.inputText }, set: {
+            guard viewModel.canEditDraft else { return }
+            viewModel.inputText = $0
+        })
     }
 
     private var inputCursorBinding: Binding<Int> {
-        Binding(get: { viewModel.inputCursorUTF16 }, set: { viewModel.inputCursorUTF16 = $0 })
+        Binding(get: { viewModel.inputCursorUTF16 }, set: {
+            guard viewModel.canEditDraft else { return }
+            viewModel.inputCursorUTF16 = $0
+        })
     }
 
     private var modelPickerBinding: Binding<Bool> {
@@ -264,39 +311,39 @@ public struct NewChatView: View {
 
     private func errorLine(_ message: String) -> some View {
         Text(verbatim: message)
-            .font(DSFont.captionStrong)
+            .font(DSFont.inputBar(.error, for: dynamicTypeSize).weight(.semibold))
             .foregroundStyle(IOSColor.status.error)
-            .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DSSpacing.m)
+            .padding(.horizontal, 24)
             .accessibilityAddTraits(.isStaticText)
     }
 
     private func catalogError(_ presentation: ErrorPresentation) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(presentation.title)
-                .font(DSFont.captionStrong)
+                .font(DSFont.inputBar(.error, for: dynamicTypeSize).weight(.semibold))
                 .foregroundStyle(presentation.isNeutral ? IOSColor.text.primary : IOSColor.status.error)
+                .fixedSize(horizontal: false, vertical: true)
             Text(presentation.cause)
-                .font(DSFont.caption)
+                .font(DSFont.iosCaption2)
                 .foregroundStyle(IOSColor.text.primary)
                 .fixedSize(horizontal: false, vertical: true)
             if !presentation.nextStep.isEmpty {
                 Text(presentation.nextStep)
-                    .font(DSFont.caption)
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(IOSColor.text.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let technicalDetail = presentation.technicalDetail {
-                Text(technicalDetail)
+                Text("（\(technicalDetail)）")
                     .font(DSFont.campMonoCaption)
                     .foregroundStyle(IOSColor.text.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, DSSpacing.m)
+        .padding(.horizontal, 24)
         .accessibilityElement(children: .combine)
     }
 }
@@ -311,85 +358,43 @@ private struct NewChatModelPickerSheet: View {
     @State private var searchText = ""
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                HStack(spacing: DSSpacing.s) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(IOSColor.text.secondary)
-                    TextField("絞り込み", text: $searchText)
-                    #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    #endif
-                        .accessibilityLabel("モデルを絞り込む")
-                }
-                .font(DSFont.body)
-                .padding(.horizontal, DSSpacing.m)
-                .frame(height: 40)
-                .background(DSColor.fillSubtle, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding(.horizontal, DSSpacing.l)
-                .padding(.top, DSSpacing.s)
-
-                List {
-                    ForEach(sections) { section in
-                        Section {
-                            if section.isUnavailable {
-                                Text("取得できません")
-                                    .font(DSFont.body)
-                                    .foregroundStyle(IOSColor.text.secondary)
-                                    .accessibilityAddTraits(.isStaticText)
-                            } else if filteredModels(in: section).isEmpty {
-                                Text(searchText.isEmpty ? "モデルがありません" : "該当するモデルがありません")
-                                    .font(DSFont.body)
-                                    .foregroundStyle(IOSColor.text.secondary)
-                            } else {
-                                ForEach(filteredModels(in: section)) { model in
-                                    modelButton(kind: section.kind, model: model)
-                                        .listRowInsets(EdgeInsets(
-                                            top: 0,
-                                            leading: DSSpacing.m,
-                                            bottom: 0,
-                                            trailing: DSSpacing.m
-                                        ))
+        ModelSelectionSheet(
+            title: "モデル",
+            searchText: $searchText,
+            explanation: "モデルを選ぶと、エージェントもそのモデルのものに切り替わります",
+            onDismiss: onDismiss
+        ) {
+            ForEach(sections) { section in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        DSAgentBrandIcon(kind: section.kind, size: 16)
+                        Text(section.kind.displayName)
+                            .font(DSFont.subheadline.weight(.semibold))
+                            .foregroundStyle(IOSColor.text.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 0) {
+                        if section.isUnavailable {
+                            Text("取得できません")
+                                .font(DSFont.body)
+                                .foregroundStyle(IOSColor.text.secondary)
+                                .accessibilityAddTraits(.isStaticText)
+                        } else if filteredModels(in: section).isEmpty {
+                            Text(searchText.isEmpty ? "モデルがありません" : "該当するモデルがありません")
+                                .font(DSFont.body)
+                                .foregroundStyle(IOSColor.text.secondary)
+                        } else {
+                            ForEach(filteredModels(in: section)) { model in
+                                modelButton(kind: section.kind, model: model)
+                                if model.id != filteredModels(in: section).last?.id {
+                                    Divider()
                                 }
                             }
-                        } header: {
-                            HStack(spacing: DSSpacing.s) {
-                                DSAgentBrandIcon(kind: section.kind, size: 18)
-                                Text(section.kind.displayName)
-                            }
-                            .textCase(nil)
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .background(IOSColor.bg.card, in: RoundedRectangle(cornerRadius: 18))
                 }
-                #if os(iOS)
-                .listStyle(.insetGrouped)
-                #else
-                .listStyle(.inset)
-                #endif
-                .scrollContentBackground(.hidden)
-            }
-            .background(IOSColor.bg.base)
-            .navigationTitle("モデル")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる", action: onDismiss)
-                        .font(DSFont.body.weight(.semibold))
-                        .foregroundStyle(IOSColor.text.primary)
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                Text("モデルを選ぶと、エージェントもそのモデルのものに切り替わります")
-                    .font(DSFont.caption)
-                    .foregroundStyle(IOSColor.text.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, DSSpacing.l)
-                    .padding(.top, DSSpacing.s)
-                    .padding(.bottom, DSSpacing.m)
-                    .background(.regularMaterial)
             }
         }
     }
@@ -413,27 +418,26 @@ private struct NewChatModelPickerSheet: View {
                 Text(verbatim: model.displayName)
                     .font(DSFont.body.weight(selected ? .semibold : .regular))
                     .foregroundStyle(IOSColor.text.primary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: DSSpacing.s)
                 if isDefault {
                     Text("既定")
-                        .font(DSFont.captionStrong)
+                        .font(DSFont.iosCaption2.weight(.medium))
                         .foregroundStyle(IOSColor.text.secondary)
                         .padding(.horizontal, DSSpacing.s)
                         .padding(.vertical, 2)
                         .background(DSColor.fillSubtle, in: Capsule())
                 }
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(DSFont.body.weight(.semibold))
-                        .foregroundStyle(IOSColor.accent)
-                }
+                Image(systemName: "checkmark")
+                    .font(DSFont.body.weight(.semibold))
+                    .foregroundStyle(IOSColor.accent)
+                    .opacity(selected ? 1 : 0)
+                    .accessibilityHidden(true)
             }
             .frame(minHeight: DSTouch.minSize)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .listRowBackground(DSColor.surface)
+        .buttonStyle(DSPressFeedbackStyle())
         .accessibilityLabel("\(model.displayName)\(isDefault ? "、既定" : "")\(selected ? "、選択中" : "")")
     }
 }

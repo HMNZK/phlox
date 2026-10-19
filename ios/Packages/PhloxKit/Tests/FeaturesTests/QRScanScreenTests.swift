@@ -76,20 +76,27 @@ struct QRScanScreenTests {
 
     @Test("P1 から P5 はカタログの文言・順序・技術値を使う")
     func pairingErrorsHaveCatalogCopy() {
+        let scannedInputs = [
+            "https://company.example/login",
+            "phlox://pair?v=2",
+            "phlox://pair?v=1&port=8765&token=\(validToken)",
+            "phlox://pair?v=1&host=mac&port=99999&token=\(validToken)",
+            "phlox://pair?v=1&host=mac&port=8765&token=invalid",
+        ]
         let cases: [(PairingPayloadError, String, String, String, String)] = [
             (
                 .notPairingURL,
                 "ペアリング用の QR ではありません",
                 "読み取った QR は Phlox の接続用ではありません。",
                 "Mac の Phlox が表示したペアリング用の QR を読み取ってください。",
-                "https://example.com/menu"
+                "https://company.example"
             ),
             (
                 .unsupportedVersion("2"),
                 "この QR の版には対応していません",
                 "QR の版（v）が無いか、このアプリが読めない版です。",
                 "iPhone と Mac の Phlox を両方とも最新にしてから、QR を表示し直してください。",
-                "phlox://pair?v=2&host=…"
+                "phlox://pair?v=2"
             ),
             (
                 .missingHost,
@@ -103,7 +110,7 @@ struct QRScanScreenTests {
                 "ポート番号が正しくありません",
                 "QR の中のポート番号が、使える範囲（1〜65535）にありません。",
                 "Mac の Phlox の設定でポートを確かめ、QR を表示し直してください。",
-                "port=99999"
+                "phlox://pair?v=1&host=mac&port=99999&token=…"
             ),
             (
                 .invalidToken,
@@ -113,8 +120,9 @@ struct QRScanScreenTests {
                 "token=…（64 桁の小文字 16 進ではない）"
             ),
         ]
-        for (error, title, cause, nextStep, detail) in cases {
-            let presentation = QRScanCopy.presentation(for: error)
+        for (index, entry) in cases.enumerated() {
+            let (error, title, cause, nextStep, detail) = entry
+            let presentation = QRScanCopy.presentation(for: error, scannedString: scannedInputs[index])
             #expect(presentation.title == title)
             #expect(presentation.cause == cause)
             #expect(presentation.nextStep == nextStep)
@@ -122,6 +130,28 @@ struct QRScanScreenTests {
             #expect(presentation.recoveryAction == "もう一度スキャン")
             #expect(presentation.isNeutral == false)
         }
+    }
+
+    @Test("QRエラーは実入力の接続値を使い、資格情報と未知の項目を表示しない")
+    func pairingDetailsUseScannedInputWithoutSecrets() {
+        let missingHost = "phlox://pair?v=1&port=9123&token=\(validToken)&name=secret-name&password=secret#secret-fragment"
+        #expect(QRScanCopy.presentation(for: .missingHost, scannedString: missingHost).technicalDetail
+            == "phlox://pair?v=1&port=9123&token=…")
+        let invalidPort = "phlox://pair?v=1&host=mac.example&port=70000&token=\(validToken)"
+        #expect(QRScanCopy.presentation(for: .invalidPort, scannedString: invalidPort).technicalDetail
+            == "phlox://pair?v=1&host=mac.example&port=70000&token=…")
+        let notPairing = "https://user:password@company.example/private-secret?token=secret&key=secret#secret"
+        #expect(QRScanCopy.presentation(for: .notPairingURL, scannedString: notPairing).technicalDetail
+            == "https://company.example")
+        let version = "phlox://pair?v=3&v=4&host=mac&port=9123&token=\(validToken)"
+        #expect(QRScanCopy.presentation(for: .unsupportedVersion("3"), scannedString: version).technicalDetail
+            == "phlox://pair?v=3&host=mac&port=9123&token=…")
+        let malicious = "phlox://pair?v=secret%26token%3Dprivate&host=secret%40private&port=secret&token=\(validToken)"
+        #expect(QRScanCopy.presentation(for: .unsupportedVersion("secret&token=private"), scannedString: malicious).technicalDetail
+            == "phlox://pair?v=…&host=…&port=…&token=…")
+        #expect(QRScanCopy.presentation(for: .notPairingURL, scannedString: "secret").technicalDetail == nil)
+        #expect(QRScanCopy.presentation(for: .invalidToken, scannedString: validURL).technicalDetail
+            == "token=…（64 桁の小文字 16 進ではない）")
     }
 
     @Test("P6 と K1 はカタログどおりの文言・操作を持つ")

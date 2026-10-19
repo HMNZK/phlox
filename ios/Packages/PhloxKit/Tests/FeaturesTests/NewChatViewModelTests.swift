@@ -272,6 +272,95 @@ struct NewChatViewModelTests {
         #expect(viewModel.inputText.isEmpty)
     }
 
+    @Test("作成応答待ちから発言と進捗を表示し、送信本文を凍結する")
+    func pendingSpawnShowsFrozenSubmission() async throws {
+        let (viewModel, api) = makeViewModel()
+        await viewModel.load()
+        viewModel.selectProject(id: project.id)
+        viewModel.inputText = "  最初の指示\n"
+        #expect(viewModel.canEditDraft)
+        await api.pauseNextSpawn()
+        var completed = false
+
+        let sending = Task { @MainActor in
+            await viewModel.send { _, _ in completed = true }
+        }
+        await api.waitForPausedSpawn()
+
+        #expect(viewModel.progressStage == .creating)
+        #expect(viewModel.showsSubmittedConversation)
+        #expect(viewModel.isSending)
+        #expect(!viewModel.canEditDraft)
+        #expect(!viewModel.hasCreatedSession)
+        #expect(viewModel.submittedText == "  最初の指示\n")
+        #expect(!completed)
+        viewModel.inputText = "後から変更した指示"
+        viewModel.inputCursorUTF16 = viewModel.inputText.utf16.count
+        #expect(viewModel.submittedText == "  最初の指示\n")
+        await viewModel.send { _, _ in Issue.record("作成待ちの二重送信では遷移しない") }
+        #expect(await api.events == ["spawn"])
+
+        await api.resumeSpawn()
+        await sending.value
+
+        let request = try #require(await api.lastSendRequest)
+        #expect(request.text == "最初の指示")
+        #expect(completed)
+        #expect(viewModel.hasCreatedSession)
+        #expect(viewModel.progressStage == .idle)
+        #expect(!viewModel.canEditDraft)
+        #expect(viewModel.inputText == "後から変更した指示")
+        #expect(viewModel.inputCursorUTF16 == "後から変更した指示".utf16.count)
+    }
+
+    @Test("作成待ちで失敗したら発言表示を閉じ、下書きと添付を再送できる")
+    func pendingSpawnFailurePreservesDraftForRetry() async throws {
+        let (viewModel, api) = makeViewModel()
+        await viewModel.load()
+        viewModel.selectProject(id: project.id)
+        await viewModel.addAttachments([Self.pngAttachment])
+        viewModel.inputText += "元の指示"
+        let original = viewModel.inputText
+        let originalItems = viewModel.attachmentItems
+        await api.pauseNextSpawn()
+
+        let sending = Task { @MainActor in
+            await viewModel.send { _, _ in Issue.record("作成失敗では遷移しない") }
+        }
+        await api.waitForPausedSpawn()
+        #expect(viewModel.showsSubmittedConversation)
+        #expect(!viewModel.canEditDraft)
+        #expect(viewModel.submittedText == original)
+        await api.resumeSpawn(with: .failure(.spawnRejected(reason: "workspace is locked")))
+        await sending.value
+
+        #expect(viewModel.progressStage == .idle)
+        #expect(!viewModel.showsSubmittedConversation)
+        #expect(!viewModel.hasCreatedSession)
+        #expect(viewModel.canEditDraft)
+        #expect(viewModel.submittedText == nil)
+        #expect(viewModel.inputText == original)
+        #expect(viewModel.attachmentItems.map(\.id) == originalItems.map(\.id))
+        #expect(viewModel.creationErrorPresentation?.technicalDetail == "workspace is locked")
+        #expect(await api.events == ["spawn"])
+
+        viewModel.inputText += "を再送"
+        let retriedText = viewModel.inputText
+        var completed = false
+        await viewModel.send { _, recovery in
+            #expect(recovery == nil)
+            completed = true
+        }
+
+        let request = try #require(await api.lastSendRequest)
+        #expect(completed)
+        #expect(viewModel.submittedText == retriedText)
+        #expect(viewModel.creationErrorPresentation == nil)
+        #expect(request.text == retriedText.trimmingCharacters(in: .whitespacesAndNewlines))
+        #expect(request.images.count == 1)
+        #expect(await api.events == ["spawn", "spawn", "ready:new-session", "send:new-session"])
+    }
+
     @Test("nil の設定は SpawnRequest でも nil のまま")
     func spawnKeepsUnavailableOptionalSettingsNil() async throws {
         let (viewModel, api) = makeViewModel(settings: [:])
@@ -305,17 +394,17 @@ struct NewChatViewModelTests {
         #expect(await api.events == ["spawn"])
     }
 
-    @Test("画像の準備失敗は A5 の文言を出し、セッションを作らない")
-    func imagePreparationFailureUsesCatalogCopy() async {
+    @Test("読めない画像は受理時に A5 を出し、本文を保持し、セッションを作らない")
+    func unreadableImageUsesCatalogCopyAtIntake() async {
         let (viewModel, api) = makeViewModel()
         await viewModel.load()
         viewModel.selectProject(id: project.id)
         viewModel.inputText = "この画像を見て"
         await viewModel.addAttachments([SendAttachment(mediaType: "image/png", data: Data([0x00]))])
 
-        await viewModel.send { _, _ in Issue.record("画像準備失敗では遷移しない") }
-
         #expect(viewModel.attachmentError == "画像を読み込めませんでした")
+        #expect(viewModel.attachmentItems.isEmpty)
+        #expect(viewModel.inputText == "この画像を見て")
         #expect(await api.events.isEmpty)
     }
 
@@ -354,6 +443,10 @@ struct NewChatViewModelTests {
         #expect(createdSession?.id == "new-session")
         #expect(restored.text == original)
         #expect(restored.attachments.map(\.number) == [1])
+        #expect(await api.events == ["spawn", "ready:new-session", "send:new-session"])
+
+        viewModel.inputText = original
+        await viewModel.send { _, _ in Issue.record("作成済みセッションを二重作成しない") }
         #expect(await api.events == ["spawn", "ready:new-session", "send:new-session"])
     }
 
@@ -463,6 +556,25 @@ private actor NewChatTestAPI: PhloxAPI {
     private(set) var events: [String] = []
     private(set) var lastSpawnRequest: SpawnRequest?
     private(set) var lastSendRequest: SendRequest?
+    private var pausesNextSpawn = false
+    private var spawnContinuation: CheckedContinuation<Void, Never>?
+    private var pausedSpawnObserver: CheckedContinuation<Void, Never>?
+    private var resumedSpawnOutcome: Result<Session, PhloxError>?
+
+    func pauseNextSpawn() {
+        pausesNextSpawn = true
+    }
+
+    func waitForPausedSpawn() async {
+        guard spawnContinuation == nil else { return }
+        await withCheckedContinuation { pausedSpawnObserver = $0 }
+    }
+
+    func resumeSpawn(with outcome: Result<Session, PhloxError>? = nil) {
+        resumedSpawnOutcome = outcome
+        spawnContinuation?.resume()
+        spawnContinuation = nil
+    }
 
     init(
         projects: [ProjectSummary]?,
@@ -494,6 +606,18 @@ private actor NewChatTestAPI: PhloxAPI {
     func spawn(_ request: SpawnRequest) async throws -> Session {
         events.append("spawn")
         lastSpawnRequest = request
+        if pausesNextSpawn {
+            pausesNextSpawn = false
+            await withCheckedContinuation { continuation in
+                spawnContinuation = continuation
+                pausedSpawnObserver?.resume()
+                pausedSpawnObserver = nil
+            }
+            if let outcome = resumedSpawnOutcome {
+                resumedSpawnOutcome = nil
+                return try outcome.get()
+            }
+        }
         return try spawnOutcome.get()
     }
     func waitUntilReady(sessionID: String) async throws -> Bool {

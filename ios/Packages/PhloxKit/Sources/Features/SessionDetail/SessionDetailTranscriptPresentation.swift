@@ -138,7 +138,7 @@ enum SessionDetailTranscriptPresentation {
         )
     }
 
-    static func turnUsageLine(costUSD: Double?, usage: TurnUsage?) -> String? {
+    static func turnUsageLine(costUSD: Double?, usage: TurnUsage?, isAccessibilitySize: Bool = false) -> String? {
         var parts: [String] = []
         if let costUSD {
             parts.append(formatCost(costUSD))
@@ -150,7 +150,7 @@ enum SessionDetailTranscriptPresentation {
             parts.append("コンテキスト \(percent)%")
         }
         guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: isAccessibilitySize ? "\n" : " · ")
     }
 
     private static func statusValue(_ rawValue: String) -> SubAgentStatus {

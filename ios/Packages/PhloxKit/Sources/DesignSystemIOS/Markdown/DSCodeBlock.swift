@@ -11,6 +11,7 @@ import AppKit
 public struct DSCodeBlock: View {
     private let language: String?
     private let code: String
+    @ScaledMetric(relativeTo: .footnote) private var codeLineSpacing = DSSpacing.xs
 
     public init(language: String?, code: String) {
         self.language = language
@@ -27,13 +28,13 @@ public struct DSCodeBlock: View {
                 Spacer(minLength: .zero)
 
                 Button(action: copyCode) {
-                    Image(systemName: "doc.on.doc")
+                    Label("コードをコピー", systemImage: "doc.on.doc")
                         .font(DSFont.sessionDetailSubtitle.weight(.medium))
                         .foregroundStyle(DSColor.chatTextSecondary)
-                        .frame(width: DSTouch.minSize, height: DSTouch.minSize)
+                        .frame(minWidth: DSTouch.minSize, minHeight: DSTouch.minSize)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DSPressFeedbackStyle())
                 .accessibilityLabel("コードをコピー")
                 .accessibilityIdentifier("DSCodeBlock.copyButton")
             }
@@ -46,8 +47,10 @@ public struct DSCodeBlock: View {
             ScrollView(.horizontal) {
                 highlightedText
                     .font(DSFont.sessionDetailTechnical)
+                    .lineSpacing(codeLineSpacing)
                     .textSelection(.enabled)
-                    .padding(DSSpacing.m)
+                    .padding(.horizontal, DSSpacing.m)
+                    .padding(.bottom, DSSpacing.s + DSSpacing.xxs)
                     .fixedSize(horizontal: true, vertical: false)
             }
         }

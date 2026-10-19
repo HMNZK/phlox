@@ -91,15 +91,26 @@ final class SessionDetailViewModelTests: XCTestCase {
     }
 
     func testImagePreparationFailureUsesA5CopyAndKeepsDraft() async {
-        let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
-        vm.inputText = "この画像を見て"
-        vm.addAttachments([SendAttachment(mediaType: "image/png", data: Data([0x00]))])
+        let api = MockAPI()
+        let restored = SessionDetailViewModel.SessionAttachmentItem(
+            number: 1,
+            send: SendAttachment(mediaType: "image/png", data: Data([0x00])),
+            previewData: Data()
+        )
+        // AC-6-18で新規の破損画像は受理時に拒否する。送信準備の防御は復元入力で検査する。
+        let vm = SessionDetailViewModel(
+            session: session(.idle), api: api,
+            recovery: .init(text: "[Image #1] この画像を見て", attachments: [restored], errorMessage: "再送")
+        )
 
         await vm.sendMessage()
 
         XCTAssertEqual(vm.attachmentError, "画像を読み込めませんでした")
         XCTAssertEqual(vm.inputText, "[Image #1] この画像を見て")
         XCTAssertEqual(vm.attachments.count, 1)
+        XCTAssertEqual(vm.attachmentItems, [restored])
+        let sendCount = await api.sendCount
+        XCTAssertEqual(sendCount, 0)
     }
 
     func testRateLimitedSendKeepsNeutralCatalogColorAndTechnicalDetail() async {
@@ -351,22 +362,27 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertNil(vm.attachmentError)
     }
 
-    func testAddAttachmentsRejectsOversizedBatchWithoutPartialAdoption() {
+    func testAddAttachmentsKeepsValidImageFromMixedBatch() {
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
-        vm.addAttachments([attachment(mib: 1), SendAttachment(mediaType: "image/png", data: paddedImage(bytes: 20_000_001))])
-        XCTAssertTrue(vm.attachments.isEmpty)
-        XCTAssertNotNil(vm.attachmentError)
+        vm.inputText = "本文"
+        vm.inputCursorUTF16 = vm.inputText.utf16.count
+        let valid = attachment(mib: 1)
+        vm.addAttachments([valid, SendAttachment(mediaType: "image/png", data: paddedImage(bytes: 20_000_001))])
+        XCTAssertEqual(vm.attachments, [valid])
+        XCTAssertEqual(vm.inputText, "本文 [Image #1] ")
+        XCTAssertEqual(vm.attachmentError, "画像は1枚あたり20MBまでです")
     }
 
-    func testAddAttachmentsRejectsFifthImageBatchWithoutPartialAdoption() {
+    func testAddAttachmentsKeepsFirstFourAndRejectsOnlyFifthImage() {
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
         vm.addAttachments([attachment(mib: 1), attachment(mib: 1), attachment(mib: 1), attachment(mib: 1), attachment(mib: 1)])
-        XCTAssertTrue(vm.attachments.isEmpty)
-        XCTAssertNotNil(vm.attachmentError)
+        XCTAssertEqual(vm.attachments.count, 4)
+        XCTAssertEqual(vm.attachmentItems.map(\.number), [1, 2, 3, 4])
+        XCTAssertEqual(vm.attachmentError, "画像は最大4枚までです。1枚20MB・合計80MBまで添付できます。")
     }
 
     func testAddAttachmentsRetainsDataWithoutEagerCopy() {
-        var data = Data(repeating: 0xAB, count: 1024 * 1024)
+        var data = paddedImage(bytes: 1024 * 1024)
         let attachment = SendAttachment(mediaType: "image/png", data: data)
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
         vm.addAttachments([attachment])
@@ -438,7 +454,7 @@ final class SessionDetailViewModelTests: XCTestCase {
     #endif
 
     func testAddAttachmentsCachesSmallPreviewSeparateFromSendPayload() {
-        let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] + Array(repeating: 0, count: 64))
+        let png = paddedImage(bytes: 1024 * 1024)
         let vm = SessionDetailViewModel(session: session(.idle), api: MockAPI())
         vm.addAttachments([SendAttachment(mediaType: "image/png", data: png)])
         XCTAssertEqual(vm.attachmentItems.count, 1)

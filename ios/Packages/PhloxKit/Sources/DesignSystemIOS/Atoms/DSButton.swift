@@ -104,7 +104,7 @@ public struct DSButton: View {
                     .strokeBorder(borderColor, lineWidth: borderWidth)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPressFeedbackStyle())
         .disabled(!isEnabled)
         .accessibilityLabel(Text(title))
         .accessibilityAddTraits(.isButton)
@@ -153,3 +153,19 @@ private struct OptionalAccessibilityIdentifier: ViewModifier {
     .padding(DSSpacing.l)
 }
 #endif
+
+public struct DSPressFeedbackStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.78 : 1)
+            .animation(
+                configuration.isPressed ? DSMotion.tapPress : DSMotion.tapRelease,
+                value: configuration.isPressed
+            )
+    }
+}

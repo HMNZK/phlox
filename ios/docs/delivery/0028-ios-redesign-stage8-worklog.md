@@ -169,4 +169,4 @@ last-verified: 2026-10-18
 - 描画テスト: `ios/PhloxMobileSnapshotTests/DesignSnapshotRenderTests.swift`。
 - 資料: `ios/docs/adr/0046-align-ios-with-mac.md`, `ios/docs/adr/0047-replace-xcuitest-with-render-tests.md`, `ios/docs/architecture/overview.md`, `ios/docs/delivery/README.md`, `ios/docs/specs/redesign-2026-10.md`、本記録。
 
-コミットはしていない。`.verification/ios-redesign-stage8a/` はログ・PNG・比較用画像を保持する。
+本記録の段階8aはユーザー承認後に `0c21a964` としてコミット済み。続きは [段階8bの記録](0029-ios-redesign-stage8b-worklog.md)。`.verification/ios-redesign-stage8a/` は比較の根拠としてログ・PNGを保持する。

@@ -13,4 +13,17 @@ public enum DSMotion {
     public static let tapPress = Animation.easeOut(duration: 0.1)
     /// 指を離した後のボタン復帰。
     public static let tapRelease = Animation.easeOut(duration: 0.2)
+    public static let disclosure = Animation.easeInOut(duration: 0.25)
+    public static let followNewContent = Animation.easeOut(duration: 0.3)
+    public static let appearance = Animation.easeInOut(duration: 0.2)
+    public static let rowRemoval = Animation.easeInOut(duration: 0.3)
+
+    static func disclosureAnimation(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : disclosure
+    }
+
+    /// 自前の接続表示用。OS標準ProgressViewの周期は変更しない。
+    public static func spinnerRotation(at time: Double, reduceMotion: Bool) -> Double {
+        reduceMotion ? 0 : time.truncatingRemainder(dividingBy: 0.9) / 0.9 * 360
+    }
 }

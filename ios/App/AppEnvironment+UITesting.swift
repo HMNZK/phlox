@@ -51,15 +51,27 @@ extension AppEnvironment {
                 auditLog: InMemoryAuditLog()
             )
         case .sessionShell, .sessionShellDetail:
-            return shellEnvironment(sessions: shellSessions)
+            return listEnvironment(sessions: listSessions, state: .loaded(listSessions))
         case .sessionShellNoAttention:
-            return shellEnvironment(sessions: shellSessions.filter { !$0.needsAttention })
+            let sessions = listSessions.filter { !$0.needsAttention }
+            return listEnvironment(sessions: sessions, state: .loaded(sessions))
         case .sessionShellScrolled:
             return shellEnvironment(sessions: scrolledShellSessions)
         case .sessionShellOffline:
-            return shellEnvironment(sessions: shellSessions, reachability: .unreachableHost)
-        case .list, .listCollapsed, .listChildrenExpanded, .listSE, .listDT:
+            return listEnvironment(sessions: listSessions, state: .loaded(listSessions), reachability: .unreachableHost)
+        case .list, .listChildrenExpanded, .listSE, .listDT:
             return listEnvironment(sessions: listSessions, state: .loaded(listSessions))
+        case .listCollapsed:
+            let sessions = listSessions.map { session in
+                guard session.id == "write-unit-tests" || session.id == "adr-0044" else { return session }
+                return Session(
+                    id: session.id, name: session.name, agent: session.agent,
+                    status: .completed(exitCode: 0), subtitle: "完了",
+                    projectId: session.projectId, projectName: session.projectName,
+                    hasUnseenCompletion: true, updatedAt: session.updatedAt
+                )
+            }
+            return listEnvironment(sessions: sessions, state: .loaded(sessions))
         case .listMulti:
             return listEnvironment(sessions: listMultiSessions, state: .loaded(listMultiSessions))
         case .listManyTop, .listManyScrolled:
@@ -94,7 +106,7 @@ extension AppEnvironment {
         AppEnvironment(
             tokenStore: InMemoryTokenStore(token: "ui-test-token"),
             authenticator: StubAuthenticator(allows: true),
-            apiClient: UITestPhloxAPI(sessions: sessions, approvals: []),
+            apiClient: UITestPhloxAPI(sessions: sessions, approvals: [], projectList: listProjects),
             reachability: StubReachability(reachability),
             sessionRepository: StubSessionRepository(snapshot: sessions),
             auditLog: InMemoryAuditLog()
@@ -115,36 +127,8 @@ extension AppEnvironment {
             auditLog: InMemoryAuditLog()
         )
     }
-
-    private static var shellSessions: [Session] {
-        [
-            Session(
-                id: "attention-approval", name: "add /approvals endpoint", agent: .codex,
-                status: .awaitingApproval(prompt: "Run tests?"), subtitle: "承認待ち",
-                projectName: "phlox", updatedAt: Date()
-            ),
-            Session(
-                id: "attention-question", name: "Tulip", agent: .claudeCode,
-                status: .awaitingUserQuestion, subtitle: "質問あり",
-                projectName: "garden", updatedAt: Date()
-            ),
-            Session(
-                id: "shell-running", name: "Design polish", agent: .codex,
-                status: .running, subtitle: "実行中", projectName: "phlox", updatedAt: Date()
-            ),
-            Session(
-                id: "shell-running-2", name: "Release checklist", agent: .claudeCode,
-                status: .running, subtitle: "実行中", projectName: "garden", updatedAt: Date()
-            ),
-            Session(
-                id: "shell-running-3", name: "Snapshot updates", agent: .codex,
-                status: .running, subtitle: "実行中", projectName: "phlox", updatedAt: Date()
-            ),
-        ]
-    }
-
     private static var scrolledShellSessions: [Session] {
-        shellSessions + (1...20).map { index in
+        listSessions + (1...20).map { index in
             Session(
                 id: "shell-running-\(index)", name: "Session \(index)", agent: .claudeCode,
                 status: .running, subtitle: "実行中", projectName: index.isMultiple(of: 2) ? "phlox" : "garden",
@@ -527,7 +511,7 @@ private struct UITestPhloxAPI: PhloxAPI {
 }
 
 enum UITestUsageFixtures {
-    enum Style {
+    enum Style: Sendable {
         case normal
         case low
         case unavailable
@@ -561,24 +545,27 @@ enum UITestUsageFixtures {
         case .low:
             return [
                 agent(.claudeCode, asOf: asOf, buckets: [
-                    bucket("5h", "5時間", used: 88, resetsAt: fiveHourReset),
-                    bucket("weekly", "週次", used: 82, resetsAt: claudeWeeklyReset),
+                    bucket("5h", "5時間", used: 88, resetsAt: asOf.addingTimeInterval(38 * 60)),
+                    bucket("weekly", "週次", used: 60, resetsAt: claudeWeeklyReset),
                 ]),
                 agent(.codex, asOf: asOf, buckets: [
                     bucket("5h", "5時間", used: 1, resetsAt: codexFiveHourReset),
                     bucket("weekly", "週次", used: 15, resetsAt: codexWeeklyReset),
                 ]),
                 agent(.cursor, asOf: asOf, buckets: [
-                    bucket("auto", "Auto", used: 85),
-                    bucket("api", "API", used: 96),
+                    bucket("auto", "Auto", used: 20),
+                    bucket("api", "API", used: 91),
                 ]),
             ]
         case .unavailable:
             return [
                 agent(.claudeCode, asOf: asOf, buckets: [
                     bucket("5h", "5時間", used: 28, resetsAt: fiveHourReset),
+                    bucket("weekly", "週次", used: 60, resetsAt: claudeWeeklyReset),
                 ]),
-                unavailableAgent(.codex, asOf: asOf),
+                agent(.codex, asOf: asOf, buckets: [
+                    bucket("5h", "5時間", used: 1, resetsAt: codexFiveHourReset),
+                ]),
                 unavailableAgent(.cursor, asOf: asOf),
             ]
         }

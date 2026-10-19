@@ -150,7 +150,7 @@ final class SessionDetailReplyApprovalTests: XCTestCase {
         XCTAssertEqual(log.first?.0, "a1")
         XCTAssertEqual(log.first?.1, .acceptForSession)
         XCTAssertEqual(vm.replyApprovals.map(\.id), ["codex:a2"])
-        XCTAssertEqual(vm.replyApprovalResult, ReplyApprovalResult(actionLabel: "このセッション中は許可", remainingCount: 1))
+        XCTAssertEqual(vm.replyApprovalResult, ReplyApprovalResult(actionLabel: "このセッション中は許可", remainingCount: 1, nextSessionName: "Rose"))
         XCTAssertNil(vm.replyApprovalError)
     }
 
@@ -173,6 +173,32 @@ final class SessionDetailReplyApprovalTests: XCTestCase {
             XCTAssertEqual(log.map(\.1), [decision])
             XCTAssertNil(vm.replyApprovalError)
         }
+    }
+
+    func testSentApprovalIncludesPendingQuestionAndNextRevealsIt() async throws {
+        let question = ChatMessage.userQuestion(
+            id: "q1", requestId: "r1",
+            questions: [UserQuestionItem(question: "どちら？", header: "選択", options: [UserQuestionOption(label: "A")], multiSelect: false)],
+            answers: nil, state: .pending
+        )
+        let api = MockAPI(
+            approvalsList: [Approval(id: "a1", sessionID: "s1", kind: .codex, prompt: "command", actionKind: "command")],
+            messagesOutcome: .success([question])
+        )
+        let vm = SessionDetailViewModel(session: session(id: "s1", agent: .codex), api: api)
+        await vm.load()
+        await vm.loadApprovals()
+        let approval = try XCTUnwrap(vm.currentReplyApproval)
+
+        await vm.respond(to: approval, decision: .accept)
+
+        XCTAssertEqual(vm.replyApprovalResult?.remainingCount, 1)
+        XCTAssertEqual(vm.replyApprovalResult?.nextSessionName, "Rose")
+        XCTAssertEqual(vm.replyApprovalResult?.nextStatusLabel, "質問あり")
+        vm.showNextReplyApproval()
+        XCTAssertNil(vm.replyApprovalResult)
+        XCTAssertEqual(vm.replyApprovalIndex, 0)
+        XCTAssertTrue(vm.visibleMessages.contains(question))
     }
 
     func testCodexResponseFailureKeepsCardAndShowsFailureLine() async throws {
@@ -278,6 +304,184 @@ final class SessionDetailReplyApprovalTests: XCTestCase {
 
         XCTAssertTrue(vm.replyApprovals.isEmpty)
         XCTAssertEqual(vm.presentationState.displayState, .question)
+    }
+
+    func testNextAttentionUsesFreshQueueCountsErrorsAndStallsWithoutAutomaticNavigation() async throws {
+        let current = session(id: "s1", agent: .codex)
+        let question = attentionSession(id: "question", status: .awaitingUserQuestion, entered: 30)
+        let error = attentionSession(id: "error", status: .error(message: "failed"), entered: 10)
+        let stalled = attentionSession(id: "stalled", status: .running, entered: 20, stalled: true)
+        let done = attentionSession(id: "done", status: .completed(exitCode: 0), entered: 0)
+        let api = MockAPI(sessions: [question, done, current, stalled, error], approvalsList: [singleApproval])
+        var opened: [Session] = []
+        let vm = SessionDetailViewModel(
+            session: current, api: api, attentionSessions: [current], onShowNextSession: { opened.append($0) }
+        )
+        await vm.loadApprovals()
+        await vm.respond(to: try XCTUnwrap(vm.currentReplyApproval), decision: .accept)
+
+        XCTAssertEqual(vm.replyApprovalResult?.remainingCount, 3)
+        XCTAssertEqual(vm.replyApprovalResult?.nextName, "error")
+        XCTAssertEqual(vm.replyApprovalResult?.nextStatusLabel, "エラー")
+        XCTAssertTrue(opened.isEmpty)
+        await vm.refresh()
+        XCTAssertEqual(vm.replyApprovalResult?.actionLabel, "許可")
+        XCTAssertTrue(vm.replyApprovals.isEmpty, "ポーリングが同じ承認を返しても再提示しない")
+        XCTAssertTrue(opened.isEmpty)
+
+        await vm.showNextAttention()
+        XCTAssertEqual(opened.map(\.id), ["error"])
+    }
+
+    func testNextAttentionRevalidatesDisappearedCandidateAndItsStatus() async throws {
+        let current = session(id: "s1", agent: .codex)
+        let old = attentionSession(id: "old", status: .awaitingUserQuestion, entered: 10)
+        let api = MockAPI(sessions: [current, old], approvalsList: [singleApproval])
+        var opened: [Session] = []
+        let vm = SessionDetailViewModel(session: current, api: api, onShowNextSession: { opened.append($0) })
+        await vm.loadApprovals()
+        await vm.respond(to: try XCTUnwrap(vm.currentReplyApproval), decision: .accept)
+        XCTAssertEqual(vm.replyApprovalResult?.nextName, "old")
+        XCTAssertEqual(vm.replyApprovalResult?.nextStatusLabel, "質問あり")
+
+        let stalled = attentionSession(id: "new", status: .running, entered: 5, stalled: true)
+        await api.setSessions([current, stalled])
+        await vm.refresh()
+        XCTAssertEqual(vm.replyApprovalResult?.nextName, "new")
+        XCTAssertEqual(vm.replyApprovalResult?.nextStatusLabel, "無応答")
+        XCTAssertTrue(opened.isEmpty)
+        await vm.showNextAttention()
+        XCTAssertEqual(opened.map(\.id), ["new"])
+    }
+
+    func testNextAttentionStaysOnSentCardWhenQueueEmpties() async throws {
+        let current = session(id: "s1", agent: .codex)
+        let next = attentionSession(id: "next", status: .awaitingUserQuestion, entered: 10)
+        let api = MockAPI(sessions: [current, next], approvalsList: [singleApproval])
+        var opened: [String] = []
+        let vm = SessionDetailViewModel(session: current, api: api, onShowNextSession: { opened.append($0.id) })
+        await vm.loadApprovals()
+        await vm.respond(to: try XCTUnwrap(vm.currentReplyApproval), decision: .accept)
+        await api.setSessions([current])
+
+        await vm.showNextAttention()
+
+        XCTAssertTrue(opened.isEmpty)
+        XCTAssertEqual(vm.replyApprovalResult?.remainingCount, 0)
+        XCTAssertNil(vm.replyApprovalResult?.nextName)
+        XCTAssertEqual(vm.replyApprovalResult?.actionLabel, "許可")
+    }
+
+    func testNextAttentionFailureKeepsSentResultAndAllowsRetry() async throws {
+        let current = session(id: "s1", agent: .codex)
+        let next = attentionSession(id: "next", status: .awaitingUserQuestion, entered: 10)
+        let api = MockAPI(sessions: [current, next], approvalsList: [singleApproval])
+        var opened: [String] = []
+        let vm = SessionDetailViewModel(session: current, api: api, onShowNextSession: { opened.append($0.id) })
+        await vm.loadApprovals()
+        await vm.respond(to: try XCTUnwrap(vm.currentReplyApproval), decision: .accept)
+        let sent = vm.replyApprovalResult
+        await api.setListSessionsError(.unreachable)
+
+        await vm.showNextAttention()
+
+        XCTAssertTrue(opened.isEmpty)
+        XCTAssertEqual(vm.replyApprovalResult, sent)
+        XCTAssertNotNil(vm.replyApprovalError)
+        await api.setListSessionsError(nil)
+        await vm.showNextAttention()
+        XCTAssertEqual(opened, ["next"])
+        XCTAssertNil(vm.replyApprovalError)
+    }
+
+    func testLocalApprovalsCountOneSessionAndTakePriorityOverOtherSessions() async throws {
+        let current = session(id: "s1", agent: .codex)
+        let next = attentionSession(id: "next", status: .awaitingUserQuestion, entered: 10)
+        let api = MockAPI(sessions: [next, current], approvalsList: [
+            singleApproval,
+            Approval(id: "a2", sessionID: "s1", kind: .codex, prompt: "second", actionKind: "command"),
+            Approval(id: "a3", sessionID: "s1", kind: .codex, prompt: "third", actionKind: "command"),
+        ])
+        var opened: [String] = []
+        let vm = SessionDetailViewModel(session: current, api: api, onShowNextSession: { opened.append($0.id) })
+        await vm.loadApprovals()
+        await vm.respond(to: try XCTUnwrap(vm.currentReplyApproval), decision: .accept)
+
+        XCTAssertEqual(vm.replyApprovalResult?.remainingCount, 2, "承認の数ではなく対応待ちセッション数")
+        XCTAssertEqual(vm.replyApprovalResult?.nextName, "Rose")
+        await vm.showNextAttention()
+        XCTAssertNil(vm.replyApprovalResult)
+        XCTAssertEqual(vm.currentReplyApproval?.id, "codex:a2")
+        XCTAssertTrue(opened.isEmpty)
+    }
+
+    func testNextAttentionDoesNotNavigateWhenExistingTranscriptCannotRefresh() async throws {
+        let current = session(id: "s1", agent: .codex)
+        let next = attentionSession(id: "next", status: .awaitingUserQuestion, entered: 10)
+        let api = MockAPI(
+            sessions: [current, next], approvalsList: [singleApproval],
+            messagesOutcome: .success([.fileChange(id: "history", changes: [])])
+        )
+        var opened: [String] = []
+        let vm = SessionDetailViewModel(session: current, api: api, onShowNextSession: { opened.append($0.id) })
+        await vm.load()
+        await vm.loadApprovals()
+        await vm.respond(to: try XCTUnwrap(vm.currentReplyApproval), decision: .accept)
+        let sent = vm.replyApprovalResult
+        await api.setMessagesOutcome(.failure(.unreachable))
+
+        await vm.showNextAttention()
+
+        XCTAssertTrue(opened.isEmpty)
+        XCTAssertEqual(vm.replyApprovalResult, sent)
+        XCTAssertNotNil(vm.replyApprovalError)
+        XCTAssertNil(vm.loadError, "履歴表示中の既存の非破壊エラー方針は維持")
+    }
+
+    func testLocalQuestionTakesPriorityOverAnotherSessionAfterRefresh() async throws {
+        let current = session(id: "s1", agent: .codex)
+        let next = attentionSession(id: "next", status: .error(message: "failed"), entered: 10)
+        let api = MockAPI(sessions: [current, next], approvalsList: [singleApproval])
+        var opened: [String] = []
+        let vm = SessionDetailViewModel(session: current, api: api, onShowNextSession: { opened.append($0.id) })
+        await vm.loadApprovals()
+        await vm.respond(to: try XCTUnwrap(vm.currentReplyApproval), decision: .accept)
+        let question = ChatMessage.userQuestion(
+            id: "q-new", requestId: "r-new",
+            questions: [UserQuestionItem(question: "どちら？", header: "選択", options: [], multiSelect: false)],
+            answers: nil, state: .pending
+        )
+        await api.setMessagesOutcome(.success([question]))
+
+        await vm.showNextAttention()
+
+        XCTAssertTrue(opened.isEmpty)
+        XCTAssertNil(vm.replyApprovalResult)
+        XCTAssertTrue(vm.visibleMessages.contains(question))
+    }
+
+    private var singleApproval: Approval {
+        Approval(id: "a1", sessionID: "s1", kind: .codex, prompt: "first", actionKind: "command")
+    }
+
+    #if DEBUG
+    func testConfiguredFlowNextSnapshotSurvivesPolling() async {
+        let vm = SessionDetailViewModel(session: session(id: "s1", agent: .codex), api: MockAPI())
+        vm.configureReplySnapshot(.approvalResult(actionLabel: "許可", remainingCount: 2, nextSessionName: "Tulip", nextIsQuestion: true))
+
+        await vm.refresh()
+
+        XCTAssertEqual(vm.replyApprovalResult?.remainingCount, 2)
+        XCTAssertEqual(vm.replyApprovalResult?.nextName, "Tulip")
+        XCTAssertEqual(vm.replyApprovalResult?.nextStatusLabel, "質問あり")
+    }
+    #endif
+
+    private func attentionSession(id: String, status: SessionStatus, entered: TimeInterval, stalled: Bool = false) -> Session {
+        Session(
+            id: id, name: id, agent: .codex, status: status, isStalled: stalled,
+            statusEnteredAt: Date(timeIntervalSince1970: entered), updatedAt: enteredAt
+        )
     }
 
     private func session(id: String, agent: AgentKind, status: SessionStatus = .awaitingApproval(prompt: "approval")) -> Session {

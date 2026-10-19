@@ -127,6 +127,41 @@ struct DSInputBarLayoutTests {
         #expect(!DSInputBar.isStrongPermissionValue("Full Access"))
     }
 
+    @Test("文字拡大時の新規チャットはプロジェクトを残して送信を次段へ送る", arguments: [351.0, 404.0])
+    func accessibleDraftWrapsWithoutHidingProject(width: Double) {
+        let layout = resolve(
+            width: CGFloat(width),
+            mode: .newChat,
+            isAccessibilitySize: true,
+            effort: "高",
+            permission: "Manual",
+            hasProject: true,
+            projectName: "Phlox"
+        )
+
+        #expect(layout.mergesSettings)
+        #expect(layout.showsProjectIconOnly)
+        #expect(layout.wrapsSecondRow)
+    }
+
+    @Test("小画面の長いモデル名でも強い権限を隠さず折り返す")
+    func longModelKeepsDangerousPermissionReachable() {
+        let layout = resolve(
+            width: 351,
+            mode: .newChat,
+            isAccessibilitySize: true,
+            modelName: "gpt-6.1-sol",
+            effort: "高",
+            permission: "Full Access",
+            isStrongPermission: true,
+            hasProject: true,
+            projectName: "SimpleBudget"
+        )
+
+        #expect(layout.keepsStrongPermissionVisible)
+        #expect(layout.wrapsSecondRow)
+    }
+
     private func resolve(
         width: CGFloat,
         mode: DSInputBarMode,

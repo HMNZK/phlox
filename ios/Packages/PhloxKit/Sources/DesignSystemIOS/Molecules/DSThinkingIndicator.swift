@@ -11,7 +11,9 @@ public struct DSThinkingIndicator: View {
     let state: AgentActivityState
     let reasoningPreview: String?
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var previousLabel: String?
+    @ScaledMetric(relativeTo: .footnote) private var labelPointSize: CGFloat = 13
 
     public init(
         state: AgentActivityState = .thinking,
@@ -23,24 +25,28 @@ public struct DSThinkingIndicator: View {
 
     public var body: some View {
         let label = displayLabel(locale: locale)
-        HStack(spacing: DSSpacing.s) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.xs))
+            : AnyLayout(HStackLayout(spacing: DSSpacing.s))
+        layout {
             ShimmerTextView(
                 text: label,
                 font: DSFont.sessionDetailSubtitle,
-                pointSize: 13,
+                pointSize: labelPointSize,
                 color: IOSColor.text.primary
             )
             if let reasoningPreview, !reasoningPreview.isEmpty {
                 Text(reasoningPreview)
-                    .font(DSFont.caption)
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(IOSColor.text.secondary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
+        .accessibilityLabel([label, reasoningPreview].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "。"))
         .onAppear { previousLabel = label }
         .onChange(of: label) { _, newLabel in
             guard previousLabel != newLabel else { return }

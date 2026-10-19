@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-07-30
+last-verified: 2026-10-19
 ---
 
 # delivery/
@@ -21,7 +21,11 @@ last-verified: 2026-07-30
 - `delivery/0005-mobile-ui-overhaul-wave7-worklog.md` … モバイル UI 刷新 wave-7（入力欄整理・顔認証既定オフ）の作業ログ
 - `delivery/0006-mobile-ui-overhaul-wave8-worklog.md` … モバイル UI 刷新 wave-8（QR接続直後オフラインバグ・チャット画像添付表示）の作業ログ
 - `delivery/0007-mobile-ui-overhaul-wave9-worklog.md` … モバイル UI 刷新 wave-9（接続中オーバーレイ・添付バッジ分離）の作業ログ
+- `delivery/0008-chat-transcript-perf-worklog.md` … 会話本文の表示性能改善の作業ログ
+- `delivery/0009-thinking-recap-wiring-worklog.md` … Thinking要約表示の配線作業ログ
 - `delivery/0010-ask-user-question-worklog.md` … AskUserQuestion 対応（iOS ミラー実装）の作業ログ
+- `delivery/0011-draft-compose-send-button-fix-worklog.md` … 下書き送信ボタンの修正記録
+- `delivery/0012-mobile-multiline-send-fix-worklog.md` … 複数行入力の送信操作修正記録
 - `delivery/0013-inline-image-attachments-worklog.md` … 添付画像の番号付けと本文への `[Image #N]` 埋め込み（iOS 18 化）の作業ログ
 - `delivery/0014-ios-single-toolcall-row-worklog.md` … 単独ツールコールを「ツール実行 ×1」の1行集約行に畳む変更の作業ログ
 - `delivery/0015-mobile-reliability-fixes-worklog.md` … モバイル信頼性修正5件（接続中表示・入力欄消失・サブエージェント固まり・質問カード排他・モデル選択の安定化）の作業ログ
@@ -38,3 +42,22 @@ last-verified: 2026-07-30
 - `delivery/0026-ios-redesign-stage6-worklog.md` … 再設計の段階 6a〜6c（セッション画面・会話表示・承認と質問カード）の作業記録
 - `delivery/0027-ios-redesign-stage7-worklog.md` … 再設計の段階7（ウィジェット・Live Activity・Dynamic Island と通知からの遷移）の作業記録
 - `delivery/0028-ios-redesign-stage8-worklog.md` … 再設計の段階8a（起動・接続・設定・エラー文言と描画場面の追加）の作業記録
+- `delivery/0029-ios-redesign-8b-attachments.md` … 段階8bの添付表示・受け入れ担当記録
+- `delivery/0029-ios-redesign-8b-cards.md` … 段階8bの承認・質問カード担当記録
+- `delivery/0029-ios-redesign-8b-chat.md` … 段階8bの会話画面担当記録
+- `delivery/0029-ios-redesign-8b-composer.md` … 段階8bの入力欄・使用量担当記録
+- `delivery/0029-ios-redesign-8b-delete-retry.md` … 段階8bの削除失敗・再試行担当記録
+- `delivery/0029-ios-redesign-8b-fixtures.md` … 段階8bの撮影fixture担当記録
+- `delivery/0029-ios-redesign-8b-gate-accessibility.md` … 段階8bの起動ゲートアクセシビリティ記録
+- `delivery/0029-ios-redesign-8b-integration.md` … 段階8bの統合・契約確認記録
+- `delivery/0029-ios-redesign-8b-list.md` … 段階8bの一覧画面担当記録
+- `delivery/0029-ios-redesign-8b-pair.md` … 段階8bのペアリング画面担当記録
+- `delivery/0029-ios-redesign-stage8b-worklog.md` … 再設計の段階8b（見本との差の修正・まとめの検証と引継ぎ）の作業記録。担当別の記録も同じ番号で配置する
+- `delivery/0030-ios-newchat-progress-worklog.md` … 新規チャットの作成待ち表示と、送信中の下書き保護の作業記録
+- `delivery/0031-ios-accessibility-snapshot-worklog.md` … 最大文字サイズへの追従、実ポップアップの検証、スクロール診断と未確認範囲の作業記録
+- `delivery/0032-ios-error-catalog-verification.md` … エラーカタログの実装・表示経路照合記録
+- `delivery/0032-ios-remaining-acceptance-worklog.md` … 残存受け入れ条件と追加実行の作業ログ
+- `delivery/0033-ios-cursor-vector-probe.md` … Cursorロゴ描画の比較probe記録
+- `delivery/0033-ios-offline-accessory-worklog.md` … オフライン案内のnative tab表示検証ログ
+- `delivery/0034-ios-root-transition-verification.md` … Root遷移と実操作検証の作業ログ
+- `delivery/0035-ios-real-biometric-gate-probe.md` … Face ID実権限経路probe記録

@@ -62,6 +62,19 @@ import PhloxCore
         #expect(projection.otherGroup == nil)
     }
 
+    @Test func attentionOnlyProjectsLeaveOnlyTheAttentionSection() {
+        let sessions = [
+            session("approval", status: .awaitingApproval(prompt: "p"), projectID: "p", projectName: "Phlox"),
+            session("question", status: .awaitingUserQuestion, projectID: "q", projectName: "SimpleBudget"),
+        ]
+
+        let projection = SessionListProjection.make(sessions: sessions, projects: [projectP, projectQ])
+
+        #expect(projection.attentionSessions.map(\.id) == ["approval", "question"])
+        #expect(projection.projectGroups.isEmpty)
+        #expect(projection.otherGroup == nil)
+    }
+
     @Test func sessionsWithSameProjectIDStayGroupedAcrossNameChanges() {
         let sessions = [
             session("first", projectID: "p", projectName: "Alpha"),

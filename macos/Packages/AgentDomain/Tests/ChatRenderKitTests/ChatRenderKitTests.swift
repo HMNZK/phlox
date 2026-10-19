@@ -17,8 +17,8 @@ struct ChatDiffClassifierTests {
         """
         let lines = ChatDiffClassifier.classify(diff)
         #expect(lines.map(\.kind) == [.hunk, .context, .deletion, .addition])
-        // 旧側の番号は削除行にだけ、新側の番号は追加・コンテキスト行にだけ載せる。
-        #expect(lines[1].oldLineNumber == nil)
+        // 文脈行は新旧を保持し、単列表示では従来どおり新側を使う。
+        #expect(lines[1].oldLineNumber == 10)
         #expect(lines[1].newLineNumber == 20)
         #expect(lines[2].oldLineNumber == 11)
         #expect(lines[3].newLineNumber == 21)
@@ -35,7 +35,7 @@ struct ChatDiffClassifierTests {
 
         #expect(lines.map(\.id) == [0, 1, 2, 3])
         #expect(lines.map(\.text) == ["@@ -2 +4 @@", "-old", "+new", " context"])
-        #expect(lines.map(\.oldLineNumber) == [nil, 2, nil, nil])
+        #expect(lines.map(\.oldLineNumber) == [nil, 2, nil, 3])
         #expect(lines.map(\.newLineNumber) == [nil, nil, 4, 5])
         #expect(lines.map(\.displayLineNumber) == [nil, 2, 4, 5])
     }
@@ -51,6 +51,7 @@ struct ChatDiffClassifierTests {
         let lines = ChatDiffClassifier.classify(diff)
         #expect(lines[1].newLineNumber == 1)
         #expect(lines[3].newLineNumber == 200)
+        #expect(lines[3].oldLineNumber == 100)
         #expect(lines[3].displayLineNumber == 200)
     }
 
@@ -77,6 +78,13 @@ struct ChatDiffClassifierTests {
         "@@ -9999999999999999999999 +1 @@",
         "@@ - 1,2 + 3,4 @@",
         "@@ x y z @@",
+        "@@ -1junk +2 @@",
+        "@@ -1, +2 @@",
+        "@@ -1,-2 +2 @@",
+        "@@ -1,2,3 +2 @@",
+        "@@ -1 +2",
+        "@@ -1 +2 wrong",
+        "@@ -1 +2,9999999999999999999999 @@",
     ])
     func brokenHunkHeaderStopsNumbering(_ header: String) {
         let diff = """
@@ -89,6 +97,8 @@ struct ChatDiffClassifierTests {
         #expect(lines.count == 4)
         // 壊れたヘッダの後ろの行に番号を出さない（直前 hunk の連番継続は「推測」なので禁止）。
         #expect(lines[3].displayLineNumber == nil)
+        #expect(lines[3].oldLineNumber == nil)
+        #expect(lines[3].newLineNumber == nil)
     }
 
     @Test("Int の上限付近でも採番がオーバーフローで落ちない")
@@ -101,10 +111,34 @@ struct ChatDiffClassifierTests {
         """
         let lines = ChatDiffClassifier.classify(diff)
         #expect(lines.count == 4)
+        #expect(lines.map(\.oldLineNumber) == [nil, Int.max, nil, nil])
+        #expect(lines.map(\.newLineNumber) == [nil, Int.max, nil, nil])
+        #expect(lines.map(\.displayLineNumber) == [nil, Int.max, nil, nil])
+    }
+
+    @Test("追加・削除後の文脈は両側を別々に進める")
+    func contextAfterUnequalChanges() {
+        let lines = ChatDiffClassifier.classify("@@ -10,4 +20,5 @@\n first\n-old\n+new\n+extra\n after\n last")
+        #expect(lines.map(\.oldLineNumber) == [nil, 10, 11, nil, nil, 12, 13])
+        #expect(lines.map(\.newLineNumber) == [nil, 20, nil, 21, 22, 23, 24])
+        #expect(lines.map(\.displayLineNumber) == [nil, 20, 11, 21, 22, 23, 24])
+    }
+
+    @Test("片側だけの整数境界で両側を止め、次のハンクで復帰する", arguments: [true, false])
+    func asymmetricOverflow(oldSide: Bool) {
+        let header = oldSide ? "@@ -\(Int.max) +4 @@" : "@@ -3 +\(Int.max) @@"
+        let change = oldSide ? "-removed" : "+added"
+        let lines = ChatDiffClassifier.classify("\(header)\n\(change)\n after\n@@ -7 +9 @@\n recovered")
+        #expect(lines[1].oldLineNumber == (oldSide ? Int.max : nil))
+        #expect(lines[1].newLineNumber == (oldSide ? nil : Int.max))
+        #expect(lines[2].oldLineNumber == nil)
+        #expect(lines[2].newLineNumber == nil)
+        #expect(lines[4].oldLineNumber == 7)
+        #expect(lines[4].newLineNumber == 9)
     }
 
     @Test("no-newline 注記は表示対象外で、採番を進めない")
-    func noNewlineMarkerDoesNotAdvanceNumbering() {
+    func noNewlineMarkerDoesNotAdvanceNumbering() throws {
         let diff = """
         @@ -1,2 +1,2 @@
          a
@@ -112,10 +146,12 @@ struct ChatDiffClassifierTests {
          b
         """
         let lines = ChatDiffClassifier.classify(diff)
-        let marker = try? #require(lines.first { $0.text == "\\ No newline at end of file" })
-        #expect(marker?.isDisplayable == false)
+        let marker = try #require(lines.first(where: { $0.text == "\\ No newline at end of file" }))
+        #expect(marker.isDisplayable == false)
         let last = lines[3]
         #expect(last.newLineNumber == 2)
+        #expect(last.oldLineNumber == 2)
+        #expect(marker.oldLineNumber == nil)
     }
 
     @Test("--- / +++ のファイルヘッダは表示対象外")

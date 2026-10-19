@@ -56,7 +56,7 @@ struct SessionDetailAnsweredQuestionCard: View {
                     onToggle: onToggle
                 )
             } content: {
-                if isExpanded {
+                DSDisclosureContent(isExpanded: isExpanded) {
                     VStack(alignment: .leading, spacing: DSSpacing.m) {
                         ForEach(questions, id: \.question) { question in
                             let details = SessionDetailTranscriptPresentation.settledQuestionDetails(
@@ -66,7 +66,7 @@ struct SessionDetailAnsweredQuestionCard: View {
                             )
                             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                                 Text(question.header)
-                                    .font(DSFont.captionStrong)
+                                    .font(DSFont.iosCaption2.weight(.medium))
                                     .foregroundStyle(IOSColor.text.secondary)
                                     .textCase(.uppercase)
                                 Text(question.question)
@@ -82,17 +82,17 @@ struct SessionDetailAnsweredQuestionCard: View {
                                                 .foregroundStyle(IOSColor.text.primary)
                                             if let description {
                                                 Text(description)
-                                                    .font(DSFont.caption)
+                                                    .font(DSFont.iosCaption2)
                                                     .foregroundStyle(IOSColor.text.secondary)
                                             }
                                         }
                                     case .input(let value):
                                         Text("入力: \(value)")
-                                            .font(DSFont.caption)
+                                            .font(DSFont.iosCaption2)
                                             .foregroundStyle(IOSColor.text.secondary)
                                     case .expired:
                                         Text("回答は送られませんでした")
-                                            .font(DSFont.caption)
+                                            .font(DSFont.iosCaption2)
                                             .foregroundStyle(IOSColor.text.tertiary)
                                     }
                                 }
@@ -109,6 +109,7 @@ struct SessionDetailAnsweredQuestionCard: View {
 
 struct SessionDetailErrorCard: View {
     let message: String
+    @ScaledMetric(relativeTo: .footnote) private var lineSpacing = DSSpacing.xs
 
     var body: some View {
         HStack(alignment: .top, spacing: DSSpacing.s) {
@@ -118,6 +119,7 @@ struct SessionDetailErrorCard: View {
                 .accessibilityHidden(true)
             Text(message)
                 .font(DSFont.sessionDetailTechnical)
+                .lineSpacing(lineSpacing)
                 .foregroundStyle(IOSColor.status.error)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

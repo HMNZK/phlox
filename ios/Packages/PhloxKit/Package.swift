@@ -61,6 +61,7 @@ let package = Package(
                 .product(name: "DesignSystem", package: "DesignSystem"),
                 .product(name: "AgentDomain", package: "AgentDomain"),
                 .product(name: "ChatRenderKit", package: "AgentDomain"),
+                .product(name: "ImageAttachmentKit", package: "AgentDomain"),
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
             ]
         ),
@@ -89,7 +90,10 @@ let package = Package(
                 .product(name: "DesignSystem", package: "DesignSystem"),
             ]
         ),
-        .testTarget(name: "FeaturesTests", dependencies: ["Features", "PhloxCore", "PhloxNetworking"]),
+        .testTarget(name: "FeaturesTests", dependencies: [
+            "Features", "PhloxCore", "PhloxNetworking",
+            .product(name: "ImageAttachmentKit", package: "AgentDomain"),
+        ]),
         .testTarget(name: "E2ETests", dependencies: ["PhloxNetworking", "PhloxCore"]),
     ],
     swiftLanguageModes: [.v6]

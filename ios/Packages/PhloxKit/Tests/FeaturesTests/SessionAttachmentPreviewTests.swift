@@ -61,9 +61,12 @@ struct SessionAttachmentPreviewTests {
 
     @Test("破損画像の送信を中止し本文と添付を保持する")
     func invalidImagePreservesDraftForRetry() async {
-        let vm = SessionDetailViewModel(session: makeSession(), api: MockAPI())
-        vm.inputText = "この画像を見て"
-        vm.addAttachments([SendAttachment(mediaType: "image/png", data: Data([1, 2, 3]))])
+        // 古いクライアント等から復元された破損添付も送信前に止める。
+        let vm = SessionDetailViewModel(session: makeSession(), api: MockAPI(), recovery: .init(
+            text: "この画像を見て [Image #1] ",
+            attachments: [.init(number: 1, send: SendAttachment(mediaType: "image/png", data: Data([1, 2, 3])), previewData: Data())],
+            errorMessage: "再送"
+        ))
         let text = vm.inputText
         let items = vm.attachmentItems
         await vm.sendMessage()

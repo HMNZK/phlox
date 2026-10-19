@@ -19,6 +19,8 @@ public final class DeleteConfirmationViewModel {
     public let cascadeCount: Int
     public var state: State = .idle
     public private(set) var failurePresentation: ErrorPresentation?
+    /// 同じ内容で再失敗しても、画面へ新しい提示イベントを届ける。
+    public private(set) var failureGeneration = 0
 
     public init(
         sessionID: String,
@@ -63,6 +65,12 @@ public final class DeleteConfirmationViewModel {
 
     /// 二段確認後にのみ呼ばれる（View の confirmationDialog から）。
     public func confirmDelete() async {
+        switch state {
+        case .idle, .failed:
+            break
+        case .deleting, .deleted:
+            return
+        }
         state = .deleting
         failurePresentation = nil
         do {
@@ -74,10 +82,12 @@ public final class DeleteConfirmationViewModel {
             let presentation = Self.failurePresentation(cascadeCount: cascadeCount, technicalDetail: technicalDetail)
             failurePresentation = presentation
             state = .failed(Self.failureMessage(presentation))
+            failureGeneration += 1
         } catch {
             let presentation = Self.failurePresentation(cascadeCount: cascadeCount, technicalDetail: nil)
             failurePresentation = presentation
             state = .failed(Self.failureMessage(presentation))
+            failureGeneration += 1
         }
     }
 

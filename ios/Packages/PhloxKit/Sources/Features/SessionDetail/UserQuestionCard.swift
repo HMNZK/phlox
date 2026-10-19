@@ -8,6 +8,7 @@ struct UserQuestionCard: View {
     let answers: [String: [String]]?
     let state: UserQuestionState
     let usesInputBarForFreeText: Bool
+    let maxContentHeight: CGFloat?
     let onSubmit: (String, [String: [String]]) async -> Bool
 
     @State private var form: UserQuestionFormState
@@ -20,6 +21,7 @@ struct UserQuestionCard: View {
         answers: [String: [String]]?,
         state: UserQuestionState,
         usesInputBarForFreeText: Bool = false,
+        maxContentHeight: CGFloat? = nil,
         onSubmit: @escaping (String, [String: [String]]) async -> Bool
     ) {
         self.requestId = requestId
@@ -27,6 +29,7 @@ struct UserQuestionCard: View {
         self.answers = answers
         self.state = state
         self.usesInputBarForFreeText = usesInputBarForFreeText
+        self.maxContentHeight = maxContentHeight
         self.onSubmit = onSubmit
         _form = State(initialValue: UserQuestionFormState(questions: questions))
     }
@@ -36,29 +39,35 @@ struct UserQuestionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             VStack(alignment: .leading, spacing: DSSpacing.m) {
-                if state == .pending {
-                    Text(UserQuestionFormState.title(for: questions))
-                        .font(DSFont.footnote.weight(.semibold))
-                        .foregroundStyle(IOSColor.status.question)
-                }
-                ForEach(Array(questions.enumerated()), id: \.element.question) { index, question in
-                    if index > 0 { Rectangle().fill(IOSColor.bg.separator).frame(height: 1) }
-                    questionBlock(question, number: index + 1)
+                if state == .pending, let maxContentHeight {
+                    ScrollView {
+                        questionBlocks
+                    }
+                    .frame(maxHeight: maxContentHeight)
+                    .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    questionBlocks
                 }
                 if state == .pending && !usesInputBarForFreeText {
                     VStack(spacing: DSSpacing.s) {
-                        DSButton(
-                            "回答を送信",
-                            variant: .primary,
-                            isLoading: isSubmitting,
-                            accessibilityIdentifier: "UserQuestionCard.submit"
-                        ) {
+                        Button {
                             Task { await submit() }
+                        } label: {
+                            HStack(spacing: DSSpacing.s) {
+                                if isSubmitting { ProgressView().tint(IOSColor.accentOnFill) }
+                                Text("回答を送信")
+                                    .font(DSFont.body.weight(.semibold))
+                            }
+                            .foregroundStyle(canSubmit ? IOSColor.accentOnFill : IOSColor.text.tertiary)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(canSubmit ? IOSColor.accent : IOSColor.bg.fill, in: Capsule())
                         }
+                        .buttonStyle(DSPressFeedbackStyle())
                         .disabled(!canSubmit)
+                        .accessibilityIdentifier("UserQuestionCard.submit")
                         if form.unansweredCount > 0 {
                             Text("あと \(form.unansweredCount) 問に答えると送信できます")
-                                .font(DSFont.caption)
+                                .font(DSFont.footnote)
                                 .foregroundStyle(DSColor.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
@@ -67,7 +76,7 @@ struct UserQuestionCard: View {
                     statusCaption
                 }
             }
-            .padding(DSSpacing.m)
+            .padding(DSSpacing.l)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassSurface(.card)
             .opacity(state == .expired ? 0.7 : 1)
@@ -75,9 +84,24 @@ struct UserQuestionCard: View {
         .onAppear(perform: seedFromAnswers)
     }
 
+    private var questionBlocks: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.m) {
+            if state == .pending {
+                Text(UserQuestionFormState.title(for: questions))
+                    .font(DSFont.footnote.weight(.semibold))
+                    .foregroundStyle(IOSColor.status.question)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(Array(questions.enumerated()), id: \.element.question) { index, question in
+                if index > 0 { Rectangle().fill(IOSColor.bg.separator).frame(height: 1) }
+                questionBlock(question, number: index + 1)
+            }
+        }
+    }
+
     private var statusCaption: some View {
         Text(state == .answered ? "回答済み" : "期限切れ")
-            .font(DSFont.caption)
+            .font(DSFont.iosCaption2)
             .foregroundStyle(DSColor.textSecondary)
     }
 
@@ -90,17 +114,17 @@ struct UserQuestionCard: View {
         VStack(alignment: .leading, spacing: DSSpacing.s) {
             HStack(spacing: DSSpacing.s) {
                 Text("\(number). \(question.header.uppercased())")
-                    .font(DSFont.captionStrong)
+                    .font(DSFont.footnote.weight(.bold))
                     .foregroundStyle(DSColor.textSecondary)
-                Text(question.multiSelect ? "いくつでも" : "1 つ選ぶ")
-                    .font(DSFont.caption)
+                Text(question.options.isEmpty ? "自由入力" : question.multiSelect ? "いくつでも" : "1 つ選ぶ")
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(DSColor.textSecondary)
                     .padding(.horizontal, DSSpacing.s)
                     .padding(.vertical, DSSpacing.xxs)
                     .background(DSColor.fillSubtle, in: Capsule())
             }
             Text(question.question)
-                .font(DSFont.subheadline.weight(.semibold))
+                .font(DSFont.subheadline)
                 .foregroundStyle(DSColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -110,7 +134,7 @@ struct UserQuestionCard: View {
 
             if question.options.isEmpty {
                 Text("選択肢のない質問です。下の入力欄に書いて送信してください。")
-                    .font(DSFont.caption)
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(DSColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if isInteractive && !usesInputBarForFreeText {
@@ -124,7 +148,7 @@ struct UserQuestionCard: View {
                 )
             } else if let custom = customAnswerText(for: question), !isKnownOption(custom, in: question) {
                 Text("入力: \(custom)")
-                    .font(DSFont.caption)
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(DSColor.textSecondary)
             }
         }
@@ -142,7 +166,7 @@ struct UserQuestionCard: View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             if let label {
                 Text(label)
-                    .font(DSFont.caption)
+                    .font(DSFont.iosCaption2)
                     .foregroundStyle(DSColor.textSecondary)
             }
             TextField(
@@ -150,9 +174,14 @@ struct UserQuestionCard: View {
                 text: freeTextBinding(for: question.question),
                 axis: .vertical
             )
-            .textFieldStyle(.roundedBorder)
+            .textFieldStyle(.plain)
             .font(DSFont.subheadline)
             .lineLimit(1...4)
+            .padding(.horizontal, DSSpacing.m)
+            .padding(.vertical, DSSpacing.s)
+            .frame(minHeight: 41)
+            .background(IOSColor.bg.card, in: Capsule())
+            .overlay(Capsule().stroke(IOSColor.bg.separator, lineWidth: 1))
             .focused($focusedQuestion, equals: question.question)
             .accessibilityIdentifier("UserQuestionCard.freeText.\(question.question)")
         }
@@ -170,6 +199,9 @@ struct UserQuestionCard: View {
         } label: {
             HStack(alignment: .top, spacing: DSSpacing.s) {
                 Image(systemName: symbol)
+                    .font(DSFont.iconFAB)
+                    .dynamicTypeSize(.large)
+                    .frame(width: 24, height: 24)
                     .foregroundStyle(selected ? IOSColor.text.primary : IOSColor.text.tertiary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(option.label)
@@ -177,16 +209,17 @@ struct UserQuestionCard: View {
                         .foregroundStyle(DSColor.textPrimary)
                     if let description = option.description, !description.isEmpty {
                         Text(description)
-                            .font(DSFont.caption)
+                            .font(DSFont.iosCaption)
                             .foregroundStyle(DSColor.textSecondary)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPressFeedbackStyle())
         .disabled(!isInteractive)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityIdentifier("UserQuestionCard.option.\(option.label)")

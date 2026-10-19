@@ -42,6 +42,8 @@ public struct DSSessionNavigationChrome<Menu: View>: ViewModifier {
                         if let subtitle {
                             subtitle
                                 .font(DSFont.sessionDetailSubtitle)
+                                // ナビの副題だけ拡大を抑え、本文の Dynamic Type は維持する。
+                                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                         }

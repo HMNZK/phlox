@@ -98,7 +98,8 @@ final class TokensTests: XCTestCase {
             expectColor(IOSColor.bg.base, 0xF2F2F7)
             expectColor(IOSColor.bg.card, 0xFFFFFF)
             expectColor(IOSColor.bg.raised, 0xE4E4EB)
-            expectColor(IOSColor.bg.code, 0xF7F6FA)
+            // C-20: Chat.dc.html:705/709/724のChat・Reply・Detail共通パレットを採用する。
+            expectColor(IOSColor.bg.code, 0xE9E9EE)
             expectColor(IOSColor.bg.fill, 0x767680, opacity: 0.12)
             expectColor(IOSColor.bg.separator, 0x3C3C43, opacity: 0.18)
             expectColor(IOSColor.bg.glass, 0xFFFFFF, opacity: 0.62)
@@ -132,7 +133,8 @@ final class TokensTests: XCTestCase {
             expectColor(IOSColor.bg.base, 0x000000)
             expectColor(IOSColor.bg.card, 0x1C1C1E)
             expectColor(IOSColor.bg.raised, 0x2C2C30)
-            expectColor(IOSColor.bg.code, 0x141416)
+            // C-20: Chat.dc.html:705/709/724の会話共通パレット。
+            expectColor(IOSColor.bg.code, 0x1C1C1E)
             expectColor(IOSColor.bg.fill, 0x767680, opacity: 0.28)
             expectColor(IOSColor.bg.separator, 0x545458, opacity: 0.65)
             expectColor(IOSColor.bg.glass, 0x26262A, opacity: 0.60)
@@ -164,7 +166,8 @@ final class TokensTests: XCTestCase {
         withTheme(AppTheme.phlox.id) {
             expectColor(IOSColor.status.approvalBackground, 0xFF9F0A, opacity: 0.20)
             expectColor(IOSColor.bg.menu, 0x2C2C30, opacity: 0.94)
-            expectColor(IOSColor.bg.code, 0x141416)
+            // C-20: Chat.dc.html:705/709/724の会話共通パレット。
+            expectColor(IOSColor.bg.code, 0x1C1C1E)
             expectColor(IOSColor.text.tertiary, 0x9D9DA5)
             expectColor(IOSColor.accent, 0xF2F2F4)
             expectColor(IOSColor.status.error, 0xFF8C82)

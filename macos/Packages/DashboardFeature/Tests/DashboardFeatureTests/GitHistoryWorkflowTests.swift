@@ -10,18 +10,16 @@ struct GitHistoryWorkflowTests {
         _ = NSApplication.shared
         let fixture = try GitHistoryFixture()
         defer { fixture.remove() }
-        let defaults = UserDefaults.standard
-        let original = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-        var settings = original
-        for section in GitHistorySection.allCases { settings[section.storageKey] = true }
-        defaults.setVolatileDomain(settings, forName: UserDefaults.argumentDomain)
-        defer { defaults.setVolatileDomain(original, forName: UserDefaults.argumentDomain) }
+        let suiteName = "GitHistoryWorkflowTests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        for section in GitHistorySection.allCases { defaults.set(true, forKey: section.storageKey) }
         let first = fixture.model()
         let second = fixture.model()
         await first.refresh()
         await second.refresh()
         let holder = GitHistoryModelHolder(model: first)
-        let host = NSHostingView(rootView: GitHistoryModelHost(holder: holder))
+        let host = NSHostingView(rootView: GitHistoryModelHost(holder: holder, defaults: defaults))
         let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 340, height: 760),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -461,7 +459,8 @@ struct GitHistoryFixture {
 
 @MainActor private struct GitHistoryModelHost: View {
     let holder: GitHistoryModelHolder
+    let defaults: UserDefaults
     var body: some View {
-        GitInspectorView(model: holder.model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in })
+        GitInspectorView(model: holder.model, workingDirectory: "", openChanges: { _, _, _ in }, openFile: { _ in }, defaults: defaults)
     }
 }

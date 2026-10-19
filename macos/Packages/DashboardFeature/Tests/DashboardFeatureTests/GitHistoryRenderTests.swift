@@ -4,6 +4,7 @@ import SwiftUI
 import Testing
 @testable import DashboardFeature
 
+extension ThemeRenderingTests {
 @Suite("GitHistoryRender", .serialized) @MainActor
 struct GitHistoryRenderTests {
     @Test func 各区画と空と開いた履歴と確認と失敗の比較画像() async throws {
@@ -119,4 +120,5 @@ struct GitHistoryRenderTests {
             #expect(data.count > 100)
         }
     }
+}
 }

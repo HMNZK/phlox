@@ -7,6 +7,7 @@ import SwiftUI
 import Testing
 @testable import SessionFeature
 
+extension ThemeRenderingTests {
 @Suite("Theme reactive chat", .serialized)
 struct ThemeReactiveChatTests {
 
@@ -92,4 +93,5 @@ struct ThemeReactiveChatTests {
         let literal = try #require(color(of: "literal_probe", in: lightHighlight))
         #expect(literal == expected)
     }
+}
 }

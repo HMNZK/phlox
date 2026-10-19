@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-06
+last-verified: 2026-10-17
 ---
 
 # テストの残し方・書き方
@@ -30,6 +30,7 @@ last-verified: 2026-10-06
 ## 確かめ方
 
 - 整理のたびに `macos/scripts/run-swift-tests.sh` を回し、既定の対象外のパッケージを触ったら `swift test` も個別に回す。iOS は `make -C ios test`。
+- エージェントの実行は `~/.agents/scripts/compact-test` 経由とし、`SWIFT_TEST_SCRATCH_ROOT` にworktreeの `.verification/<作業名>/swift` の絶対パスを渡す。事前ビルド・素材の準備・テストは同じ出力先を使う。直接の `swift test` は素材準備を迂回するため、描画テストの検証入口にしない。Git非追跡の `.claude/verify.sh` は作業ごとに内容が異なるローカル設定なので、パッケージ検査の正本として扱わない。
 - 1 本にまとめたテストは、作業用コピーで代表的な不具合を入れて**失敗すること**を確かめる。
 
 ## 新しく書くとき

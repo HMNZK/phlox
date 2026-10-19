@@ -158,12 +158,6 @@ struct BottomPanelTests {
     @Test("2ウィンドウで開閉状態を分離し、子タブと同じ単一表示器で本文200ptを残す")
     func twoWindowsAndContentHeight() async throws {
         _ = NSApplication.shared
-        let appPreferences = UserDefaults.standard
-        let arguments = appPreferences.volatileDomain(forName: UserDefaults.argumentDomain)
-        var testArguments = arguments
-        testArguments[UsageSettings.showInHeaderKey] = true
-        appPreferences.setVolatileDomain(testArguments, forName: UserDefaults.argumentDomain)
-        defer { appPreferences.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain) }
         let root = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(root) }
         let project = Project(name: "Panel", directoryPath: root.path, createdAt: Date(), isManagedDirectory: false)
@@ -176,6 +170,8 @@ struct BottomPanelTests {
         router.selectedProjectID = project.id
         let preferences = defaults()
         defer { preferences.removePersistentDomain(forName: defaultsSuite) }
+        preferences.set(true, forKey: UsageSettings.showInHeaderKey)
+        preferences.set(17.0, forKey: TerminalFontSettings.fontSizeKey)
         let first = BottomPanelState(defaults: preferences), second = BottomPanelState(defaults: preferences)
         first.saveHeight(9999, availableHeight: 9999)
         let pty = MockPTYManager(), store = makeStore(pty)
@@ -184,6 +180,7 @@ struct BottomPanelTests {
         #expect(!UsageDisplay.bottomBarGroups(usages: monitor.usages, showUnavailable: false).isEmpty)
         let windows = [first, second].map { state in
             let view = DashboardView(viewModel: dashboard, router: router, usageMonitor: monitor, sessionTerminals: store, bottomPanel: state)
+                .defaultAppStorage(preferences)
                 .frame(width: 1000, height: 600)
             let host = NSHostingView(rootView: view)
             host.frame = NSRect(x: 0, y: 0, width: 1000, height: 600)
@@ -201,8 +198,10 @@ struct BottomPanelTests {
         try await eventually { store.existingBottomTerminal(for: project.id)?.controller.isRunning == true }
         let a = store.bottomTerminal(for: project.id, workingDirectory: root.path)
         try await eventually { a.terminalCoordinator.terminalView.window === windows[0] }
-        #expect(a.terminalCoordinator.terminalView.font.pointSize == TerminalFontSettings.currentSize())
-        print("下部パネルの実測文字サイズ: \(a.terminalCoordinator.terminalView.font.pointSize)pt、共通設定: \(TerminalFontSettings.currentSize())pt、システム既定: \(NSFont.systemFontSize)pt")
+        let expectedFontSize = TerminalFontSettings.currentSize(defaults: preferences)
+        try await eventually { a.terminalCoordinator.terminalView.font.pointSize == expectedFontSize }
+        #expect(a.terminalCoordinator.terminalView.font.pointSize == expectedFontSize)
+        print("下部パネルの実測文字サイズ: \(a.terminalCoordinator.terminalView.font.pointSize)pt、専用設定: \(expectedFontSize)pt、システム既定: \(NSFont.systemFontSize)pt")
         #expect(first.isVisible)
         #expect(!second.isVisible)
         windows[0].contentView?.layoutSubtreeIfNeeded()
@@ -427,15 +426,13 @@ struct BottomPanelTests {
         let root = try makeTemporaryWorkspaceRoot()
         defer { cleanupTemporaryWorkspaceRoot(root) }
         let bundle = try DesignSnapshotRenderTests().localizationBundle(fixtures: root)
-        let preferences = UserDefaults.standard
-        let saved = preferences.volatileDomain(forName: UserDefaults.argumentDomain)
-        var arguments = saved
-        arguments["phlox.appLanguage"] = language
-        preferences.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
-        defer { preferences.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
+        let suiteName = "BottomPanelTests.localizedTerminalErrors.\(UUID().uuidString)"
+        let preferences = try #require(UserDefaults(suiteName: suiteName))
+        defer { preferences.removePersistentDomain(forName: suiteName) }
+        preferences.set(language, forKey: "phlox.appLanguage")
         let pty = MockPTYManager()
         pty.setSpawnErrors([.spawnFailed(errno: 13), .spawnFailed(errno: 13)])
-        let panel = TerminalPanelSession(controller: UserTerminalController(pty: pty, shellPath: "/bin/sh", workingDirectory: "/tmp", environment: [:]), localizationBundle: bundle)
+        let panel = TerminalPanelSession(controller: UserTerminalController(pty: pty, shellPath: "/bin/sh", workingDirectory: "/tmp", environment: [:]), localizationBundle: bundle, defaults: preferences)
         defer { Task { await panel.controller.shutdown() } }
         let expectedStart = language == "en" ? "[Could not start the shell]" : "[シェルを開始できませんでした]"
         await panel.ensureBottomStarted()

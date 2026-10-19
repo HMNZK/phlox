@@ -133,7 +133,7 @@ prepare_asset_catalog() {  # <package>
   bin_path="$(swift build --show-bin-path --configuration "$TEST_CONFIGURATION" --package-path "Packages/$1" \
     ${scratch_args[@]+"${scratch_args[@]}"})" || return 1
   bundle="$bin_path/DesignSystem_DesignSystem.bundle"
-  if [ ! -d "$bundle/Icons.xcassets" ] || [ -f "$bundle/Assets.car" ]; then return 0; fi
+  if [ ! -d "$bundle/Icons.xcassets" ]; then return 0; fi
   COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
     "$COMPACT_COMMAND" "$1 / 資源カタログ" \
     xcrun actool --compile "$bundle" --platform macosx --minimum-deployment-target 14.0 \

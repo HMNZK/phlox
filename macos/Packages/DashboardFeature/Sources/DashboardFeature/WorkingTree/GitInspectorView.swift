@@ -32,6 +32,26 @@ struct GitInspectorView: View {
     private var selected: GitChangeSelection? { model.gitSelection }
     private func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale, bundle: bundle) }
 
+    init(model: EditorPanelViewModel, workingDirectory: String,
+         openChanges: @escaping (String?, WorkingTreeSource, Bool) -> Void,
+         openFile: @escaping (String) -> Void, focusRequest: Int = 0,
+         runningSessionNames: [String] = [], snapshotHoveredSelection: GitChangeSelection? = nil,
+         defaults: UserDefaults? = nil) {
+        self.model = model
+        self.workingDirectory = workingDirectory
+        self.openChanges = openChanges
+        self.openFile = openFile
+        self.focusRequest = focusRequest
+        self.runningSessionNames = runningSessionNames
+        self.snapshotHoveredSelection = snapshotHoveredSelection
+        _changesExpanded = AppStorage(wrappedValue: true, "phlox.inspector.git.changesExpanded", store: defaults)
+        _commitsExpanded = AppStorage(wrappedValue: false, "phlox.inspector.git.commitsExpanded", store: defaults)
+        _branchesExpanded = AppStorage(wrappedValue: false, "phlox.inspector.git.branchesExpanded", store: defaults)
+        _remotesExpanded = AppStorage(wrappedValue: false, "phlox.inspector.git.remotesExpanded", store: defaults)
+        _stashesExpanded = AppStorage(wrappedValue: false, "phlox.inspector.git.stashesExpanded", store: defaults)
+        _graphExpanded = AppStorage(wrappedValue: false, "phlox.inspector.git.graphExpanded", store: defaults)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header

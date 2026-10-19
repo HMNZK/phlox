@@ -5,6 +5,7 @@ import SwiftUI
 import Testing
 @testable import DashboardFeature
 
+extension ThemeRenderingTests {
 @Suite("ソース色付けの再現可能な性能測定", .serialized)
 @MainActor
 struct CodeSyntaxPerformanceTests {
@@ -294,4 +295,5 @@ struct CodeSyntaxPerformanceTests {
         "Swift Package Release"
         #endif
     }
+}
 }

@@ -46,12 +46,13 @@ run:
 run-live:
 	bash $(RUN_SCRIPT) --live
 
+# Render only the snapshot suite; interactive tests require a separate explicit request.
 snapshot: generate
 	TEST_RUNNER_PHLOX_DESIGN_SNAPSHOTS=1 \
 	TEST_RUNNER_PHLOX_SNAPSHOT_DIR='$(SNAPSHOT_ROOT)/snapshots' \
 	xcodebuild test \
 	  -scheme PhloxMobileSnapshots \
-	  -only-testing:PhloxMobileSnapshotTests \
+	  -only-testing:PhloxMobileSnapshotTests/DesignSnapshotRenderTests \
 	  -destination 'platform=iOS Simulator,id=$(SNAPSHOT_SIMULATOR_ID)' \
 	  -derivedDataPath '$(SNAPSHOT_ROOT)/build' \
 	  CODE_SIGNING_ALLOWED=NO

@@ -642,7 +642,8 @@ struct DesignSnapshotRenderTests {
             )
             if scenario.usageState == .failed {
                 await usageViewModel.load()
-                #expect(usageViewModel.isStale)
+                #expect(!usageViewModel.shouldShowRow)
+                #expect(!usageViewModel.isStale)
             }
             var pending: Task<Void, Never>?
             if scenario.isSending {
@@ -679,6 +680,11 @@ struct DesignSnapshotRenderTests {
                         await readiness.waitForMessages()
                     },
                     prepareWindow: { window in
+                        if scenario.usageState == .failed {
+                            try #require(!usageViewModel.shouldShowRow)
+                            try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button") == nil,
+                                         "Failed usage must not leave a visible or accessible row")
+                        }
                         if ["UsageStaleDT", "UsageStaleDTSE"].contains(scenario.name) {
                             try await verifyAX5FailureComposer(window, presentation: nil, draft: model.inputText,
                                 scene: scenario.name, output: output, osSuffix: osSuffix, usageViewModel: usageViewModel)
@@ -767,6 +773,9 @@ struct DesignSnapshotRenderTests {
         #expect(codex.buckets.map(\.id) == ["5h"])
         #expect(unavailable.first { $0.kind == .claudeCode }?.buckets.count == 2)
         #expect(unavailable.first { $0.kind == .cursor }?.state == .unavailable)
+        let visible = UsageRingPresentation.agents(from: unavailable)
+        #expect(visible.map(\.kind) == [.claudeCode, .codex])
+        #expect(visible[1].buckets.map(\.id) == ["5h"])
     }
 
     @Test func specialFixturesUsePublicTransitionsAndFinishPendingRequests() async throws {
@@ -813,7 +822,8 @@ struct DesignSnapshotRenderTests {
         #expect(usage.state == .loaded)
         await usageSource.configure(fails: true, gate: nil)
         await usage.load()
-        #expect(usage.isStale)
+        #expect(!usage.shouldShowRow)
+        #expect(!usage.isStale)
         let refreshGate = SnapshotResponseGate()
         await usageSource.configure(fails: false, gate: refreshGate)
         let refresh = Task { await usage.load() }
@@ -828,6 +838,7 @@ struct DesignSnapshotRenderTests {
         await refreshGate.release()
         await refresh.value
         #expect(usage.state == .loaded)
+        #expect(usage.shouldShowRow)
     }
 
     @Test func usagePopoverAccessibilitySearchRequiresExposedElements() {
@@ -2176,7 +2187,7 @@ struct DesignSnapshotRenderTests {
             let send = try #require(snapshotAccessibilityElement(in: window, label: DSInputBar.sendAccessibilityLabel))
             let title = try #require(snapshotAccessibilityElement(in: window, label: approval.compactAccessibilityLabel))
             let show = try #require(snapshotAccessibilityElement(in: window, label: "表示"))
-            let usageLabel = UsageRingPresentation.accessibilityLabel(agents: UsageRingPresentation.agents(from: usageViewModel.agents),
+            let usageLabel = UsageRingPresentation.accessibilityLabel(agents: usageViewModel.presentationAgents,
                 isRefreshing: usageViewModel.isRefreshing, isStale: usageViewModel.isStale, asOf: usageViewModel.asOfDate)
             let usage = try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button")
                 ?? snapshotAccessibilityElement(in: window, label: usageLabel))
@@ -2511,30 +2522,39 @@ struct DesignSnapshotRenderTests {
             }
             var requiredElements = [input, send] + errorElements
             var usageElement: NSObject?
+            let inputRect = frame(input)
+            let placeholderReference = UIHostingController(rootView: Text("やりたいことを入力")
+                .font(DSFont.inputBar(.textField, for: .accessibility5)).fixedSize(horizontal: false, vertical: true)
+                .environment(\.dynamicTypeSize, .accessibility5).environment(\.locale, Locale(identifier: "ja_JP")))
+            let placeholderNatural = placeholderReference.sizeThatFits(in: CGSize(width: inputRect.width, height: .greatestFiniteMagnitude))
+            naturalMeasurements["inputActual"] = String(describing: inputRect)
+            naturalMeasurements["placeholderNatural"] = String(describing: placeholderNatural)
+            try #require(finite(inputRect) && placeholderNatural.height.isFinite && placeholderNatural.height > 0
+                && inputRect.height >= placeholderNatural.height - 1,
+                         "The actual empty input must retain the full AX5 placeholder natural height")
             if let usageViewModel {
-                let rowLabel = UsageRingPresentation.accessibilityLabel(agents: UsageRingPresentation.agents(from: usageViewModel.agents),
-                    isRefreshing: usageViewModel.isRefreshing, isStale: usageViewModel.isStale, asOf: usageViewModel.asOfDate)
-                let row = try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button")
-                    ?? snapshotAccessibilityElement(in: window, label: rowLabel))
-                usageElement = row
-                requiredElements.append(row)
-                let inputRect = frame(input), rowRect = frame(row)
-                try #require(finite(inputRect) && finite(rowRect))
-                let rowReference = UIHostingController(rootView: UsageRingRow(viewModel: usageViewModel)
-                    .environment(\.dynamicTypeSize, .accessibility5).environment(\.locale, Locale(identifier: "ja_JP")))
-                let rowNatural = rowReference.sizeThatFits(in: CGSize(width: rowRect.width, height: .greatestFiniteMagnitude))
-                let placeholderReference = UIHostingController(rootView: Text("やりたいことを入力")
-                    .font(DSFont.inputBar(.textField, for: .accessibility5)).fixedSize(horizontal: false, vertical: true)
-                    .environment(\.dynamicTypeSize, .accessibility5).environment(\.locale, Locale(identifier: "ja_JP")))
-                let placeholderNatural = placeholderReference.sizeThatFits(in: CGSize(width: inputRect.width, height: .greatestFiniteMagnitude))
-                naturalMeasurements = ["usageActual": String(describing: rowRect), "usageNatural": String(describing: rowNatural),
-                    "inputActual": String(describing: inputRect), "placeholderNatural": String(describing: placeholderNatural)]
-                try record("natural-reference")
-                try #require(rowNatural.height.isFinite && rowNatural.height > 0 && rowRect.height >= rowNatural.height - 1,
-                             "The actual Usage row must retain its same-VM AX5 natural height")
-                try #require(placeholderNatural.height.isFinite && placeholderNatural.height > 0 && inputRect.height >= placeholderNatural.height - 1,
-                             "The actual empty input must retain the full AX5 placeholder natural height")
-                try #require(!rowRect.intersects(inputRect) && !rowRect.intersects(frame(send)), "Usage must not overlap input or send")
+                if usageViewModel.shouldShowRow {
+                    let rowLabel = UsageRingPresentation.accessibilityLabel(agents: usageViewModel.presentationAgents,
+                        isRefreshing: usageViewModel.isRefreshing, isStale: usageViewModel.isStale, asOf: usageViewModel.asOfDate)
+                    let row = try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button")
+                        ?? snapshotAccessibilityElement(in: window, label: rowLabel))
+                    usageElement = row
+                    requiredElements.append(row)
+                    let rowRect = frame(row)
+                    try #require(finite(inputRect) && finite(rowRect))
+                    let rowReference = UIHostingController(rootView: UsageRingRow(viewModel: usageViewModel)
+                        .environment(\.dynamicTypeSize, .accessibility5).environment(\.locale, Locale(identifier: "ja_JP")))
+                    let rowNatural = rowReference.sizeThatFits(in: CGSize(width: rowRect.width, height: .greatestFiniteMagnitude))
+                    naturalMeasurements["usageActual"] = String(describing: rowRect)
+                    naturalMeasurements["usageNatural"] = String(describing: rowNatural)
+                    try record("natural-reference")
+                    try #require(rowNatural.height.isFinite && rowNatural.height > 0 && rowRect.height >= rowNatural.height - 1,
+                                 "The actual Usage row must retain its same-VM AX5 natural height")
+                    try #require(!rowRect.intersects(inputRect) && !rowRect.intersects(frame(send)), "Usage must not overlap input or send")
+                } else {
+                    try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button") == nil,
+                                 "No accessible usage button may remain when no valid bucket is available")
+                }
             }
             if usageViewModel != nil, presentation == nil {
                 let root = try #require(window.rootViewController?.viewIfLoaded)

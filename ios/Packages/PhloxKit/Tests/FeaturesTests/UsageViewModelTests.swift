@@ -36,30 +36,38 @@ struct UsageViewModelTests {
         ])
 
         #expect(agents.map(\.kind) == [.claudeCode, .codex, .cursor])
-        #expect(agents[0].buckets.map(\.id) == ["5h", "weekly"])
-        #expect(agents[0].buckets.map(\.ringLabel) == ["5h", "7d"])
-        #expect(agents[1].buckets.map(\.ringLabel) == [nil, nil])
-        #expect(agents[2].buckets.map(\.id) == ["auto", "api"])
-        #expect(agents[2].buckets.map(\.ringLabel) == [nil, nil])
-        #expect(agents[0].buckets[1].remainingPercent == nil)
-        #expect(agents[0].buckets[1].remainingFraction == nil)
-        #expect(agents[0].buckets[1].isLow == false)
-        #expect(agents[0].buckets[1].label == "週次")
+        #expect(agents[0].buckets.map(\.id) == ["5h"])
+        #expect(agents[0].buckets.map(\.ringLabel) == ["5h"])
+        #expect(agents[1].buckets.map(\.id) == ["weekly"])
+        #expect(agents[1].buckets.map(\.ringLabel) == [nil])
+        #expect(agents[2].buckets.map(\.id) == ["api"])
+        #expect(agents[2].buckets.map(\.ringLabel) == [nil])
+        #expect(agents.allSatisfy { !$0.isUnavailable })
     }
 
-    @Test("取得できないエージェントと欠けた枠を分けて表す")
-    func unavailableAndMissingBucketsAreDistinct() {
+    @Test("Codex週次だけ・Cursor取得不可・値なし枠を合成せず隠す")
+    func missingAndUnavailableUsageIsOmitted() {
         let agents = UsageRingPresentation.agents(from: [
             CLIUsage(kind: .claudeCode, state: .ok, buckets: [], updatedAt: nil, dataAsOf: nil),
-            CLIUsage(kind: .codex, state: .unavailable, buckets: [], updatedAt: nil, dataAsOf: nil),
+            agent(.codex, buckets: [bucket("weekly", "週次", used: 0)]),
+            CLIUsage(kind: .cursor, state: .unavailable, buckets: [bucket("auto", "Auto", used: 100)], updatedAt: asOf, dataAsOf: asOf),
         ])
 
-        #expect(!agents[0].isUnavailable)
-        #expect(agents[0].buckets.allSatisfy { $0.value == nil })
-        #expect(agents[1].isUnavailable)
-        #expect(agents[1].buckets.allSatisfy { $0.value == nil })
-        #expect(agents[2].isUnavailable)
-        #expect(UsageRingPresentation.valueText(for: agents[0].buckets[0]) == "値なし")
+        #expect(agents.map(\.kind) == [.codex])
+        #expect(agents[0].buckets.map(\.id) == ["weekly"])
+        #expect(agents[0].buckets[0].remainingPercent == 100)
+        #expect(UsageRingPresentation.accessibilityLabel(agents: agents, isRefreshing: false, isStale: false, asOf: nil)
+            == "使用量。Codex 週次 残り 100%。")
+        #expect(UsageRingPresentation.agents(from: [
+            CLIUsage(kind: .claudeCode, state: .unavailable, buckets: [], updatedAt: nil, dataAsOf: nil),
+            CLIUsage(kind: .codex, state: .ok, buckets: [], updatedAt: nil, dataAsOf: nil),
+            CLIUsage(kind: .cursor, state: .unavailable, buckets: [], updatedAt: nil, dataAsOf: nil),
+        ]).isEmpty)
+
+        let exhausted = UsageRingPresentation.agents(from: [agent(.codex, buckets: [bucket("5h", "5時間", used: 100)])])
+        #expect(exhausted.map(\.kind) == [.codex])
+        #expect(exhausted[0].buckets[0].remainingPercent == 0)
+        #expect(exhausted[0].buckets[0].remainingFraction == UsageRingPresentation.minimumRingFraction)
     }
 
     @Test("5時間枠は残り時間、週次は日時、Cursor はリセットなし")
@@ -73,8 +81,10 @@ struct UsageViewModelTests {
         ])[0]
 
         #expect(UsageRingPresentation.resetText(for: claude.buckets[0], agent: .claudeCode, now: now, timeZone: japanTimeZone) == "03:12")
-        #expect(UsageRingPresentation.resetText(for: claude.buckets[1], agent: .claudeCode, now: now, timeZone: japanTimeZone) == "10/20 14:00")
-        #expect(UsageRingPresentation.resetText(for: UsageRingPresentation.agents(from: [agent(.cursor, buckets: [cursor])])[2].buckets[0], agent: .cursor, now: now, timeZone: japanTimeZone) == nil)
+        let claudeWeekly = UsageRingPresentation.agents(from: [agent(.claudeCode, buckets: [weekly])])[0]
+        #expect(UsageRingPresentation.resetText(for: claudeWeekly.buckets[0], agent: .claudeCode, now: now, timeZone: japanTimeZone) == "10/20 14:00")
+        let cursorAgent = UsageRingPresentation.agents(from: [agent(.cursor, buckets: [cursor])])[0]
+        #expect(UsageRingPresentation.resetText(for: cursorAgent.buckets[0], agent: .cursor, now: now, timeZone: japanTimeZone) == nil)
     }
 
     @Test("行の状態文言は更新中を優先し、古い値には取得時刻を出す")
@@ -101,7 +111,7 @@ struct UsageViewModelTests {
 
         let low = UsageRingPresentation.agents(from: [agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 88), bucket("weekly", "週次", used: 82)])])
         #expect(UsageRingPresentation.accessibilityLabel(agents: low, isRefreshing: false, isStale: false, asOf: nil, timeZone: japanTimeZone)
-            == "使用量。Claude 5時間 残り 12%、残りわずか、週次 残り 18%、残りわずか。Codex 取得できません。Cursor 取得できません。")
+            == "使用量。Claude 5時間 残り 12%、残りわずか、週次 残り 18%、残りわずか。")
         #expect(UsageRingPresentation.valueText(for: low[0].buckets[0]) == "残り 12%")
 
         let unavailable = UsageRingPresentation.agents(from: [
@@ -109,7 +119,7 @@ struct UsageViewModelTests {
             CLIUsage(kind: .codex, state: .unavailable, buckets: [], updatedAt: nil, dataAsOf: nil),
         ])
         #expect(UsageRingPresentation.accessibilityLabel(agents: unavailable, isRefreshing: false, isStale: false, asOf: nil, timeZone: japanTimeZone)
-            == "使用量。Claude 5時間 残り 72%、週次 値なし。Codex 取得できません。Cursor 取得できません。")
+            == "使用量。Claude 5時間 残り 72%。")
         #expect(UsageRingPresentation.accessibilityLabel(agents: normal, isRefreshing: false, isStale: true, asOf: asOf, timeZone: japanTimeZone)
             == "16時12分時点の値。更新できませんでした。使用量。Claude 5時間 残り 72%、週次 残り 40%。Codex 5時間 残り 99%、週次 残り 85%。Cursor Auto 残り 80%、API 残り 95%。")
         #expect(UsageRingPresentation.accessibilityLabel(agents: normal, isRefreshing: true, isStale: false, asOf: asOf, timeZone: japanTimeZone)
@@ -128,13 +138,18 @@ struct UsageViewModelTests {
         #expect(!vm.shouldShowRow)
         await vm.load()
         #expect(vm.state == .failed)
+        #expect(vm.presentationAgents.isEmpty)
         #expect(!vm.shouldShowRow)
     }
 
-    @Test("取得に失敗したら前の値を古い値として残す")
-    func failedRefreshRetainsLastSuccessfulUsage() async {
+    @Test("取得失敗で古い値を隠し、成功後に再表示する")
+    func failedRefreshHidesValuesUntilNextSuccess() async {
         let values = [agent(.claudeCode, buckets: [bucket("5h", "5時間", used: 28)])]
-        let stub = UsageStubAPI(outcomes: [.success(values), .failure(.server(status: 500, message: "boom"))])
+        let stub = UsageStubAPI(outcomes: [
+            .success(values),
+            .failure(.server(status: 500, message: "boom")),
+            .success(values),
+        ])
         let fixedAsOf = asOf
         let vm = UsageViewModel(
             api: stub,
@@ -150,12 +165,18 @@ struct UsageViewModelTests {
         await vm.load()
 
         #expect(vm.state == .failed)
+        #expect(vm.agents.isEmpty)
+        #expect(!vm.shouldShowRow)
+        #expect(!vm.isStale)
+        #expect(vm.asOfDate == nil)
+
+        await vm.load()
+        #expect(vm.state == .loaded)
         #expect(vm.agents == values)
         #expect(vm.shouldShowRow)
-        #expect(vm.isStale)
-        #expect(vm.asOfDate == asOf)
+        #expect(!vm.isStale)
         let count = await stub.cliUsageCallCount
-        #expect(count == 2)
+        #expect(count == 3)
     }
 
     @Test("取得中は前の値を保持し、重複取得しない")

@@ -283,16 +283,17 @@ public struct DSInputBar: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #if os(iOS)
+    @State private var isFocused = false
+    #else
     @FocusState private var isFocused: Bool
+    #endif
     @State private var measuredWidth: CGFloat = 0
     @State private var placeholderNaturalHeight: CGFloat = 0
     @State private var placeholderSingleLineHeight: CGFloat = 0
     @State private var pendingDangerousPermission: DSInputBarSettingOption?
     #if os(iOS)
-    @State private var textSelection: TextSelection?
-    @State private var selectionDelivery = DSInputSelectionDelivery()
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
-    @State private var lastPushedCursorUTF16 = -1
     #endif
 
     public init(
@@ -542,17 +543,16 @@ public struct DSInputBar: View {
 
     @ViewBuilder
     private var inputTextField: some View {
-        let stylesAttachmentMarkers = Self.containsAttachmentMarker(in: text)
         let usesExpandedPlaceholder = dynamicTypeSize.isAccessibilitySize && text.isEmpty
         let minimumTextLineCount = usesExpandedPlaceholder ? expandedPlaceholderMinimumLineCount : 1
         ZStack(alignment: usesExpandedPlaceholder ? .topLeading : .leading) {
-            if usesExpandedPlaceholder {
+            if text.isEmpty {
                 placeholderText
                     .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
                     .onGeometryChange(for: CGFloat.self) { proxy in
                         proxy.size.height
                     } action: { height in
-                        guard height.isFinite, height >= 0 else { return }
+                        guard usesExpandedPlaceholder, height.isFinite, height >= 0 else { return }
                         placeholderNaturalHeight = height
                     }
                     .background {
@@ -572,37 +572,19 @@ public struct DSInputBar: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
-            if stylesAttachmentMarkers {
-                Text(styledAttachmentMarkerText)
-                    .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
-                    .lineLimit(1...Self.maximumTextLineCount)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
         #if os(iOS)
-            TextField(text: $text, selection: validatedTextSelection, axis: .vertical) {
-                if !usesExpandedPlaceholder { placeholderText }
-            }
-            .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
-            .foregroundStyle(stylesAttachmentMarkers ? Color.clear : IOSColor.text.primary)
-            .tint(IOSColor.accent)
-            .lineLimit(minimumTextLineCount...max(Self.maximumTextLineCount, minimumTextLineCount))
-            .focused($isFocused)
-            .accessibilityLabel(Text(placeholder))
-            .onChange(of: cursorUTF16) { _, newCursor in
-                guard DSInputCursorMath.shouldPushSelection(
-                    cursorUTF16: newCursor,
-                    lastPushedCursorUTF16: lastPushedCursorUTF16
-                ) else { return }
-                applyExternalCursorToSelection()
-            }
+            DSInputRichTextEditor(
+                text: $text,
+                cursorUTF16: $cursorUTF16,
+                isFocused: $isFocused,
+                dynamicTypeSize: dynamicTypeSize,
+                accessibilityLabel: placeholder
+            )
+            .frame(minHeight: usesExpandedPlaceholder ? placeholderNaturalHeight : 0)
         #else
-            TextField(text: $text, axis: .vertical) {
-                if !usesExpandedPlaceholder { placeholderText }
-            }
+            TextField(text: $text, axis: .vertical) { EmptyView() }
             .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
-            .foregroundStyle(stylesAttachmentMarkers ? Color.clear : IOSColor.text.primary)
+            .foregroundStyle(IOSColor.text.primary)
             .tint(IOSColor.accent)
             .lineLimit(minimumTextLineCount...max(Self.maximumTextLineCount, minimumTextLineCount))
             .focused($isFocused)
@@ -624,83 +606,6 @@ public struct DSInputBar: View {
             .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
             .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
     }
-
-    private var styledAttachmentMarkerText: AttributedString {
-        guard let expression = try? NSRegularExpression(pattern: #"\[Image #[0-9]+\]"#) else {
-            return AttributedString(text)
-        }
-        let matches = expression.matches(in: text, range: NSRange(text.startIndex..., in: text))
-        var result = AttributedString()
-        var cursor = text.startIndex
-        for match in matches {
-            guard let range = Range(match.range, in: text), range.lowerBound >= cursor else { continue }
-            result += AttributedString(String(text[cursor..<range.lowerBound]))
-            var marker = AttributedString(String(text[range]))
-            marker.foregroundColor = IOSColor.accent
-            marker.font = DSFont.inputBar(.textField, for: dynamicTypeSize).weight(.bold)
-            result += marker
-            cursor = range.upperBound
-        }
-        result += AttributedString(String(text[cursor...]))
-        return result
-    }
-
-    private static func containsAttachmentMarker(in text: String) -> Bool {
-        guard let expression = try? NSRegularExpression(pattern: #"\[Image #[0-9]+\]"#) else { return false }
-        return expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
-    }
-
-    #if os(iOS)
-        private var validatedTextSelection: Binding<TextSelection?> {
-            Binding(
-                get: {
-                    guard let selection = textSelection,
-                        case .selection(let range) = selection.indices,
-                        DSInputCursorMath.isSelectionValid(range, in: text)
-                    else { return nil }
-                    return selection
-                },
-                set: { selection in
-                    let capturedText = text
-                    let capturedCursor = cursorUTF16
-                    selectionDelivery.enqueue(isCurrent: {
-                        text == capturedText && cursorUTF16 == capturedCursor
-                    }) {
-                        if let selection,
-                           case .selection(let range) = selection.indices,
-                           !DSInputCursorMath.isSelectionValid(range, in: text) { return }
-                        if textSelection != selection { textSelection = selection }
-                        publishUserSelectionOffset(selection)
-                    }
-                }
-            )
-        }
-
-        private func applyExternalCursorToSelection() {
-            selectionDelivery.invalidate()
-            let count = text.utf16.count
-            if let normalized = DSInputCursorMath.normalizedCursorIfNeeded(cursorUTF16, textUTF16Count: count) {
-                cursorUTF16 = normalized
-                return
-            }
-            let clamped = DSInputCursorMath.clampedCursorUTF16(cursorUTF16, textUTF16Count: count)
-            lastPushedCursorUTF16 = clamped
-            let index = String.Index(utf16Offset: clamped, in: text)
-            textSelection = TextSelection(range: index..<index)
-        }
-
-        private func publishUserSelectionOffset(_ selection: TextSelection?) {
-            guard let offset = Self.selectionLeadingUTF16Offset(from: selection, in: text),
-                  DSInputCursorMath.shouldPublishSelectionOffset(offset, boundCursorUTF16: cursorUTF16) else { return }
-            lastPushedCursorUTF16 = offset
-            cursorUTF16 = offset
-        }
-
-        static func selectionLeadingUTF16Offset(from selection: TextSelection?, in text: String) -> Int? {
-            guard let selection, case .selection(let range) = selection.indices else { return nil }
-            return DSInputCursorMath.utf16Offset(of: range.lowerBound, in: text)
-        }
-    #endif
 
     private var attachmentStripView: some View {
         HStack(spacing: DSSpacing.s) {
@@ -882,7 +787,7 @@ public struct DSInputBar: View {
     }
 
     private func modelChip(_ model: (kind: AgentKind, displayName: String)) -> some View {
-        smallControlButton(label: "モデル、\(model.displayName)", fill: DSColor.fillSubtle) {
+        smallControlButton(label: "モデル、\(model.displayName)", fill: IOSColor.bg.chip) {
             HStack(spacing: 4) {
                 DSAgentBrandIcon(kind: model.kind, size: dynamicTypeSize.isAccessibilitySize ? 26 : 15)
                 Text(model.displayName)

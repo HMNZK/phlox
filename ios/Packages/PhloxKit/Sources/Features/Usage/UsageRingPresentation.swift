@@ -50,19 +50,14 @@ public enum UsageRingPresentation {
             byKind[usage.kind] = usage
         }
 
-        return [AgentKind.claudeCode, .codex, .cursor].map { kind in
-            let usage = byKind[kind]
-            let unavailable = usage == nil || usage?.state == .unavailable
-            let values = usage?.state == .ok ? usage?.buckets ?? [] : []
-            let buckets = slots(for: kind).map { slot in
-                UsageRingBucket(
-                    id: slot.id,
-                    label: values.first(where: { $0.id == slot.id })?.label ?? slot.label,
-                    ringLabel: slot.ringLabel,
-                    value: values.first(where: { $0.id == slot.id })
-                )
+        return [AgentKind.claudeCode, .codex, .cursor].compactMap { kind in
+            guard let usage = byKind[kind], usage.state == .ok else { return nil }
+            let buckets = slots(for: kind).compactMap { slot -> UsageRingBucket? in
+                guard let value = usage.buckets.first(where: { $0.id == slot.id }) else { return nil }
+                return UsageRingBucket(id: slot.id, label: value.label, ringLabel: slot.ringLabel, value: value)
             }
-            return UsageRingAgent(kind: kind, isUnavailable: unavailable, buckets: buckets)
+            guard !buckets.isEmpty else { return nil }
+            return UsageRingAgent(kind: kind, isUnavailable: false, buckets: buckets)
         }
     }
 

@@ -40,7 +40,11 @@ public final class UsageViewModel {
     }
 
     public var shouldShowRow: Bool {
-        !agents.isEmpty
+        !presentationAgents.isEmpty
+    }
+
+    var presentationAgents: [UsageRingAgent] {
+        UsageRingPresentation.agents(from: agents)
     }
 
     public var isRefreshing: Bool {
@@ -66,6 +70,7 @@ public final class UsageViewModel {
             lastSuccessfulAt = now()
             state = .loaded
         } catch {
+            agents = []
             state = .failed
         }
     }

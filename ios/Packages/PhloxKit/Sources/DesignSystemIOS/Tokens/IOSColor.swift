@@ -58,6 +58,9 @@ public enum IOSColor {
         public var fill: Color {
             IOSColor.isLight ? IOSColor.color(0x767680, opacity: 0.12) : IOSColor.color(0x767680, opacity: 0.28)
         }
+        public var chip: Color {
+            IOSColor.isLight ? IOSColor.color(0x767680, opacity: 0.10) : IOSColor.color(0x767680, opacity: 0.22)
+        }
         public var separator: Color {
             IOSColor.isLight ? IOSColor.color(0x3C3C43, opacity: 0.18) : IOSColor.color(0x545458, opacity: 0.65)
         }

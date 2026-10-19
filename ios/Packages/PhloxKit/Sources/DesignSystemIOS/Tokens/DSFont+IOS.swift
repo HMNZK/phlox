@@ -25,7 +25,7 @@ public extension DSFont {
     static func inputBar(_ role: InputBarRole, for dynamicTypeSize: DynamicTypeSize) -> Font {
         let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
         let size: CGFloat = switch role {
-        case .textField: isAccessibilitySize ? 40 : 17
+        case .textField: inputBarTextFieldPointSize(for: dynamicTypeSize)
         case .chip: isAccessibilitySize ? 26 : 13
         case .error: isAccessibilitySize ? 30 : 13
         case .caption: isAccessibilitySize ? 20 : 12
@@ -39,6 +39,16 @@ public extension DSFont {
         }
         return .system(size: size, design: .default)
     }
+
+    static func inputBarTextFieldPointSize(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 40 : 17
+    }
+
+    #if os(iOS)
+    static func inputBarTextFieldUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
+        .systemFont(ofSize: inputBarTextFieldPointSize(for: dynamicTypeSize))
+    }
+    #endif
 
     /// 新規チャットの DotGothic16 見出し。仕様の Dynamic Type 段階に合わせて固定サイズを選ぶ。
     static func displayDot(for dynamicTypeSize: DynamicTypeSize) -> Font {

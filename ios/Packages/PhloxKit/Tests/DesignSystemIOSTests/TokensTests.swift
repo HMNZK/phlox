@@ -101,6 +101,7 @@ final class TokensTests: XCTestCase {
             // C-20: Chat.dc.html:705/709/724のChat・Reply・Detail共通パレットを採用する。
             expectColor(IOSColor.bg.code, 0xE9E9EE)
             expectColor(IOSColor.bg.fill, 0x767680, opacity: 0.12)
+            expectColor(IOSColor.bg.chip, 0x767680, opacity: 0.10)
             expectColor(IOSColor.bg.separator, 0x3C3C43, opacity: 0.18)
             expectColor(IOSColor.bg.glass, 0xFFFFFF, opacity: 0.62)
             expectColor(IOSColor.bg.bar, 0xF9F9FB, opacity: 0.94)
@@ -136,6 +137,7 @@ final class TokensTests: XCTestCase {
             // C-20: Chat.dc.html:705/709/724の会話共通パレット。
             expectColor(IOSColor.bg.code, 0x1C1C1E)
             expectColor(IOSColor.bg.fill, 0x767680, opacity: 0.28)
+            expectColor(IOSColor.bg.chip, 0x767680, opacity: 0.22)
             expectColor(IOSColor.bg.separator, 0x545458, opacity: 0.65)
             expectColor(IOSColor.bg.glass, 0x26262A, opacity: 0.60)
             expectColor(IOSColor.bg.bar, 0x161618, opacity: 0.94)

@@ -17,8 +17,8 @@ public struct UsageRingRow: View {
     }
 
     public var body: some View {
-        if viewModel.shouldShowRow {
-            let agents = UsageRingPresentation.agents(from: viewModel.agents)
+        let agents = viewModel.presentationAgents
+        if !agents.isEmpty {
             Button {
                 isPopoverPresented = true
             } label: {

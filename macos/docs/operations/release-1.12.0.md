@@ -2,7 +2,7 @@
 
 ## 状態
 
-署名・公証済み、公開準備完了。2026-10-20にユーザーがmainへのマージとリリースを指示した。
+公開済み：[GitHub Release v1.12.0](https://github.com/HMNZK/phlox/releases/tag/v1.12.0)。タグは`d637648f`。2026-10-20にユーザーがmainへのマージとリリースを指示した。
 対象はdevの`c5ec0708`までの変更。未コミットの他作業は含めない。
 macOSのDMGとSparkle更新を公開し、iOSアプリの配布は行わない。
 配布物と記録は作業worktreeの`.verification/release-1.12.0/`に保管する。
@@ -20,6 +20,9 @@ macOSのDMGとSparkle更新を公開し、iOSアプリの配布は行わない�
 - 最終アプリの公証Accepted（`edb47a35-362d-41e1-aba5-39b7a0db5a27`）、DMGの公証Accepted（`5e9d6380-2003-4269-9e3f-0b661fb6a862`）。双方のstapler validateとGatekeeper accepted（Notarized Developer ID）を確認。
 - 公証後の配布用署名検査4件成功。凍結済み権限構成検査の構造検査成功、DPK構成の実ビルドはSigning.local.xcconfigのチーム設定が無く既定でスキップ（未検証）。
 - Sparkle ZIPの署名を、配布アプリ内の公開鍵とCryptoKitで照合して成功（手元の検査、リポジトリのテストには未登録）。Releaseアプリ自体の画面操作は未実施。
+- マージのセキュリティゲートは変更726ファイル中426件が件数上限で外部ツール未走査と警告した。上限を1000に広げて再走査し、秘密情報・抑制・危険な設定変更・依存脆弱性・SASTの検出なし（exit0）。ゲートを迂回せず、dev→verify→mainをfast-forwardし、3ブランチをoriginへpushした。
+- [Pages run 39387869501](https://github.com/HMNZK/phlox/actions/runs/39387869501)成功。公開フィードHTTP200、先頭1.12.0/build34、英日ノートと配布サイズの整合を確認。最新版Releaseはv1.12.0。GitHubから再ダウンロードしたDMG・ZIPのSHA-256は下記と一致。
+- フィードの確認はWeb取得ツールがURL非対応で失敗し、Pythonの初回取得もローカルの発行元CA不足で失敗した。OSのCAバンドルを明示して証明書検証を有効なまま再実行し成功。証明書検証は無効化していない。
 
 ## 配布物
 

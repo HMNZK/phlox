@@ -28,6 +28,19 @@ import Foundation
     #expect(AppFlavor.debug.mobileProxyDefaultPort == 8766)
 }
 
+@Test func appFlavor_mobileProxyListenPort_isEphemeralOnlyForExplicitDebugOptIn() {
+    let cases: [([String: String], UInt16)] = [
+        ([:], 8766),
+        (["PHLOX_TEST_EPHEMERAL_MOBILE_PORT": "1"], 0),
+        (["PHLOX_TEST_EPHEMERAL_MOBILE_PORT": "0"], 8766),
+        (["PHLOX_TEST_EPHEMERAL_MOBILE_PORT": "true"], 8766),
+    ]
+    for (environment, expectedDebugPort) in cases {
+        #expect(AppFlavor.release.mobileProxyListenPort(environment: environment) == 8765)
+        #expect(AppFlavor.debug.mobileProxyListenPort(environment: environment) == expectedDebugPort)
+    }
+}
+
 @Test func appSupportLocator_homeBasedURL_usesFlavorDirectoryName() {
     let home = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

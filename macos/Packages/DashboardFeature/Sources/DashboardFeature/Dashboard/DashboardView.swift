@@ -325,7 +325,7 @@ public struct DashboardView: View {
 
 
 
-    private var navigationShell: some View {
+    private var navigationContent: some View {
         GeometryReader { geometry in
             let windowWidth = geometry.size.width
             let layout = paneLayout(windowWidth: windowWidth)
@@ -463,6 +463,11 @@ public struct DashboardView: View {
             guard let viewModel, let router else { return "" }
             return viewModel.projects.first { $0.id == router.selectedProjectID }?.name ?? ""
         }))
+        .background { SessionCompletionFocusObserver(viewModel: viewModel, router: router) }
+    }
+
+    private var navigationShell: some View {
+        navigationContent
         .onReceive(NotificationCenter.default.publisher(for: .fileTreeFileSaved)) { notification in
             guard let root = notification.userInfo?["root"] as? String,
                   let path = notification.userInfo?["path"] as? String else { return }
@@ -540,7 +545,6 @@ public struct DashboardView: View {
             discardedSessionCountNotice = viewModel.takeDiscardedSessionCountNotice()
         }
         .onChange(of: router.selectedSession) { _, selectedID in
-            markCompletionSeen(for: selectedID)
             updateEditorPanel()
             revealSelectedSessionTab()
             if let selectedID,
@@ -551,9 +555,6 @@ public struct DashboardView: View {
         }
         .onChange(of: editorPanelWorkspaces) { _, _ in
             updateEditorPanel()
-        }
-        .onChange(of: viewModel.unseenCompletionCount) { _, _ in
-            markCompletionSeen(for: router.selectedSession)
         }
         // 既定の間隔（システムの値）を空けると、サイドバーと下端のバーの間に隙間ができる。
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -1053,7 +1054,6 @@ public struct DashboardView: View {
 
         if let selected = router.selectedSession,
            viewModel.sessionNode(id: selected) != nil {
-            markCompletionSeen(for: selected)
             return
         }
         let id = presentation.selectedSessionID
@@ -1064,12 +1064,6 @@ public struct DashboardView: View {
         } else {
             router.selectedSession = presentation.selectedSessionID
         }
-    }
-
-    private func markCompletionSeen(for selectedID: SessionID?) {
-        guard let selectedID,
-              let node = viewModel.sessionNode(id: selectedID) else { return }
-        node.markCompletionSeen()
     }
 
 

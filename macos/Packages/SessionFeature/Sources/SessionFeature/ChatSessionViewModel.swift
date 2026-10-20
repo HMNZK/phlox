@@ -2163,6 +2163,10 @@ public final class ChatSessionViewModel: Identifiable {
         } else {
             turnGeneration += 1
         }
+        trackRunningTurn(at: date)
+    }
+
+    private func trackRunningTurn(at date: Date) {
         turnStartedAt = date
         turnIsRestoredInference = false
         lastEventAt = nil
@@ -3953,6 +3957,8 @@ extension ChatSessionViewModel: ControllableSession {
             enqueueTranscriptUpsert([item])
             turnGeneration += 1
             isAwaitingLocallyStartedTurnEvent = true
+            // 初回などturnStarted通知が届かなくても、送信した指示の完了を追跡する。
+            trackRunningTurn(at: Date())
             if Self.isCompactCommand(input) {
                 isCompacting = true
             }
@@ -3983,6 +3989,7 @@ extension ChatSessionViewModel: ControllableSession {
                 // A3: turnStart 失敗時は status を .idle に戻す（.running 固着を防ぐ）。
                 // reservation（pendingReplayContext）・添付・記録済み userMessage は
                 // 変更せず残す（再送でプリアンブルをちょうど1回適用する既存セマンティクス）。
+                clearRunningTurn()
                 isAwaitingLocallyStartedTurnEvent = false
                 firstTurnInput = nil
                 status = .idle

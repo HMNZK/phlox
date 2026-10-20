@@ -253,6 +253,7 @@ struct ChildTabBar: View {
                         isShown: layout.isShown(tab),
                         isSelected: selected == tab,
                         isDirty: isDirty(tab),
+                        activityState: activityState(for: tab),
                         onSelect: { router.selectTab(tab, in: project.id) },
                         onClose: { tab.requestClose(in: router) }
                     )
@@ -356,7 +357,13 @@ struct ChildTabBar: View {
     private func tabWidth(_ tab: ProjectTab, selected: Bool, shown: Bool, maximum: CGFloat) -> CGFloat {
         let font = NSFont.systemFont(ofSize: 12, weight: selected ? .semibold : .regular) // DSFont.auxiliary
         let textWidth = ceil((titleText(for: tab) as NSString).size(withAttributes: [.font: font]).width)
-        return min(maximum, textWidth + 16 + (shown || selected ? 20 : 0))
+        return min(maximum, textWidth + 16 + (shown || selected ? 20 : 0)
+            + (activityState(for: tab).showsActivityIndicator ? SessionRunningSpinner.diameter + 6 : 0))
+    }
+
+    private func activityState(for tab: ProjectTab) -> SessionDisplayState {
+        guard case .chat(let id) = tab else { return .idle }
+        return viewModel.sessionNode(id: id)?.tabDisplayState ?? .idle
     }
 
     private func isDirty(_ tab: ProjectTab) -> Bool {
@@ -371,14 +378,19 @@ private struct ChildTabButton: View {
     let isShown: Bool
     let isSelected: Bool
     let isDirty: Bool
+    let activityState: SessionDisplayState
     let onSelect: () -> Void
     let onClose: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.locale) private var locale
 
     var body: some View {
         // PhloxTabsWindow.dc.html: 下段は高さ 26、padding 0 6 0 10。
         HStack(spacing: 6) {
+            if activityState.showsActivityIndicator {
+                SessionActivityIndicator(state: activityState)
+            }
             title
                 .font(DSFont.auxiliary.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isShown ? DSColor.textPrimary : DSColor.textSecondary)
@@ -400,6 +412,7 @@ private struct ChildTabButton: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(isDirty ? Text("\(title)、未保存") : title)
+        .accessibilityValue(activityState.showsActivityIndicator ? Text(verbatim: activityState.localizedLabel(locale: locale)) : Text(verbatim: ""))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction(.default, onSelect)
         .accessibilityAction(named: Text(closeHelp), onClose)

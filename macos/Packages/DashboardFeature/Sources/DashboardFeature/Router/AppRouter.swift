@@ -56,6 +56,14 @@ public final class AppRouter {
     /// 選択中のプロジェクトの子タブの代わりに新規チャット画面を出しているか（要件 FR-1a）。
     /// 子タブ・別のプロジェクト・セッションを選ぶと外れる。
     public var showsNewChat = false
+    /// 実際に会話を操作しているセッション。ファイル等のタブでは最後の会話を既読にしない。
+    var focusedSessionID: SessionID? {
+        guard !showsNewChat, let selectedSession else { return nil }
+        if viewMode == .grid { return selectedSession }
+        guard let selectedProjectID,
+              tabs.layout(for: selectedProjectID).selected == .chat(selectedSession) else { return nil }
+        return selectedSession
+    }
     public var mainRoute: MainRoute
     /// サイドバーの表示状態。メニュー（⌃⌘S）とビュー内トグルの双方から操作するため
     /// View の @State ではなく共有の Observable に置く。

@@ -2,7 +2,7 @@
 
 ## 状態
 
-配布前検証済み・公開準備中。2026-10-20にユーザーが今回の変更のマージとリリースを指示した。
+公開済み：[GitHub Release v1.13.0](https://github.com/HMNZK/phlox/releases/tag/v1.13.0)。タグは `816b99ac`。2026-10-20にユーザーが今回の変更のマージとリリースを指示した。
 対象は 1.12.0 以降の `dev` と、Codex 版 pstack・エージェント別スキル候補の変更。
 macOS の DMG と Sparkle 更新を公開する。iOS アプリの配布は今回の対象外。
 
@@ -22,7 +22,13 @@ macOS の DMG と Sparkle 更新を公開する。iOS アプリの配布は今�
 | Phlox.dmg | 32823904 | `75f2ef3bc9aa273a59fe9e26619c67cdfbb30a635376c4948903dfe66fe39ac6` |
 | Phlox-1.13.0.zip | 27734719 | `07ac82450939d91852750ffa52c228f29b651336d5accf09350c60cf5bf92b8d` |
 
-公開後の疎通、画面確認、Pages 配信結果は公開時に追記する。
+## 公開後の確認
+
+- `feature/pstack-codex` → `dev` → `verify` → `main` を fast-forward し、3 ブランチを origin へ atomic push。`dev` に元からあった未コミットの iOS 資料は退避後に復元され、変更内容と未追跡ファイルは残した。
+- Sparkle ZIP を `HMNZK/phlox-dist` の `updates` Release、DMG を `HMNZK/phlox` の v1.13.0 Release に公開。GitHub の最新版表示は v1.13.0、DMG 添付サイズは 32823904 バイト。
+- [Pages run 39404598989](https://github.com/HMNZK/phlox/actions/runs/39404598989) 成功。公開フィードは HTTP 200、先頭は 1.13.0 / build 35。英日ノート、ZIP サイズと署名が手元の記録と一致。
+- 最新版 DMG と更新 ZIP の公開 URL は HTTP 200。GitHub から再ダウンロードした両ファイルの SHA-256 は上表と一致。これらは手元で実行した検査で、リポジトリのテストには未登録。
+- Web 取得ツールは GitHub Release を cache miss、appcast URL を非対応として取得できなかった。OS の CA バンドルを指定した Python HTTPS 検査で証明書検証を有効にしたまま確認した。
 
 ## リリースノート
 

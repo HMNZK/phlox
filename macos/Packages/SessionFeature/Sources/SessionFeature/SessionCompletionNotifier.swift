@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import AppKit
+import OSLog
 import AgentDomain
 import DesignSystem
 
@@ -135,6 +136,8 @@ public enum SessionCompletionNotifier {
     public static let categoryIdentifier = "Phlox.session"
     public static let openActionIdentifier = "Phlox.open"
     private static let attentionKindKey = "attentionKind"
+    private static let questionEventKey = "questionEvent"
+    private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "Notifications")
     /// まとめの 1 枚が含むセッションの ID（新しい順）。
     private static let summaryItemsKey = "summaryItems"
     private static let summaryIdentifierPrefix = "Phlox.attentionSummary."
@@ -169,6 +172,20 @@ public enum SessionCompletionNotifier {
     @MainActor
     public static func notifyAwaitingInput(sessionID: SessionID, sessionName: String, kind: SessionNotificationText.Kind = .awaitingApproval(prompt: nil)) {
         post(kind, sessionID: sessionID, sessionName: sessionName, identifierPrefix: "Phlox.sessionAwaiting")
+    }
+
+    /// 実行を続ける質問。停止状態の解消に連動して通知を削除しない。
+    @MainActor
+    public static func notifyQuestionReceived(sessionID: SessionID, sessionName: String, question: String) {
+        post(.awaitingQuestion(question: question, isSecret: false), sessionID: sessionID,
+             sessionName: sessionName, identifierPrefix: "Phlox.questionReceived", isQuestionEvent: true)
+    }
+
+    static func shouldSuppressWhileShowing(_ kind: SessionNotificationText.Kind) -> Bool {
+        switch kind {
+        case .awaitingQuestion, .awaitingApproval: false
+        default: true
+        }
     }
 
     /// ターミナル型のプロセスが 0 以外の終了コードで終わったときの通知（C-60）。
@@ -213,6 +230,7 @@ public enum SessionCompletionNotifier {
             guard includesPreviousLaunch else { return }
             let stale = await center.deliveredNotifications().compactMap { note -> String? in
                 let info = note.request.content.userInfo
+                if info[questionEventKey] as? Bool == true { return nil }
                 if let items = info[summaryItemsKey] as? [String] {
                     // ponytail: 一部だけ済んだまとめは件数を書き換えない（再投稿するとバナーと音が出直すため）。
                     return items.contains(where: attentionIDs.contains) ? nil : note.request.identifier
@@ -231,10 +249,11 @@ public enum SessionCompletionNotifier {
         sessionID: SessionID?,
         sessionName: String,
         lastReply: String? = nil,
-        identifierPrefix: String
+        identifierPrefix: String,
+        isQuestionEvent: Bool = false
     ) {
         guard canUseUserNotifications else { return }
-        if let sessionID, isShowing(sessionID) { return }
+        if let sessionID, isShowing(sessionID), shouldSuppressWhileShowing(kind) { return }
         let soundEnabled = NotificationSettings.isSoundEnabled()
         let bannerEnabled = NotificationSettings.isBannerEnabled()
 
@@ -266,17 +285,18 @@ public enum SessionCompletionNotifier {
                 sessionIDKey: sessionID.description,
                 attentionKindKey: kind.attentionKind?.rawValue ?? "",
             ]
+            if isQuestionEvent { content.userInfo[questionEventKey] = true }
         }
         let openTitle = AppLocalizedString.string("開く", locale: locale)
         let identifier = "\(identifierPrefix).\(UUID().uuidString)"
         var decision = AttentionNotificationBook.Decision.single
-        if let sessionID, let attention = kind.attentionKind, let projectID = context?.projectID {
+        if !isQuestionEvent, let sessionID, let attention = kind.attentionKind, let projectID = context?.projectID {
             decision = attentionBook.record(
                 .init(sessionID: sessionID.description, kind: attention, name: sessionName),
                 projectID: projectID
             )
         }
-        if let sessionID {
+        if !isQuestionEvent, let sessionID {
             postedIdentifiers[sessionID.description, default: []].append((identifier, kind.attentionKind != nil))
         }
         var request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
@@ -314,7 +334,13 @@ public enum SessionCompletionNotifier {
                 center.removePendingNotificationRequests(withIdentifiers: replacing)
                 center.removeDeliveredNotifications(withIdentifiers: replacing)
             }
-            try? await center.add(request)
+            do {
+                try await center.add(request)
+            } catch {
+                // 本文や質問内容をログへ含めない。
+                let failure = error as NSError
+                logger.error("Notification delivery failed: domain=\(failure.domain, privacy: .public) code=\(failure.code)")
+            }
         }
     }
 

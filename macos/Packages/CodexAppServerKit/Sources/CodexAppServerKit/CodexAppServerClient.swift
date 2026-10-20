@@ -110,6 +110,7 @@ public actor CodexAppServerClient {
                 received: response.thread.id
             )
         }
+        seedRestoredTurnIdentity(from: response.thread)
         return response
     }
 
@@ -121,7 +122,25 @@ public actor CodexAppServerClient {
                 received: response.thread.id
             )
         }
+        seedRestoredTurnIdentity(from: response.thread)
         return response
+    }
+
+    /// 復元後の最初の遅延イベントで、過去の turn を実行中 turn として束縛しない。
+    private func seedRestoredTurnIdentity(from thread: ThreadSummary) {
+        let threadID = thread.id
+        var state = turnStates[threadID] ?? TurnState()
+        guard !state.hasObservedLifecycle, state.activeTurnId == nil else { return }
+        for turn in thread.turns ?? [] {
+            guard let turnID = turn.id else { continue }
+            if turn.status == "inProgress" {
+                state.activeTurnId = turnID
+                state.hasObservedLifecycle = true
+            } else if ["completed", "interrupted", "failed"].contains(turn.status ?? "") {
+                state.closedTurnIds.insert(turnID)
+            }
+        }
+        turnStates[threadID] = state
     }
 
     public func threadList(_ params: ThreadListParams = ThreadListParams()) async throws -> ThreadListResponse {
@@ -711,7 +730,6 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         // thread 切替中（currentThreadId == nil）は thread identity を持つイベントを流さない。
         // 現在の thread が確定していて、イベントの thread id がそれと異なるなら、旧 thread
         // 由来なので両ストリームへ流さない（normalized delta も含む）。
-        // ただし子停止を要求済みの場合だけ、要求した turn の interrupted 完了を通す。
         let eventThreadId = Self.threadId(of: event)
         let childCompletionAccepted: Bool
         if let currentThreadId,
@@ -807,7 +825,8 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         guard let expectedTurnId = pendingChildInterrupts[threadId] else { return false }
         switch event {
         case .turnCompleted(_, let turn):
-            guard turn.id == expectedTurnId, turn.status == "interrupted" else { return false }
+            guard turn.id == expectedTurnId,
+                  ["completed", "failed", "interrupted"].contains(turn.status ?? "") else { return false }
         case .turnInterrupted(_, let turnId):
             guard turnId == expectedTurnId else { return false }
         default:

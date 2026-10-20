@@ -80,6 +80,9 @@ struct GridTileHeader: View {
     var body: some View {
         let _ = themeID
         HStack(spacing: 7) {
+            if state.showsActivityIndicator {
+                SessionActivityIndicator(state: state)
+            }
             if isInternal {
                 Text("内部")
                     .font(.system(size: 10))

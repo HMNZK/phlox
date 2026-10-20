@@ -313,13 +313,13 @@ public final class CompositionRoot {
         bindMode: BindMode?,
         listenPort: UInt16?
     ) {
-        // モバイル中継プロキシ: Tailscale IF の flavor 別固定ポート（Release: 8765、Debug: 8766）で待ち受け、受けた HTTP を
+        // モバイル中継プロキシ: flavor別ポート（明示したDebug検証時のみOS割当）で待ち受け、受けた HTTP を
         // 127.0.0.1:<controlPort>(ControlServer)へ無改変で中継する。controlPort はメモリから直接渡す。
         // secure-by-default: Tailscale 未検出時は loopback(127.0.0.1)限定にフォールバックし、
         // 全 IF(0.0.0.0)へは決して暗黙バインドしない(fail-closed)。露出範囲は BindMode で可観測。
         // 起動失敗(ポート使用中等)はアプリ起動を妨げないよう warning ログに留めて続行する。
         let mobileProxy = MobileProxy(
-            listenPort: AppFlavor.current.mobileProxyDefaultPort,
+            listenPort: AppFlavor.current.mobileProxyListenPort(environment: ProcessInfo.processInfo.environment),
             targetPort: UInt16(controlPort)
         )
         var resolvedBindMode: BindMode?

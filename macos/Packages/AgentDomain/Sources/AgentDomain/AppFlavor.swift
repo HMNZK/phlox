@@ -47,6 +47,14 @@ public enum AppFlavor: Sendable, Equatable {
         }
     }
 
+    /// 既存Debugを維持したまま検証するときだけ、OS割当ポートを要求する。
+    public func mobileProxyListenPort(environment: [String: String]) -> UInt16 {
+        if self == .debug && environment["PHLOX_TEST_EPHEMERAL_MOBILE_PORT"] == "1" {
+            return 0
+        }
+        return mobileProxyDefaultPort
+    }
+
     /// レガシー移行（AgentDashboard → 現行データディレクトリ）を実行してよいか。
     /// Debug は常に空から始めるため false（既存の Release データを取り込まない）。
     public var runsLegacyMigration: Bool {

@@ -552,7 +552,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        // 見ているセッションの通知は投稿前に止めている（SessionCompletionNotifier.isShowing）。
+        // 完了などは表示中なら投稿前に抑制する。質問・承認は表示中でも通知する。
         [.banner, .list, .sound]
     }
 

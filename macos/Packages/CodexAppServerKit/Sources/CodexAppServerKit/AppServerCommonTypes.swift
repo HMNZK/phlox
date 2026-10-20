@@ -529,6 +529,17 @@ public struct ThreadItem: Codable, Equatable, Sendable {
         try raw?.encode(to: encoder)
     }
 
+    /// 回答を待たない質問。通常の文章の疑問符からは推測しない（0.163.0）。
+    public var asyncQuestionTitles: [String] {
+        guard type == "agentMessage", raw?["delivery"]?.stringValue == "async",
+              case .array(let questions)? = raw?["questions"] else { return [] }
+        return questions.compactMap { question in
+            guard let title = question["title"]?.stringValue,
+                  !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return title
+        }
+    }
+
     /// fileChange item の変更（0.156 のスキーマでは `changes: [{path, diff, kind}]`）。
     public var fileChanges: [FilePatchChange] {
         guard case .array(let values)? = raw?["changes"] else { return [] }

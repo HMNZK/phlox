@@ -107,6 +107,25 @@ private func questionCard(
 @Suite("Codex user input: ViewModel")
 struct CodexUserInputViewModelTests {
     @Test @MainActor
+    func 入力待ちのまま別の質問が届いても要求ごとに通知する() async throws {
+        let (vm, client, _) = makeViewModel()
+        let notifier = MockRemoteSessionNotifier()
+        vm.remoteSessionNotifier = notifier
+        try await withTerminatedViewModel(vm) {
+            client.yield(.turnStarted)
+            #expect(await waitUntil { vm.status == .running })
+            let questions = [ChatUserQuestion(question: "進めてよいですか？", header: "確認", options: [], multiSelect: false)]
+            client.yield(.userQuestionRequested(requestId: "first", questions: questions))
+            #expect(await waitUntil { notifier.approvalPendingCalls.count == 1 })
+            client.yield(.userQuestionRequested(requestId: "first", questions: questions))
+            client.yield(.userQuestionRequested(requestId: "second", questions: questions))
+            #expect(await waitUntil { vm.transcript.contains { $0.id == "question-second" } })
+            #expect(notifier.approvalPendingCalls.count == 2)
+            #expect(vm.status == .awaitingUserQuestion)
+        }
+    }
+
+    @Test @MainActor
     func 質問が届くと質問カードが出て入力待ちになる() async throws {
         let (vm, client, broker) = makeViewModel()
         try await withTerminatedViewModel(vm) {

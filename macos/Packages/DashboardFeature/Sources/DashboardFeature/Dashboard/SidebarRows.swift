@@ -5,7 +5,7 @@ import DesignSystem
 import SessionFeature
 
 // 03 Sidebar の行。寸法はモック（PhloxSidebar）の値: プロジェクト行 28pt・セッション行 26pt・
-// 1 段 16pt の字下げ（先頭 22pt）・行の角丸 6。
+// 1 段 16pt の字下げ（標準の先頭 22pt）・行の角丸 6。
 
 /// 1 段目の行頭の余白と、1 段ごとの字下げ。
 enum SidebarRowMetrics {
@@ -148,18 +148,6 @@ struct SidebarProjectRow<Menu: View>: View {
 
 // MARK: - Session row
 
-enum SidebarTitleShimmer {
-    static let sweepDuration: TimeInterval = 1.4
-    static let pauseDuration: TimeInterval = 1.0
-
-    static func phase(at date: Date) -> Double {
-        let cycle = sweepDuration + pauseDuration
-        let remainder = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
-        let elapsed = remainder >= 0 ? remainder : remainder + cycle
-        return min(elapsed / sweepDuration, 1)
-    }
-}
-
 struct SidebarHoverCardSelection {
     private(set) var sessionID: SessionID?
     mutating func show(_ id: SessionID) { sessionID = id }
@@ -198,7 +186,6 @@ struct SidebarSessionRow<Menu: View>: View {
     /// 読み上げの経過を 1 分ごとに作り直すための時計。
     @State private var labelClock = Date()
     @Environment(\.locale) private var locale
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     private var state: SessionDisplayState { node.tabDisplayState }
@@ -219,7 +206,14 @@ struct SidebarSessionRow<Menu: View>: View {
                     onCancel: onCancelRename
                 )
             } else {
-                sessionTitle
+                if state.showsActivityIndicator {
+                    statusLabel
+                        .fixedSize()
+                    chevron
+                }
+                Text(verbatim: node.displayName)
+                    .font(DSFont.row.weight(emphasis.nameWeight))
+                    .foregroundStyle(emphasis.nameColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -236,10 +230,9 @@ struct SidebarSessionRow<Menu: View>: View {
                     .background(DSColor.segmentTrack, in: RoundedRectangle(cornerRadius: 8))
                 }
                 // 待機中は何も出さない（経過時間は出さない。要件 FR-24）。
-                if state != .idle {
-                    Text(verbatim: state.localizedLabel(locale: locale))
+                if state != .idle, !state.showsActivityIndicator {
+                    statusLabel
                         .font(DSFont.meta)
-                        .foregroundStyle(state.attentionKind.map(DSColor.attentionInk) ?? DSColor.textSecondary)
                         .lineLimit(1)
                         .fixedSize()
                 }
@@ -256,11 +249,21 @@ struct SidebarSessionRow<Menu: View>: View {
                 }
             }
         }
-        .padding(.leading, padding)
+        .padding(
+            .leading,
+            state.showsActivityIndicator && !isRenaming ? padding - SidebarRowMetrics.firstIndent + 4 : padding
+        )
         .padding(.trailing, 8)
         .frame(minHeight: 26)
-        .background(alignment: .leading) { SidebarGuides(depth: depth) }
-        .overlay(alignment: .leading) { chevron }
+        .background(alignment: .leading) {
+            // スピナーが入る段の線は省き、それより左の先祖のガイドは残す。
+            SidebarGuides(depth: state.showsActivityIndicator && !isRenaming ? max(depth - 1, 0) : depth)
+        }
+        .overlay(alignment: .leading) {
+            if !state.showsActivityIndicator || isRenaming {
+                chevron.offset(x: padding - 13)
+            }
+        }
         .background(emphasis.fill, in: RoundedRectangle(cornerRadius: DSRadius.row))
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
@@ -295,49 +298,18 @@ struct SidebarSessionRow<Menu: View>: View {
         }
     }
 
-    /// 実行中だけ明るい帯を名前の左から右へ流す。動きを減らす設定では静止する。
+    /// 実行中と未確認の完了は、名前の左にアイコンで示す。
     @ViewBuilder
-    private var sessionTitle: some View {
-        Group {
-            if state == .running, !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                    titleText.foregroundStyle(
-                        LinearGradient(
-                            stops: titleGradientStops(at: context.date),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                }
-            } else {
-                titleText.foregroundStyle(emphasis.nameColor)
-            }
-        }
-        .contentShape(Rectangle())
-    }
-
-    private var titleText: some View {
-        Text(verbatim: node.displayName)
-            .font(DSFont.row.weight(emphasis.nameWeight))
-    }
-
-    private func titleGradientStops(at date: Date) -> [Gradient.Stop] {
-        let center = ShimmerBandModel.bandCenter(phase: SidebarTitleShimmer.phase(at: date))
-        let range = 1 - ShimmerBandModel.minBrightness
-        let textColor = ThemeStore.active.textPrimary
-        let peak = DSColor.isDark ? 255.0 : 0.0
-        return (0...20).map { index in
-            let position = Double(index) / 20
-            let brightness = ShimmerBandModel.brightness(position: position, phase: center)
-            let intensity = (brightness - ShimmerBandModel.minBrightness) / range
-            func channel(_ value: Int) -> Double { (Double(value) * (1 - intensity) + peak * intensity) / 255 }
-            let color = Color(red: channel(textColor.r), green: channel(textColor.g), blue: channel(textColor.b))
-                .opacity(0.7 + 0.3 * intensity)
-            return Gradient.Stop(color: color, location: CGFloat(position))
+    private var statusLabel: some View {
+        if state.showsActivityIndicator {
+            SessionActivityIndicator(state: state)
+        } else {
+            Text(verbatim: state.localizedLabel(locale: locale))
+                .foregroundStyle(state.attentionKind.map(DSColor.attentionInk) ?? DSColor.textSecondary)
         }
     }
 
-    /// 子を持つ行の左余白のシェブロン。
+    /// 子を持つ行の展開ボタン。
     @ViewBuilder
     private var chevron: some View {
         if hasChildren {
@@ -351,7 +323,6 @@ struct SidebarSessionRow<Menu: View>: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .offset(x: padding - 13)
             .help(isExpanded ? Text("折りたたむ") : Text("展開"))
         }
     }

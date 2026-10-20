@@ -89,13 +89,23 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         commands: [AgentKind: String] = [:],
         timeout: TimeInterval = 8
     ) {
+        self.init(environment: environment, commands: commands, timeout: timeout, onSpawn: { _ in })
+    }
+
+    /// 子の初期化や出力に依存せず、親が所有するPIDを検査する内部シーム。
+    init(
+        environment: [String: String],
+        commands: [AgentKind: String],
+        timeout: TimeInterval,
+        onSpawn: @escaping @Sendable (pid_t) -> Void
+    ) {
         let childEnvironment = Self.childEnvironment(base: environment)
         self.init(
             childEnvironment: childEnvironment,
             commands: commands,
             timeout: timeout,
             commandRunner: { command, arguments in
-                try await Self.runCommand(command, arguments: arguments, environment: childEnvironment, timeout: timeout)
+                try await Self.runCommand(command, arguments: arguments, environment: childEnvironment, timeout: timeout, onSpawn: onSpawn)
             }
         )
     }
@@ -233,7 +243,8 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
         _ command: String,
         arguments: [String],
         environment: [String: String],
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        onSpawn: @escaping @Sendable (pid_t) -> Void
     ) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -303,6 +314,7 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                     envp.append(nil)
                     var pid: pid_t = 0
                     try check(posix_spawn(&pid, executable, &actions, &attributes, &argv, &envp))
+                    onSpawn(pid)
 
                     // This worker is the only waiter and signal sender. Until it reaps, the
                     // child (including a zombie) reserves its PID; Foundation never owns it.

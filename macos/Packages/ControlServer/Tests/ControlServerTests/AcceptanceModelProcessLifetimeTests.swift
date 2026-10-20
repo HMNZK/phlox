@@ -2,6 +2,7 @@ import AgentDomain
 import Darwin
 import Foundation
 import Testing
+import os
 @testable import ControlServer
 
 @Suite("モデル取得の終了と出力", .serialized)
@@ -88,7 +89,7 @@ struct AcceptanceModelProcessLifetimeTests {
             #expect(error.localizedDescription == "CLI model-list request timed out")
         }
         #expect(started.duration(to: .now) < .seconds(3))
-        let pid = try fixture.ownedPID()
+        let pid = try #require(fixture.spawnedPID.withLock { $0 })
         for _ in 0..<100 {
             if Darwin.kill(pid, 0) == -1 && errno == ESRCH { break }
             try await Task.sleep(for: .milliseconds(20))
@@ -202,6 +203,7 @@ private struct LifetimeFixture {
     let executable: URL
     let pidFile: URL
     let descendantFile: URL
+    let spawnedPID = OSAllocatedUnfairLock<pid_t?>(initialState: nil)
 
     init(script: String, interpreter: String = "/bin/sh") throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("phlox-model-lifetime-" + UUID().uuidString)
@@ -215,10 +217,12 @@ private struct LifetimeFixture {
     }
 
     func provider(timeout: TimeInterval, kind: AgentKind = .cursor) -> LiveAgentModelProvider {
-        LiveAgentModelProvider(
+        let spawnedPID = self.spawnedPID
+        return LiveAgentModelProvider(
             environment: ["PATH": "/usr/bin:/bin", "PHLOX_DATA_DIR": root.appendingPathComponent("data").path,
                           "PHLOX_LIFETIME_PID": pidFile.path, "PHLOX_LIFETIME_DESCENDANT": descendantFile.path],
-            commands: [kind: executable.path], timeout: timeout
+            commands: [kind: executable.path], timeout: timeout,
+            onSpawn: { pid in spawnedPID.withLock { $0 = pid } }
         )
     }
 
@@ -229,7 +233,26 @@ private struct LifetimeFixture {
 
     func remove() {
         do {
-            for file in [pidFile, descendantFile] where FileManager.default.fileExists(atPath: file.path) {
+            let observedPID = spawnedPID.withLock { $0 }
+            if let pid = observedPID {
+                // waitpidでまだ自分の子であると確認し、再利用済みのPIDにはsignalを送らない。
+                var status: Int32 = 0
+                var result: pid_t
+                repeat { result = waitpid(pid, &status, WNOHANG) } while result == -1 && errno == EINTR
+                if result == 0 {
+                    if Darwin.kill(pid, SIGKILL) == 0 || errno == ESRCH {
+                        repeat { result = waitpid(pid, &status, 0) } while result == -1 && errno == EINTR
+                    } else {
+                        Issue.record("親が観測した所有CLIの後始末失敗: errno=\(errno)")
+                    }
+                }
+                if result == -1 && errno != ECHILD {
+                    Issue.record("所有CLIのwaitpid失敗: errno=\(errno)")
+                }
+            }
+            for file in [pidFile, descendantFile]
+                where !(file == pidFile && observedPID != nil)
+                    && FileManager.default.fileExists(atPath: file.path) {
                 let pid = try ownedPID(at: file)
                 if Darwin.kill(pid, 0) == 0 {
                     if Darwin.kill(pid, SIGKILL) != 0 && errno != ESRCH {

@@ -58,6 +58,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: Phlox
         UIAppFonts:
           - DotGothic16-Regular.ttf
@@ -109,6 +110,7 @@ targets:
     info:
       path: PhloxWidget/Info.plist
       properties:
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

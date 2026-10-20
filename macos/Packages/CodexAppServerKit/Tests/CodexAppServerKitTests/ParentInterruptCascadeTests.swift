@@ -4,6 +4,55 @@ import Testing
 
 @Suite("親の中断は Codex の配下も停止する")
 struct ParentInterruptCascadeTests {
+    @Test("停止要求後に届く子の終端通知を転送し、別の thread・turn は転送しない", arguments: ["completed", "failed", "interrupted"])
+    func deliversChildCompletionAfterInterrupt(status: String) async throws {
+        let transport = CascadeInterruptTransport()
+        let adapter = CodexStructuredAgentClient(client: CodexAppServerClient(transport: transport))
+        await adapter.start()
+        do {
+            _ = try await adapter.threadStart(ThreadStartParams())
+            try await adapter.interrupt()
+            let read = try await adapter.threadRead(ThreadReadParams(threadId: "child", includeTurns: true))
+            #expect(read.thread.turns?.last?.status == "inProgress")
+
+            transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"unrelated","turn":{"id":"turn-child","status":"completed"}}}"#)
+            transport.receive(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"child","turn":{"id":"old-turn-child","status":"completed"}}}"#)
+            transport.receive(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"child","turn":{"id":"turn-child","status":"inProgress"}}}"#)
+            transport.receive(#"{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"child","turnId":"turn-child","itemId":"child-message","delta":"still running"}}"#)
+            transport.receive("""
+            {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"child","turn":{"id":"turn-child","status":"\(status)"}}}
+            """)
+            transport.receive("""
+            {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"child","turn":{"id":"turn-child","status":"\(status)"}}}
+            """)
+            transport.receive(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"parent","turn":{"id":"barrier","status":"inProgress"}}}"#)
+
+            var completions: [TurnSummary] = []
+            for await event in adapter.orderedEvents {
+                if case .thread(.turnStarted(let threadID, let turn)) = event,
+                   threadID == "parent", turn.id == "barrier" { break }
+                if case .thread(.turnCompleted(let threadID, let turn)) = event {
+                    #expect(threadID == "child")
+                    completions.append(turn)
+                }
+                switch event {
+                case .normalized, .normalizedWithIdentity:
+                    Issue.record("子の完了を親の正規化イベントへ混入した")
+                case .thread(.turnCompleted):
+                    break
+                case .thread:
+                    Issue.record("停止待ちの子の非終端通知を転送した")
+                }
+            }
+            #expect(completions.map(\.id) == ["turn-child"])
+            #expect(completions.map(\.status) == [status])
+        } catch {
+            await adapter.close()
+            throw error
+        }
+        await adapter.close()
+    }
+
     @Test("実行中の子の turn ID が無い場合は失敗を返し、孫と兄弟を止める")
     func reportsMissingActiveTurn() async throws {
         let transport = CascadeInterruptTransport(missingActiveTurn: "child")

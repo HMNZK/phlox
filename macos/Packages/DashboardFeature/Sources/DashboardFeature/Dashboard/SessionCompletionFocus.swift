@@ -35,7 +35,6 @@ struct SessionCompletionFocusObserver: View {
     }
 }
 
-/// 完了の発生では既読にせず、その後のフォーカス変更で確認済みにする。
 struct SessionCompletionFocusEvents: View {
     let viewModel: DashboardViewModel
     let router: AppRouter
@@ -45,6 +44,9 @@ struct SessionCompletionFocusEvents: View {
         Color.clear.frame(width: 0, height: 0)
             .onChange(of: router.focusedSessionID, initial: true) { _, _ in acknowledge() }
             .onChange(of: isWindowFocused) { _, _ in acknowledge() }
+            .onChange(of: router.focusedSessionID.flatMap { viewModel.sessionNode(id: $0)?.hasUnseenCompletion }) { _, _ in acknowledge() }
+            .onChange(of: router.viewMode) { _, _ in acknowledge() }
+            .onChange(of: router.viewMode == .grid ? viewModel.gridTileOrder() : []) { _, _ in acknowledge() }
             .accessibilityHidden(true)
     }
 

@@ -28,6 +28,33 @@ private actor LocalCompletionClient: StructuredAgentClient, CodexOrderedEventsPr
 }
 
 @Suite @MainActor struct ChatSessionLocalCompletionTests {
+    @Test(arguments: [false, true])
+    func interruptingNextTurnClearsPreviousUnreadCompletion(viaEvent: Bool) async throws {
+        let (vm, client, root) = try await fixture()
+        try await vm.sendText("完了する指示", submit: true)
+        client.continuation.yield(.normalized(.turnStarted))
+        client.continuation.yield(.normalized(.turnCompleted(nativeSessionId: "restored-chat")))
+        try await waitUntil { vm.completedTurnSeq == 1 }
+        try #require(vm.hasUnseenCompletion)
+
+        try await vm.sendText("中断する指示", submit: true)
+        client.continuation.yield(.normalized(.turnStarted))
+        try await waitUntil { vm.status == .running }
+        if viaEvent {
+            client.continuation.yield(.normalized(.turnInterrupted(nativeSessionId: "restored-chat")))
+        } else {
+            await vm.turnInterrupt()
+        }
+        try await waitUntil { vm.status == .idle }
+        #expect(!vm.hasUnseenCompletion)
+        #expect(vm.completedTurnSeq == 1)
+        client.continuation.yield(.normalized(.turnCompleted(nativeSessionId: "restored-chat")))
+        try await waitUntil { vm.completedTurnSeq == 2 }
+        #expect(!vm.hasUnseenCompletion, "中断後に遅れて届いた完了でチェックを復活させない")
+        await vm.terminate()
+        try FileManager.default.removeItem(at: root)
+    }
+
     @Test func firstCompletionWithoutStartedEventIsUnreadLikeSecondCompletion() async throws {
         let (vm, client, root) = try await fixture()
         for turn in 1...2 {
@@ -86,7 +113,7 @@ private actor LocalCompletionClient: StructuredAgentClient, CodexOrderedEventsPr
     private func fixture(rejectsSend: Bool = false) async throws -> (ChatSessionViewModel, LocalCompletionClient, URL) {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<6 { root.deleteLastPathComponent() }
-        root.appendPathComponent(".verification/live-completion-trace/test-\(UUID())")
+        root.appendPathComponent(".verification/session-activity-state/focus/fixtures/local-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let client = LocalCompletionClient(rejectsSend: rejectsSend)
         let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.codex), client: client,

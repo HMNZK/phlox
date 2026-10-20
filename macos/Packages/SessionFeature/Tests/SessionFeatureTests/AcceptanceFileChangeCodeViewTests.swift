@@ -56,7 +56,7 @@ struct AcceptanceFileChangeCodeViewTests {
         +struct New {}
         """)
 
-        #expect(lines.map(\.oldLineNumber) == [nil, nil, nil, 10, nil, nil, nil, nil, 30, nil])
+        #expect(lines.map(\.oldLineNumber) == [nil, nil, nil, 10, 11, nil, nil, nil, 30, nil])
         #expect(lines.map(\.newLineNumber) == [nil, nil, nil, nil, 20, 21, 22, nil, nil, 40])
     }
 

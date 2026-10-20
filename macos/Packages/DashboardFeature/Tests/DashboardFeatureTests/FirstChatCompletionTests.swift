@@ -24,10 +24,10 @@ private actor FirstCompletionClient: StructuredAgentClient {
 
 @Suite @MainActor struct FirstChatCompletionTests {
     @Test(arguments: [AgentKind.codex, .claudeCode, .cursor], [false, true])
-    func activationBeforeFirstCompletionDoesNotAcknowledgeIt(kind: AgentKind, restored: Bool) async throws {
+    func activationBeforeFirstCompletionAcknowledgesVisibleConversation(kind: AgentKind, restored: Bool) async throws {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<6 { root.deleteLastPathComponent() }
-        root.appendPathComponent(".verification/first-chat-completion/chat-\(UUID())")
+        root.appendPathComponent(".verification/session-activity-state/focus/fixtures/chat-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { cleanupTemporaryWorkspaceRoot(root) }
         let client = FirstCompletionClient()
@@ -82,8 +82,8 @@ private actor FirstCompletionClient: StructuredAgentClient {
             client.continuation.yield(.turnCompleted(nativeSessionId: "first-chat-native"))
             try await waitUntil { vm.completedTurnSeq == turn }
             try await settle(host)
-            #expect(vm.hasUnseenCompletion, "第\(turn)回の完了をフォーカスの遅延更新で消さない")
-            #expect(dashboard.sessionNode(id: id)?.tabDisplayState == .doneUnread)
+            #expect(!vm.hasUnseenCompletion, "開いて見ている会話の第\(turn)回の完了を既読にする")
+            #expect(dashboard.sessionNode(id: id)?.tabDisplayState == .idle)
             if let output = ProcessInfo.processInfo.environment["FIRST_CHAT_COMPLETION_OUT"] {
                 try await Task.sleep(for: .seconds(1.05))
                 host.layoutSubtreeIfNeeded()

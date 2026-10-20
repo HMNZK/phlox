@@ -9,7 +9,7 @@ import DesignSystem
 
 @Suite @MainActor struct SessionCompletionFocusTests {
     @Test(arguments: [ViewMode.single, .grid])
-    func firstAndRepeatedCompletionsRemainUntilFocusChanges(mode: ViewMode) async throws {
+    func firstAndRepeatedCompletionsAreSeenWhileConversationHasFocus(mode: ViewMode) async throws {
         let fixture = try await fixture()
         defer { cleanupTemporaryWorkspaceRoot(fixture.root); fixture.events.finish() }
         let (dashboard, router) = (fixture.dashboard, fixture.router)
@@ -36,15 +36,19 @@ import DesignSystem
             fixture.events.yield((completed.id, .stop(turnId: nil)))
             try await waitUntil { completed.status != .running }
             try await settle(host)
-            #expect(completed.hasUnseenCompletion)
-            #expect(dashboard.sessionNode(id: completed.id)?.tabDisplayState == .doneUnread)
+            #expect(!completed.hasUnseenCompletion)
+            #expect(dashboard.sessionNode(id: completed.id)?.tabDisplayState == .idle)
         }
 
-        // 完了後に会話を開いたまま再実行しても、上の2回とも表示を残す。
-        // 別の会話を選んでも、元の会話のチェックは消さない。
         router.selectTab(.chat(other.id), in: fixture.projectID)
         try await settle(host)
+        fixture.events.yield((completed.id, .userPromptSubmit(turnId: nil)))
+        try await waitUntil { completed.status == .running }
+        fixture.events.yield((completed.id, .stop(turnId: nil)))
+        try await waitUntil { completed.status != .running }
+        try await settle(host)
         #expect(completed.hasUnseenCompletion)
+        #expect(dashboard.sessionNode(id: completed.id)?.tabDisplayState == .doneUnread)
         router.selectTab(.chat(completed.id), in: fixture.projectID)
         try await waitUntil { !completed.hasUnseenCompletion }
 
@@ -127,7 +131,7 @@ import DesignSystem
     ) {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<6 { root.deleteLastPathComponent() }
-        root.appendPathComponent(".verification/completion-check/focus-\(UUID())", isDirectory: true)
+        root.appendPathComponent(".verification/session-activity-state/focus/fixtures/focus-\(UUID())", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let (events, continuation) = AsyncStream<(SessionID, HookEvent)>.makeStream()
         let dashboard = DashboardViewModel(environment: makeTestEnvironment(

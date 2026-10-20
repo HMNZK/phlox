@@ -3,6 +3,37 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.13.0</title>
+            <pubDate>Tue, 20 Oct 2026 09:52:33 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li>New chats suggest skills and enabled plugins for the selected agent, including Codex and Claude Code skills.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Skill suggestions now match text anywhere in the name. Cached results appear promptly as you type.</li>
+  <li>A chat interrupted by Codex no longer stays marked as running, and its completion indicator clears when you return to it.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li>新規チャットで、選択したエージェントのスキルと有効なプラグインを候補に表示します。Codex と Claude Code に対応しています。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>スキル名の途中にある文字でも候補を検索できます。取得済みの候補は入力中すぐに表示します。</li>
+  <li>Codex の中断後に実行中の表示が残る問題と、会話に戻った後も完了マークが残る問題を修正しました。</li>
+</ul>
+]]></description>
+            <sparkle:version>35</sparkle:version>
+            <sparkle:shortVersionString>1.13.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.13.0.zip" length="27734719" type="application/octet-stream" sparkle:edSignature="w1b6FGMMJyk9ANvjwz1vVi6KQsIohXYgAi6qNRVacLK3BbbIE3rSGrYSjyLscY/GEma1eMTlvWESr5r1xoDiAg=="/>
+        </item>
+        <item>
             <title>1.12.0</title>
             <pubDate>Tue, 20 Oct 2026 07:36:45 GMT</pubDate>
             <description xml:lang="en"><![CDATA[

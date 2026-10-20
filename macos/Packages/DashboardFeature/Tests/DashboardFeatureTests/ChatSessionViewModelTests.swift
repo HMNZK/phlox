@@ -779,7 +779,7 @@ func chatSessionViewModel_setsTimestampForNewItemsAndPreservesItAcrossDelta() as
 }
 
 @Test @MainActor
-func chatSessionViewModel_upsertsTranscriptAtTurnBoundaryByItemId() async throws {
+func chatSessionViewModel_savesTranscriptSnapshotAtTurnBoundary() async throws {
     let store = RecordingTranscriptStore()
     let transport = ScriptedAppServerTransport()
     let broker = ChatApprovalBroker()
@@ -813,12 +813,13 @@ func chatSessionViewModel_upsertsTranscriptAtTurnBoundaryByItemId() async throws
             .agentMessage(id: "agent-1", text: "hello world", timestamp: fixedChatItemTimestamp())
         ]
     }
-    let batches = await store.upsertedBatches
+    let batches = await store.replacedBatches
     #expect(batches.last == [.agentMessage(id: "agent-1", text: "hello world", timestamp: fixedChatItemTimestamp())])
+    #expect(await store.upsertedBatches.isEmpty)
 }
 
 @Test @MainActor
-func chatSessionViewModel_claudeClientTurnCompletionUpsertsFullTranscript() async throws {
+func chatSessionViewModel_claudeClientTurnCompletionSavesFullSnapshot() async throws {
     let store = RecordingTranscriptStore()
     let client = EventYieldingStructuredClient()
     #expect(!(client is any CodexSettingsProviding))
@@ -844,8 +845,9 @@ func chatSessionViewModel_claudeClientTurnCompletionUpsertsFullTranscript() asyn
     try await waitUntil {
         await (try? store.loadTranscript(for: sessionID)) == expected
     }
-    let batches = await store.upsertedBatches
+    let batches = await store.replacedBatches
     #expect(batches.last == expected)
+    #expect(await store.upsertedBatches.isEmpty)
     #expect(vm.chatNativeSessionId == "claude-native-1")
 }
 
@@ -890,7 +892,7 @@ func chatSessionViewModel_claudeClientErrorFlushesPartialTranscript() async thro
 }
 
 @Test @MainActor
-func chatSessionViewModel_claudeClientTurnInterruptedFlushesPartialTranscript() async throws {
+func chatSessionViewModel_claudeClientTurnInterruptedSavesPartialSnapshot() async throws {
     let store = RecordingTranscriptStore()
     let client = EventYieldingStructuredClient()
     #expect(!(client is any CodexSettingsProviding))
@@ -914,8 +916,9 @@ func chatSessionViewModel_claudeClientTurnInterruptedFlushesPartialTranscript() 
     try await waitUntil {
         await (try? store.loadTranscript(for: sessionID)) == expected
     }
-    let batches = await store.upsertedBatches
+    let batches = await store.replacedBatches
     #expect(batches.last == expected)
+    #expect(await store.upsertedBatches.isEmpty)
     #expect(vm.chatNativeSessionId == "claude-native-interrupted")
 }
 
@@ -2344,7 +2347,8 @@ func chatSessionViewModel_bulkFlushExcludesEmptyReasoningButKeepsNonEmpty() asyn
     let stored = try await store.loadTranscript(for: sessionID)
     #expect(stored.contains(.reasoning(id: "reason-full", text: "実際の思考", timestamp: fixedChatItemTimestamp())))
     #expect(!stored.contains { $0.id == "reason-empty" })
-    let batches = await store.upsertedBatches
+    let batches = await store.replacedBatches
+    #expect(!batches.isEmpty)
     #expect(batches.allSatisfy { batch in !batch.contains { $0.id == "reason-empty" } })
 }
 

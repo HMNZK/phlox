@@ -1,7 +1,7 @@
 // ターン途中の transcript 永続化（作業中クローズでのデータ欠落の防止）。
 //   - ターン途中でも、非 delta イベント（コマンド実行等）の到着で当該アイテムが TranscriptStore へ
 //     永続化される（leading-edge: 最初の到着は遅延なく flush。以後はスロットル。ターン完了を待たない）
-//   - flushTranscriptNow() は保留中のストリーム delta を含む現在の transcript を upsert し、書き込み完了まで待つ
+//   - flushTranscriptNow() は保留中のストリーム delta を含む現在の transcript を保存し、書き込み完了まで待つ
 //   - 書き込みは FIFO。終了時の flush は停止した書き込みで応答を止めない（timeout）
 
 import Foundation
@@ -319,12 +319,12 @@ struct MidTurnPersistenceViewModelTests {
         try await waitUntil {
             store.persistedItems(for: sessionID).contains { $0.id == "cmd-1" }
         }
-        #expect(store.upsertCount() >= 1)
+        #expect(store.operations().count >= 1)
         #expect(scheduled.isEmpty)
     }
 
     @Test
-    func スロットル中の後続バリアはtrailing発火まで追加upsertしない() async throws {
+    func スロットル中の後続バリアはtrailing発火まで追加書込みしない() async throws {
         let store = TrackingTranscriptStore()
         let (vm, client, sessionID) = makeViewModel(store: store)
 
@@ -344,7 +344,7 @@ struct MidTurnPersistenceViewModelTests {
         try await waitUntil {
             store.persistedItems(for: sessionID).contains { $0.id == "cmd-1" }
         }
-        let afterFirst = store.upsertCount()
+        let afterFirst = store.operations().count
 
         now = Date(timeIntervalSince1970: 1_000.1)
         client.yield(.fileChange(
@@ -353,7 +353,7 @@ struct MidTurnPersistenceViewModelTests {
         ))
         try await waitUntil { vm.transcript.contains { $0.id == "file-1" } }
         try await Task.sleep(nanoseconds: 30_000_000)
-        #expect(store.upsertCount() == afterFirst)
+        #expect(store.operations().count == afterFirst)
         #expect(scheduledToken != nil)
 
         now = Date(timeIntervalSince1970: 1_002.0)
@@ -361,7 +361,7 @@ struct MidTurnPersistenceViewModelTests {
         try await waitUntil {
             store.persistedItems(for: sessionID).contains { $0.id == "file-1" }
         }
-        #expect(store.upsertCount() > afterFirst)
+        #expect(store.operations().count > afterFirst)
     }
 
     @Test

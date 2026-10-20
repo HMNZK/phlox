@@ -11,23 +11,31 @@ import Testing
 
 // MARK: - Test doubles
 
-/// 進行中 upsert の完了前に replace が走らない FIFO 順序を完了順で観測する。
-private actor DelayedFirstUpsertStore: TranscriptStore {
-    private(set) var completionOrder: [String] = []
-    private var delaysRemaining = 1
+private actor SuspendedFirstSnapshotStore: TranscriptStore {
+    private(set) var startedSnapshots: [[ChatItem]] = []
+    private(set) var completedSnapshots: [[ChatItem]] = []
+    private(set) var upsertedBatches: [[ChatItem]] = []
+    private var firstSnapshotContinuation: CheckedContinuation<Void, Never>?
 
-    func loadTranscript(for sessionID: SessionID) async throws -> [ChatItem] { [] }
+    func loadTranscript(for sessionID: SessionID) async throws -> [ChatItem] {
+        completedSnapshots.last ?? []
+    }
 
     func upsertTranscriptItems(_ items: [ChatItem], for sessionID: SessionID) async throws {
-        if delaysRemaining > 0 {
-            delaysRemaining -= 1
-            try await Task.sleep(nanoseconds: 300_000_000)
-        }
-        completionOrder.append("upsert")
+        upsertedBatches.append(items)
     }
 
     func replaceTranscript(for sessionID: SessionID, with items: [ChatItem]) async throws {
-        completionOrder.append("replace")
+        startedSnapshots.append(items)
+        if startedSnapshots.count == 1 {
+            await withCheckedContinuation { firstSnapshotContinuation = $0 }
+        }
+        completedSnapshots.append(items)
+    }
+
+    func releaseFirstSnapshot() {
+        firstSnapshotContinuation?.resume()
+        firstSnapshotContinuation = nil
     }
 }
 
@@ -162,11 +170,12 @@ private func appliedPermissionSettingsNotification(_ params: [String: Any]) -> [
 // MARK: - C3 FIFO
 
 @Test @MainActor
-func characterization_transcriptReplace_waitsForInFlightUpsert() async throws {
-    let store = DelayedFirstUpsertStore()
+func characterization_transcriptRevert_waitsForInFlightSnapshot() async throws {
+    let store = SuspendedFirstSnapshotStore()
     let client = EventYieldingStructuredClient()
+    let sessionID = SessionID()
     let vm = ChatSessionViewModel(
-        id: SessionID(),
+        id: sessionID,
         agentRef: .builtin(.claudeCode),
         client: client,
         approvalBroker: ChatApprovalBroker(),
@@ -179,23 +188,26 @@ func characterization_transcriptReplace_waitsForInFlightUpsert() async throws {
     client.yield(.agentMessageDelta(itemId: "agent-1", "answer one"))
     client.yield(.turnCompleted(nativeSessionId: nil))
     try await waitUntil { vm.status == .idle }
+    try await waitUntil { await store.startedSnapshots.count == 1 }
 
     let userID = try #require(vm.transcript.compactMap { item -> String? in
         if case .userMessage(let id, _, _, _) = item { id } else { nil }
     }.first)
-    _ = await vm.revert(toUserMessageID: userID)
+    let restoredText = await vm.revert(toUserMessageID: userID)
+    #expect(restoredText == "first turn")
+    #expect(vm.transcript.isEmpty)
+    #expect(await store.startedSnapshots.count == 1)
+    #expect(await store.completedSnapshots.isEmpty)
 
-    let orderBeforeFirstUpsertCompletes = await store.completionOrder
-    #expect(!orderBeforeFirstUpsertCompletes.contains("replace"))
+    await store.releaseFirstSnapshot()
+    await vm.terminate()
 
-    #expect(await waitUntil(timeoutNanoseconds: 2_000_000_000) {
-        let order = await store.completionOrder
-        return order.last == "replace"
-    })
-    let order = await store.completionOrder
-    #expect(order.first == "upsert")
-    #expect(order.last == "replace")
-    #expect(order.filter { $0 == "replace" }.count == 1)
+    let snapshots = await store.completedSnapshots
+    #expect(snapshots.count >= 2)
+    #expect(snapshots.first?.contains { $0.id == userID } == true)
+    #expect(snapshots.last == [])
+    #expect(try await store.loadTranscript(for: sessionID).isEmpty)
+    #expect(await store.upsertedBatches.isEmpty)
 }
 
 // MARK: - C13 background tasks

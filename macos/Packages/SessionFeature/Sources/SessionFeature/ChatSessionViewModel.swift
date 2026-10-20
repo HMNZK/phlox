@@ -550,7 +550,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func performMidTurnTranscriptFlush() {
-        enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
+        enqueueTranscriptSnapshot()
     }
 
     // task-9 契約（受け入れテスト ChatHistoryStart が凍結。実装契約の正本: tasks/task-9.md）
@@ -1171,9 +1171,9 @@ public final class ChatSessionViewModel: Identifiable {
         clearRunningBackgroundTasks()
         startEventTasks()
         guard let codexClient else {
-            _ = await restoreTranscriptFromStore()
             await restoreTurnUsageFromStore()
             do {
+                _ = try await restoreTranscriptFromStore()
                 await loadSpawnAgentSettings(persistedSettings: persistedSettings, restoring: true)
                 try await client.resume(sessionRef: threadId)
                 updateNativeSessionId(threadId)
@@ -1217,7 +1217,7 @@ public final class ChatSessionViewModel: Identifiable {
             guard restoreGeneration == codexRestoreGeneration else { return }
             await restoreTurnUsageFromStore()
             guard restoreGeneration == codexRestoreGeneration else { return }
-            let storedTranscript = await loadTranscriptFromStore()
+            let storedTranscript = try await loadTranscriptFromStore()
             guard restoreGeneration == codexRestoreGeneration else { return }
             if let storedTranscript {
                 applyRestoredTranscript(storedTranscript)
@@ -1441,7 +1441,7 @@ public final class ChatSessionViewModel: Identifiable {
         let retained = Array(transcript[..<index])
         setTranscript(retained)
 
-        // store も同一内容へ置換する。追記キュー（enqueueTranscriptUpsert）と同じ直列チェーンに
+        // store も同一内容へ置換する。通常保存と同じ直列チェーンに
         // 載せることで「進行中の追記を flush してから replace」の順序を保証する（item の復活を防ぐ）。
         enqueueTranscriptReplace(retained)
 
@@ -2874,7 +2874,7 @@ public final class ChatSessionViewModel: Identifiable {
                 appendOrReplace(chatItem)
                 adoptTitleFromThreadItem(item, chatItem: chatItem)
                 if case .itemCompleted = event {
-                    enqueueTranscriptUpsert([chatItem])
+                    enqueueTranscriptSnapshot()
                 }
                 touchOutput()
             }
@@ -3328,15 +3328,10 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private func loadTranscriptFromStore() async -> [ChatItem]? {
+    private func loadTranscriptFromStore() async throws -> [ChatItem]? {
         guard let transcriptStore else { return nil }
-        do {
-            let persisted = try await transcriptStore.loadTranscript(for: id)
-            return persisted.isEmpty ? nil : persisted
-        } catch {
-            logRestoreFailure(error)
-            return nil
-        }
+        let persisted = try await transcriptStore.loadTranscript(for: id)
+        return persisted.isEmpty ? nil : persisted
     }
 
     private func applyRestoredTranscript(_ persisted: [ChatItem]) {
@@ -3372,8 +3367,8 @@ public final class ChatSessionViewModel: Identifiable {
         return 0
     }
 
-    private func restoreTranscriptFromStore() async -> Bool {
-        guard let persisted = await loadTranscriptFromStore() else { return false }
+    private func restoreTranscriptFromStore() async throws -> Bool {
+        guard let persisted = try await loadTranscriptFromStore() else { return false }
         applyRestoredTranscript(persisted)
         return true
     }
@@ -3408,6 +3403,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// 表示の状態をターンの境目で、本文の保存と同じ列に続けて保存する。
     private func persistDisplayState() {
+        guard canPersistTranscript else { return }
         transcriptPersistenceQueue?.enqueueDisplayState(ChatDisplayState(
             turnUsageByItemID: turnUsageByItemID,
             lastTurnCompletedAt: lastTurnCompletedAt,
@@ -3447,12 +3443,22 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private func enqueueTranscriptUpsert(_ items: [ChatItem]) {
-        transcriptPersistenceQueue?.enqueueUpsert(items)
+    private var canPersistTranscript: Bool {
+        switch restoreState {
+        case .restoring, .failed: false
+        case .notRestored, .restored: true
+        }
+    }
+
+    private func enqueueTranscriptSnapshot() {
+        guard canPersistTranscript else { return }
+        let items = transcript.filter(shouldStoreInTranscript)
+        guard !items.isEmpty else { return }
+        transcriptPersistenceQueue?.enqueueReplace(items)
     }
 
     private func flushTranscriptAtTurnBoundary() {
-        enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
+        enqueueTranscriptSnapshot()
         persistDisplayState()
     }
 
@@ -3510,8 +3516,16 @@ public final class ChatSessionViewModel: Identifiable {
             return .userMessage(id: id, text: text, timestamp: Date())
         }
         if type.contains("reasoning") {
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-            return .reasoning(id: id, text: text, timestamp: Date())
+            let reasoningText: String
+            if case .array(let summaries)? = item.raw?["summary"] {
+                reasoningText = summaries.compactMap(\.stringValue)
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n\n")
+            } else {
+                reasoningText = text
+            }
+            guard !reasoningText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return .reasoning(id: id, text: reasoningText, timestamp: Date())
         }
         if type.contains("command") {
             let command = item.raw?.firstString(for: ["command", "cmd"])
@@ -3896,7 +3910,7 @@ public final class ChatSessionViewModel: Identifiable {
             }
         }
         if !changedMarkers.isEmpty {
-            enqueueTranscriptUpsert(changedMarkers)
+            enqueueTranscriptSnapshot()
             touchOutput()
         }
     }
@@ -4014,7 +4028,7 @@ extension ChatSessionViewModel: ControllableSession {
             appendOrReplace(item)
             localOriginalUserTextByID[item.id] = input
             adoptTitleFromOriginalUserText(input)
-            enqueueTranscriptUpsert([item])
+            enqueueTranscriptSnapshot()
             turnGeneration += 1
             isAwaitingLocallyStartedTurnEvent = true
             // 初回などturnStarted通知が届かなくても、送信した指示の完了を追跡する。
@@ -4167,11 +4181,11 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     /// 現在の transcript を即時に永続化キューへ書き出し、書き込み完了まで待つ
-    /// （アプリ終了経路から呼ぶ。保留中ストリーム delta はバリア flush してから upsert する）。
+    /// （アプリ終了経路から呼ぶ。保留中ストリーム delta はバリア flush してから保存する）。
     public func flushTranscriptNow() async {
         midTurnPersistenceGate.cancelPending()
         flushPendingStreamDeltasBarrier()
-        enqueueTranscriptUpsert(transcript.filter(shouldStoreInTranscript))
+        enqueueTranscriptSnapshot()
         persistDisplayState()
         midTurnPersistenceGate.noteExternalFlush()
         await transcriptPersistenceQueue?.waitForPendingWrites()

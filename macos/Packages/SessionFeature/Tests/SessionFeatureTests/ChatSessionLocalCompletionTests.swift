@@ -39,7 +39,9 @@ private actor LocalCompletionClient: StructuredAgentClient, CodexOrderedEventsPr
 
         try await vm.sendText("中断する指示", submit: true)
         client.continuation.yield(.normalized(.turnStarted))
-        try await waitUntil { vm.status == .running }
+        try await waitUntil {
+            vm.status == .running && vm.rawEventLog.filter { $0 == "turnStarted" }.count == 2
+        }
         if viaEvent {
             client.continuation.yield(.normalized(.turnInterrupted(nativeSessionId: "restored-chat")))
         } else {

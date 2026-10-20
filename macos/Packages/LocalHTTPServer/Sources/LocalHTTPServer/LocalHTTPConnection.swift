@@ -12,37 +12,51 @@ public enum LocalHTTPConnectionError: Error, Sendable {
 public enum LocalHTTPConnection: Sendable {
     /// 接続が ready になるまで待つ。
     public static func waitUntilReady(_ connection: NWConnection) async throws {
-        if connection.state == .ready {
-            return
-        }
-
-        // 既存の stateUpdateHandler(listener が仕込む接続数の会計ハンドラ等)を保存し、
-        // ready 待ち後に nil でなく元へ復元する。これにより、後段で connection が
-        // .cancelled/.failed になった際も会計ハンドラが発火してスロットを解放できる。
         let previous = connection.stateUpdateHandler
+        try await waitUntilReady(
+            state: { connection.state },
+            previous: previous,
+            install: { connection.stateUpdateHandler = $0 },
+            restore: { connection.stateUpdateHandler = previous }
+        )
+    }
+
+    /// 登録直前の遷移を再現するための内部シーム。snapshotは必ずobserver登録後に読む。
+    static func waitUntilReady(
+        state: @Sendable () -> NWConnection.State,
+        previous: (@Sendable (NWConnection.State) -> Void)?,
+        install: @Sendable (@escaping @Sendable (NWConnection.State) -> Void) -> Void,
+        restore: @escaping @Sendable () -> Void
+    ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let gate = OnceGate()
-            connection.stateUpdateHandler = { state in
+            let observe: @Sendable (NWConnection.State) -> Void = { state in
+                // 復元前に配送された終端通知は、readyがgateを取得済みでも会計へ渡す。
+                switch state {
+                case .failed, .cancelled:
+                    previous?(state)
+                default:
+                    break
+                }
                 switch state {
                 case .ready:
                     guard gate.tryEnter() else { return }
-                    connection.stateUpdateHandler = previous
+                    restore()
                     continuation.resume()
                 case .failed(let error):
                     guard gate.tryEnter() else { return }
-                    connection.stateUpdateHandler = previous
-                    // ready 待ち中に終端した場合、以後の遷移は無いので終端を会計へ転送する
-                    previous?(state)
+                    restore()
                     continuation.resume(throwing: error)
                 case .cancelled:
                     guard gate.tryEnter() else { return }
-                    connection.stateUpdateHandler = previous
-                    previous?(state)
+                    restore()
                     continuation.resume(throwing: LocalHTTPConnectionError.cancelled)
                 default:
                     break
                 }
             }
+            install(observe)
+            observe(state())
         }
     }
 

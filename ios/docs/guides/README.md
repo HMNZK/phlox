@@ -15,5 +15,8 @@ last-verified: 2026-06-10
 
 **命名**: 小文字 kebab-case・ASCII・`.md`（索引のみ `README.md`）。順序ありは `NNNN-kebab.md`。
 
+## 配布
+- [Tailscale向けAd Hoc配布物の準備](prepare-ad-hoc-distribution.md)
+
 ## 配置例
 - `guides/getting-started.md`

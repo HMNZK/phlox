@@ -9,6 +9,14 @@ last-verified: 2026-07-06
 
 ## 手順
 
+### 別のDebugを起動したままペアリングを検証する場合
+
+今回の検証版だけ、起動環境に`PHLOX_TEST_EPHEMERAL_MOBILE_PORT=1`を設定すると、DebugのモバイルプロキシはOS割当ポートを使う。通常Debugは8766、Releaseはこのフラグを無視して8765を使う。QRには割り当て後の実ポートが入る。既存アプリを終了してポートを空ける必要はない。
+
+同時に`PHLOX_DATA_DIR`を作業固有の`.verification/`配下、`PHLOX_DEFAULTS_SUITE`を一意名へ設定し、`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1`でDebugの端末情報をインメモリへ分離する。この検証用ペアリングはDebug終了で失われる。使用中Debugと別のビルド出力先から起動し、QR・tokenをログへ出さない。
+
+`PHLOX_DEFAULTS_SUITE`が分離するのは`phloxDefaults`利用箇所だけで、`standard`や`@AppStorage`は同じbundle IDのDebugと共有される。既存Debugと併存する検証版は、生成用コピーでアプリとbridgeのbundle IDも固有にする。正本のbundle IDは変更しない。
+
 0. **署名を用意する**（初回のみ・任意だが強く推奨）。証明書を持っているなら、リポジトリ直下に
    `Signing.local.xcconfig` を置いて Debug も正規署名にする（雛形は `Signing.example.xcconfig`）:
    ```

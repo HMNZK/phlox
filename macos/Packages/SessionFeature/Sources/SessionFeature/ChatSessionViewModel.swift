@@ -8,6 +8,7 @@ import StructuredChatKit
 private enum UserNotification {
     case completed
     case awaitingInput(SessionNotificationText.Kind)
+    case questionReceived(String)
     /// 無応答。スマホには直近の動作を渡さず、種類だけを送る。
     case stalled(lastAction: String?)
     /// プロセスが 0 以外の終了コードで終わった（11 通知「終了」）。
@@ -315,6 +316,11 @@ public final class ChatSessionViewModel: Identifiable {
     private var userInputTask: Task<Void, Never>?
     /// Codex の wire request と質問カードを結び付ける。Claude の requestId はこの表に登録しない。
     private var codexUserInputRequestIDs: [String: UUID] = [:]
+    private enum QuestionNotificationID: Hashable {
+        case request(String)
+        case asyncItem(thread: String, turn: String, item: String)
+    }
+    private var notifiedQuestionIDs: Set<QuestionNotificationID> = []
     private let transcriptPersistenceQueue: TranscriptPersistenceQueue?
     private var pendingInput = ""
     /// リバート後に予約される文脈リプレイのプリアンブル。次の submit 送信で client.turnStart の
@@ -1198,6 +1204,12 @@ public final class ChatSessionViewModel: Identifiable {
             guard restoreGeneration == codexRestoreGeneration else { return }
             if let storedTranscript {
                 applyRestoredTranscript(storedTranscript)
+                restoreCodexQuestionNotifications(from: response.thread)
+                if response.thread.status?.sessionStatus == .running, codexEventTurnId == nil {
+                    let read = try await codexClient.threadRead(ThreadReadParams(threadId: threadId, includeTurns: true))
+                    guard restoreGeneration == codexRestoreGeneration else { return }
+                    restoreCodexQuestionNotifications(from: read.thread)
+                }
                 guard restoreGeneration == codexRestoreGeneration else { return }
                 updateNativeSessionId(response.thread.id)
                 applyRestoredThreadStatus(response.thread.status?.sessionStatus ?? .idle)
@@ -2274,14 +2286,6 @@ public final class ChatSessionViewModel: Identifiable {
         notifyUser(.awaitingInput(kind ?? .awaitingApproval(prompt: prompt)))
     }
 
-    /// AskUserQuestion 到着時に入力待ちへ遷移し、非入力待ちからの遷移時のみ通知する。
-    private func enterAwaitingUserQuestion(notifying kind: SessionNotificationText.Kind) {
-        let previousStatus = status
-        status = .awaitingUserQuestion
-        if case .awaitingUserQuestion = previousStatus { return }
-        notifyUser(.awaitingInput(kind))
-    }
-
     private func notifyUser(_ notification: UserNotification) {
         let allowsLocalNotification = userNotificationGate?(.local) ?? true
         let allowsRemoteNotification = userNotificationGate?(.remote) ?? true
@@ -2293,6 +2297,13 @@ public final class ChatSessionViewModel: Identifiable {
             if allowsRemoteNotification {
                 let kind: RemoteSessionNotification = if case .error = status { .error } else { .completed }
                 remoteSessionNotifier?.notify(kind, sessionId: id.description, sessionName: displayName)
+            }
+        case .questionReceived(let question):
+            if allowsLocalNotification {
+                SessionCompletionNotifier.notifyQuestionReceived(sessionID: id, sessionName: displayName, question: question)
+            }
+            if allowsRemoteNotification {
+                remoteSessionNotifier?.notify(.question, sessionId: id.description, sessionName: displayName)
             }
         case .awaitingInput(let kind):
             if allowsLocalNotification {
@@ -2650,6 +2661,8 @@ public final class ChatSessionViewModel: Identifiable {
         questions: [ChatUserQuestion],
         timestamp: Date
     ) {
+        // 同じ待機状態のまま別の質問が届く場合も、要求ごとに通知する。
+        guard notifiedQuestionIDs.insert(.request(requestId)).inserted else { return }
         appendOrReplace(.userQuestion(
             id: "question-\(requestId)",
             requestId: requestId,
@@ -2658,12 +2671,13 @@ public final class ChatSessionViewModel: Identifiable {
             state: .pending,
             timestamp: timestamp
         ))
+        status = .awaitingUserQuestion
         // ツールの使用許可は画面では承認カードなので、通知も承認待ちにする（11）。
         let first = questions.first
         if let permission = first?.permission {
-            enterAwaitingUserQuestion(notifying: .awaitingApproval(prompt: permission.detail.isEmpty ? first?.question : permission.detail))
+            notifyUser(.awaitingInput(.awaitingApproval(prompt: permission.detail.isEmpty ? first?.question : permission.detail)))
         } else {
-            enterAwaitingUserQuestion(notifying: .awaitingQuestion(question: first?.question, isSecret: first?.isSecret ?? false))
+            notifyUser(.awaitingInput(.awaitingQuestion(question: first?.question, isSecret: first?.isSecret ?? false)))
         }
         touchOutput()
     }
@@ -2841,6 +2855,9 @@ public final class ChatSessionViewModel: Identifiable {
                 }
                 touchOutput()
             }
+            if case .itemCompleted(_, let turnID, _) = event {
+                notifyCodexAsyncQuestion(item, threadID: updatedThreadId, turnID: turnID)
+            }
             if case .itemStarted = event {
                 let type = item.type?.lowercased() ?? ""
                 if type.contains("collabagent") || type.contains("subagent") {
@@ -2855,6 +2872,17 @@ public final class ChatSessionViewModel: Identifiable {
         default:
             break
         }
+    }
+
+    private func notifyCodexAsyncQuestion(_ item: ThreadItem, threadID: String, turnID: String) {
+        guard turnStartedAt != nil,
+              processExit == nil, launchFailure == nil, !isTerminating,
+              let itemID = item.itemId ?? item.id,
+              turnID == codexEventTurnId else { return }
+        let titles = item.asyncQuestionTitles
+        guard !titles.isEmpty,
+              notifiedQuestionIDs.insert(.asyncItem(thread: threadID, turn: turnID, item: itemID)).inserted else { return }
+        notifyUser(.questionReceived(titles.joined(separator: "\n")))
     }
 
     /// turnCompleted / turnInterrupted の nativeSessionId を採用してよいか。
@@ -3419,6 +3447,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func rebuildTranscript(from thread: ThreadSummary) {
+        restoreCodexQuestionNotifications(from: thread)
         let items = thread.turns?
             .flatMap { $0.items ?? [] }
             .compactMap { chatItem(from: $0) } ?? []
@@ -3433,6 +3462,18 @@ public final class ChatSessionViewModel: Identifiable {
             touchOutput()
         }
         adoptTitleFromServerThread(thread)
+    }
+
+    private func restoreCodexQuestionNotifications(from thread: ThreadSummary) {
+        let threadID = thread.id
+        codexEventTurnId = thread.turns?.last(where: { $0.status == "inProgress" })?.id
+        for turn in thread.turns ?? [] {
+            guard let turnID = turn.id else { continue }
+            for item in turn.items ?? [] where !item.asyncQuestionTitles.isEmpty {
+                guard let itemID = item.itemId ?? item.id else { continue }
+                notifiedQuestionIDs.insert(.asyncItem(thread: threadID, turn: turnID, item: itemID))
+            }
+        }
     }
 
     private func chatItem(from item: ThreadItem) -> ChatItem? {

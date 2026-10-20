@@ -49,10 +49,16 @@ last-verified: 2026-10-09
 - **FR-8** `isSecret` の質問は伏せ字入力にし、回答済み表示もマスクする。
 - **FR-9** `isSecret` の回答は wire 送信後に破棄し、永続化 JSON にも Markdown エクスポートにも
   平文を残さない。マスクは固定長で、回答の長さも漏らさない。
+- **FR-10** `agentMessage` の `delivery: async` と非空の `questions` を持つライブ質問は、
+  実行を止めず質問到着を通知する。同じ thread / turn / item の再送は通知せず、
+  別の質問は同じ実行状態でも通知する。履歴復元では通知しない。
+- **FR-11** 通常の質問も要求 ID ごとに通知する。表示中の会話の質問も通知し、
+  OS 許可・ユーザーの通知設定は尊重する。通知送信の失敗は本文を含めず記録する。
 
 ## 非機能要件
 
-- **NFR-1** Claude の AskUserQuestion 経路の挙動は完全に不変。
+- **NFR-1** Claude の AskUserQuestion の回答・拒否の経路は維持する。通知は要求 ID ごとに送り、
+  別の質問が続いた場合も省略しない。
 - **NFR-2** 既存の永続データ（`id` / `isSecret` キーを持たない JSON）が従来どおり読める。
 - **NFR-3** 質問カードを作る処理・マスク規則は、それぞれ 1 箇所にだけ置く（正本の一元性）。
 
@@ -63,6 +69,8 @@ last-verified: 2026-10-09
 | プロトコル（デコード・-32601） | `CodexAppServerKit/RequestUserInputProtocolTests` |
 | 橋渡し（broker） | `SessionFeature/CodexUserInputBridgeTests` |
 | VM 配線・回答返送 | `SessionFeature/CodexUserInputViewModelTests` |
+| 非同期質問の形式保持 | `CodexAppServerKit/AsyncQuestionProtocolTests` |
+| 実行継続中の質問通知・重複・復元とturn識別 | `SessionFeature/AsyncQuestionNotificationTests` |
 | 拒否・中断での決着 | `SessionFeature/AcceptanceCodexUserInputDismissTests` |
 | 伏せ字入力・表示 | `SessionFeature/AcceptanceUserQuestionSecretTests` |
 | 伏せ字の非永続化 | `SessionFeature/UserQuestionSecretAnswerTests` |

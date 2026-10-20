@@ -37,7 +37,7 @@ struct ChatComposer: View {
         self.controlsLayout = controlsLayout
         self.onSend = onSend
         self.onInterrupt = onInterrupt
-        let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
+        let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath, agentKind: viewModel.agentRef.builtinKind)
         controller.onAcceptSkill = { [weak viewModel] identity in
             viewModel?.codexSkillSelectionState?.select(name: identity.name, path: identity.path)
         }
@@ -460,12 +460,12 @@ struct ComposerSuggestionPopup: View {
     var maxVisibleRows = ComposerSuggestionPopupMetrics.maxVisibleRows
     let onAccept: (Int) -> Void
 
-    /// 05 R3: 組込 / .claude/commands / .claude/skills / 実行時に受け取ったもの。
+    /// エージェントを問わず分かる出どころを表示する。
     static func originLabel(_ origin: SlashCommandOrigin) -> LocalizedStringKey {
         switch origin {
         case .builtin: "組込"
-        case .commands: ".claude/commands"
-        case .skills: ".claude/skills"
+        case .commands: "Command"
+        case .skills: "Skill"
         case .runtime: "実行時に受け取ったもの"
         }
     }

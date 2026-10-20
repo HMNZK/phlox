@@ -10,6 +10,35 @@ import StructuredChatKit
 struct AcceptanceCodexSkillPickerTests {
     private let cwd = "/workspace/プロジェクト"
 
+    @Test("新規チャットで選んだ skill は初回ターンの native input になる")
+    @MainActor
+    func firstMessageUsesSelectedSkill() async throws {
+        let path = "/skills/poteto-mode/SKILL.md"
+        let transport = CodexProductionTransport(
+            cwd: cwd, skillListResponses: [skillListResponseJSON(path: path, cwd: cwd)]
+        )
+        let client = CodexStructuredAgentClient(client: CodexAppServerClient(transport: transport))
+        let viewModel = ChatSessionViewModel(
+            id: SessionID(), agentRef: .builtin(.codex), client: client,
+            approvalBroker: ChatApprovalBroker(), workingDirectory: cwd
+        )
+        do {
+            try await viewModel.startNew(approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+            await viewModel.sendFirstMessage(
+                "$review 修正してください", attachments: [], selectedSkill: SkillIdentity(name: "review", path: path)
+            )
+            let request = try #require(await transport.firstRequest(method: "turn/start"))
+            let input = try #require(request["params"]?["input"]?.arrayValue)
+            #expect(input.contains { $0["type"] == .string("skill") && $0["path"] == .string(path) })
+            #expect(input.contains { $0["type"] == .string("text") && $0["text"] == .string("修正してください") })
+            #expect(!input.contains { $0["type"] == .string("text") && $0["text"] == .string("$review") })
+        } catch {
+            await viewModel.terminate()
+            throw error
+        }
+        await viewModel.terminate()
+    }
+
     @Test("skills/list は現在のsession cwdだけをwireへ送り、実responseをdecodeする")
     func listUsesExactSessionCWD() async throws {
         let result: JSONValue = .object([

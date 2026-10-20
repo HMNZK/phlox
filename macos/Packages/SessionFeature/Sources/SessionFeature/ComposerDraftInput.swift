@@ -8,6 +8,7 @@ public struct ComposerDraftInput: View {
     @Binding private var text: String
     @Bindable private var attachmentStore: ComposerAttachmentStore
     private let workingDirectory: String
+    private let agentKind: AgentKind
     private let placeholder: String
     private let focusToken: Int
     private let accessibilityPrefix: String
@@ -30,6 +31,7 @@ public struct ComposerDraftInput: View {
         text: Binding<String>,
         attachmentStore: ComposerAttachmentStore,
         workingDirectory: String,
+        agentKind: AgentKind = .claudeCode,
         placeholder: String,
         focusToken: Int = 0,
         accessibilityPrefix: String = "ChatComposer",
@@ -38,11 +40,13 @@ public struct ComposerDraftInput: View {
         onSubmit: @escaping () -> Void,
         onCycleEffort: @escaping () -> Bool = { false },
         onFocusChange: ((Bool) -> Void)? = nil,
-        onTab: (() -> Bool)? = nil
+        onTab: (() -> Bool)? = nil,
+        onAcceptSkill: ((SkillIdentity) -> Void)? = nil
     ) {
         _text = text
         _attachmentStore = Bindable(wrappedValue: attachmentStore)
         self.workingDirectory = workingDirectory
+        self.agentKind = agentKind
         self.placeholder = placeholder
         self.focusToken = focusToken
         self.accessibilityPrefix = accessibilityPrefix
@@ -53,7 +57,9 @@ public struct ComposerDraftInput: View {
         self.onTab = onTab
         self.emptyTextHeight = emptyTextHeight
         _editorHeight = State(initialValue: emptyTextHeight ?? ComposerHeightBounds.single.min)
-        _suggestionController = State(wrappedValue: ComposerSuggestionController.production(workingDirectory: workingDirectory))
+        let controller = ComposerSuggestionController.production(workingDirectory: workingDirectory, agentKind: agentKind)
+        controller.onAcceptSkill = onAcceptSkill
+        _suggestionController = State(wrappedValue: controller)
     }
 
     public var body: some View {
@@ -126,6 +132,13 @@ public struct ComposerDraftInput: View {
                 editorHeight = emptyTextHeight
             }
             attachmentStore.removeAttachmentsMissing(fromOldText: oldValue, newText: newValue)
+        }
+        .task(id: "\(agentKind.rawValue)#\(workingDirectory)") {
+            let directory = workingDirectory
+            let kind = agentKind
+            await Task.detached(priority: .utility) {
+                _ = ComposerSuggestionSources.slashCandidates(agentKind: kind, workingDirectory: directory)
+            }.value
         }
     }
 

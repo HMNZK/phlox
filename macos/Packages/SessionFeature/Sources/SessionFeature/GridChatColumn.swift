@@ -206,7 +206,7 @@ struct GridComposerBar: View {
         self.onFocusGained = onFocusGained
         self.placeholder = placeholder
         self.showsBranch = showsBranch
-        let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath)
+        let controller = ComposerSuggestionController.production(workingDirectory: viewModel.workspacePath, agentKind: viewModel.agentRef.builtinKind)
         controller.onAcceptSkill = { [weak viewModel] identity in
             viewModel?.codexSkillSelectionState?.select(name: identity.name, path: identity.path)
         }

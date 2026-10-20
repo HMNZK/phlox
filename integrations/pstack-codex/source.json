@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/cursor/plugins.git",
+  "revision": "ddf824aff1e55ba14bd666b30bce3fc69962abe6",
+  "upstream_version": "0.15.28",
+  "adapter_version": "0.15.28-codex.4",
+  "sha256": "35b986fe33f62439756745dcf8364b18f58006f408582c7193433ca51844a90d"
+}

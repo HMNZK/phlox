@@ -14,6 +14,14 @@ private enum UserNotification {
     case exited(code: Int32)
 }
 
+private enum FirstMessageSkillError: LocalizedError {
+    case unavailable
+
+    var errorDescription: String? {
+        "選択した Codex スキルを現在のセッションで確認できませんでした。候補を選び直してください。"
+    }
+}
+
 /// エージェントのプロセスが自分で終了したこと（04 B3）。終了コードが取れない transport では nil。
 public struct ChatProcessExit: Equatable, Sendable {
     public let exitCode: Int32?
@@ -197,7 +205,7 @@ public final class ChatSessionViewModel: Identifiable {
         ))
     }
 
-    public func sendFirstMessage(_ text: String, attachments: [ComposerAttachment]) async {
+    public func sendFirstMessage(_ text: String, attachments: [ComposerAttachment], selectedSkill: SkillIdentity? = nil) async {
         guard launchFailure == nil, processExit == nil else { return }
         removePendingFirstMessage()
         attachmentStore.restore(attachments)
@@ -205,6 +213,15 @@ public final class ChatSessionViewModel: Identifiable {
         firstTurnInput = (text, attachments, "pending-first-\(id.rawValue)")
         draftClearedForSend = text
         do {
+            if let selectedSkill {
+                guard agentRef == .builtin(.codex), let state = codexSkillSelectionState else {
+                    throw FirstMessageSkillError.unavailable
+                }
+                await state.refresh()
+                guard state.select(name: selectedSkill.name, path: selectedSkill.path) else {
+                    throw FirstMessageSkillError.unavailable
+                }
+            }
             try await sendText(text, submit: true)
         } catch {
             guard launchFailure == nil else { return }

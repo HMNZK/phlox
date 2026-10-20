@@ -9,6 +9,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../AgentDomain"),
+        .package(path: "../AgentConfigKit"),
         .package(path: "../DesignSystem"),
         .package(path: "../HookServer"),
         .package(path: "../PTYKit"),
@@ -22,6 +23,7 @@ let package = Package(
             name: "SessionFeature",
             dependencies: [
                 "AgentDomain",
+                "AgentConfigKit",
                 .product(name: "ChatRenderKit", package: "AgentDomain"),
                 .product(name: "ImageAttachmentKit", package: "AgentDomain"),
                 "DesignSystem",

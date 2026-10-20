@@ -209,7 +209,7 @@ struct ComposerSuggestionDescriptionTests {
         #expect((views.first?.textLayer.string as? NSAttributedString)?.string == description + "別の候補の末尾です。")
         #expect(previous.textLayer.animationKeys()?.isEmpty != false)
         // Buttonは名前・全文の説明・出どころを1つのラベルへまとめる。ネイティブ描画の重複ラベルに依存しない。
-        #expect(accessibilityText(in: host).contains("/review, " + description + "別の候補の末尾です。, .claude/skills"))
+        #expect(accessibilityText(in: host).contains("/review, " + description + "別の候補の末尾です。, Skill"))
         let selected = try #require(views.first)
         controller.dismiss()
         try await settle(host)

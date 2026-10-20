@@ -6,6 +6,23 @@ import SessionFeature
 
 @Suite("New chat drafts", .serialized) @MainActor
 struct NewChatDraftStoreTests {
+    @Test func selectedCodexSkillSurvivesLaunchFailureAndClearsWithToken() throws {
+        let (store, _, suite) = try makeStore()
+        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let draft = store.draft
+        draft.selectHarness(.builtin(.codex))
+        let skill = SkillIdentity(name: "pstack-codex:poteto-mode", path: "/skills/poteto-mode/SKILL.md")
+        draft.text = "$pstack-codex:poteto-mode fix this"
+        draft.selectedSkill = skill
+        let request = try #require(draft.makeLaunchRequest(projectID: ProjectID()))
+        #expect(request.selectedSkill == skill)
+        #expect(draft.selectedSkill == nil)
+        draft.restoreLaunchDraft(from: request)
+        #expect(draft.selectedSkill == skill)
+        draft.text = "fix this"
+        #expect(draft.selectedSkill == nil)
+    }
+
     @Test func worktreeStartPointsBelongToProjectsAndSurviveSendAndRestore() throws {
         let (store, _, suite) = try makeStore()
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }

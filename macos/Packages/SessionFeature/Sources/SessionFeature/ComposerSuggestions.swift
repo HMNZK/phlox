@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import AgentDomain
 
 // task-7 契約の PM スタブ。API 表面は受け入れテスト
 // ComposerSuggestionAcceptanceTests が凍結している（シグネチャ変更禁止）。
@@ -58,9 +59,14 @@ enum SlashCommandOrigin: Equatable {
 }
 
 /// 外部サジェストを確定したときに渡す、表示名と実体パスの識別子。
-struct SkillIdentity: Equatable, Hashable {
-    let name: String
-    let path: String
+public struct SkillIdentity: Equatable, Hashable, Sendable {
+    public let name: String
+    public let path: String
+
+    public init(name: String, path: String) {
+        self.name = name
+        self.path = path
+    }
 }
 
 /// 入力テキストから検出したサジェストのトリガー。
@@ -456,13 +462,14 @@ final class ComposerSuggestionController {
         selectedIndex = index
     }
 
-    static func production(workingDirectory: String) -> ComposerSuggestionController {
+    static func production(workingDirectory: String, agentKind: AgentKind = .claudeCode) -> ComposerSuggestionController {
         ComposerSuggestionController(
             seedAwareAsyncSlashProvider: { term, availableCommands, seedCommands in
                 Self.filteredSlashCandidates(
                     ComposerSuggestionSources.slashCandidates(
                         availableCommands: availableCommands,
                         seedCommands: seedCommands,
+                        agentKind: agentKind,
                         workingDirectory: workingDirectory
                     ),
                     searchTerm: term
@@ -472,6 +479,7 @@ final class ComposerSuggestionController {
                 ComposerSuggestionSources.cachedSlashCandidates(
                     availableCommands: availableCommands,
                     seedCommands: seedCommands,
+                    agentKind: agentKind,
                     workingDirectory: workingDirectory,
                     matching: term
                 )
@@ -494,7 +502,7 @@ final class ComposerSuggestionController {
         return candidates.filter { candidate in
             let insertion = candidate.insertionText.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
             let title = candidate.title.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
-            return insertion.hasPrefix(normalizedTerm) || title.hasPrefix(normalizedTerm)
+            return insertion.contains(normalizedTerm) || title.contains(normalizedTerm)
         }
     }
 }
@@ -518,6 +526,7 @@ enum ComposerSuggestionSources {
     private struct SkillEntry {
         let name: String
         let subtitle: String
+        let path: String
     }
 
     static let builtinSlashCommands: [SuggestionCandidate] = [
@@ -550,6 +559,7 @@ enum ComposerSuggestionSources {
     static func slashCandidates(
         availableCommands: [String]? = nil,
         seedCommands: [String]? = nil,
+        agentKind: AgentKind = .claudeCode,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         workingDirectory: String = FileManager.default.currentDirectoryPath
     ) -> [SuggestionCandidate] {
@@ -559,11 +569,13 @@ enum ComposerSuggestionSources {
             homeDirectory: homeDirectory.standardizedFileURL.path,
             workingDirectory: workspacePath,
             availableCommands: availableCommands,
-            seedCommands: seed
+            seedCommands: seed,
+            agentKind: agentKind
         ) {
             uncachedSlashCandidates(
                 availableCommands: availableCommands,
                 seedCommands: seed,
+                agentKind: agentKind,
                 homeDirectory: homeDirectory,
                 workingDirectory: workspacePath
             )
@@ -582,11 +594,12 @@ enum ComposerSuggestionSources {
         return seedCommands
     }
 
-    /// TTL 内のスラッシュ候補集合を走査なしでピークし、検索語で前方一致フィルタする。
+    /// TTL 内のスラッシュ候補集合を走査なしで取得し、検索語で部分一致フィルタする。
     /// miss（未キャッシュ／期限切れ）なら nil を返す。
     static func cachedSlashCandidates(
         availableCommands: [String]? = nil,
         seedCommands: [String]? = nil,
+        agentKind: AgentKind = .claudeCode,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         workingDirectory: String = FileManager.default.currentDirectoryPath,
         matching searchTerm: String
@@ -596,7 +609,8 @@ enum ComposerSuggestionSources {
             homeDirectory: homeDirectory.standardizedFileURL.path,
             workingDirectory: workspacePath,
             availableCommands: availableCommands,
-            seedCommands: effectiveSeedCommands(seedCommands, availableCommands: availableCommands)
+            seedCommands: effectiveSeedCommands(seedCommands, availableCommands: availableCommands),
+            agentKind: agentKind
         ) else {
             return nil
         }
@@ -606,80 +620,71 @@ enum ComposerSuggestionSources {
     private static func uncachedSlashCandidates(
         availableCommands: [String]?,
         seedCommands: [String]?,
+        agentKind: AgentKind,
         homeDirectory: URL,
         workingDirectory: String
     ) -> [SuggestionCandidate] {
         guard let availableCommands else {
             return fallbackSlashCandidates(
                 seedCommands: seedCommands,
+                agentKind: agentKind,
                 homeDirectory: homeDirectory,
                 workingDirectory: workingDirectory
             )
         }
         return availableCommandCandidates(
             availableCommands,
+            agentKind: agentKind,
             homeDirectory: homeDirectory,
             workingDirectory: workingDirectory
         )
     }
 
     /// 一覧未受領（`availableCommands == nil`）時の候補。
-    /// 静的リスト → seed 由来 → `.claude/commands` → `.claude/skills` の順に積んで重複除去する
-    /// （順序は決定論。既存経路の並びを前方一致で保つ）。
+    /// 静的リスト → seed 由来 → 選択中のエージェントのコマンド → スキルの順に積んで重複除去する。
     /// seed 由来をディレクトリ走査より前に置くのは、`deduplicated` が「同じ insertionText の最初」を
     /// 残すため。後ろに置くと、同名がカスタムコマンドとスキルの両方にある場合に走査由来の
     /// "Custom command" が勝ち、seed 経路の subtitle 優先順（静的リスト → SKILL.md → カスタムコマンド）
     /// が崩れる。seed に無い名前の衝突（カスタムコマンド先勝ち）は従来どおり。
     private static func fallbackSlashCandidates(
         seedCommands: [String]?,
+        agentKind: AgentKind,
         homeDirectory: URL,
         workingDirectory: String
     ) -> [SuggestionCandidate] {
-        var candidates = builtinSlashCommands.map { $0.withOrigin(.builtin) }
+        var candidates = agentKind == .claudeCode ? builtinSlashCommands.map { $0.withOrigin(.builtin) } : []
         if let seedCommands {
             // seed 由来も `__` 除外・subtitle 解決の優先順を一覧受領時と揃える。
             candidates.append(contentsOf: availableCommandCandidates(
                 seedCommands,
+                agentKind: agentKind,
                 homeDirectory: homeDirectory,
                 workingDirectory: workingDirectory
             ))
         }
         let workspaceURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
-        let commandDirectories = [
-            homeDirectory.appending(path: ".claude/commands", directoryHint: .isDirectory),
-            workspaceURL.appending(path: ".claude/commands", directoryHint: .isDirectory),
-        ]
-        let skillDirectories = [
-            homeDirectory.appending(path: ".claude/skills", directoryHint: .isDirectory),
-            workspaceURL.appending(path: ".claude/skills", directoryHint: .isDirectory),
-        ]
+        let commandDirectories = commandDirectories(for: agentKind, home: homeDirectory, workspace: workspaceURL)
+        let skills = locatedSkills(for: agentKind, home: homeDirectory, workspace: workspaceURL)
 
         for name in commandDirectories.flatMap(commandNames(in:)) {
             candidates.append(SuggestionCandidate(title: "/\(name)", insertionText: "/\(name)", subtitle: "Custom command", kind: .slashCommand, origin: .commands))
         }
-        for skill in skillDirectories.flatMap(skillEntries(in:)) {
-            candidates.append(SuggestionCandidate(title: "/\(skill.name)", insertionText: "/\(skill.name)", subtitle: skill.subtitle, kind: .slashCommand, origin: .skills))
+        for skill in skills {
+            candidates.append(skillCandidate(skill, agentKind: agentKind))
         }
         return deduplicated(candidates)
     }
 
     private static func availableCommandCandidates(
         _ names: [String],
+        agentKind: AgentKind,
         homeDirectory: URL,
         workingDirectory: String
     ) -> [SuggestionCandidate] {
         let workspaceURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
-        let builtinSubtitles = Dictionary(uniqueKeysWithValues: builtinSlashCommands.map { ($0.title, $0.subtitle) })
-        let commandDirectories = [
-            homeDirectory.appending(path: ".claude/commands", directoryHint: .isDirectory),
-            workspaceURL.appending(path: ".claude/commands", directoryHint: .isDirectory),
-        ]
-        let skillDirectories = [
-            homeDirectory.appending(path: ".claude/skills", directoryHint: .isDirectory),
-            workspaceURL.appending(path: ".claude/skills", directoryHint: .isDirectory),
-        ]
-        let skillSubtitles = Dictionary(skillDirectories
-            .flatMap(skillEntries(in:))
+        let builtinSubtitles = Dictionary(uniqueKeysWithValues: (agentKind == .claudeCode ? builtinSlashCommands : []).map { ($0.title, $0.subtitle) })
+        let commandDirectories = commandDirectories(for: agentKind, home: homeDirectory, workspace: workspaceURL)
+        let skillSubtitles = Dictionary(locatedSkills(for: agentKind, home: homeDirectory, workspace: workspaceURL)
             .map { ($0.name, $0.subtitle) }, uniquingKeysWith: { first, _ in first })
         let customCommandNames = Set(commandDirectories.flatMap(commandNames(in:)))
 
@@ -701,6 +706,41 @@ enum ComposerSuggestionSources {
                 origin: origin
             )
         }
+    }
+
+    private static func commandDirectories(for agent: AgentKind, home: URL, workspace: URL) -> [URL] {
+        let folder: String
+        switch agent {
+        case .claudeCode: folder = ".claude"
+        case .codex: folder = ".codex"
+        case .cursor: folder = ".cursor"
+        }
+        return [home, workspace].map { $0.appending(path: "\(folder)/commands", directoryHint: .isDirectory) }
+    }
+
+    private static func locatedSkills(for agent: AgentKind, home: URL, workspace: URL) -> [SkillEntry] {
+        AgentSkillLocations.locations(for: agent, home: home, workspace: workspace).flatMap { location in
+            skillEntries(in: location.directory, requireSkillFile: agent == .codex || location.namespace != nil).map { skill in
+                SkillEntry(
+                    name: location.namespace.map { "\($0):\(skill.name)" } ?? skill.name,
+                    subtitle: skill.subtitle,
+                    path: skill.path
+                )
+            }
+        }
+    }
+
+    private static func skillCandidate(_ skill: SkillEntry, agentKind: AgentKind) -> SuggestionCandidate {
+        if agentKind == .codex {
+            return SuggestionCandidate(
+                title: "$\(skill.name)", insertionText: "$\(skill.name)", subtitle: skill.subtitle,
+                kind: .slashCommand, skillIdentity: SkillIdentity(name: skill.name, path: skill.path), origin: .skills
+            )
+        }
+        return SuggestionCandidate(
+            title: "/\(skill.name)", insertionText: "/\(skill.name)", subtitle: skill.subtitle,
+            kind: .slashCommand, origin: .skills
+        )
     }
 
     static func fileCandidates(
@@ -851,7 +891,7 @@ enum ComposerSuggestionSources {
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    private static func skillEntries(in directory: URL) -> [SkillEntry] {
+    private static func skillEntries(in directory: URL, requireSkillFile: Bool) -> [SkillEntry] {
         let entries = (try? FileManager.default.contentsOfDirectory(
             at: directory.resolvingSymlinksInPath(),
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -860,17 +900,20 @@ enum ComposerSuggestionSources {
         return entries
             .filter { url in
                 (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                    && (!requireSkillFile || FileManager.default.fileExists(atPath: url.appending(path: "SKILL.md").path))
             }
             .map { url in
-                SkillEntry(name: url.lastPathComponent, subtitle: skillSubtitle(in: url))
+                SkillEntry(name: url.lastPathComponent, subtitle: skillSubtitle(in: url), path: url.appending(path: "SKILL.md").path)
             }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     private static func skillSubtitle(in skillDirectory: URL) -> String {
         let skillFile = skillDirectory.appending(path: "SKILL.md")
-        guard let content = try? String(contentsOf: skillFile, encoding: .utf8),
-              let description = frontmatterDescription(in: content)
+        guard let handle = try? FileHandle(forReadingFrom: skillFile) else { return skillFallbackSubtitle }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 16_384),
+              let description = frontmatterDescription(in: String(decoding: data, as: UTF8.self))
         else {
             return skillFallbackSubtitle
         }
@@ -941,7 +984,7 @@ enum ComposerSuggestionSources {
             let title = candidate.title
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 .lowercased()
-            return insertion.hasPrefix(normalizedTerm) || title.hasPrefix(normalizedTerm)
+            return insertion.contains(normalizedTerm) || title.contains(normalizedTerm)
         }
     }
 
@@ -966,6 +1009,7 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
     private struct SlashKey: Hashable {
         let homeDirectory: String
         let workingDirectory: String
+        let agentKind: AgentKind
         let availableCommands: [String]?
         /// 正規化済みの種一覧（一覧受領済み・空配列はいずれも nil）。
         /// 種一覧が違えば別エントリになるため、別セッションの候補が混線しない。
@@ -997,11 +1041,13 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
         workingDirectory: String,
         availableCommands: [String]?,
         seedCommands: [String]?,
+        agentKind: AgentKind,
         load: () -> [SuggestionCandidate]
     ) -> [SuggestionCandidate] {
         let key = SlashKey(
             homeDirectory: homeDirectory,
             workingDirectory: workingDirectory,
+            agentKind: agentKind,
             availableCommands: availableCommands,
             seedCommands: seedCommands
         )
@@ -1049,11 +1095,13 @@ private final class ComposerSuggestionSourceCache: @unchecked Sendable {
         homeDirectory: String,
         workingDirectory: String,
         availableCommands: [String]?,
-        seedCommands: [String]?
+        seedCommands: [String]?,
+        agentKind: AgentKind
     ) -> [SuggestionCandidate]? {
         let key = SlashKey(
             homeDirectory: homeDirectory,
             workingDirectory: workingDirectory,
+            agentKind: agentKind,
             availableCommands: availableCommands,
             seedCommands: seedCommands
         )

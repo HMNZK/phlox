@@ -166,7 +166,7 @@ NewChatView（入力欄は `NewChatView` の中にあり、`NewChatComposer` と
 | `ComposerAttachPlaceholder`（`SF/ComposerSettingsControls.swift`） | `Binding<String>` と `ComposerAttachmentStore`・`agentRef`・`imageAttachmentsSupported`・`accessibilityIdentifier` を受け取る形に変えた。セッション側は VM から渡す |
 | 設定チップ（`ComposerSettingsControlsView`、`ComposerSettingsOverflowMenu`） | 見た目の部分を値で動く `ComposerSettingChip(title:options:selection:accessibilityIdentifier:onSelect:)`（`SF/ComposerDraftInput.swift`）に切り出した。セッション側は VM の値と `setSpawnAgentModel` 等を渡す薄い包みにする。新規チャット側は `NewChatDraft.settings` を渡す |
 | `ComposerSuggestionController`（`SF/ComposerSuggestions.swift`） | 作業フォルダがクロージャに閉じ、`@State` で 1 回だけ作られる（`ChatComposer.swift`）。新規チャット側は `.id(候補の基準フォルダ)` で作り直す（E4）。基準は「既存ディレクトリ」ならプロジェクトのフォルダ、「新しい worktree」でもプロジェクトのフォルダ（worktree はまだ無い。作られる中身は同じ HEAD） |
-| slash 候補 | 静的リスト＋`~/.claude`・`<cwd>/.claude` の走査＋`availableCommandsStore` で、セッション無しでも出る（U1 は解消）。Codex の skill 候補は起動中の CLI が要るので下書きでは出さない |
+| slash 候補 | 選択したエージェントのローカルスキルと有効なプラグインを背景で走査し、キャッシュから部分一致で返す。Codex の skill も下書き中に候補を出し、初回送信時に `skills/list` で照合する |
 | esc・⇧Tab・↑（履歴呼び出し） | 下書きでは esc は何もしない。⇧Tab の effort 切替は `NewChatDraft.settings` に対して同じ規則で行う。↑ は無効 |
 
 ### 4.3 ハーネス・モデル選択とその候補
@@ -381,7 +381,7 @@ worktree のチャットを別プロジェクトへ動かせない制限（`canM
 
 | # | 内容 | 結果 | 根拠 |
 |---|---|---|---|
-| U1 | 下書きの間に「/」の候補を出せるか | 出せる（Codex の skill 候補だけ出せない） | コード（§4.2） |
+| U1 | 下書きの間に「/」の候補を出せるか | 出せる（Codex の skill 候補を含む） | コード（§4.2） |
 | U2 | Codex の `thread/start` に `model` を渡すと効くか | **効く**。`thread/start` の応答の `model` が指定値（`gpt-6-luna`。既定は `gpt-6.1-sol`）になり、最初のターンの記録（rollout の `turn_context.model`）も `gpt-6-luna` だった。effort は `thread/start` の引数に無い | 実 CLI |
 | U3 | 履歴の一覧を VM 無しで読めるか | 読める | コード（§6） |
 | U5 | 下書きの間に Codex の effort・画像の可否を取れるか | 取れる。`model/list` が各モデルの `supportedReasoningEfforts`（例 `low`〜`ultra`）と `inputModalities`（`text`・`image`）を返した。権限の一覧は返さない | 実 CLI・コード（§4.3） |

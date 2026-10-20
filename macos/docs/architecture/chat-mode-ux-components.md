@@ -111,7 +111,7 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 `ChatSessionViewModel` は生成時に1回だけストアを読み `seedSlashCommands` に保持し、`.availableCommandsUpdated` 受信時に `availableSlashCommands` の更新とストアへの `record` を行う。`ComposerSuggestionController` 経由で `ComposerSuggestionSources.slashCandidates(availableCommands:seedCommands:...)` へ渡る。
 
-候補の決まり方: `availableCommands` が非 nil なら seed を無視して従来どおり。nil かつ seed が非空なら **静的リスト → seed → `.claude/commands` → `.claude/skills`** の順に積んで重複除去（seed 由来の subtitle が先勝ちで負けないための順序）。seed が nil / 空配列なら従来の静的フォールバック経路。5秒TTLキャッシュのキーにも seed を含める。
+候補の決まり方: `availableCommands` が非 nil なら seed を無視する。未受領時は静的リスト、seed、選択中のエージェントのローカルコマンド・スキル、有効なプラグインのスキルを重複除去して表示する。`.claude/skills` / `.codex/skills` のシンボリックリンクをたどるため、`.agents/skills` は別途走査しない。プラグインの有効状態は各エージェントのローカル設定を基準にし、古いキャッシュ版や無効なものは候補にしない。走査は背景で行い、取得した候補集合をエージェント・作業ディレクトリ・設定ごとにキャッシュする。入力中の絞り込みは候補名の大文字小文字を区別しない部分一致とし、キャッシュ済み集合から同期的に返す。
 
 ## トランスクリプト項目の ID 索引
 
@@ -208,7 +208,7 @@ Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 
 
 | `availableCommands` | 候補 |
 |---|---|
-| `nil`（init 未受領。初回送信前は必ずこれ） | 静的 `builtinSlashCommands` 10 件＋`.claude/commands` / `.claude/skills` 走査 |
+| `nil`（init 未受領。初回送信前は必ずこれ） | Claude は静的候補＋`.claude/commands` / `.claude/skills` / 有効なプラグインを走査。Codex は `.codex/skills` / 有効なプラグインを走査 |
 | 非 `nil` | その名前だけ（走査由来を混ぜ戻さない）。`__` 接頭辞は除外・重複は一意化・順序保持 |
 
-一覧由来の subtitle は ①静的リストの同名 ②`.claude/skills/<名前>/SKILL.md` の `description` ③`.claude/commands/<名前>.md` ④なし の順で補う。5 秒 TTL キャッシュ（ADR 0053）のキーには一覧を含める。静的 `builtinSlashCommands` はフォールバック専用に 10 件（`/compact` `/clear` `/model` `/init` `/config` `/mcp` `/context` `/usage` `/doctor` `/review`）へ縮小した——実測でセッションに存在しなかった 13 件（`/help` `/plugin` `/permissions` `/status` `/cost` `/memory` `/output-style` `/export` `/statusline` `/todos` `/rewind` `/resume` `/hooks`）は削除済み。凍結 `AcceptanceAvailableCommandsEventTests`・`InitSlashCommandsTests`・`AcceptanceBuiltinSlashCommandsTests`・`ComposerAvailableCommandsTests`。**Codex / Cursor は一覧の供給源が無くフォールバックのまま**。
+一覧由来の subtitle は静的リスト、スキルの `description`、カスタムコマンドの順で補う。キャッシュキーにはエージェント、作業ディレクトリ、一覧、seed を含める。Codex の既存セッションでは `skills/list` を正本とし、新規チャットで選んだローカル候補はセッション開始後に同一覧で照合して native skill input として送る。確認できなければ送信を拒否して本文を戻す。スラッシュ候補と Codex スキル候補は名前の途中でも一致し、`@` ファイル候補の部分一致は従来どおり。

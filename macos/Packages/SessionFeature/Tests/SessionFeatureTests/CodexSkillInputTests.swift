@@ -7,6 +7,26 @@ import CodexAppServerKit
 struct CodexSkillInputTests {
     private let cwd = "/contract/作業"
 
+    @Test("既存セッションの skill 検索は名前の途中でも一致する")
+    @MainActor
+    func searchMatchesMiddle() async throws {
+        let result: JSONValue = .object(["data": .array([.object([
+            "cwd": .string(cwd), "errors": .array([]),
+            "skills": .array([.object([
+                "description": .string("Example"), "enabled": .bool(true),
+                "name": .string("pstack-codex:poteto-mode"),
+                "path": .string("/skills/poteto-mode/SKILL.md"), "scope": .string("user"),
+            ])]),
+        ])])])
+        let client = CodexAppServerClient(transport: CodexPlanSkillFakeTransport(skillsListResult: result))
+        await client.start()
+        let state = CodexSkillSelectionState(client: client, sessionCWD: cwd)
+        await state.refresh()
+        state.search("teto")
+        #expect(state.filteredSkills.map(\.name) == ["pstack-codex:poteto-mode"])
+        await client.close()
+    }
+
     @Test("skills/list request は session cwd 一件を送り、実responseを受け取る")
     func requestCWDIsExactAndSingle() async throws {
         let responseJSON: JSONValue = .object([

@@ -437,6 +437,10 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
             requests.compactMap { $0["method"]?.stringValue }
         }
 
+        func firstRequest(method: String) -> JSONValue? {
+            requests.first { $0["method"]?.stringValue == method }
+        }
+
         func nextSubAgentListCall() -> Int {
             subAgentListCalls += 1
             return subAgentListCalls
@@ -582,6 +586,10 @@ final class CodexProductionTransport: AppServerTransport, @unchecked Sendable {
 
     func methods() async -> [String] {
         await state.methods()
+    }
+
+    func firstRequest(method: String) async -> JSONValue? {
+        await state.firstRequest(method: method)
     }
 
     func completeSubAgent() async {

@@ -16,7 +16,15 @@ public final class NewChatDraftStore {
 
 @MainActor @Observable
 public final class NewChatDraft {
-    public var text = ""
+    public var text = "" {
+        didSet {
+            if let selectedSkill,
+               !text.split(whereSeparator: \.isWhitespace).contains(where: { $0 == "$\(selectedSkill.name)" }) {
+                self.selectedSkill = nil
+            }
+        }
+    }
+    public var selectedSkill: SkillIdentity?
     public let attachments = ComposerAttachmentStore()
     public var usesWorktree = false
     private var worktreeStartPoints: [ProjectID: WorktreeStartPoint] = [:]
@@ -59,6 +67,7 @@ public final class NewChatDraft {
         guard ref != agentRef else { return }
         let kind = ref.builtinKind
         agentRef = ref
+        selectedSkill = nil
         settings = Self.initialSettings(
             for: kind,
             saved: lastUsedChatSettingsStore.lastUsed(agentID: ref.id),
@@ -120,11 +129,13 @@ public final class NewChatDraft {
             settings: settings,
             usesWorktree: usesWorktree,
             text: text,
+            selectedSkill: selectedSkill,
             attachments: attachments.attachments,
             workingDirectoryOverride: workingDirectoryOverride,
             worktreeStartPoint: worktreeStartPoint(projectID: projectID, directory: nil)
         )
         text = ""
+        selectedSkill = nil
         attachments.clear()
         usesWorktree = false
         return request
@@ -134,6 +145,7 @@ public final class NewChatDraft {
         let merged = ComposerAttachmentStore.mergingDrafts(text: request.text, attachments: request.attachments,
             nextText: text, nextAttachments: attachments.attachments)
         text = merged.text
+        selectedSkill = request.selectedSkill
         attachments.restore(merged.attachments)
         usesWorktree = request.usesWorktree
         worktreeStartPoints[request.projectID] = request.worktreeStartPoint

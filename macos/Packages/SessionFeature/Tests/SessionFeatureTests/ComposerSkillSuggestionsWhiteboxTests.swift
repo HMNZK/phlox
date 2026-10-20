@@ -5,6 +5,16 @@ import Testing
 @Suite("Whitebox: 外部 skill 候補")
 struct ComposerSkillSuggestionsWhiteboxTests {
 
+    @Test("外部候補は名前の途中でも一致する")
+    func substringMatchesExternalCandidate() {
+        let controller = makeController()
+        controller.updateExternalCandidates([
+            SuggestionCandidate(title: "/pstack:poteto-mode", insertionText: "$pstack:poteto-mode", kind: .slashCommand),
+        ])
+        controller.update(text: "/teto", cursorUTF16: 5)
+        #expect(controller.candidates.map(\.title) == ["/pstack:poteto-mode"])
+    }
+
     @Test("同名でも path の異なる候補を保持する")
     func sameNameDifferentPathsArePreserved() {
         let candidates = [

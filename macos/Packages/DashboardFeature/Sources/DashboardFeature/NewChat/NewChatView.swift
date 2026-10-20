@@ -326,6 +326,7 @@ struct NewChatView: View {
                 text: $draft.text,
                 attachmentStore: draft.attachments,
                 workingDirectory: suggestionDirectory ?? "",
+                agentKind: selectedKind ?? .claudeCode,
                 placeholder: localized("やりたいことを入力（/ でコマンド）"),
                 focusToken: focusToken,
                 accessibilityPrefix: "newChat",
@@ -333,9 +334,10 @@ struct NewChatView: View {
                 emptyTextHeight: DSLayout.newChatComposerTextHeight,
                 onSubmit: { attemptSend() },
                 onCycleEffort: cycleEffort,
-                onTab: { harnessPickerFocused = true; return true }
+                onTab: { harnessPickerFocused = true; return true },
+                onAcceptSkill: { draft.selectedSkill = $0 }
             )
-            .id(suggestionDirectory)
+            .id("\(suggestionDirectory ?? "")#\(draft.agentRef.id)")
             .padding(.leading, DSSpacing.xxs)
             .padding(.trailing, -DSSpacing.xxs)
             .padding(.bottom, DSSpacing.xs)

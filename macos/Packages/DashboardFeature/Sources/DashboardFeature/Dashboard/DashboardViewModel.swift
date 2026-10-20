@@ -1183,7 +1183,7 @@ public final class DashboardViewModel {
         lastUsedChatSettingsStore.recordLastHarness(request.agentRef.id)
         guard let vm = sessionNode(id: id)?.appServer else { throw CancellationError() }
         if vm.launchFailure == nil, historyEntry == nil, !request.text.isEmpty || !request.attachments.isEmpty {
-            await vm.sendFirstMessage(request.text, attachments: request.attachments)
+            await vm.sendFirstMessage(request.text, attachments: request.attachments, selectedSkill: request.selectedSkill)
         }
         return id
     }

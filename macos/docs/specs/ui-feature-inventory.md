@@ -175,8 +175,8 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | 添付ボタン「+」でファイル/画像選択 | クリック→NSOpenPanel | — | — | 画像添付はClaude/Codexのみ、他はファイル参照挿入 | `ComposerSettingsControls.swift:559-661` |
 | 添付チップ表示・削除 | ×クリック | `ComposerAttachmentChipPresentation` | — | 共通 | `ChatComposer.swift:1028-1102` |
 | `@path`ファイル参照挿入 | +ボタンで非画像選択 | `"@\(path)"` | — | 共通 | `ComposerAttachments.swift:118-121` |
-| `/`スラッシュコマンド候補 | `/`入力 | 静的組込+`.claude/commands`+`.claude/skills`+実行時受領 | TTL5秒キャッシュ | 共通（skillsディレクトリはClaude CLI慣習） | `ComposerSuggestions.swift:504-529,607-645` |
-| Codex skill候補混入 | `/`入力 | `SkillMetadata`→候補 | `filteredSkills` | Codex限定 | `ChatComposer.swift:189-213`, `CodexSkillSelectionState.swift` |
+| `/`スラッシュコマンド候補 | `/`入力 | 選択エージェントのコマンド・スキル、有効なプラグイン、実行時受領 | 背景走査＋TTL5秒キャッシュ、部分一致 | 共通 | `ComposerSuggestions.swift`、`AgentSkillLocations.swift` |
+| Codex skill候補混入 | `/`入力 | 新規チャットはローカル候補を初回送信時に照合、既存セッションは `skills/list` | キャッシュ・部分一致 | Codex限定 | `ComposerDraftInput.swift`、`CodexSkillSelectionState.swift` |
 | `@`ファイル参照候補 | `@`入力 | ワークスペース走査(除外.git等) | TTL5秒キャッシュ、非同期coalescing | 共通 | `ComposerSuggestions.swift:57-79,682-745` |
 | サジェスト選択移動/確定/却下 | ↑↓/Enter・Tab/クリック/Esc | `SuggestionReplacement` | — | 共通 | `ComposerKeyRouting.swift:35-49`, `ComposerSuggestions.swift:390-407` |
 | エージェント別コントロール集合 | — | `[.model,.effort,.permission]`等 | `composerControls(for:)` | Codex/Claudeは同じ項目、Cursorはeffortなし | `ComposerSettingsControls.swift:25-36` |

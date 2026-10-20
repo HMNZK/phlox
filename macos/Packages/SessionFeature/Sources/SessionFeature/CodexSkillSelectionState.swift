@@ -5,7 +5,7 @@ import Observation
 /// `skills/list` の結果を保持し、選択した skill を native input に変換する状態。
 ///
 /// 一覧は `refresh()` で取得する。`skills/changed` を受けたときは stale を表示したまま
-/// 自動で再取得し、再取得後も旧選択を再利用せず再選択を要求する。
+/// 自動で再取得する。メタデータとファイル一式の同一性を確認できない選択は再選択を要求する。
 public protocol CodexSkillSelectionClient: Sendable {
     var skillEvents: AsyncStream<ThreadEvent> { get }
     func skillsList(_ params: SkillsListParams) async throws -> SkillsListResponse
@@ -45,6 +45,7 @@ public final class CodexSkillSelectionState {
     @ObservationIgnored private var refreshTaskID = 0
     private var generation = 0
     private var selectionGeneration: Int?
+    private var selectedFingerprint: String?
 
     public init(client: any CodexSkillSelectionClient, sessionCWD: String) {
         self.client = client
@@ -84,7 +85,15 @@ public final class CodexSkillSelectionState {
             isLoading = false
             errorMessage = entry.errors.map(\.message).joined(separator: "\n").nilIfEmpty
             isStale = !entry.errors.isEmpty
-            requiresReselection = selectedSkill != nil
+            let unchanged: Bool
+            if entry.errors.isEmpty, let selectedSkill, let selectedFingerprint,
+               skills.contains(where: { $0 == selectedSkill && Self.isUsable($0) }) {
+                unchanged = CodexSkillFingerprint.read(skillPath: selectedSkill.path) == selectedFingerprint
+            } else {
+                unchanged = false
+            }
+            requiresReselection = selectedSkill != nil && !unchanged
+            if unchanged { selectionGeneration = generation }
         } catch {
             guard requestGeneration == generation else { return }
             isLoading = false
@@ -136,6 +145,7 @@ public final class CodexSkillSelectionState {
         selectedSkill = current
         selectedIndex = filteredSkills.firstIndex(where: { Self.sameIdentity($0, current) }) ?? 0
         selectionGeneration = generation
+        selectedFingerprint = CodexSkillFingerprint.read(skillPath: current.path)
         requiresReselection = false
         isStale = false
         return true
@@ -152,6 +162,7 @@ public final class CodexSkillSelectionState {
     public func clearSelection() {
         selectedSkill = nil
         selectionGeneration = nil
+        selectedFingerprint = nil
         requiresReselection = false
     }
 
@@ -248,7 +259,7 @@ public final class CodexSkillSelectionState {
     private static func filtered(_ values: [SkillMetadata], searchTerm: String) -> [SkillMetadata] {
         guard !searchTerm.isEmpty else { return values }
         let term = searchTerm.lowercased()
-        return values.filter { $0.name.lowercased().hasPrefix(term) }
+        return values.filter { $0.name.lowercased().contains(term) }
     }
 
     private static func isUsable(_ skill: SkillMetadata) -> Bool {
@@ -275,6 +286,7 @@ public final class CodexSkillSelectionState {
         }
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
 }
 
 private extension String {

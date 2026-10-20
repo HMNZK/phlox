@@ -8,12 +8,13 @@ public struct NewChatLaunchRequest: Sendable {
     public let usesWorktree: Bool
     public let worktreeStartPoint: WorktreeStartPoint
     public let text: String
+    public let selectedSkill: SkillIdentity?
     public let attachments: [ComposerAttachment]
     public let workingDirectoryOverride: String?
     public let resumeHistoryID: String?
 
     public init(projectID: ProjectID, agentRef: AgentRef, settings: CodexAppServerSessionSettings,
-                usesWorktree: Bool, text: String, attachments: [ComposerAttachment],
+                usesWorktree: Bool, text: String, selectedSkill: SkillIdentity? = nil, attachments: [ComposerAttachment],
                 workingDirectoryOverride: String? = nil, resumeHistoryID: String? = nil,
                 worktreeStartPoint: WorktreeStartPoint = .head) {
         self.projectID = projectID
@@ -22,6 +23,7 @@ public struct NewChatLaunchRequest: Sendable {
         self.usesWorktree = usesWorktree
         self.worktreeStartPoint = worktreeStartPoint
         self.text = text
+        self.selectedSkill = selectedSkill
         self.attachments = attachments
         self.workingDirectoryOverride = workingDirectoryOverride
         self.resumeHistoryID = resumeHistoryID

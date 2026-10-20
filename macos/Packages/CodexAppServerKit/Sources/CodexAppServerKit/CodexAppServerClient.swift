@@ -110,6 +110,7 @@ public actor CodexAppServerClient {
                 received: response.thread.id
             )
         }
+        seedRestoredTurnIdentity(from: response.thread)
         return response
     }
 
@@ -121,7 +122,25 @@ public actor CodexAppServerClient {
                 received: response.thread.id
             )
         }
+        seedRestoredTurnIdentity(from: response.thread)
         return response
+    }
+
+    /// 復元後の最初の遅延イベントで、過去の turn を実行中 turn として束縛しない。
+    private func seedRestoredTurnIdentity(from thread: ThreadSummary) {
+        let threadID = thread.id
+        var state = turnStates[threadID] ?? TurnState()
+        guard !state.hasObservedLifecycle, state.activeTurnId == nil else { return }
+        for turn in thread.turns ?? [] {
+            guard let turnID = turn.id else { continue }
+            if turn.status == "inProgress" {
+                state.activeTurnId = turnID
+                state.hasObservedLifecycle = true
+            } else if ["completed", "interrupted", "failed"].contains(turn.status ?? "") {
+                state.closedTurnIds.insert(turnID)
+            }
+        }
+        turnStates[threadID] = state
     }
 
     public func threadList(_ params: ThreadListParams = ThreadListParams()) async throws -> ThreadListResponse {

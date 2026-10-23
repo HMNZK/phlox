@@ -6,7 +6,7 @@ import Foundation
 /// 消費する Session ドメインのデータ型。生成元の走査ロジック
 /// （`ClaudeSessionHistoryDiscovery` / `ClaudeSessionTranscriptLoader`・Spawn 側）は
 /// この型を注入クロージャ経由で供給する（依存方向: Dashboard/Spawn → Session の一方向）。
-public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
+public struct ClaudeSessionHistoryEntry: Codable, Equatable, Sendable, Identifiable {
     public var id: String { sessionID }
     public let sessionID: String
     public let preview: String
@@ -59,7 +59,7 @@ public struct ClaudeSessionHistoryEntry: Equatable, Sendable, Identifiable {
 }
 
 /// 履歴カードの件数と最後の発言（PhloxChat の履歴カード「18 件 · ブランチ」「最後: …」。C-21）。
-public struct ChatHistorySummary: Equatable, Sendable {
+public struct ChatHistorySummary: Codable, Equatable, Sendable {
     public let messageCount: Int
     /// 読み込み上限に届いた（実際はもっと多い）。
     public let reachesLimit: Bool

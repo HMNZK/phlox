@@ -1,7 +1,7 @@
 import AgentDomain
 import Foundation
 
-public struct UsageBucket: Sendable, Identifiable {
+public struct UsageBucket: Codable, Sendable, Identifiable {
     public let id: String
     public let label: String
     public let usedPercent: Double
@@ -15,8 +15,8 @@ public struct UsageBucket: Sendable, Identifiable {
     }
 }
 
-public struct CLIUsage: Sendable {
-    public enum State: Sendable {
+public struct CLIUsage: Codable, Sendable {
+    public enum State: Codable, Sendable {
         case ok([UsageBucket])
         case unavailable(reason: String)
     }

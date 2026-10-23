@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-10-03
+last-verified: 2026-10-23
 ---
 
 # architecture/
@@ -12,6 +12,12 @@ last-verified: 2026-10-03
 **Diátaxis**: Explanation / Reference
 
 **命名**: 小文字 kebab-case・ASCII・`.md`（索引のみ `README.md`）。順序ありは `NNNN-kebab.md`。
+
+## 画面と実行の分担
+
+GUI は `DesktopCompositionRoot` が組み立て、別プロセスの `SessionRuntimeHost` へ接続する。常駐側が既存の `CompositionRoot` を生成し、PTY・provider client・hook・操作 API・モバイル中継・使用量取得を所有する。GUI は型付きの状態を受け取り、既存画面から操作コマンドを送る。
+
+終了・再接続・更新時の契約と受入条件は [セッションの独立実行仕様](../specs/independent-session-runtime.md) を参照する。
 
 ## 現在あるファイル（すべて status: active）
 

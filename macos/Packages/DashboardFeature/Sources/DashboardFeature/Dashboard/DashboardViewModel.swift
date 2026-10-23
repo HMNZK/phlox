@@ -13,7 +13,7 @@ import CodexAppServerKit
 import StructuredChatKit
 import SessionFeature
 
-public enum WorkspaceCleanupWarning: Equatable, Sendable {
+public enum WorkspaceCleanupWarning: Codable, Equatable, Sendable {
     case worktreeRetained(path: String)
     case branchRetained(branchName: String)
     /// worktree でない作業フォルダを消せなかった。`path` は消せなかったファイル（分からなければフォルダ）。
@@ -101,7 +101,43 @@ public final class DashboardViewModel {
     static let maxAPISpawnCountPerSecond = SpawnPolicy.maxAPISpawnCountPerSecond
     static let apiSpawnRateLimitWindowSeconds = SpawnPolicy.apiSpawnRateLimitWindowSeconds
 
-    private let environment: AppEnvironment
+    private struct OwnedServices {
+        let environment: AppEnvironment
+        let sessionHooks: SessionHookInstaller
+        let persistence: SessionPersistenceCoordinator
+        let messaging: MessagingService
+        let codexDiscoveryNow: @Sendable () -> Date
+        let rateLimitNow: @Sendable () -> Date
+        let livePIDProvider: @MainActor @Sendable (SessionID) async -> pid_t?
+    }
+
+    @ObservationIgnored private var ownedServices: OwnedServices?
+    @ObservationIgnored private var runtimeCommandHandler: DashboardRuntimeCommandHandler?
+    @ObservationIgnored private var runtimeProjectionSnapshot: DashboardRuntimeSnapshot?
+    @ObservationIgnored private var runtimeCommandTail: Task<Void, Never>?
+    @ObservationIgnored private var pendingRuntimeCommandCount = 0
+    @ObservationIgnored private var pendingRuntimeControlCount = 0
+    private struct RuntimeFirstMessage {
+        let operationID: UUID
+        let task: Task<Void, Never>
+    }
+    @ObservationIgnored private var runtimeFirstMessages: [SessionID: RuntimeFirstMessage] = [:]
+    private enum FirstMessageDelivery {
+        case awaitDelivery
+        case acceptIntoRuntime
+    }
+    @ObservationIgnored private var hasAppliedInitialRuntimePresentation = false
+    public private(set) var runtimeCommandError: String?
+    public var isRuntimeProjection: Bool { runtimeCommandHandler != nil }
+
+    private var requiredOwnedServices: OwnedServices {
+        guard let ownedServices else { preconditionFailure("Runtime projection cannot access execution services") }
+        return ownedServices
+    }
+    private var environment: AppEnvironment { requiredOwnedServices.environment }
+    private var sessionHooks: SessionHookInstaller { requiredOwnedServices.sessionHooks }
+    private var persistence: SessionPersistenceCoordinator { requiredOwnedServices.persistence }
+    private var messaging: MessagingService { requiredOwnedServices.messaging }
     /// 起動時の復元中は永続化を抑止する（復元途中の中間状態を書き戻さない）。
     @ObservationIgnored private var layoutRestoreInProgress = true
     /// 起動時のセッション復元が済んだか。前回の起動の通知を片付けるのは、これが済んでから（11）。
@@ -112,17 +148,12 @@ public final class DashboardViewModel {
     /// 2つだけ（絞り込みの変更では書き換えない）。
     public private(set) var paneLayout: PaneTree
     public private(set) var paneLayoutPresetState: PaneLayoutStore.PresetState
-    @ObservationIgnored private let paneLayoutStore: PaneLayoutStore
+    @ObservationIgnored private let paneLayoutStore: PaneLayoutStore?
     private var hookMultiplexTask: Task<Void, Never>?
     private var sessionHookContinuations: [SessionID: AsyncStream<(SessionID, HookEvent)>.Continuation] = [:]
     private var spawnTimestamps: [SessionID: [Date]] = [:]
     private var unattributedControlAPISpawnTimestamps: [Date] = []
-    private let sessionHooks: SessionHookInstaller
     private var ownedWorkspaceDirectories: [SessionID: OwnedWorkspace] = [:]
-    /// 永続化の直列実行キュー。すべての保存はこの coordinator 経由で行う。
-    private let persistence: SessionPersistenceCoordinator
-    /// エージェント間メッセージング（送信・レート制限・記録）。
-    private let messaging: MessagingService
     /// アゴラ討論の実セッション配線。UI はここから phase/participants などを読む。
     @ObservationIgnored private var spawnService: SessionSpawnService?
     /// 画面からの起動だけを 08 F2 の案内の対象にする。API・スマホからの起動のパスは出さない。
@@ -132,7 +163,7 @@ public final class DashboardViewModel {
     private var worktreeCreationPaths: [String] = []
     /// 08 F2 の案内に出す worktree のパス。作っていなければ nil。
     /// ponytail: 画面からの起動が重なったら先に作り始めたものを出す。起動ごとに出し分けるなら起動の識別子を案内まで渡す。
-    public var worktreeCreationPath: String? { worktreeCreationPaths.first }
+    public var worktreeCreationPath: String? { runtimeProjectionSnapshot?.worktreeCreationPath ?? worktreeCreationPaths.first }
     /// 復元で前回の worktree を作り直す前にたずねる（09 E2）。引数はパス・ブランチ・ブランチが残っているか。
     /// アプリは `start()` の前に置く。nil なら確認しない。
     @ObservationIgnored public var worktreeRecreationConfirmer: (@MainActor (_ path: String, _ branchName: String, _ branchExists: Bool) -> Bool)?
@@ -140,17 +171,16 @@ public final class DashboardViewModel {
     /// 「この会話から再開」の処理中のセッション（続けて押しても 2 つ目のプロセスを作らない）。
     @ObservationIgnored private var resumingChatSessionIDs: Set<SessionID> = []
     @ObservationIgnored private var removingSessionIDs: Set<SessionID> = []
-    private let codexUserHooksEnabledProvider: @MainActor () -> Bool
-    private let codexDiscoveryNow: @Sendable () -> Date
+    private var codexDiscoveryNow: @Sendable () -> Date { requiredOwnedServices.codexDiscoveryNow }
     /// send/spawn のレート制限に使う現在時刻シーム。既定は実時計。テストは固定時刻を
     /// 注入してスライディングウィンドウを決定論化する（実時計依存の断続的失敗の除去）。
-    private let rateLimitNow: @Sendable () -> Date
+    private var rateLimitNow: @Sendable () -> Date { requiredOwnedServices.rateLimitNow }
     /// spawn 後に当該セッションの live pid を引くための seam。永続化する pid の取得元。
     /// 既定は nil（pid 未捕捉＝従来挙動。descriptor の pid は nil のまま）。
     /// PTYManager は actor で pid アクセサが actor 隔離 async のため、seam も async とし
     /// CompositionRoot で `{ id in await pty.pid(for: id) }` を渡す。pid 未取得時は nil
     /// フォールバック（後方互換）。
-    private let livePIDProvider: @MainActor @Sendable (SessionID) async -> pid_t?
+    private var livePIDProvider: @MainActor @Sendable (SessionID) async -> pid_t? { requiredOwnedServices.livePIDProvider }
     /// rollout 走査で claim 済みの native id（永続化完了前の二重割当防止）。
     @ObservationIgnored private var codexDiscovery: CodexNativeSessionDiscoveryController?
     private var lastUsedChatSettingsStore = LastUsedChatSettingsStore()
@@ -176,6 +206,13 @@ public final class DashboardViewModel {
         set { lastUsedChatSettingsStore = newValue }
     }
 
+    private init(projectionCommandHandler: @escaping DashboardRuntimeCommandHandler, paneLayoutStore: PaneLayoutStore?) {
+        self.paneLayoutStore = paneLayoutStore
+        self.paneLayout = paneLayoutStore?.load() ?? PaneLayoutPreset.balanced.tree(for: [])
+        self.paneLayoutPresetState = paneLayoutStore?.loadPresetState() ?? .init()
+        self.runtimeCommandHandler = projectionCommandHandler
+    }
+
     public init(
         environment: AppEnvironment,
         codexUserHooksEnabledProvider: @escaping @MainActor () -> Bool = {
@@ -187,17 +224,12 @@ public final class DashboardViewModel {
         rateLimitNow: @escaping @Sendable () -> Date = Date.init,
         orphanReaper: any OrphanReaper = PosixOrphanReaper(),
         livePIDProvider: @escaping @MainActor @Sendable (SessionID) async -> pid_t? = { _ in nil },
-        paneLayoutStore: PaneLayoutStore = PaneLayoutStore(userDefaults: .phloxDefaults())
+        paneLayoutStore: PaneLayoutStore? = PaneLayoutStore(userDefaults: .phloxDefaults())
     ) {
-        self.environment = environment
         self.paneLayoutStore = paneLayoutStore
-        self.paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
-        self.paneLayoutPresetState = paneLayoutStore.loadPresetState()
-        self.codexUserHooksEnabledProvider = codexUserHooksEnabledProvider
-        self.codexDiscoveryNow = codexDiscoveryNow
-        self.rateLimitNow = rateLimitNow
-        self.livePIDProvider = livePIDProvider
-        self.sessionHooks = SessionHookInstaller(
+        self.paneLayout = paneLayoutStore?.load() ?? PaneLayoutPreset.balanced.tree(for: [])
+        self.paneLayoutPresetState = paneLayoutStore?.loadPresetState() ?? .init()
+        let sessionHooks = SessionHookInstaller(
             dispatcherPath: environment.hookDispatcherPath,
             logError: { error, context in
                 let message = "Phlox: \(context): \(error)\n"
@@ -206,7 +238,7 @@ public final class DashboardViewModel {
                 }
             }
         )
-        self.persistence = SessionPersistenceCoordinator(
+        let persistence = SessionPersistenceCoordinator(
             sessionStore: environment.sessions,
             projectStore: environment.projects,
             logError: { error, context in
@@ -216,11 +248,15 @@ public final class DashboardViewModel {
                 }
             }
         )
-        self.messaging = MessagingService(
+        let messaging = MessagingService(
             pty: environment.pty,
             messages: environment.messages,
             now: rateLimitNow
         )
+        self.ownedServices = OwnedServices(environment: environment, sessionHooks: sessionHooks,
+                                           persistence: persistence, messaging: messaging,
+                                           codexDiscoveryNow: codexDiscoveryNow, rateLimitNow: rateLimitNow,
+                                           livePIDProvider: livePIDProvider)
         self.spawnService = SessionSpawnService(
             environment: environment,
             persistence: persistence,
@@ -360,6 +396,7 @@ public final class DashboardViewModel {
     }
 
     public func takeDiscardedSessionCountNotice() -> Int? {
+        if isRuntimeProjection { enqueueProjectedAction(.takeDiscardedSessionCountNotice) }
         defer { discardedSessionCountNotice = nil }
         return discardedSessionCountNotice
     }
@@ -390,6 +427,10 @@ public final class DashboardViewModel {
     /// 起動時の復元と同じ経路で VM を作り直し、会話を読み込み終えてから同じ位置のノードを差し替える
     /// （先に差し替えると、空の会話で開いたビューが末尾へ寄らない）。
     func resumeEndedChatSession(_ id: SessionID) async {
+        if isRuntimeProjection {
+            await performProjectedAction(.resumeChat(id))
+            return
+        }
         guard case .appServer(let ended) = sessionNode(id: id), ended.processExit != nil,
               resumingChatSessionIDs.insert(id).inserted else { return }
         defer { resumingChatSessionIDs.remove(id) }
@@ -428,6 +469,7 @@ public final class DashboardViewModel {
     /// M6a で実装。HookServer の events ストリームを購読し、SessionViewModel へディスパッチする。
     /// セッション復元: 保存 descriptor を現在の環境で再 plan し、アプリ内蔵 PTY で再 spawn する。
     public func start() async {
+        guard !isRuntimeProjection else { return }
         guard hookMultiplexTask == nil else { return }
 
         projects = await environment.projects.load()
@@ -452,11 +494,16 @@ public final class DashboardViewModel {
     }
 
     /// セッション用 worktree の置き場所。
-    var sessionWorkspaceRoot: URL { environment.workspaceDirectory }
+    var sessionWorkspaceRoot: URL {
+        if let snapshot = runtimeProjectionSnapshot, let root = snapshot.workspaceRoot { return root }
+        guard !isRuntimeProjection else { preconditionFailure("Runtime snapshot has no workspace root") }
+        return environment.workspaceDirectory
+    }
 
     /// 新規チャットで選べる CLI。解決できた組込 CLI だけを返す。
     public var availableAgentKinds: [AgentKind] {
-        [.claudeCode] + AgentRegistry.optionalBinaryKinds.filter { environment.binaryPath(for: $0) != nil }
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.availableAgentKinds }
+        return [.claudeCode] + AgentRegistry.optionalBinaryKinds.filter { environment.binaryPath(for: $0) != nil }
     }
 
     public func defaultProjectIDForNewChat(selectedProjectID: ProjectID?, selectedSessionID: SessionID?) -> ProjectID? {
@@ -666,7 +713,7 @@ public final class DashboardViewModel {
             setPaneLayoutPresetState(.init(preset: paneLayoutPresetState.preset, isAdjusted: true))
         }
         paneLayout = updated
-        paneLayoutStore.save(updated)
+        paneLayoutStore?.save(updated)
     }
 
     /// task-3: 永続ツリーを「いずれかのグリッドに出得る全セッション」に合わせて reconcile する。
@@ -682,22 +729,22 @@ public final class DashboardViewModel {
         guard reconciled != paneLayout else { return }
         paneLayout = reconciled
         if persist {
-            paneLayoutStore.save(reconciled)
+            paneLayoutStore?.save(reconciled)
         }
     }
 
     private func setPaneLayoutPresetState(_ state: PaneLayoutStore.PresetState) {
         guard state != paneLayoutPresetState else { return }
         paneLayoutPresetState = state
-        paneLayoutStore.savePresetState(state)
+        paneLayoutStore?.savePresetState(state)
     }
 
     /// 起動時、`PaneLayoutStore` から読み直してから reconcile する。
     private func reloadAndReconcilePaneLayout() {
-        paneLayout = paneLayoutStore.load() ?? PaneLayoutPreset.balanced.tree(for: [])
-        paneLayoutPresetState = paneLayoutStore.loadPresetState()
+        paneLayout = paneLayoutStore?.load() ?? PaneLayoutPreset.balanced.tree(for: [])
+        paneLayoutPresetState = paneLayoutStore?.loadPresetState() ?? .init()
         // 記録の無い旧データから決めた状態を残し、以後の自動の並べ直しで判定し直さない。
-        paneLayoutStore.savePresetState(paneLayoutPresetState)
+        paneLayoutStore?.savePresetState(paneLayoutPresetState)
         reconcilePaneLayout()
     }
 
@@ -767,7 +814,7 @@ public final class DashboardViewModel {
         guard !tooSmall else { return }
         setPaneLayoutPresetState(.init(preset: paneLayoutPresetState.preset, isAdjusted: true))
         paneLayout = updated
-        paneLayoutStore.save(updated)
+        paneLayoutStore?.save(updated)
     }
 
     /// グリッドから外す（06: タイルの ✕・⌘W・右クリック）。表示するセッションの選択から除くだけで、
@@ -991,6 +1038,10 @@ public final class DashboardViewModel {
     /// ユーザーが選択したフォルダをワークスペースとして追加する。重複ディレクトリは拒否する。
     @discardableResult
     public func addProject(name: String, directoryPath: String) -> ProjectID? {
+        guard !isRuntimeProjection else {
+            runtimeCommandError = "プロジェクトの追加には非同期の操作が必要です"
+            return nil
+        }
         let standardizedNew = Self.standardizedDirectoryPath(directoryPath)
         guard !projects.contains(where: { Self.standardizedDirectoryPath($0.directoryPath) == standardizedNew }) else {
             return nil
@@ -1009,6 +1060,7 @@ public final class DashboardViewModel {
 
     /// 空欄（空白だけ）で確定したら、追加したときと同じフォルダ名に戻す（03 F6・C-10。フォルダ名そのものは変えない）。
     public func renameProject(_ projectID: ProjectID, to name: String) {
+        if isRuntimeProjection { enqueueProjectedAction(.renameProject(projectID, name)); return }
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         projects[index].name = trimmed.isEmpty ? projects[index].directoryURL.lastPathComponent : name
@@ -1016,6 +1068,7 @@ public final class DashboardViewModel {
     }
 
     public func clearWorkspaceCleanupWarning() {
+        if isRuntimeProjection { enqueueProjectedAction(.clearWorkspaceCleanupWarning) }
         workspaceCleanupWarning = nil
         workspaceCleanupFailureReason = nil
     }
@@ -1039,6 +1092,7 @@ public final class DashboardViewModel {
 
     /// セッション名を変更する。空白のみの名前はトリムして空にする。
     public func renameSession(_ id: SessionID, to name: String) {
+        if isRuntimeProjection { enqueueProjectedAction(.renameSession(id, name)); return }
         guard let node = sessionNodes.first(where: { $0.id == id }) else { return }
         node.name = name
         persistence.persistSessionName(id: id, name: node.titleState.name)
@@ -1046,6 +1100,7 @@ public final class DashboardViewModel {
 
     /// アゴラ討論の役割を descriptor に永続化する（ControlActionDashboard の witness。renameSession と同型）。
     public func persistSessionRole(id: SessionID, role: String) {
+        if isRuntimeProjection { enqueueProjectedAction(.persistRole(id, role)); return }
         persistence.persistSessionRole(id: id, role: role)
     }
 
@@ -1064,6 +1119,7 @@ public final class DashboardViewModel {
     /// グリッドのドラッグ&ドロップで source と target の2セッションだけを入れ替える（スワップ）。
     /// 間のセッションは動かさず、表示順と永続化配列の順を一致させて再起動後も並びを保持する。
     public func reorderSession(_ source: SessionID, with target: SessionID) {
+        if isRuntimeProjection { enqueueProjectedAction(.reorderSession(source, target)); return }
         guard source != target,
               let sourceNodeIndex = sessionNodes.firstIndex(where: { $0.id == source }),
               let targetNodeIndex = sessionNodes.firstIndex(where: { $0.id == target }) else {
@@ -1080,6 +1136,16 @@ public final class DashboardViewModel {
     /// （不可視の orchestration 子を含む）を対象にする。`removeSession` は部分木単位で除去し、
     /// 既に他ルートの部分木として消えた ID は no-op になるため、スナップショットを走査すれば重複除去は起きない。
     public func removeProject(_ projectID: ProjectID) async {
+        if isRuntimeProjection {
+            FileTabDocumentRegistry.shared.beginProjectChanges(for: [projectID])
+            defer { FileTabDocumentRegistry.shared.endProjectChanges(for: [projectID]) }
+            await FileTabDocumentRegistry.shared.waitForPendingSaves(for: [projectID])
+            do {
+                _ = try await sendRuntimeCommand(.removeProject(projectID))
+                await FileTabDocumentRegistry.shared.invalidateAndWait(for: [projectID])
+            } catch { runtimeCommandError = error.localizedDescription }
+            return
+        }
         FileTabDocumentRegistry.shared.beginProjectChanges(for: [projectID])
         defer { FileTabDocumentRegistry.shared.endProjectChanges(for: [projectID]) }
         await FileTabDocumentRegistry.shared.invalidateAndWait(for: [projectID])
@@ -1136,7 +1202,17 @@ public final class DashboardViewModel {
         keepsRowOnLaunchFailure: Bool = false,
         onRowAppended: (@MainActor (SessionID) -> Void)? = nil
     ) async throws -> SessionID {
-        try await spawnNewSessionImpl(
+        if isRuntimeProjection {
+            let reply = try await sendRuntimeCommand(.spawn(.init(ref: ref, projectID: projectID,
+                parentSessionID: from, backend: backend, launchContext: launchContext, extraEnv: extraEnv,
+                workingDirectoryOverride: workingDirectoryOverride, isolationOverride: isolationOverride,
+                worktreeStartPoint: worktreeStartPoint, initialSettings: initialSettings,
+                resumeHistoryEntry: resumeHistoryEntry, keepsRowOnLaunchFailure: keepsRowOnLaunchFailure)))
+            guard case .sessionID(let id) = reply else { throw DashboardRuntimeError.unexpectedReply }
+            onRowAppended?(id)
+            return id
+        }
+        return try await spawnNewSessionImpl(
             ref: ref,
             projectID: projectID,
             from: from,
@@ -1156,6 +1232,18 @@ public final class DashboardViewModel {
 
     public func launchNewChat(_ request: NewChatLaunchRequest,
                               onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
+        if isRuntimeProjection {
+            guard case .acceptedSession(let id) = try await sendRuntimeCommand(.launchNewChat(request)) else {
+                throw DashboardRuntimeError.unexpectedReply
+            }
+            onRowAppended?(id)
+            return id
+        }
+        return try await launchNewChat(request, firstMessageDelivery: .awaitDelivery, onRowAppended: onRowAppended)
+    }
+
+    private func launchNewChat(_ request: NewChatLaunchRequest, firstMessageDelivery: FirstMessageDelivery,
+                               onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
         guard projects.contains(where: { $0.id == request.projectID }) else { throw AgentSpawnError.unknownProject }
         let historyEntry: ClaudeSessionHistoryEntry?
         if let resumeHistoryID = request.resumeHistoryID {
@@ -1183,12 +1271,48 @@ public final class DashboardViewModel {
         lastUsedChatSettingsStore.recordLastHarness(request.agentRef.id)
         guard let vm = sessionNode(id: id)?.appServer else { throw CancellationError() }
         if vm.launchFailure == nil, historyEntry == nil, !request.text.isEmpty || !request.attachments.isEmpty {
-            await vm.sendFirstMessage(request.text, attachments: request.attachments, selectedSkill: request.selectedSkill)
+            switch firstMessageDelivery {
+            case .awaitDelivery:
+                await vm.sendFirstMessage(request.text, attachments: request.attachments, selectedSkill: request.selectedSkill)
+            case .acceptIntoRuntime:
+                retainRuntimeFirstMessage(request, session: vm)
+            }
         }
         return id
     }
 
+    private func retainRuntimeFirstMessage(_ request: NewChatLaunchRequest, session: ChatSessionViewModel) {
+        let id = session.id
+        let executionID = session.executionID
+        let operationID = UUID()
+        let task = Task { @MainActor [weak self, weak session] in
+            defer {
+                if self?.runtimeFirstMessages[id]?.operationID == operationID {
+                    self?.runtimeFirstMessages.removeValue(forKey: id)
+                }
+            }
+            guard !Task.isCancelled, let session else { return }
+            await session.sendFirstMessage(request.text, attachments: request.attachments, selectedSkill: request.selectedSkill)
+            guard !Task.isCancelled, session.executionID == executionID,
+                  self?.sessionNode(id: id)?.appServer === session, session.launchFailure == nil else { return }
+            let failure: String?
+            if let sendFailure = session.sendFailure { failure = sendFailure.reason }
+            else if case .error(let message) = session.status { failure = message }
+            else { failure = nil }
+            if let failure {
+                session.markLaunchFailed(.processFailed(failure), restoringDraft: request.text)
+            }
+        }
+        runtimeFirstMessages[id] = .init(operationID: operationID, task: task)
+    }
+
     func newChatHistoryEntries(projectID: ProjectID, agentRef: AgentRef) async throws -> [ClaudeSessionHistoryEntry] {
+        if isRuntimeProjection {
+            guard case .history(let entries) = try await sendRuntimeCommand(.history(projectID, agentRef)) else {
+                throw DashboardRuntimeError.unexpectedReply
+            }
+            return entries
+        }
         guard let project = projects.first(where: { $0.id == projectID }) else { return [] }
         let directories = [project.directoryPath] + (project.worktreePaths ?? [])
         guard let provider = Self.newChatHistoryLoader ?? environment.newChatSessionHistoryLoader(
@@ -1200,6 +1324,13 @@ public final class DashboardViewModel {
 
     public func restartNewChat(_ id: SessionID,
                                onRowAppended: (@MainActor (SessionID) -> Void)? = nil) async throws -> SessionID {
+        if isRuntimeProjection {
+            guard case .sessionID(let newID) = try await sendRuntimeCommand(.restartNewChat(id)) else {
+                throw DashboardRuntimeError.unexpectedReply
+            }
+            onRowAppended?(newID)
+            return newID
+        }
         guard restartingNewChatIDs.insert(id).inserted else { throw CancellationError() }
         defer { restartingNewChatIDs.remove(id) }
         guard let request = failedNewChatRequests[id], let vm = sessionNode(id: id)?.appServer,
@@ -1240,6 +1371,7 @@ public final class DashboardViewModel {
         onRowAppended: (@MainActor (SessionID) -> Void)? = nil,
         spawnLimitSource: APISpawnLimitSource
     ) async throws -> SessionID {
+        guard !isRuntimeProjection else { throw DashboardRuntimeError.ownedOperationUnavailable }
         let agentDescriptor = sessionSpawnService.descriptorForPresentation(ref: ref)
         // spawn 元（親）がチャット（appServer）セッションで、子の kind が structured chat 対応なら、
         // 子も appServer で起動し「チャットから spawn した子はチャットに揃える」。それ以外は要求どおり。
@@ -1541,6 +1673,7 @@ public final class DashboardViewModel {
     /// 新 directory を CWD として再起動する（進行中の作業は失われる）。
     /// hook stream は AsyncStream の単一コンシューマ前提を守るため finish→新規生成→差し替えする。
     public func changeWorkspace(_ id: SessionID, to directory: URL) async {
+        if isRuntimeProjection { await performProjectedWorkspaceAction(.changeWorkspace(id, directory), sessionID: id); return }
         guard let vm = sessions.first(where: { $0.id == id }) else { return }
         await restartSession(vm, in: directory, errorContext: "Failed to reinstall hooks for \(id)")
     }
@@ -1549,6 +1682,7 @@ public final class DashboardViewModel {
     /// 対象を kill し移動先フォルダで再起動する。
     /// `changeWorkspace` と同様に hook を再設置し stream を差し替える。`session.projectID` を更新する。
     public func moveSession(_ id: SessionID, to projectID: ProjectID) async {
+        if isRuntimeProjection { await performProjectedWorkspaceAction(.moveSession(id, projectID), sessionID: id); return }
         guard let targetProject = projects.first(where: { $0.id == projectID }) else { return }
         // チャット型は所属だけを付け替える。作業フォルダと会話はそのまま（再起動すると再開条件が変わるため）。
         // 復元で移動先の worktree 設定が作業フォルダを変えないよう、隔離しない印も保存する。
@@ -1574,11 +1708,13 @@ public final class DashboardViewModel {
     /// 別のプロジェクトへ移せるか。自分用の worktree で動くチャット型は移せない
     /// （worktree は元のプロジェクトのリポジトリのもので、再起動せずに付け替えられないため）。
     public func canMoveSession(_ id: SessionID) -> Bool {
+        if let runtimeProjectionSnapshot { return !runtimeProjectionSnapshot.immovableSessionIDs.contains(id) }
         guard case .appServer = sessionNode(id: id) else { return true }
         return ownedWorkspaceDirectories[id]?.worktreeRepository == nil
     }
 
     public func worktreeBranchName(for id: SessionID) -> String? {
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.worktreeBranches[id] }
         guard ownedWorkspaceDirectories[id]?.worktreeRepository != nil else { return nil }
         return WorktreeIsolationPlanner.branchName(for: id)
     }
@@ -1634,6 +1770,14 @@ public final class DashboardViewModel {
     /// M6a で実装。指定セッションを停止して `sessions` から除去する。
     @discardableResult
     public func removeSession(_ id: SessionID) async -> Bool {
+        if isRuntimeProjection {
+            do {
+                guard case .bool(let removed) = try await sendRuntimeCommand(.removeSession(id)) else {
+                    throw DashboardRuntimeError.unexpectedReply
+                }
+                return removed
+            } catch { runtimeCommandError = error.localizedDescription; return false }
+        }
         guard sessionNodes.contains(where: { $0.id == id }) else { return false }
 
         let affected = subtreeSessionIDsDeepestFirst(rootedAt: id)
@@ -1693,8 +1837,11 @@ public final class DashboardViewModel {
         removingSessionIDs.insert(id)
         defer { removingSessionIDs.remove(id) }
 
+        let firstMessage = runtimeFirstMessages.removeValue(forKey: id)
+        firstMessage?.task.cancel()
         sessionHooks.cleanup(for: id)
         await session.terminate()
+        await firstMessage?.task.value
         await cleanupOwnedWorkspace(for: id)
         sessionHookContinuations[id]?.finish()
         sessionHookContinuations.removeValue(forKey: id)
@@ -1853,7 +2000,7 @@ public final class DashboardViewModel {
         }
     }
 
-    public enum SendOutcome: Sendable, Equatable {
+    public enum SendOutcome: Codable, Sendable, Equatable {
         case sent
         case notFound
         case ambiguous([SessionID])
@@ -1873,7 +2020,24 @@ public final class DashboardViewModel {
         inReplyTo: UUID? = nil,
         images: [ControlImageAttachment] = []
     ) async -> SendOutcome {
-        await messaging.send(
+        if isRuntimeProjection {
+            let target: DashboardRuntimeMessageRequest.Recipient = switch recipient {
+            case .id(let id): .id(id)
+            case .name(let name): .name(name)
+            }
+            do {
+                guard case .sendOutcome(let outcome) = try await sendRuntimeCommand(.message(.init(
+                    recipient: target, text: text, submit: submit, from: from, inReplyTo: inReplyTo,
+                    images: images.map { .init(mediaType: $0.mediaType, data: $0.data) }))) else {
+                    throw DashboardRuntimeError.unexpectedReply
+                }
+                return outcome
+            } catch {
+                runtimeCommandError = error.localizedDescription
+                return .deliveryFailed
+            }
+        }
+        return await messaging.send(
             to: recipient,
             text: text,
             submit: submit,
@@ -2015,4 +2179,237 @@ public final class DashboardViewModel {
             FileHandle.standardError.write(data)
         }
     }
+}
+
+extension DashboardViewModel {
+    public convenience init(projection snapshot: DashboardRuntimeSnapshot,
+                            paneLayoutStore: PaneLayoutStore? = nil,
+                            commandHandler: @escaping DashboardRuntimeCommandHandler) throws {
+        self.init(projectionCommandHandler: commandHandler, paneLayoutStore: paneLayoutStore)
+        try applyRuntimeSnapshot(snapshot)
+    }
+
+    public func makeRuntimeSnapshot() throws -> DashboardRuntimeSnapshot {
+        try DashboardRuntimeSnapshot(projects: projects, sessions: sessionNodes.map { node in
+            switch node {
+            case .pty(let session): .pty(try session.makeRuntimeSnapshot())
+            case .appServer(let session): .chat(session.makeRuntimeSnapshot())
+            }
+        }, availableAgentKinds: availableAgentKinds, hasRestoredSessions: hasRestoredSessions,
+            immovableSessionIDs: Set(sessionNodes.filter { !canMoveSession($0.id) }.map(\.id)),
+            worktreeBranches: Dictionary(uniqueKeysWithValues: sessionNodes.compactMap { node in
+                worktreeBranchName(for: node.id).map { (node.id, $0) }
+            }), workspaceRoot: runtimeProjectionSnapshot?.workspaceRoot ?? ownedServices?.environment.workspaceDirectory,
+            workspaceCleanupWarning: workspaceCleanupWarning, workspaceCleanupFailureReason: workspaceCleanupFailureReason,
+            discardedSessionCount: discardedSessionCountNotice, worktreeCreationPath: worktreeCreationPath,
+            restoredSessionPresentation: restoredSessionPresentation)
+    }
+
+    public func applyRuntimeSnapshot(_ snapshot: DashboardRuntimeSnapshot) throws {
+        guard isRuntimeProjection else { throw DashboardRuntimeError.ownedOperationUnavailable }
+        guard Set(snapshot.projects.map(\.id)).count == snapshot.projects.count,
+              Set(snapshot.sessions.map(\.id)).count == snapshot.sessions.count else {
+            throw DashboardRuntimeError.invalidSnapshot("識別子が重複しています")
+        }
+        for entry in snapshot.sessions {
+            if let existing = sessionNodeIndex[entry.id] {
+                switch (existing, entry) {
+                case (.pty(let vm), .pty(let state)): try vm.validateRuntimeSnapshot(state)
+                case (.appServer(let vm), .chat(let state)): try vm.validateRuntimeSnapshot(state)
+                default: throw DashboardRuntimeError.invalidSnapshot("セッションの種類が一致しません")
+                }
+            }
+        }
+        var updated: [SessionNode] = []
+        for entry in snapshot.sessions {
+            let node: SessionNode
+            let entryID = entry.id
+            let handler: SessionRuntimeSessionCommandHandler = { [weak self] executionID, command in
+                guard let self else { throw CancellationError() }
+                guard case .session(let result) = try await self.sendRuntimeCommand(.session(entryID, executionID, command)) else {
+                    throw DashboardRuntimeError.unexpectedReply
+                }
+                return result
+            }
+            switch entry {
+            case .pty(let state):
+                if let current = sessionNodeIndex[state.id]?.pty {
+                    node = .pty(current)
+                } else {
+                    node = .pty(try SessionViewModel(projection: state, commandHandler: handler))
+                }
+            case .chat(let state):
+                if let current = sessionNodeIndex[state.id]?.appServer {
+                    node = .appServer(current)
+                } else {
+                    node = .appServer(ChatSessionViewModel(projection: state, commandHandler: handler))
+                    node.appServer?.resumeConversationHandler = { [weak self] in
+                        Task { await self?.resumeEndedChatSession(entryID) }
+                    }
+                }
+            }
+            updated.append(node)
+        }
+        for (node, entry) in zip(updated, snapshot.sessions) {
+            guard sessionNodeIndex[entry.id] != nil else { continue }
+            switch (node, entry) {
+            case (.pty(let vm), .pty(let state)): try vm.applyRuntimeSnapshot(state)
+            case (.appServer(let vm), .chat(let state)): try vm.applyRuntimeSnapshot(state)
+            default: throw DashboardRuntimeError.invalidSnapshot("セッションの種類が一致しません")
+            }
+        }
+        runtimeProjectionSnapshot = snapshot
+        projects = snapshot.projects
+        sessionNodes = updated
+        sessions = updated.compactMap(\.pty)
+        sessionNodeIndex = Dictionary(uniqueKeysWithValues: updated.map { ($0.id, $0) })
+        hasRestoredSessions = snapshot.hasRestoredSessions
+        layoutRestoreInProgress = false
+        workspaceCleanupWarning = snapshot.workspaceCleanupWarning
+        workspaceCleanupFailureReason = snapshot.workspaceCleanupFailureReason
+        discardedSessionCountNotice = snapshot.discardedSessionCount
+        reconcilePaneLayout(persist: paneLayoutStore != nil)
+        normalizeGridSessionSelection()
+        refreshUnseenCompletionCount()
+        if !hasAppliedInitialRuntimePresentation, snapshot.hasRestoredSessions {
+            hasAppliedInitialRuntimePresentation = true
+            let visible = sessionNodes.filter { isReachableFromUI($0.id, from: .desktop) }
+            if let original = snapshot.restoredSessionPresentation,
+               visible.contains(where: { $0.id == original.selectedSessionID }) {
+                restoredSessionPresentation = original
+            } else if let recent = visible.max(by: { $0.startedAt < $1.startedAt }) {
+                restoredSessionPresentation = .init(selectedSessionID: recent.id,
+                    expandedProjectIDs: Set(visible.compactMap(\.projectID)))
+            }
+        }
+    }
+
+    public func performRuntimeCommand(_ command: DashboardRuntimeCommand) async throws -> DashboardRuntimeReply {
+        guard !isRuntimeProjection else { throw DashboardRuntimeError.ownedOperationUnavailable }
+        switch command {
+        case .session(let id, let executionID, let command):
+            guard let node = sessionNode(id: id) else { throw DashboardRuntimeError.sessionNotFound }
+            switch node {
+            case .pty(let vm): return .session(try await vm.performRuntimeCommand(command, expectedExecutionID: executionID))
+            case .appServer(let vm):
+                guard vm.executionID == executionID else { throw SessionRuntimeProjectionError.staleExecution }
+                switch command {
+                case .interrupt, .terminate: runtimeFirstMessages[id]?.task.cancel()
+                default: break
+                }
+                return .session(try await vm.performRuntimeCommand(command, expectedExecutionID: executionID))
+            }
+        case .spawn(let request):
+            return .sessionID(try await spawnNewSession(ref: request.ref, projectID: request.projectID,
+                from: request.parentSessionID, backend: request.backend, launchContext: request.launchContext,
+                extraEnv: request.extraEnv, workingDirectoryOverride: request.workingDirectoryOverride,
+                isolationOverride: request.isolationOverride, worktreeStartPoint: request.worktreeStartPoint,
+                initialSettings: request.initialSettings, resumeHistoryEntry: request.resumeHistoryEntry,
+                keepsRowOnLaunchFailure: request.keepsRowOnLaunchFailure))
+        case .launchNewChat(let request):
+            return .acceptedSession(try await Self.$reportsWorktreeCreation.withValue(true) {
+                try await launchNewChat(request, firstMessageDelivery: .acceptIntoRuntime)
+            })
+        case .restartNewChat(let id):
+            return .sessionID(try await Self.$reportsWorktreeCreation.withValue(true) {
+                try await restartNewChat(id)
+            })
+        case .resumeChat(let id): await resumeEndedChatSession(id)
+        case .addProject(let name, let path): return .projectID(addProject(name: name, directoryPath: path))
+        case .renameProject(let id, let name): renameProject(id, to: name)
+        case .renameSession(let id, let name): renameSession(id, to: name)
+        case .reorderSession(let source, let target): reorderSession(source, with: target)
+        case .moveSession(let id, let project): await moveSession(id, to: project)
+        case .changeWorkspace(let id, let directory): await changeWorkspace(id, to: directory)
+        case .removeSession(let id): return .bool(await removeSession(id))
+        case .removeProject(let id): await removeProject(id)
+        case .history(let project, let ref): return .history(try await newChatHistoryEntries(projectID: project, agentRef: ref))
+        case .persistRole(let id, let role): persistSessionRole(id: id, role: role)
+        case .clearWorkspaceCleanupWarning: clearWorkspaceCleanupWarning()
+        case .takeDiscardedSessionCountNotice: _ = takeDiscardedSessionCountNotice()
+        case .usage: throw DashboardRuntimeError.ownedOperationUnavailable
+        case .message(let request):
+            let recipient: Recipient = switch request.recipient {
+            case .id(let id): .id(id)
+            case .name(let name): .name(name)
+            }
+            return .sendOutcome(await sendMessage(to: recipient, text: request.text, submit: request.submit,
+                from: request.from, inReplyTo: request.inReplyTo,
+                images: request.images.map { .init(mediaType: $0.mediaType, data: $0.data) }))
+        }
+        return .none
+    }
+
+    public func addProjectFromRuntime(name: String, directoryPath: String) async throws -> ProjectID? {
+        guard isRuntimeProjection else { return addProject(name: name, directoryPath: directoryPath) }
+        guard case .projectID(let id) = try await sendRuntimeCommand(.addProject(name: name, directoryPath: directoryPath)) else {
+            throw DashboardRuntimeError.unexpectedReply
+        }
+        return id
+    }
+
+    private func sendRuntimeCommand(_ command: DashboardRuntimeCommand) async throws -> DashboardRuntimeReply {
+        try await beginRuntimeCommand(command).value
+    }
+
+    private func beginRuntimeCommand(_ command: DashboardRuntimeCommand) throws -> Task<DashboardRuntimeReply, Error> {
+        guard let runtimeCommandHandler else { throw DashboardRuntimeError.ownedOperationUnavailable }
+        let immediate = command.isImmediateSessionControl
+        if immediate {
+            guard pendingRuntimeControlCount < 32 else { throw DashboardRuntimeError.commandQueueFull }
+            pendingRuntimeControlCount += 1
+        } else {
+            guard pendingRuntimeCommandCount < 256 else { throw DashboardRuntimeError.commandQueueFull }
+            pendingRuntimeCommandCount += 1
+        }
+        let previous = immediate ? nil : runtimeCommandTail
+        let request = Task { @MainActor [weak self] in
+            defer {
+                if immediate { self?.pendingRuntimeControlCount -= 1 }
+                else { self?.pendingRuntimeCommandCount -= 1 }
+            }
+            await previous?.value
+            do {
+                let reply = try await runtimeCommandHandler(command)
+                switch (command, reply) {
+                case (.session, .session), (.spawn, .sessionID), (.launchNewChat, .acceptedSession),
+                     (.restartNewChat, .sessionID), (.addProject, .projectID), (.removeSession, .bool),
+                     (.history, .history), (.message, .sendOutcome): break
+                case (.resumeChat, .none), (.renameProject, .none), (.renameSession, .none),
+                     (.reorderSession, .none), (.moveSession, .none), (.changeWorkspace, .none),
+                     (.removeProject, .none), (.persistRole, .none), (.clearWorkspaceCleanupWarning, .none),
+                     (.takeDiscardedSessionCountNotice, .none), (.usage, .none): break
+                default: throw DashboardRuntimeError.unexpectedReply
+                }
+                self?.runtimeCommandError = nil
+                return reply
+            } catch {
+                self?.runtimeCommandError = error.localizedDescription
+                throw error
+            }
+        }
+        if !immediate { runtimeCommandTail = Task { _ = await request.result } }
+        return request
+    }
+
+    private func enqueueProjectedAction(_ command: DashboardRuntimeCommand) {
+        do { _ = try beginRuntimeCommand(command) }
+        catch { runtimeCommandError = error.localizedDescription }
+    }
+
+    private func performProjectedAction(_ command: DashboardRuntimeCommand) async {
+        do { _ = try await sendRuntimeCommand(command) }
+        catch { runtimeCommandError = error.localizedDescription }
+    }
+
+    private func performProjectedWorkspaceAction(_ command: DashboardRuntimeCommand, sessionID: SessionID) async {
+        let projectID = sessionNode(id: sessionID)?.projectID
+        if let projectID, !FileTabDocumentRegistry.shared.beginWorkspaceChange(projectID) { return }
+        let projects = Set(projectID.map { [$0] } ?? [])
+        defer { FileTabDocumentRegistry.shared.endProjectChanges(for: projects) }
+        await FileTabDocumentRegistry.shared.waitForPendingSaves(for: projects)
+        await performProjectedAction(command)
+    }
+
+    public func clearRuntimeCommandError() { runtimeCommandError = nil }
 }

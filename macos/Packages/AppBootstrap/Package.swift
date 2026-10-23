@@ -13,6 +13,7 @@ let package = Package(
         .package(path: "../ControlServer"),
         .package(path: "../DashboardFeature"),
         .package(path: "../DesignSystem"),
+        .package(path: "../LocalHTTPServer"),
         .package(path: "../SessionFeature"),
         .package(path: "../StructuredChatKit"),
     ],
@@ -25,6 +26,7 @@ let package = Package(
                 "ControlServer",
                 "DashboardFeature",
                 "DesignSystem",
+                "LocalHTTPServer",
                 "SessionFeature",
                 "StructuredChatKit",
             ]

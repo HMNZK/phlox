@@ -1,7 +1,7 @@
 import Foundation
 import DesignSystem
 
-public enum WorktreeStartPoint: Hashable, Sendable {
+public enum WorktreeStartPoint: Hashable, Codable, Sendable {
     case head
     case localBranch(String)
     case remoteBranch(String)

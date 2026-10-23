@@ -1,0 +1,3 @@
+import SwiftTerm
+
+public typealias TerminalRuntimeDisplaySnapshot = SwiftTerm.RuntimeDisplaySnapshot

@@ -6,7 +6,7 @@ public enum SessionTitleSource: String, Codable, Hashable, Sendable {
     case manual
 }
 
-public struct SessionTitleState: Equatable, Sendable {
+public struct SessionTitleState: Codable, Equatable, Sendable {
     public let name: String
     public let source: SessionTitleSource
     public let flowerName: String?

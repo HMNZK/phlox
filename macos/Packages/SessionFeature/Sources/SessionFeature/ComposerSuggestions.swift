@@ -59,13 +59,15 @@ enum SlashCommandOrigin: Equatable {
 }
 
 /// 外部サジェストを確定したときに渡す、表示名と実体パスの識別子。
-public struct SkillIdentity: Equatable, Hashable, Sendable {
+public struct SkillIdentity: Codable, Equatable, Hashable, Sendable {
     public let name: String
     public let path: String
+    public let runtimeFingerprint: String?
 
-    public init(name: String, path: String) {
+    public init(name: String, path: String, runtimeFingerprint: String? = nil) {
         self.name = name
         self.path = path
+        self.runtimeFingerprint = runtimeFingerprint
     }
 }
 

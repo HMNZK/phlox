@@ -299,6 +299,7 @@
 
 ### C-56 テーマ・アイコンのタイルを矢印キーで選べるか
 - 決定: ②ラジオボタンのグループにして矢印キーで移動できるようにする
+- 2026-10-23: 選択中のタイルの枠を残し、操作位置に残る標準の青いフォーカス枠は表示しない。矢印キー操作とラジオグループの読み上げは維持する。
 - 根拠: `PhloxSettings.dc.html:71,80` テーマ・アイコンのタイルはいずれも `<div role="radio" aria-checked="...">` として明示的に描かれている（ボタンではない）。
 - 実装: 要（小）| `macos/App/SettingsView.swift`, `macos/Packages/DesignSystem/Sources/DesignSystem/AppIconStore.swift`
 

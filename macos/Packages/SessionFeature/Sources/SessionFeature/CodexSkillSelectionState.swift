@@ -38,7 +38,10 @@ public final class CodexSkillSelectionState {
     public private(set) var requiresReselection = false
     public private(set) var errorMessage: String?
 
-    private let client: any CodexSkillSelectionClient
+    private let client: (any CodexSkillSelectionClient)?
+    @ObservationIgnored private var runtimeRefresh: (@MainActor () async -> Void)?
+    private var runtimeFingerprints: [String: String] = [:]
+    private var runtimeFingerprintGeneration: Int?
     private let sessionCWD: String
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -58,6 +61,14 @@ public final class CodexSkillSelectionState {
         }
     }
 
+    init(projection snapshot: SessionRuntimeSkillSnapshot, sessionCWD: String,
+         refresh: @escaping @MainActor () async -> Void) {
+        self.client = nil
+        self.sessionCWD = sessionCWD
+        self.runtimeRefresh = refresh
+        applyRuntimeSnapshot(snapshot)
+    }
+
     deinit {
         eventTask?.cancel()
         refreshTask?.cancel()
@@ -65,6 +76,8 @@ public final class CodexSkillSelectionState {
 
     /// 現在の session cwd だけを `skills/list` へ渡して一覧を更新する。
     public func refresh() async {
+        if let runtimeRefresh { await runtimeRefresh(); return }
+        guard let client else { return }
         generation += 1
         let requestGeneration = generation
         isLoading = true
@@ -81,6 +94,7 @@ public final class CodexSkillSelectionState {
             }
 
             skills = Self.deduplicated(entry.skills)
+            runtimeFingerprintGeneration = nil
             filteredSkills = Self.filtered(skills, searchTerm: searchTerm)
             isLoading = false
             errorMessage = entry.errors.map(\.message).joined(separator: "\n").nilIfEmpty
@@ -142,10 +156,12 @@ public final class CodexSkillSelectionState {
         guard let current = skills.first(where: { Self.sameIdentity($0, skill) }), Self.isUsable(current) else {
             return false
         }
+        guard runtimeRefresh == nil || runtimeFingerprints[current.path] != nil else { return false }
         selectedSkill = current
         selectedIndex = filteredSkills.firstIndex(where: { Self.sameIdentity($0, current) }) ?? 0
         selectionGeneration = generation
-        selectedFingerprint = CodexSkillFingerprint.read(skillPath: current.path)
+        selectedFingerprint = runtimeRefresh == nil
+            ? CodexSkillFingerprint.read(skillPath: current.path) : runtimeFingerprints[current.path]
         requiresReselection = false
         isStale = false
         return true
@@ -164,6 +180,39 @@ public final class CodexSkillSelectionState {
         selectionGeneration = nil
         selectedFingerprint = nil
         requiresReselection = false
+    }
+
+    var runtimeSelectionIdentity: SkillIdentity? {
+        selectedSkill.map { SkillIdentity(name: $0.name, path: $0.path, runtimeFingerprint: selectedFingerprint) }
+    }
+
+    func makeRuntimeSnapshot() -> SessionRuntimeSkillSnapshot {
+        if runtimeRefresh == nil, runtimeFingerprintGeneration != generation {
+            runtimeFingerprints = Dictionary(skills.compactMap { skill in
+                CodexSkillFingerprint.read(skillPath: skill.path).map { (skill.path, $0) }
+            }, uniquingKeysWith: { first, _ in first })
+            runtimeFingerprintGeneration = generation
+        }
+        return SessionRuntimeSkillSnapshot(skills: skills, fingerprints: runtimeFingerprints,
+            isLoading: isLoading, isStale: isStale, errorMessage: errorMessage)
+    }
+
+    func applyRuntimeSnapshot(_ snapshot: SessionRuntimeSkillSnapshot) {
+        let unchanged = selectedSkill.map { selected in
+            snapshot.skills.contains(selected) && selectedFingerprint != nil
+                && snapshot.fingerprints[selected.path] == selectedFingerprint
+        } ?? true
+        skills = snapshot.skills
+        runtimeFingerprints = snapshot.fingerprints
+        filteredSkills = Self.filtered(skills, searchTerm: searchTerm)
+        selectedIndex = min(selectedIndex, max(0, filteredSkills.count - 1))
+        isLoading = snapshot.isLoading
+        isStale = snapshot.isStale
+        errorMessage = snapshot.errorMessage
+        generation += 1
+        runtimeFingerprintGeneration = generation
+        requiresReselection = selectedSkill != nil && !unchanged
+        if unchanged, selectedSkill != nil { selectionGeneration = generation }
     }
 
     /// 本番 composer と同じ上下/Enter 操作を surface から利用する seam。

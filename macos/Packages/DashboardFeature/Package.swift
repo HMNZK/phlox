@@ -61,6 +61,7 @@ let package = Package(
                 "AppBootstrap",
                 "CodexAppServerKit",
                 "StructuredChatKit",
+                "CursorAgentKit",
                 "LocalHTTPServer",
             ],
             resources: [.copy("Fixtures")]

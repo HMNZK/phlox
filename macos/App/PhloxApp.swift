@@ -43,8 +43,13 @@ enum InitFailure {
     }
 
     /// 起動の失敗を書き残すファイル（「ログを Finder で表示」で示す）。
-    static let logURL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/Phlox/startup-error.log")
+    static var logURL: URL {
+        if let directory = ProcessInfo.processInfo.environment["PHLOX_DATA_DIR"], !directory.isEmpty {
+            return URL(fileURLWithPath: directory, isDirectory: true).appendingPathComponent("startup-error.log")
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/Phlox/startup-error.log")
+    }
 
     /// 失敗の内容を時刻つきで書き残し、書けたかを返す。書けなくても起動エラーの画面は出す。
     @discardableResult
@@ -60,10 +65,9 @@ enum InitFailure {
     }
 }
 
-@main
 struct PhloxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var composition: CompositionRoot?
+    @State private var composition: DesktopCompositionRoot?
     @State private var initFailure: InitFailure?
     /// 今回の失敗をログへ書けたか（書けなければ「ログを Finder で表示」を無効にする）。
     @State private var initFailureLogged = false
@@ -85,6 +89,10 @@ struct PhloxApp: App {
         #if DEBUG
         appDelegate.simulatorVerificationHub = hub
         #endif
+        Self.configureSessionDefaults()
+    }
+
+    static func configureSessionDefaults() {
         UserDefaults.standard.register(defaults: BypassSettings.defaultsDictionary)
         UserDefaults.standard.register(defaults: NotificationSettings.defaultsDictionary)
         UserDefaults.standard.register(defaults: UsageSettings.defaultsDictionary)
@@ -110,6 +118,19 @@ struct PhloxApp: App {
                         sessionTerminals: sessionTerminals,
                         simulatorHub: simulatorHub
                     )
+                    .safeAreaInset(edge: .top) {
+                        if let failure = composition.connectionFailure {
+                            HStack {
+                                Text("実行サービスとの接続が切れました。\(failure)")
+                                    .font(.callout)
+                                Spacer()
+                                Button("再接続") { Task { await composition.reconnect() } }
+                            }
+                            .padding(8)
+                            .background(.regularMaterial)
+                            .accessibilityElement(children: .contain)
+                        }
+                    }
                 } else if let initFailure {
                     InitErrorView(failure: initFailure, logWritten: initFailureLogged, retry: { Task { await initialize() } })
                 } else {
@@ -134,13 +155,13 @@ struct PhloxApp: App {
                     return
                 }
                 if sessionTerminals == nil {
-                    let environment = composition.environment
+                    let pathEnvironment = composition.pathEnvironment
                     sessionTerminals = ProjectTerminalStore { workingDirectory in
-                        makeTerminalPanelSession(environment: environment, workingDirectory: workingDirectory)
+                        makeTerminalPanelSession(pathEnvironment: pathEnvironment, workingDirectory: workingDirectory)
                     }
                 }
                 appDelegate.sessionUserTerminals = sessionTerminals
-                appDelegate.ptyManager = composition.environment.pty as? PTYManager
+                appDelegate.ptyManager = nil
                 appDelegate.dashboard = composition.dashboard
                 appDelegate.router = composition.router
             }
@@ -166,7 +187,7 @@ struct PhloxApp: App {
         Settings {
             SettingsView(
                 appUpdater: appDelegate.appUpdater,
-                hookDispatcherPath: composition?.environment.hookDispatcherPath,
+                hookDispatcherPath: composition?.hookDispatcherPath,
                 mobileToken: composition?.mobileTokenViewModel
             )
             .environment(\.locale, appLanguage.locale)
@@ -177,8 +198,8 @@ struct PhloxApp: App {
         // ヘッドレスのセッションへは送れないため、Phlox 側の画面として持つ。
         Window("エージェント管理", id: AgentConsoleCommands.windowID) {
             AgentConsoleWindowView(
-                claudeExecutablePath: composition?.environment.claudeBinaryPath,
-                pathEnvironment: composition?.environment.pathEnvironment
+                claudeExecutablePath: composition?.claudeBinaryPath,
+                pathEnvironment: composition?.pathEnvironment
                     ?? ProcessInfo.processInfo.environment["PATH"] ?? "",
                 projectDirectory: selectedProjectDirectory
             )
@@ -204,14 +225,14 @@ struct PhloxApp: App {
 
     /// 指定された作業フォルダでプロジェクトのターミナルを開く。
     @MainActor
-    private func makeTerminalPanelSession(environment: AppEnvironment, workingDirectory: String) -> TerminalPanelSession {
+    private func makeTerminalPanelSession(pathEnvironment: String, workingDirectory: String) -> TerminalPanelSession {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return TerminalPanelSession(
             controller: UserTerminalController(
                 pty: PTYManager(terminalMode: .interactive),
                 shellPath: UserShellSettings.loginShellPath(),
                 workingDirectory: workingDirectory,
-                environment: TerminalEnvironment.userShell(home: home, path: environment.pathEnvironment),
+                environment: TerminalEnvironment.userShell(home: home, path: pathEnvironment),
                 resolveShell: { UserShellSettings.resolve() },
                 shellWarning: { path in
                     String(format: AppLocalizedString.string(
@@ -229,20 +250,11 @@ struct PhloxApp: App {
         initializing = true
         initFailure = nil
         do {
-            #if DEBUG
-            let root = try await appDelegate.simulatorVerificationComposition()
-            #else
-            let root = try await CompositionRoot { dashboard, pty, usageProcess in
-                // 復元完了前の SIGTERM でも子終了経路が使えるよう、start() より前に配線する。
-                appDelegate.ptyManager = pty
-                appDelegate.dashboard = dashboard
-                appDelegate.usageProcess = usageProcess
-            }
-            #endif
+            let root = try await DesktopCompositionRoot()
             composition = root
-            appDelegate.ptyManager = root.environment.pty as? PTYManager
+            appDelegate.ptyManager = nil
             appDelegate.dashboard = root.dashboard
-            appDelegate.usageProcess = root.usage.claudeProcess
+            appDelegate.usageProcess = nil
             appDelegate.router = root.router
         } catch {
             let failure: InitFailure = switch error {
@@ -308,11 +320,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if let task = simulatorVerificationInitialization { return try await task.value }
         let id = UUID()
         let task = Task { @MainActor in
-            try await CompositionRoot { dashboard, pty, usageProcess in
+            try await CompositionRoot(onDashboardReady: { dashboard, pty, usageProcess in
                 self.ptyManager = pty
                 self.dashboard = dashboard
                 self.usageProcess = usageProcess
-            }
+            })
         }
         simulatorVerificationInitializationID = id
         simulatorVerificationInitialization = task
@@ -633,12 +645,13 @@ final class AppUpdater: ObservableObject {
     @Published private(set) var canCheckForUpdates = false
 
     private let updaterController: SPUStandardUpdaterController
+    private let updateCompatibilityDelegate = SessionRuntimeUpdateDelegate()
     private var canCheckObservation: NSKeyValueObservation?
 
     init() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: ProcessInfo.processInfo.environment["PHLOX_DEFAULTS_SUITE"]?.isEmpty ?? true,
-            updaterDelegate: nil,
+            updaterDelegate: updateCompatibilityDelegate,
             userDriverDelegate: nil
         )
 

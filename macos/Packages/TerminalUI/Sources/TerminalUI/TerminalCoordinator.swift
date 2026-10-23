@@ -58,6 +58,7 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
     public var onInput: (Data) -> Void = { _ in }
     public var onResize: (UInt16, UInt16) -> Void = { _, _ in }
     public var onFocusChange: ((Bool) -> Void)?
+    public private(set) var isRuntimeProjection = false
     /// init 直後の SwiftTerm のグリッドサイズ。spawn 時に PTY を同じサイズで開くために使う。
     public var initialCols: UInt16 {
         UInt16(clamping: terminalView.getTerminal().cols)
@@ -118,6 +119,40 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         view.onFocusChange = { [weak self] focused in self?.onFocusChange?(focused) }
         self.terminalView.terminalDelegate = self
         Self.liveCoordinators.add(self)
+    }
+
+    public convenience init(runtimeProjection snapshot: TerminalRuntimeDisplaySnapshot) throws {
+        self.init()
+        isRuntimeProjection = true
+        try applyRuntimeDisplaySnapshot(snapshot)
+    }
+
+    private static var runtimeImages: TerminalRuntimeImageStore?
+
+    public static func configureRuntimeImageStore(directory: URL, writable: Bool,
+        maximumBytes: Int = 320 * 1024 * 1024) throws {
+        runtimeImages = try TerminalRuntimeImageStore(directory: directory, writable: writable, capacityBytes: maximumBytes)
+    }
+
+    public func makeRuntimeDisplaySnapshot() throws -> TerminalRuntimeDisplaySnapshot {
+        try Self.runtimeImages?.collectGarbage()
+        return try terminalView.makeRuntimeDisplaySnapshot { source, encode in
+            guard let store = Self.runtimeImages else { throw RuntimeProjectionError.imageStoreNotConfigured }
+            return try store.reference(source: source, encode: encode)
+        }
+    }
+
+    public func applyRuntimeDisplaySnapshot(_ snapshot: TerminalRuntimeDisplaySnapshot) throws {
+        guard isRuntimeProjection else { throw RuntimeProjectionError.executionTerminal }
+        try terminalView.applyRuntimeDisplaySnapshot(snapshot, imageData: { contentID in
+            guard let store = Self.runtimeImages else { throw RuntimeProjectionError.imageStoreNotConfigured }
+            return try store.read(contentID)
+        })
+    }
+
+    public enum RuntimeProjectionError: Error {
+        case executionTerminal
+        case imageStoreNotConfigured
     }
 
     /// 生きている全ターミナル（セッションの端末・ユーザー用シェル）。テーマ切替で全部に配色を当て直す。
@@ -185,6 +220,7 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
     }
 
     public func feed(_ data: Data) {
+        guard !isRuntimeProjection else { return }
         terminalView.feed(byteArray: ArraySlice(data))
     }
 
@@ -273,6 +309,7 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
     /// クリーンな状態になり、新プロセスが alt screen に入り直したとき初回 spawn と同一の空画面から
     /// 描画できる。インストール済みカラーパレットは保持される。
     public func resetBuffer() {
+        guard !isRuntimeProjection else { return }
         terminalView.feed(byteArray: ArraySlice(Data("\u{1b}[?1049l\u{1b}c".utf8)))
         terminalView.needsDisplay = true
     }

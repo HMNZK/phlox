@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-08-01
+last-verified: 2026-10-23
 ---
 
 # package-structure
@@ -14,6 +14,8 @@ last-verified: 2026-08-01
 ## 構成（App ターゲット + 18 SPM パッケージ）
 
 App ターゲット（`App/`）が全体を束ね、機能は SPM パッケージへ分割している（ADR 0001: MVVM + @Observable + SPM マルチモジュール）。本番依存は循環のない DAG で、下層ほど依存されるリーフ、上層ほど合成側。
+
+同じ App ターゲットに GUI と常駐実行の入口がある。GUI の `DesktopCompositionRoot` は `AppBootstrap` の `SessionRuntimeClient` で別プロセスへ接続し、Dashboard・セッション・使用量を表示用 VM に反映する。`--session-runtime` で起動する `SessionRuntimeHost` は既存の `CompositionRoot` を生成し、PTY・provider client・実行状態・保存・hook/ControlServer・MobileProxy・使用量取得を所有する。下表のパッケージ依存はプロセス間の共有を意味せず、GUI からの実行操作は型付きコマンドで常駐側へ渡す。
 
 | 層 | パッケージ | 本番依存先（同/下層のみ） | 役割 |
 |---|---|---|---|
@@ -35,7 +37,7 @@ App ターゲット（`App/`）が全体を束ね、機能は SPM パッケー�
 | **L2** | **`SessionFeature`** | AgentDomain, DesignSystem, HookServer, PTYKit, TerminalUI, CodexAppServerKit, StructuredChatKit | **セッション UI/VM（チャット・グリッド・トランスクリプト・composer）** |
 | L3 | `DashboardFeature` | SessionFeature + 上記 L0/L1 各種（ClaudeAgentKit/CursorAgentKit/MessageStore 等） | ダッシュボード・spawn・使用状況・ルーティング。`import SessionFeature` |
 | L4 | `AppBootstrap` | AgentDomain, APNsClient, ControlServer, DashboardFeature, SessionFeature, StructuredChatKit | 起動合成・ControlActionHandler・APNs/Live Activity 連携ブリッジ |
-| L5 | App ターゲット | AppBootstrap, DashboardFeature, SessionFeature, ControlServer, MobileProxy, MessageStore, PTYKit, AgentConfigKit（+ Sparkle） | CompositionRoot・エントリポイント |
+| L5 | App ターゲット | AppBootstrap, DashboardFeature, SessionFeature, ControlServer, MobileProxy, MessageStore, PTYKit, AgentConfigKit（+ Sparkle） | GUI の DesktopCompositionRoot・常駐側の SessionRuntimeHost/CompositionRoot・エントリポイント |
 
 ## SessionFeature 分割（R1・2026-07-09）
 

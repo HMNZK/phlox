@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-17
+last-verified: 2026-10-23
 ---
 
 # モバイル連携（MobileProxy・ControlServer）
@@ -32,7 +32,7 @@ ControlActionHandler  … Packages/AppBootstrap/Sources/AppBootstrap/ControlActi
 セッション spawn/send/remove/rename、チャット messages、wait、承認 approve 等
 ```
 
-起動順と配線は `App/CompositionRoot.swift` が担う。
+図の `MobileProxy`・`ControlServer`・`ControlActionHandler` と実行側の `DashboardViewModel` は、別プロセスの `SessionRuntimeHost` が所有する。起動順と配線は、その内部で生成する既存の `App/CompositionRoot.swift` が担う。GUI の `DesktopCompositionRoot` はこれらのサーバを起動せず、常駐側から受け取った状態の表示と操作コマンドの送信を行う。
 
 | フェーズ | 処理 | 参照 |
 |---|---|---|
@@ -131,6 +131,8 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 ### 設定 UI（QR 表示・端末一覧・失効）
 
 `MobileTokenViewModel`（`App/MobileTokenViewModel.swift`）が QR ペアリング用ペイロードの生成と、ペアリング済み端末一覧（名前・ペアリング日時・失効）を担う。「QR を表示」のたびに新しい端末を発行する。設定 UI にトークン文字列の表示・クリップボードコピーはなく、接続情報の供給手段は QR コード表示のみ。
+
+常駐側の `MobileTokenViewModel` が端末登録・token store・proxy を所有し、GUI 側の同型 VM は表示用として生成する。`SessionRuntimeApplicationSnapshot.mobile`（`MobileRuntimeSnapshot`）で状態を転送し、GUI の QR 表示・失効・到達性再確認は `MobileRuntimeCommand` として常駐側へ送る。`SessionRuntimeHost` が実行して返す snapshot と、その後のポーリング結果を GUI に反映する（`App/DesktopCompositionRoot.swift`・`SessionRuntimeApplicationState.swift`・`SessionRuntimeMobileState.swift`）。
 
 `SettingsView` は `MobileConnectionGuidePolicy.showsSettingsConnectionSection` が `true` のときのみ `MobileTokenSection` を表示する（`App/SettingsView.swift:124-126`, `257-315`）。
 

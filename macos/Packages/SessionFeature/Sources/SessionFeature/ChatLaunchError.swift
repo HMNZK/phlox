@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ChatLaunchError: Error, Equatable, LocalizedError, Sendable {
+public enum ChatLaunchError: Codable, Error, Equatable, LocalizedError, Sendable {
     case processFailed(String)
     case settingsNotApplied(String)
 

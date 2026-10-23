@@ -1918,6 +1918,106 @@ extension TerminalView {
     }
     
     /// Sends data to the terminal emulator for interpretation, this can be invoked from a background thread
+    public func makeRuntimeDisplaySnapshot(
+        imageReference: (AnyObject, () throws -> Data) throws -> String
+    ) throws -> RuntimeDisplaySnapshot {
+        let activeVirtualImages = Set(terminal.runtimeDisplayVirtualPlacements.map(\.imageId))
+        terminal.runtimeDisplayVirtualImageCache = terminal.runtimeDisplayVirtualImageCache.filter {
+            activeVirtualImages.contains($0.key) && terminal.kittyGraphicsState.imagesById[$0.key]?.lastAccessTick == $0.value.tick
+        }
+        let snapshot = try terminal.makeRuntimeDisplaySnapshot(imageEncoder: { source in
+            guard let source = source as? AppleImage else { throw RuntimeDisplaySnapshot.InvalidSnapshot.images }
+            let contentID = try imageReference(source) { try runtimePNGData(source.image) }
+            return RuntimeDisplaySnapshot.Image(contentID: contentID,
+                pixelWidth: source.pixelWidth, pixelHeight: source.pixelHeight, column: source.col,
+                kitty: source.kittyIsKitty, imageID: source.kittyImageId, imageNumber: source.kittyImageNumber,
+                placementID: source.kittyPlacementId, zIndex: source.kittyZIndex,
+                placementColumn: source.kittyCol, placementRow: source.kittyRow,
+                placementColumns: source.kittyCols, placementRows: source.kittyRows,
+                pixelOffsetX: source.kittyPixelOffsetX, pixelOffsetY: source.kittyPixelOffsetY)
+        }, virtualImageEncoder: { id in
+            guard let source = terminal.kittyGraphicsState.imagesById[id] else {
+                throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+            }
+            if terminal.runtimeDisplayVirtualImageCache[id]?.tick != source.lastAccessTick {
+                var cache: [UInt32: TTImage] = [:]
+                guard let image = kittyPlaceholderImage(imageId: id, cache: &cache) else {
+                    throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+                }
+                terminal.runtimeDisplayVirtualImageCache[id] = (source.lastAccessTick, image)
+            }
+            let image = terminal.runtimeDisplayVirtualImageCache[id]!.image
+            return try imageReference(image) { try runtimePNGData(image) }
+        })
+        return snapshot
+    }
+
+    private func runtimePNGData(_ image: TTImage) throws -> Data {
+        #if os(macOS)
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
+              let png = bitmap.representation(using: .png, properties: [:]) else {
+            throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+        }
+        return png
+        #else
+        guard let png = image.pngData() else { throw RuntimeDisplaySnapshot.InvalidSnapshot.images }
+        return png
+        #endif
+    }
+
+    public func applyRuntimeDisplaySnapshot(_ snapshot: RuntimeDisplaySnapshot,
+        imageData: ((String) throws -> Data)? = nil) throws {
+        try snapshot.validate()
+        var virtualImages: [UInt32: Data] = [:]
+        for (id, contentID) in snapshot.virtualImageContents {
+            guard let imageData else { throw RuntimeDisplaySnapshot.InvalidSnapshot.images }
+            let data = try imageData(contentID)
+            guard TTImage(data: data) != nil else { throw RuntimeDisplaySnapshot.InvalidSnapshot.images }
+            virtualImages[id] = data
+        }
+        var images: [RuntimeDisplaySnapshot.Image: AppleImage] = [:]
+        for line in snapshot.lines {
+            for image in line.images where images[image] == nil {
+                guard let imageData, let native = TTImage(data: try imageData(image.contentID)) else {
+                    throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+                }
+                native.size = CGSize(width: image.pixelWidth, height: image.pixelHeight)
+                let restored = AppleImage(image: native, width: image.pixelWidth,
+                    height: image.pixelHeight, onCol: image.column)
+                restored.kittyIsKitty = image.kitty
+                restored.kittyImageId = image.imageID
+                restored.kittyImageNumber = image.imageNumber
+                restored.kittyPlacementId = image.placementID
+                restored.kittyZIndex = image.zIndex
+                restored.kittyCol = image.placementColumn
+                restored.kittyRow = image.placementRow
+                restored.kittyCols = image.placementColumns
+                restored.kittyRows = image.placementRows
+                restored.kittyPixelOffsetX = image.pixelOffsetX
+                restored.kittyPixelOffsetY = image.pixelOffsetY
+                images[image] = restored
+            }
+        }
+        let previous = terminal.displayBuffer
+        let selectionStart = selection.start
+        let selectionEnd = selection.end
+        let shift = previous.linesTop - snapshot.firstLine
+        let preserveSelection = selection.active && previous.cols == snapshot.columns &&
+            terminal.isCurrentBufferAlternate == snapshot.alternateScreen &&
+            selectionStart.row + shift >= 0 && selectionEnd.row + shift < snapshot.lines.count
+        search.invalidate()
+        try terminal.applyRuntimeDisplaySnapshot(snapshot, imageFactory: { images[$0]! }, virtualImageData: virtualImages)
+        if preserveSelection {
+            selection.setSelection(start: Position(col: selectionStart.col, row: selectionStart.row + shift),
+                end: Position(col: selectionEnd.col, row: selectionEnd.row + shift))
+        } else {
+            selection.selectNone()
+        }
+        updateScroller()
+        updateCaretView()
+        queuePendingDisplay()
+    }
+
     public func feed (byteArray: ArraySlice<UInt8>)
     {
         feedPrepare()

@@ -10,7 +10,7 @@ import Foundation
 
 /// This option set describes the character style for a cell, this includes
 /// information about the font to use as well as decorations on the text
-public struct CharacterStyle : OptionSet, Hashable {
+public struct CharacterStyle : OptionSet, Hashable, Codable, Sendable {
     public let rawValue: UInt8
     
     /**
@@ -50,7 +50,7 @@ public struct CharacterStyle : OptionSet, Hashable {
     public static let crossedOut = CharacterStyle (rawValue: 128)
 }
 
-public enum UnderlineStyle: UInt8 {
+public enum UnderlineStyle: UInt8, Codable, Sendable {
     case none = 0
     case single = 1
     case double = 2
@@ -64,9 +64,9 @@ public enum UnderlineStyle: UInt8 {
 /// cells, as well as the character style of the cell (bold, underline, inverse) that the character
 /// should be drawn as.
 ///
-public struct Attribute: Equatable, Hashable {
+public struct Attribute: Equatable, Hashable, Codable, Sendable {
     /// The various ways in which the color was expressed
-    public enum Color: Equatable, Hashable {
+    public enum Color: Equatable, Hashable, Codable, Sendable {
         /// This means that the foreground color stores 8 bits of information
         /// for the color (the original ANSI colors, plus a crop of colors
         /// and greys - those defined in Color.setupDefaultAnsiColors and additionally

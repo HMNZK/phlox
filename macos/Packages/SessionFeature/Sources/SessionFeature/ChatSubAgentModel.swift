@@ -61,6 +61,27 @@ final class ChatSubAgentModel {
 
     private var dismissedSubAgentIDs: Set<String> = []
     private var subAgentTranscripts: [String: [ChatItem]] = [:]
+    private var isRuntimeProjection = false
+    func makeRuntimeSnapshot() -> SessionRuntimeSubAgentSnapshot {
+        var snapshot = SessionRuntimeSubAgentSnapshot()
+        snapshot.subAgents = subAgents
+        snapshot.transcripts = Dictionary(subAgents.map { ($0.id, transcript(for: $0.id)) },
+            uniquingKeysWith: { _, last in last })
+        snapshot.dismissedIDs = dismissedSubAgentIDs
+        snapshot.stoppableIDs = stoppableIDs
+        snapshot.stopPendingIDs = stopPendingIDs
+        return snapshot
+    }
+
+    func applyRuntimeSnapshot(_ snapshot: SessionRuntimeSubAgentSnapshot) {
+        isRuntimeProjection = true
+        subAgents = snapshot.subAgents
+        subAgentTranscripts = snapshot.transcripts
+        dismissedSubAgentIDs = snapshot.dismissedIDs
+        stoppableIDs = snapshot.stoppableIDs
+        stopPendingIDs = snapshot.stopPendingIDs
+        subAgentTranscriptCache.removeAll()
+    }
     @ObservationIgnored private var subAgentTranscriptCache: [String: CachedSubAgentTranscript] = [:]
     @ObservationIgnored private var dedupTextCache: [String: CachedDedupText] = [:]
     @ObservationIgnored private(set) var dedupScanMetricsForTesting = DedupScanMetrics(callCount: 0, characterCount: 0)
@@ -103,6 +124,7 @@ final class ChatSubAgentModel {
     /// ライブにだけ推論本文が残る個体を救う）。
     func transcript(for id: String) -> [ChatItem] {
         let live = subAgentTranscripts[id] ?? []
+        guard !isRuntimeProjection else { return live }
         let parsed: [ChatItem]? = subAgents.first(where: { $0.id == id })?.outputFile
             .flatMap { cachedParsedSubAgentTranscript(at: $0) }
         guard let parsed else { return live }

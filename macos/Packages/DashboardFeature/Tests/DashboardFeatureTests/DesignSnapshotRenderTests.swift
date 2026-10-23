@@ -34,6 +34,37 @@ private final class Stage8SnapshotClients: @unchecked Sendable {
 extension ThemeRenderingTests {
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
+    private func snapshotOutputDirectory() throws -> URL {
+        let output: URL
+        if let path = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"]
+            ?? ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT"] {
+            guard (path as NSString).isAbsolutePath, !path.utf8.contains(0) else {
+                throw CocoaError(.fileWriteInvalidFileName, userInfo: [
+                    NSLocalizedDescriptionKey: "PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR には絶対パスを指定してください",
+                    NSFilePathErrorKey: path,
+                ])
+            }
+            output = URL(fileURLWithPath: path, isDirectory: true)
+        } else {
+            var worktree = URL(fileURLWithPath: #filePath)
+            for _ in 0..<6 { worktree.deleteLastPathComponent() }
+            output = worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
+        }
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        return output
+    }
+
+    private func snapshotFixtureDirectory(package: URL, prefix: String) throws -> URL {
+        let parent: URL
+        if ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"] != nil
+            || ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT"] != nil {
+            parent = try snapshotOutputDirectory()
+        } else {
+            parent = package.appendingPathComponent(".build", isDirectory: true)
+        }
+        return parent.appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
+    }
+
     @Test func bottomPanelSnapshots() async throws {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1",
               ["all", "bottom-panel", "focus-borders"].contains(ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all") else { return }
@@ -45,10 +76,7 @@ struct DesignSnapshotRenderTests {
         let previousAX = NSApp.perform(axGetter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
         NSApp.perform(axSetter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
         defer { NSApp.perform(axSetter, with: previousAX, with: "AXEnhancedUserInterface") }
-        var worktree = URL(fileURLWithPath: #filePath)
-        for _ in 0..<6 { worktree.deleteLastPathComponent() }
-        let output = worktree.appendingPathComponent(".build/design-snapshots")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let output = try snapshotOutputDirectory()
         let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
         if FileManager.default.fileExists(atPath: cachedStrings.path) { try FileManager.default.removeItem(at: cachedStrings) }
         let preferences = UserDefaults.standard
@@ -171,10 +199,7 @@ struct DesignSnapshotRenderTests {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
-        var worktree = URL(fileURLWithPath: #filePath)
-        for _ in 0..<6 { worktree.deleteLastPathComponent() }
-        let output = worktree.appendingPathComponent(".build/design-snapshots")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let output = try snapshotOutputDirectory()
         let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
         if FileManager.default.fileExists(atPath: cachedStrings.path) { try FileManager.default.removeItem(at: cachedStrings) }
         let defaults = UserDefaults.standard
@@ -239,9 +264,7 @@ struct DesignSnapshotRenderTests {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
-        var worktree = URL(fileURLWithPath: #filePath)
-        for _ in 0..<6 { worktree.deleteLastPathComponent() }
-        let output = worktree.appendingPathComponent(".build/design-snapshots")
+        let output = try snapshotOutputDirectory()
         let fixtures = output.appendingPathComponent("file-tree-operations")
         let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
         if FileManager.default.fileExists(atPath: cachedStrings.path) { try FileManager.default.removeItem(at: cachedStrings) }
@@ -340,11 +363,7 @@ struct DesignSnapshotRenderTests {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
-        let worktree = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let output = worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let output = try snapshotOutputDirectory()
         let titles = ["/skill-authoring", "/skill-creator", "/skill-creator:skill-creator", "/skills-pipeline-updater", "/skill-creator", "/skill-installer"]
         let descriptions = [
             "既存の Claude Code スキル (SKILL.md) を監査・改善・最適化する。",
@@ -384,11 +403,7 @@ struct DesignSnapshotRenderTests {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
-        let worktree = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let output = worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let output = try snapshotOutputDirectory()
         let png = try #require(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"))
         for width in [320, 820] {
             for english in [false, true] {
@@ -669,7 +684,7 @@ struct DesignSnapshotRenderTests {
     @Test func 英語の未保存件数は単数と複数を切り替える() throws {
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        let fixtures = package.appendingPathComponent(".build/localization-test-\(UUID().uuidString)")
+        let fixtures = try snapshotFixtureDirectory(package: package, prefix: "localization-test")
         try FileManager.default.createDirectory(at: fixtures, withIntermediateDirectories: true)
         defer {
             do { try FileManager.default.removeItem(at: fixtures) }
@@ -699,15 +714,9 @@ struct DesignSnapshotRenderTests {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
-        let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let worktree = package.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let output = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT"]
-            .map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
+        let output = try snapshotOutputDirectory()
         let fixtures = output.appendingPathComponent("fixtures-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: fixtures, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
         if FileManager.default.fileExists(atPath: cachedStrings.path) {
             try FileManager.default.removeItem(at: cachedStrings)
@@ -721,7 +730,7 @@ struct DesignSnapshotRenderTests {
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
         try #require(["all", "files", "simulator", "syntax", "large-files", "browser", "worktree-start", "setting-cards"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser・worktree-start・setting-cards のいずれか")
-        let selectedFrames = (frames + syntaxFrames + browserFrames + stage8Frames).filter { frame in
+        let scopedFrames = (frames + syntaxFrames + browserFrames + stage8Frames).filter { frame in
             if scope == "setting-cards" { return frame.id.hasPrefix("10-M") }
             if scope == "worktree-start" { return frame.id.hasPrefix("10-WS") }
             if scope == "browser" { return frame.id.hasPrefix("9-") }
@@ -729,6 +738,17 @@ struct DesignSnapshotRenderTests {
             if scope == "syntax" { return frame.id.hasPrefix("syntax-") }
             let simulator = frame.id.hasPrefix("7") || frame.id == "8L3"
             return scope == "all" || (scope == "simulator" ? simulator : !simulator)
+        }
+        let selectedFrames: [Frame]
+        if let requested = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_FRAME_IDS"] {
+            let requestedIDs = Set(requested.split(whereSeparator: { $0.isWhitespace }).map(String.init))
+            try #require(!requestedIDs.isEmpty, "PHLOX_DESIGN_SNAPSHOT_FRAME_IDS には状態 ID を1件以上指定してください")
+            let unavailableIDs = requestedIDs.subtracting(scopedFrames.map(\.id))
+            try #require(unavailableIDs.isEmpty,
+                         "指定した撮影範囲にない状態 ID: \(unavailableIDs.sorted().joined(separator: ", "))")
+            selectedFrames = scopedFrames.filter { requestedIDs.contains($0.id) }
+        } else {
+            selectedFrames = scopedFrames
         }
         for frame in selectedFrames {
             do {

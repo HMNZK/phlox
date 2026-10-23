@@ -10,8 +10,18 @@ public enum LocalHTTPConnectionError: Error, Sendable {
 
 /// NWConnection 上の 1 リクエスト / 1 レスポンス交換を担う共通基盤。
 public enum LocalHTTPConnection: Sendable {
+    public static func startAndWaitUntilReady(_ connection: NWConnection, queue: DispatchQueue) async throws {
+        let previous = connection.stateUpdateHandler
+        try await waitUntilReady(
+            state: { connection.state }, previous: previous,
+            install: { connection.stateUpdateHandler = $0 },
+            restore: { connection.stateUpdateHandler = previous },
+            start: { connection.start(queue: queue) }
+        )
+    }
+
     /// 接続が ready になるまで待つ。
-    public static func waitUntilReady(_ connection: NWConnection) async throws {
+    static func waitUntilReady(_ connection: NWConnection) async throws {
         let previous = connection.stateUpdateHandler
         try await waitUntilReady(
             state: { connection.state },
@@ -26,7 +36,8 @@ public enum LocalHTTPConnection: Sendable {
         state: @Sendable () -> NWConnection.State,
         previous: (@Sendable (NWConnection.State) -> Void)?,
         install: @Sendable (@escaping @Sendable (NWConnection.State) -> Void) -> Void,
-        restore: @escaping @Sendable () -> Void
+        restore: @escaping @Sendable () -> Void,
+        start: @Sendable () -> Void = {}
     ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let gate = OnceGate()
@@ -56,6 +67,7 @@ public enum LocalHTTPConnection: Sendable {
                 }
             }
             install(observe)
+            start()
             observe(state())
         }
     }

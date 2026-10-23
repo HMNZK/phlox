@@ -9,6 +9,7 @@ private struct ReadinessDriver: Sendable {
         var value: NWConnection.State = .setup
         var observer: (@Sendable (NWConnection.State) -> Void)?
         var restored = false
+        var queuedObserver: (@Sendable (NWConnection.State) -> Void)?
     }
     let lock = OSAllocatedUnfairLock(initialState: State())
 
@@ -26,9 +27,79 @@ private struct ReadinessDriver: Sendable {
 
     func snapshot() -> NWConnection.State { lock.withLock { $0.value } }
     func restore() { lock.withLock { $0.restored = true } }
+
+    func queueReadyForCurrentObserver() {
+        lock.withLock { state in
+            state.value = .preparing
+            state.queuedObserver = state.observer
+        }
+    }
+
+    func deliverQueuedReady() {
+        let observer = lock.withLock { state in
+            state.value = .ready
+            let observer = state.queuedObserver
+            state.queuedObserver = nil
+            return observer
+        }
+        observer?(.ready)
+    }
 }
 
 @Suite(.timeLimit(.minutes(1))) struct ConnectionReadinessTests {
+    @Test func registrationPrecedesStartWhenReadyIsQueuedBeforePreparingSnapshotReturns() async throws {
+        let driver = ReadinessDriver()
+        let oldReadyNotifications = OSAllocatedUnfairLock(initialState: 0)
+        let previous: @Sendable (NWConnection.State) -> Void = { state in
+            if case .ready = state { oldReadyNotifications.withLock { $0 += 1 } }
+        }
+        driver.install(previous)
+        let watchdog = Task {
+            do { try await Task.sleep(for: .seconds(2)) }
+            catch { return }
+            driver.transition(.failed(.posix(.ETIMEDOUT)))
+        }
+        defer { watchdog.cancel() }
+        try await LocalHTTPConnection.waitUntilReady(
+            state: {
+                let preparing = driver.snapshot()
+                driver.deliverQueuedReady()
+                return preparing
+            },
+            previous: previous,
+            install: { driver.install($0) }, restore: { driver.restore() },
+            start: { driver.queueReadyForCurrentObserver() }
+        )
+        #expect(driver.lock.withLock { $0.restored })
+        #expect(oldReadyNotifications.withLock { $0 } == 0)
+    }
+
+    @Test func startAndWaitRegistersBeforeStartingRealAcceptedConnection() async throws {
+        let queue = DispatchQueue(label: "readiness.start-before-wait")
+        let listener = try LocalHTTPListener.makeListener(port: 0)
+        let accepted = OSAllocatedUnfairLock(initialState: [NWConnection]())
+        let result = AsyncStream<Bool>.makeStream()
+        defer {
+            listener.cancel()
+            accepted.withLock { $0 }.forEach { $0.cancel() }
+        }
+        let port = try await LocalHTTPListener.startAndWaitUntilReady(listener, queue: queue) { connection in
+            accepted.withLock { $0.append(connection) }
+            Task {
+                do {
+                    try await LocalHTTPConnection.startAndWaitUntilReady(connection, queue: queue)
+                    result.continuation.yield(connection.state == .ready)
+                } catch { result.continuation.yield(false) }
+                result.continuation.finish()
+            }
+        }
+        let client = NWConnection(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: UInt16(port))!, using: .tcp)
+        defer { client.cancel() }
+        try await LocalHTTPConnection.startAndWaitUntilReady(client, queue: queue)
+        var iterator = result.stream.makeAsyncIterator()
+        #expect(await iterator.next() == true)
+    }
+
     @Test func readinessImmediatelyBeforeObserverRegistrationIsNotLost() async throws {
         let driver = ReadinessDriver()
         try await LocalHTTPConnection.waitUntilReady(

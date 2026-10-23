@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SessionStatus: Sendable, Equatable {
+public enum SessionStatus: Codable, Sendable, Equatable {
     case starting
     case idle
     case running

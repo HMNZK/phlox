@@ -148,6 +148,7 @@ public actor CodexAppServerClient {
     }
 
     public func turnStart(_ params: TurnStartParams) async throws -> TurnStartResponse {
+        try Task.checkCancellation()
         let generation = markTurnStartPending(threadId: params.threadId)
         do {
             let response: TurnStartResponse = try await rpc.request(method: "turn/start", params: params)
@@ -477,6 +478,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     }
 
     public func turnStart(_ input: [ChatInput]) async throws {
+        try Task.checkCancellation()
         guard let currentThreadId else {
             throw CodexStructuredClientError.threadNotStarted
         }
@@ -521,6 +523,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
 
     /// Native Codex入力（skillを含む）をそのままapp-serverへ渡す。
     public func turnStartNative(_ input: [UserInput]) async throws {
+        try Task.checkCancellation()
         guard let currentThreadId else { throw CodexStructuredClientError.threadNotStarted }
         let threadGeneration = threadIdentityGeneration
         pendingResumeRollback = nil

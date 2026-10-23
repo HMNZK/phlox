@@ -22,6 +22,17 @@ public final class CodexPlanTaskState {
         self.turnId = turnId
     }
 
+    func makeRuntimeSnapshot() -> SessionRuntimePlanSnapshot {
+        SessionRuntimePlanSnapshot(threadId: threadId, turnId: turnId, tasks: tasks, explanation: explanation)
+    }
+
+    func applyRuntimeSnapshot(_ snapshot: SessionRuntimePlanSnapshot) {
+        threadId = snapshot.threadId
+        turnId = snapshot.turnId
+        tasks = snapshot.tasks
+        explanation = snapshot.explanation
+    }
+
     /// thread/turn 境界で、前の plan スナップショットを破棄する。
     ///
     /// plan 通知は turn 単位で届くため、次の turn を受け付ける前に

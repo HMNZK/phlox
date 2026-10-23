@@ -319,6 +319,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     }
 
     public func turnStart(_ input: [ChatInput]) async throws {
+        try Task.checkCancellation()
         guard pendingPermissionRequest == nil else {
             throw ClaudeChatClientError.permissionRequestInProgress
         }
@@ -356,6 +357,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
             return
         }
 
+        try Task.checkCancellation()
         let content: [[String: Any]] = input.map { item in
             switch item {
             case .text(let text):

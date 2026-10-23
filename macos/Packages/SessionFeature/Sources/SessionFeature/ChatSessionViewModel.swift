@@ -24,7 +24,7 @@ private enum FirstMessageSkillError: LocalizedError {
 }
 
 /// エージェントのプロセスが自分で終了したこと（04 B3）。終了コードが取れない transport では nil。
-public struct ChatProcessExit: Equatable, Sendable {
+public struct ChatProcessExit: Codable, Equatable, Sendable {
     public let exitCode: Int32?
 }
 
@@ -33,6 +33,7 @@ public struct ChatProcessExit: Equatable, Sendable {
 public final class ChatSessionViewModel: Identifiable {
     public let id: SessionID
     public let startedAt: Date
+    public private(set) var executionID = UUID()
     /// プロセスが自分で終了したら入る。入力欄の代わりに終了コードと「この会話から再開」を出す（04 B3）。
     public private(set) var processExit: ChatProcessExit?
     /// 直近のエラーを通知したか（プロセス終了で「終了」を重ねるかの判断に使う）。
@@ -42,6 +43,7 @@ public final class ChatSessionViewModel: Identifiable {
     public var resumeConversationHandler: (@MainActor () -> Void)?
     public private(set) var status: SessionStatus = .starting {
         didSet {
+            guard !isApplyingRuntimeSnapshot else { return }
             guard oldValue != status else { return }
             if !status.hasSameKind(as: oldValue) {
                 statusEnteredAt = Date()
@@ -66,14 +68,21 @@ public final class ChatSessionViewModel: Identifiable {
     /// 未確認の停止（＝ユーザーの対応待ち）。停止状態へ入るとラッチし、選択（閲覧）で解除する。
     public var hasUnseenCompletion: Bool = false {
         didSet {
+            guard !isApplyingRuntimeSnapshot else { return }
             guard oldValue != hasUnseenCompletion else { return }
+            if isRuntimeProjection {
+                if !hasUnseenCompletion { forwardRuntimeCommand(.markCompletionSeen) }
+                return
+            }
             unseenCompletionDidChange?()
         }
     }
     @ObservationIgnored public var unseenCompletionDidChange: (() -> Void)?
     public var titleState: SessionTitleState = .legacy(name: "") {
         didSet {
+            guard !isApplyingRuntimeSnapshot else { return }
             guard titleState != oldValue else { return }
+            if isRuntimeProjection { forwardRuntimeCommand(.rename(titleState)); return }
             titleStateDidChange?(titleState)
         }
     }
@@ -115,7 +124,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 直近の送信の失敗（05 R9）。次の送信か「閉じる」で消える。
     public private(set) var sendFailure: SendFailure?
 
-    public struct SendFailure: Equatable, Sendable {
+    public struct SendFailure: Codable, Equatable, Sendable {
         public let reason: String
         /// 送れなかった本文を入力欄に戻せたか。
         public let restoredDraft: Bool
@@ -195,6 +204,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func markLaunchFailed(_ error: ChatLaunchError, restoringDraft text: String) {
+        let firstFailure = launchFailure == nil
         if pendingFirstMessage != nil { mergeFailedFirstTurnDraft(text, attachments: []) }
         removePendingFirstMessage()
         launchFailure = error
@@ -204,9 +214,19 @@ public final class ChatSessionViewModel: Identifiable {
             message: "起動できませんでした（\(error.localizedDescription)）。最初のメッセージは送っていません。本文を入力欄に戻しました。",
             timestamp: Date()
         ))
+        if firstFailure { publishRuntimeDraftRecovery(text: draft, attachments: composerAttachments) }
     }
 
     public func sendFirstMessage(_ text: String, attachments: [ComposerAttachment], selectedSkill: SkillIdentity? = nil) async {
+        if let runtimeCommandHandler {
+            do {
+                guard case .accepted = try await runtimeCommandHandler(executionID,
+                    .send(text: text, submit: true, attachments: attachments, skill: selectedSkill))
+                else { throw SessionRuntimeProjectionError.invalidReply }
+            }
+            catch { runtimeConnectionError = error.localizedDescription; restoreLaunchDraft(text, attachments: attachments) }
+            return
+        }
         guard launchFailure == nil, processExit == nil else { return }
         removePendingFirstMessage()
         attachmentStore.restore(attachments)
@@ -219,15 +239,23 @@ public final class ChatSessionViewModel: Identifiable {
                     throw FirstMessageSkillError.unavailable
                 }
                 await state.refresh()
+                try Task.checkCancellation()
                 guard state.select(name: selectedSkill.name, path: selectedSkill.path) else {
                     throw FirstMessageSkillError.unavailable
                 }
             }
+            try Task.checkCancellation()
             try await sendText(text, submit: true)
         } catch {
+            guard !Task.isCancelled else {
+                firstTurnInput = nil
+                awaitsNewChatFirstResponse = false
+                return
+            }
             guard launchFailure == nil else { return }
             firstTurnInput = nil
             restoreLaunchDraft(text, attachments: attachments)
+            publishRuntimeDraftRecovery(text: draft, attachments: composerAttachments)
             reportError(error.localizedDescription)
         }
     }
@@ -322,8 +350,43 @@ public final class ChatSessionViewModel: Identifiable {
     /// チャネルごとのユーザー通知可否。nil は既存挙動を保つため全許可として扱う。
     @ObservationIgnored public var userNotificationGate: ((UserNotificationChannel) -> Bool)?
 
-    private let client: any StructuredAgentClient
-    private let approvalBroker: ChatApprovalBroker
+    @ObservationIgnored private var ownedClient: (any StructuredAgentClient)?
+    private var client: any StructuredAgentClient {
+        guard let ownedClient else { preconditionFailure("A projection cannot use a provider client") }
+        return ownedClient
+    }
+    private var ownedApprovalBroker: ChatApprovalBroker?
+    private var approvalBroker: ChatApprovalBroker {
+        guard let ownedApprovalBroker else { preconditionFailure("A projection cannot own pending continuations") }
+        return ownedApprovalBroker
+    }
+    @ObservationIgnored private var runtimeCommandHandler: SessionRuntimeSessionCommandHandler?
+    @ObservationIgnored private var runtimeSendInFlight = false
+    @ObservationIgnored private var runtimeAcceptedSendTask: Task<Void, Never>?
+    private var runtimeAcceptedSendID: UUID?
+    private struct RuntimeAcceptedInput {
+        let id: UUID
+        let text: String
+        let attachments: [ComposerAttachment]
+        let turnGeneration: Int
+    }
+    private var runtimeAcceptedInput: RuntimeAcceptedInput?
+    private var lastRecoveredRuntimeSendID: UUID?
+    private struct RuntimeDraftRecovery {
+        let id: UUID
+        let text: String
+        let attachments: [ComposerAttachment]
+        var acknowledged = false
+    }
+    private var runtimeDraftRecovery: RuntimeDraftRecovery?
+    @ObservationIgnored private var runtimeDraftRecoveryTask: Task<Void, Never>?
+    private var runtimeDraftRecoveryInFlightID: UUID?
+    private var lastAppliedRuntimeDraftRecoveryID: UUID?
+    private var lastAcknowledgedRuntimeDraftRecoveryID: UUID?
+    @ObservationIgnored private var isApplyingRuntimeSnapshot = false
+    private var runtimeProjectionSnapshot: SessionRuntimeChatSnapshot?
+    public var isRuntimeProjection: Bool { runtimeCommandHandler != nil }
+    public private(set) var runtimeConnectionError: String?
     private let subAgentModel = ChatSubAgentModel()
     public let agentRef: AgentRef
     private let workingDirectory: String?
@@ -373,11 +436,32 @@ public final class ChatSessionViewModel: Identifiable {
     private let spawnAgentPermissionOverride: String?
     private let spawnAgentModelsProvider: SpawnAgentModelsProvider?
     /// 利用可能スラッシュコマンド一覧の永続ストア。生成時の読み出しと init 受領時の記録に使う。
-    private let availableCommandsStore: AvailableCommandsStore
+    private var ownedAvailableCommandsStore: AvailableCommandsStore?
+    private var availableCommandsStore: AvailableCommandsStore {
+        guard let ownedAvailableCommandsStore else { preconditionFailure("A projection cannot read the command store") }
+        return ownedAvailableCommandsStore
+    }
 
     /// Cursor の `cursor-agent models` 取得をセッションから注入するための供給源。
     /// 供給結果が空/未注入なら小さなハードコード fallback を使い、起動を妨げない。
     public typealias SpawnAgentModelsProvider = @Sendable () async -> [String]
+
+    public init(projection snapshot: SessionRuntimeChatSnapshot,
+                commandHandler: @escaping SessionRuntimeSessionCommandHandler) {
+        self.id = snapshot.id
+        self.startedAt = snapshot.startedAt
+        self.agentRef = snapshot.agentRef
+        self.workingDirectory = snapshot.workingDirectory
+        self.transcriptStore = nil
+        self.transcriptPersistenceQueue = nil
+        self.spawnAgentPermissionOverride = nil
+        self.spawnAgentModelsProvider = nil
+        self.historyProvider = nil
+        self.historyTranscriptLoader = nil
+        self.attachmentStore = ComposerAttachmentStore()
+        self.runtimeCommandHandler = commandHandler
+        applyRuntimeState(snapshot)
+    }
 
     public init(
         id: SessionID,
@@ -397,8 +481,8 @@ public final class ChatSessionViewModel: Identifiable {
         self.id = id
         self.startedAt = startedAt
         self.agentRef = agentRef
-        self.client = client
-        self.approvalBroker = approvalBroker
+        self.ownedClient = client
+        self.ownedApprovalBroker = approvalBroker
         self.workingDirectory = workingDirectory
         if agentRef == .builtin(.codex), let codexClient = client as? any CodexSkillSelectionClient {
             self.codexSkillSelectionState = CodexSkillSelectionState(
@@ -420,7 +504,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.spawnAgentModelsProvider = spawnAgentModelsProvider
         self.historyProvider = historyProvider
         self.historyTranscriptLoader = historyTranscriptLoader
-        self.availableCommandsStore = availableCommandsStore
+        self.ownedAvailableCommandsStore = availableCommandsStore
         self.seedSlashCommands = availableCommandsStore.commands(
             agentRef: agentRef,
             workingDirectory: workingDirectory
@@ -446,8 +530,8 @@ public final class ChatSessionViewModel: Identifiable {
         self.id = id
         self.startedAt = Date()
         self.agentRef = agentRef
-        self.client = client
-        self.approvalBroker = approvalBroker
+        self.ownedClient = client
+        self.ownedApprovalBroker = approvalBroker
         self.workingDirectory = workingDirectory
         if agentRef == .builtin(.codex), let codexClient = client as? any CodexSkillSelectionClient {
             self.codexSkillSelectionState = CodexSkillSelectionState(
@@ -467,7 +551,7 @@ public final class ChatSessionViewModel: Identifiable {
         self.spawnAgentModelsProvider = nil
         self.historyProvider = nil
         self.historyTranscriptLoader = nil
-        self.availableCommandsStore = availableCommandsStore
+        self.ownedAvailableCommandsStore = availableCommandsStore
         self.seedSlashCommands = availableCommandsStore.commands(
             agentRef: agentRef,
             workingDirectory: workingDirectory
@@ -565,7 +649,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 新規 Claude/Codex チャットの中央に「履歴から再開」を出すか。
     public var shouldOfferHistoryStart: Bool {
         guard agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex) else { return false }
-        guard historyProvider != nil else { return false }
+        guard historyProvider != nil || runtimeProjectionSnapshot?.hasHistoryProvider == true else { return false }
         guard transcript.isEmpty, submitBaselineTurnSeq == nil else { return false }
         return !cachedHistoryEntries.isEmpty
     }
@@ -602,6 +686,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 親 thread に属する child を取得する。`thread/list` の turns は空仕様のため、
     /// 実行中で turn ID が欠ける child だけ `thread/read(includeTurns: true)` で補完する。
     public func refreshCodexSubAgents() async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.refreshSubAgents); return }
         guard let parentThreadId = threadId,
               !parentThreadId.isEmpty,
               let client = client as? any CodexSubAgentProviding else { return }
@@ -686,6 +771,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// child の active turn にだけ `turn/interrupt` を送り、完了は event で確定する。
     public func stopCodexSubAgent(threadID: String) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.stopSubAgent(CodexSubAgentPresentation.displayID(for: threadID))); return }
         guard var state = codexSubAgentState,
               let request = state.stopRequest(for: threadID),
               let client = client as? any CodexSubAgentProviding else { return }
@@ -749,6 +835,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// 選択した履歴から再開する（転写反映＋ client.resume・task-9 契約）。
     public func startFromHistory(_ entry: ClaudeSessionHistoryEntry) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.startFromHistory(entry)); return }
         guard historyTranscriptLoader != nil else { return }
         do {
             try await resumeHistory(entry, initialSettings: nil, approvalPolicy: nil, sandbox: nil, startsClient: false)
@@ -764,6 +851,11 @@ public final class ChatSessionViewModel: Identifiable {
         sandbox: SandboxPolicy,
         initialSettings: CodexAppServerSessionSettings?
     ) async throws {
+        if let runtimeCommandHandler {
+            _ = try await runtimeCommandHandler(executionID, .resumeHistory(entry, approvalPolicy: approvalPolicy,
+                sandbox: sandbox, settings: initialSettings))
+            return
+        }
         try await resumeHistory(
             entry,
             initialSettings: initialSettings,
@@ -937,7 +1029,8 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private var supportsImageAttachments: Bool {
-        switch agentRef {
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.acceptsImageAttachments }
+        return switch agentRef {
         case .builtin(.claudeCode):
             true
         case .builtin(.codex):
@@ -961,6 +1054,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// 送れないモデルで送ろうとしたときのエラーは、送れるモデルに替えたら消す（残すといまの可否と食い違う）。
     private func clearStaleImageErrorIfSendable() {
+        guard !isApplyingRuntimeSnapshot else { return }
         guard attachmentStore.lastError == ControlImageSendError.imagesUnsupported.localizedDescription,
               imageAttachmentSupport == .supported else { return }
         attachmentStore.clearError()
@@ -973,7 +1067,8 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// Control API 経路の画像非対応判定用。
     public var acceptsImageAttachments: Bool {
-        switch agentRef {
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.acceptsImageAttachments }
+        return switch agentRef {
         case .builtin(.claudeCode):
             true
         case .builtin(.codex):
@@ -1112,6 +1207,7 @@ public final class ChatSessionViewModel: Identifiable {
         persistedSettings: CodexAppServerSessionSettings? = nil,
         initialSettings: CodexAppServerSessionSettings? = nil
     ) async throws {
+        guard !isRuntimeProjection else { throw SessionRuntimeProjectionError.unsupportedCommand }
         codexRestoreGeneration += 1
         restoringCodexSettingsThreadID = nil
         scheduleHistoryCacheLoadIfNeeded()
@@ -1164,6 +1260,10 @@ public final class ChatSessionViewModel: Identifiable {
         sandbox: SandboxPolicy,
         persistedSettings: CodexAppServerSessionSettings? = nil
     ) async {
+        guard !isRuntimeProjection else {
+            runtimeConnectionError = SessionRuntimeProjectionError.unsupportedCommand.localizedDescription
+            return
+        }
         restoreState = .restoring
         codexRestoreGeneration += 1
         restoringCodexSettingsThreadID = nil
@@ -1271,6 +1371,8 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func turnInterrupt() async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.interrupt); return }
+        cancelRuntimeAcceptedSend()
         flushPendingStreamDeltasBarrier()
         if let activeInterruptTask {
             await activeInterruptTask.value
@@ -1363,8 +1465,13 @@ public final class ChatSessionViewModel: Identifiable {
     /// 先に中断を完了させてからリバートする（esc 1回目の interrupt が未収束の窓で選択が
     /// 無音 no-op になるのを防ぐ。turnInterrupt は非スローで必ず idle 復帰する）。
     public func confirmRevert(toUserMessageID id: String) async {
+        let expectedExecutionID = executionID
         if status == .running {
             await turnInterrupt()
+        }
+        guard executionID == expectedExecutionID else {
+            runtimeConnectionError = SessionRuntimeProjectionError.staleExecution.localizedDescription
+            return
         }
         let restored = await revert(toUserMessageID: id)
         // 復元本文は ViewModel 自身が `draft` へ書く。View 側の `draftRestoration` 監視経由にすると
@@ -1428,6 +1535,15 @@ public final class ChatSessionViewModel: Identifiable {
     /// - 戻り値は当該ユーザーメッセージの本文（View が composer 入力欄へ復元する）。
     /// - 事前条件: 該当 id の userMessage が存在し、status が .running でないこと。満たさなければ nil。
     public func revert(toUserMessageID id: String) async -> String? {
+        if let runtimeCommandHandler {
+            do {
+                guard case .draft(let text, let attachments) = try await runtimeCommandHandler(executionID, .revert(userMessageID: id)) else {
+                    throw SessionRuntimeProjectionError.invalidReply
+                }
+                if text != nil { attachmentStore.restore(attachments) }
+                return text
+            } catch { runtimeConnectionError = error.localizedDescription; return nil }
+        }
         // running 中は禁止（先に interrupt が完了していること）。何も変更せず拒否する。
         guard status != .running else { return nil }
 
@@ -1476,6 +1592,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func respondToApproval(_ approvalID: UUID, decision: ApprovalDecision) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.approval(approvalID, decision: decision)); return }
         pendingApprovals.removeAll { $0.id == approvalID }
         await approvalBroker.respond(to: approvalID, decision: decision)
         if pendingApprovals.isEmpty, case .awaitingApproval = status {
@@ -1494,6 +1611,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 戻り値: 拒否を受理したら true。
     @discardableResult
     public func declineUserQuestion(requestId: String) async -> Bool {
+        if isRuntimeProjection { return await forwardRuntimeBool(.declineQuestion(requestId: requestId)) }
         guard let index = userQuestionCardIndex(requestId: requestId),
               case .userQuestion(_, _, _, _, .pending, _) = transcript[index],
               codexUserInputRequestIDs[requestId] != nil
@@ -1506,6 +1624,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func respondToUserQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
+        if isRuntimeProjection { return await forwardRuntimeBool(.question(requestId: requestId, answers: answers)) }
         guard !respondingUserQuestionIds.contains(requestId),
               let index = userQuestionCardIndex(requestId: requestId),
               case .userQuestion(let id, let rid, let questions, _, .pending, let timestamp) = transcript[index]
@@ -1555,6 +1674,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func dismissSubAgent(_ id: String) {
+        if isRuntimeProjection { forwardRuntimeCommand(.dismissSubAgent(id)); return }
         subAgentModel.dismissSubAgent(id)
     }
 
@@ -1566,6 +1686,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 札の停止ボタン。Codex は `turn/interrupt`、Claude は `stop_task` を送る。確認が来るまで札は実行中のまま
     /// （停止中はボタンを出さない）。確認できたら帯から消え、失敗・拒否・タイムアウトなら実行中に戻る。
     public func stopSubAgent(displayID id: String) {
+        if isRuntimeProjection { forwardRuntimeCommand(.stopSubAgent(id)); return }
         if let threadID = CodexSubAgentPresentation.threadID(from: id) {
             Task { await stopCodexSubAgent(threadID: threadID) }
             return
@@ -1646,6 +1767,7 @@ public final class ChatSessionViewModel: Identifiable {
     private var codexSettingsRequestsInFlight = 0
 
     public func setModel(model: String, effort: String?) async throws {
+        if let runtimeCommandHandler { _ = try await runtimeCommandHandler(executionID, .model(model, effort: effort)); return }
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
         guard let codexClient else { throw ChatSettingsUpdateError.codexSettingsUnavailable }
         let resolvedEffort = effort ?? defaultEffort(for: model)
@@ -1691,7 +1813,7 @@ public final class ChatSessionViewModel: Identifiable {
                 ControlModelChoice(id: $0, displayName: spawnAgentModelDisplayName($0))
             }
         }
-        if codexClient != nil {
+        if codexClient != nil || runtimeProjectionSnapshot?.supportsCodexSettings == true {
             return availableModels.map { ControlModelChoice(id: $0.id, displayName: $0.displayName) }
         }
         return []
@@ -1705,7 +1827,7 @@ public final class ChatSessionViewModel: Identifiable {
             await setSpawnAgentModel(model)
             return .applied
         }
-        guard codexClient != nil else { return .unsupported }
+        guard codexClient != nil || runtimeProjectionSnapshot?.supportsCodexSettings == true else { return .unsupported }
         // UI のモデル選択と同じ突き合わせ規則（id または model のどちらかに一致）。
         guard let resolved = availableModels.first(where: { $0.id == model || $0.model == model })?.id else {
             return availableModels.isEmpty ? .unsupported : .unknownModel
@@ -1725,7 +1847,7 @@ public final class ChatSessionViewModel: Identifiable {
     public var controlSettingsAvailable: Bool {
         if case .failed = restoreState { return false }
         guard launchFailure == nil else { return false }
-        return canApplySpawnAgentSettings || codexClient != nil
+        return canApplySpawnAgentSettings || codexClient != nil || runtimeProjectionSnapshot?.supportsCodexSettings == true
     }
 
     public func controlPermissionOptions(languageCode: String) -> [ComposerModeOption] {
@@ -1784,6 +1906,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func setPermissionProfile(id: String) async throws {
+        if let runtimeCommandHandler { _ = try await runtimeCommandHandler(executionID, .permission(id)); return }
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
         guard let codexClient else { throw ChatSettingsUpdateError.codexSettingsUnavailable }
         do {
@@ -1800,6 +1923,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public func setPlanMode(_ on: Bool) async throws {
+        if let runtimeCommandHandler { _ = try await runtimeCommandHandler(executionID, .planMode(on)); return }
         if isSpawnAgent {
             guard on ? isPlanModeAvailable : true else {
                 throw ChatSettingsUpdateError.planModeUnavailable
@@ -1889,6 +2013,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// task-11 が呼ぶ model 変更ハンドラ。選択を保持し、フルスナップショットで actor へ反映する。
     public func setSpawnAgentModel(_ model: String?) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.spawnModel(model)); return }
         guard canApplySpawnAgentSettings, !isApplyingSpawnAgentPermission else { return }
         selectedModel = model
         if agentRef == .builtin(.claudeCode) {
@@ -1905,6 +2030,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// task-11 が呼ぶ permission(Claude)/mode(Cursor) 変更ハンドラ。
     public func setSpawnAgentPermission(_ permissionOrMode: String?) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.spawnPermission(permissionOrMode)); return }
         guard isSpawnAgent else { return }
         do {
             try await changeSpawnAgentPermission(permissionOrMode)
@@ -1916,6 +2042,7 @@ public final class ChatSessionViewModel: Identifiable {
     public private(set) var isApplyingSpawnAgentPermission = false
 
     private func changeSpawnAgentPermission(_ permissionOrMode: String?) async throws {
+        if let runtimeCommandHandler { _ = try await runtimeCommandHandler(executionID, .spawnPermission(permissionOrMode)); return }
         if let controller = client as? any SpawnAgentPermissionControlling {
             guard !isApplyingSpawnAgentPermission, inFlightText == nil, !isPreparingImageSend else {
                 throw ChatSettingsUpdateError.spawnSettingsUpdateInProgress
@@ -1960,6 +2087,14 @@ public final class ChatSessionViewModel: Identifiable {
     /// ⇧Tab: 推論の深さを次の段へ回す。変えた段を返す（変えられなかったら nil）。
     @discardableResult
     public func cycleEffort() async -> String? {
+        if let runtimeCommandHandler {
+            do {
+                guard case .text(let text) = try await runtimeCommandHandler(executionID, .cycleEffort) else {
+                    throw SessionRuntimeProjectionError.invalidReply
+                }
+                return text
+            } catch { runtimeConnectionError = error.localizedDescription; return nil }
+        }
         let previous = effortCycleTail
         let cycle = Task { @MainActor () -> String? in
             await previous?.value
@@ -1985,6 +2120,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// task-22: Claude spawn セッションの effort 変更ハンドラ。
     public func setSpawnAgentEffort(_ effort: String?) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.spawnEffort(effort)); return }
         guard isSpawnAgent, !isApplyingSpawnAgentPermission else { return }
         selectedEffort = effort
         await applySpawnAgentSettings()
@@ -1992,6 +2128,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// Claude / Cursor のモデル一覧が CLI から取れず、内蔵の一覧になっているか（05 O3）。
     public var isUsingBuiltinModelList: Bool {
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.isUsingBuiltinModelList }
         guard spawnAgentModelsProvider == nil, agentRef.builtinKind != .codex else { return false }
         let kind = agentRef.builtinKind
         return AgentModelCatalog.kindsUsingFallback().contains(kind)
@@ -1999,6 +2136,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// CLI からのモデル一覧の取得をやり直し、選択肢を差し替える。
     public func retryModelListFetch() async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.retryModels); return }
         await AgentModelCatalog.refresh()
         availableSpawnAgentModels = await resolveSpawnAgentModels()
     }
@@ -2089,7 +2227,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public var usageQuerying: (any UsageQuerying)? {
-        client as? any UsageQuerying
+        ownedClient as? any UsageQuerying
     }
 
     public let usageConnectionID = UUID()
@@ -2097,12 +2235,13 @@ public final class ChatSessionViewModel: Identifiable {
     public var rateLimitsDidChange: ((AgentRateLimitsSnapshot) -> Void)?
 
     private var spawnSettingsClient: (any SpawnAgentSettingsControlling)? {
-        client as? any SpawnAgentSettingsControlling
+        ownedClient as? any SpawnAgentSettingsControlling
     }
 
     /// spawn 型エージェント設定を実際の CLI 制御クライアントへ適用できるか。
     public var canApplySpawnAgentSettings: Bool {
-        spawnSettingsClient != nil
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.canApplySpawnAgentSettings }
+        return spawnSettingsClient != nil
     }
 
     private var isSpawnAgent: Bool {
@@ -2502,6 +2641,7 @@ public final class ChatSessionViewModel: Identifiable {
                 commands: commands
             )
         case .turnCompleted(let nativeSessionId):
+            runtimeAcceptedInput = nil
             firstTurnInput = nil
             awaitsNewChatFirstResponse = false
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
@@ -2524,6 +2664,7 @@ public final class ChatSessionViewModel: Identifiable {
             flushTranscriptAtTurnBoundary()
             midTurnPersistenceGate.noteExternalFlush()
         case .turnInterrupted(let nativeSessionId):
+            runtimeAcceptedInput = nil
             firstTurnInput = nil
             awaitsNewChatFirstResponse = false
             if let nativeSessionId, shouldAdoptNativeSessionId(nativeSessionId) {
@@ -2547,6 +2688,7 @@ public final class ChatSessionViewModel: Identifiable {
                 mergeFailedFirstTurnDraft(firstTurnInput.text, attachments: firstTurnInput.attachments)
                 self.firstTurnInput = nil
             }
+            recoverAcceptedRuntimeInputIfNeeded(reason: message)
             if codexClient != nil {
                 codexEventTurnId = nil
             }
@@ -2570,6 +2712,8 @@ public final class ChatSessionViewModel: Identifiable {
             let launchFailed = failUnansweredNewChatTurn(.processFailed(
                 exitCode.map { "process exited (exit \($0))" } ?? "process exited"))
                 || launchFailure != nil
+            recoverAcceptedRuntimeInputIfNeeded(reason:
+                exitCode.map { "process exited (exit \($0))" } ?? "process exited")
             // 先に立てる（下の await の間に届いた承認・質問を積まないように）。
             if !launchFailed { processExit = ChatProcessExit(exitCode: exitCode) }
             // 承認を待っていたプロセスはもう無いので、答えられないカードを残さない（下の await の間も出さない）。
@@ -3708,7 +3852,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private var codexClient: (any CodexSettingsProviding)? {
-        client as? any CodexSettingsProviding
+        ownedClient as? any CodexSettingsProviding
     }
 
     private func updateNativeSessionId(_ id: String?) {
@@ -3936,10 +4080,35 @@ public final class ChatSessionViewModel: Identifiable {
 extension ChatSessionViewModel: ControllableSession {
     /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
     public func markCompletionSeen() {
+        if isRuntimeProjection { forwardRuntimeCommand(.markCompletionSeen); return }
         hasUnseenCompletion = false
     }
 
     public func sendText(_ text: String, submit: Bool) async throws {
+        if let runtimeCommandHandler {
+            guard !runtimeSendInFlight, inFlightText == nil else { throw ControlImageSendError.imageSendInProgress }
+            runtimeSendInFlight = true
+            let expectedExecutionID = executionID
+            let sentAttachments = composerAttachments
+            let skill = codexSkillSelectionState?.runtimeSelectionIdentity
+            inFlightText = text
+            defer { inFlightText = nil; runtimeSendInFlight = false }
+            do {
+                guard case .accepted = try await runtimeCommandHandler(expectedExecutionID,
+                    .send(text: text, submit: submit, attachments: sentAttachments, skill: skill))
+                else { throw SessionRuntimeProjectionError.invalidReply }
+                if executionID == expectedExecutionID {
+                    if submit, composerAttachments == sentAttachments { attachmentStore.clear() }
+                    if submit { codexSkillSelectionState?.clearSelection() }
+                }
+            } catch {
+                runtimeConnectionError = error.localizedDescription
+                if submit { _ = restoreDraftAfterRejectedSend(text) }
+                throw error
+            }
+            return
+        }
+        try Task.checkCancellation()
         guard launchFailure == nil, processExit == nil else { throw CancellationError() }
         guard !isPreparingImageSend else { throw ControlImageSendError.imageSendInProgress }
         if submit {
@@ -3988,6 +4157,7 @@ extension ChatSessionViewModel: ControllableSession {
                     throw SendRejected.imagesUnsupported
                 }
                 await configureCodexImageInputIfNeeded(supportsImages: imageSnapshot.supportsImages)
+                try Task.checkCancellation()
                 guard launchFailure == nil, processExit == nil else { throw CancellationError() }
                 guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {
                     attachmentStore.setError(ControlImageSendError.imageSendSnapshotChanged.localizedDescription)
@@ -3996,6 +4166,7 @@ extension ChatSessionViewModel: ControllableSession {
                 }
                 do {
                     let prepared = try await ImageAttachmentPreparer.prepare(attachmentStore.attachments.map(\.data))
+                    try Task.checkCancellation()
                     guard launchFailure == nil, processExit == nil else { throw CancellationError() }
                     guard imageSnapshot == imageSendSnapshot(for: buildChatInputs(text: clientInput)) else {
                         throw ControlImageSendError.imageSendSnapshotChanged
@@ -4038,6 +4209,7 @@ extension ChatSessionViewModel: ControllableSession {
             }
             status = .running
             do {
+                try Task.checkCancellation()
                 if agentRef == .builtin(.codex),
                    let native = client as? any CodexNativeSkillInputSending,
                    let skillInputs = nativeSkillInputs,
@@ -4059,6 +4231,13 @@ extension ChatSessionViewModel: ControllableSession {
                     try await client.turnStart(sendInputs)
                 }
             } catch {
+                if Task.isCancelled {
+                    clearRunningTurn()
+                    isAwaitingLocallyStartedTurnEvent = false
+                    firstTurnInput = nil
+                    if !isTerminating { status = .idle }
+                    throw CancellationError()
+                }
                 guard launchFailure == nil else { throw error }
                 // A3: turnStart 失敗時は status を .idle に戻す（.running 固着を防ぐ）。
                 // reservation（pendingReplayContext）・添付・記録済み userMessage は
@@ -4082,6 +4261,7 @@ extension ChatSessionViewModel: ControllableSession {
                 reportError("ターン開始に失敗しました: \(error)")
                 throw error
             }
+            try Task.checkCancellation()
             guard launchFailure == nil, processExit == nil else { throw CancellationError() }
             // 単一適用: 送信成功後にクリアする。throw 時は予約を残し、再送で二重付与しない。
             pendingReplayContext = nil
@@ -4183,6 +4363,7 @@ extension ChatSessionViewModel: ControllableSession {
     /// 現在の transcript を即時に永続化キューへ書き出し、書き込み完了まで待つ
     /// （アプリ終了経路から呼ぶ。保留中ストリーム delta はバリア flush してから保存する）。
     public func flushTranscriptNow() async {
+        guard !isRuntimeProjection else { return }
         midTurnPersistenceGate.cancelPending()
         flushPendingStreamDeltasBarrier()
         enqueueTranscriptSnapshot()
@@ -4201,11 +4382,14 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     public func consumeSubmitBaseline() {
+        if isRuntimeProjection { forwardRuntimeCommand(.consumeSubmitBaseline); return }
         submitBaselineTurnSeq = nil
     }
 
     public func terminate() async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.terminate); return }
         isTerminating = true
+        cancelRuntimeAcceptedSend()
         flushPendingStreamDeltasBarrier()
         eventTask?.cancel()
         codexSettingsEventTask?.cancel()
@@ -4229,5 +4413,383 @@ extension ChatSessionViewModel: ControllableSession {
         releaseNativeSkillInputDirectories()
         await client.close()
         status = .completed(exitCode: 0)
+    }
+}
+extension ChatSessionViewModel {
+    public func makeRuntimeSnapshot() -> SessionRuntimeChatSnapshot {
+        var value = SessionRuntimeChatSnapshot(id: id, startedAt: startedAt, agentRef: agentRef,
+            workingDirectory: workingDirectory)
+        value.executionID = executionID
+        value.titleState = titleState
+        value.projectID = projectID
+        value.parentSessionID = parentSessionID
+        value.launchContext = launchContext
+        value.status = status
+        value.statusEnteredAt = statusEnteredAt
+        value.hasUnseenCompletion = hasUnseenCompletion
+        value.processExit = processExit
+        value.isStalled = isStalled
+        value.stalledSince = stalledSince
+        value.threadId = threadId
+        value.chatNativeSessionId = chatNativeSessionId
+        value.appServerUserAgent = appServerUserAgent
+        value.transcript = transcript
+        value.transcriptRevision = transcriptRevision
+        value.rawEventLog = rawEventLog
+        value.pendingApprovals = pendingApprovals
+        value.sendFailure = sendFailure
+        value.inFlightText = inFlightText
+        value.completedTurnSeq = completedTurnSeq
+        value.lastOutputAt = lastOutputAt
+        value.lastTurnCompletedAt = lastTurnCompletedAt
+        value.lastTurnUsage = lastTurnUsage
+        value.turnUsageByItemID = turnUsageByItemID
+        value.lastTurnCostUSD = lastTurnCostUSD
+        value.launchFailure = launchFailure
+        value.pendingFirstMessage = pendingFirstMessage
+        value.draftRecoveryID = runtimeDraftRecovery?.id ?? runtimeProjectionSnapshot?.draftRecoveryID
+        value.submitBaselineTurnSeq = submitBaselineTurnSeq
+        value.runningBackgroundTasks = runningBackgroundTasks
+        value.restoreState = restoreState
+        value.availableModels = availableModels
+        value.availableSlashCommands = availableSlashCommands
+        value.seedSlashCommands = seedSlashCommands
+        value.permissionProfiles = permissionProfiles
+        value.selectedModel = selectedModel
+        value.selectedEffort = selectedEffort
+        value.selectedPermissionProfile = selectedPermissionProfile
+        value.selectedApprovalPolicy = selectedApprovalPolicy
+        value.selectedCodexSandbox = selectedCodexSandbox
+        value.isPlanMode = isPlanMode
+        value.isPlanModeAvailable = isPlanModeAvailable
+        value.availableSpawnAgentModels = availableSpawnAgentModels
+        value.isCompacting = isCompacting
+        value.isApplyingSpawnAgentPermission = isApplyingSpawnAgentPermission
+        value.isTerminating = isTerminating
+        value.usesStandardClaudeAuthentication = usesStandardClaudeAuthentication
+        value.turnStartedAt = turnStartedAt
+        value.lastEventAt = lastEventAt
+        value.historySummaries = historySummaries
+        value.codexSubAgentError = codexSubAgentError
+        value.acceptsImageAttachments = acceptsImageAttachments
+        value.canApplySpawnAgentSettings = canApplySpawnAgentSettings
+        value.supportsCodexSettings = codexClient != nil || runtimeProjectionSnapshot?.supportsCodexSettings == true
+        value.isUsingBuiltinModelList = isUsingBuiltinModelList
+        value.hasHistoryProvider = historyProvider != nil || runtimeProjectionSnapshot?.hasHistoryProvider == true
+        value.historyEntries = historyEntries
+        value.skillSelection = codexSkillSelectionState?.makeRuntimeSnapshot()
+        value.plan = codexPlanTaskState?.makeRuntimeSnapshot()
+        value.codexSubAgents = codexSubAgentState
+        value.subAgents = subAgentModel.makeRuntimeSnapshot()
+        return value
+    }
+
+    public func validateRuntimeSnapshot(_ snapshot: SessionRuntimeChatSnapshot) throws {
+        guard isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
+        guard snapshot.id == id, snapshot.startedAt == startedAt,
+              snapshot.agentRef == agentRef, snapshot.workingDirectory == workingDirectory
+        else { throw SessionRuntimeProjectionError.wrongSession }
+    }
+
+    public func applyRuntimeSnapshot(_ snapshot: SessionRuntimeChatSnapshot) throws {
+        try validateRuntimeSnapshot(snapshot)
+        applyRuntimeState(snapshot)
+    }
+
+    private func applyRuntimeState(_ snapshot: SessionRuntimeChatSnapshot) {
+        isApplyingRuntimeSnapshot = true
+        defer { isApplyingRuntimeSnapshot = false }
+        if runtimeProjectionSnapshot?.executionID != snapshot.executionID {
+            runtimeDraftRecoveryTask?.cancel()
+            runtimeDraftRecoveryTask = nil
+            runtimeDraftRecoveryInFlightID = nil
+            lastAppliedRuntimeDraftRecoveryID = nil
+            lastAcknowledgedRuntimeDraftRecoveryID = nil
+        }
+        runtimeProjectionSnapshot = snapshot
+        executionID = snapshot.executionID
+        titleState = snapshot.titleState
+        projectID = snapshot.projectID
+        parentSessionID = snapshot.parentSessionID
+        launchContext = snapshot.launchContext
+        status = snapshot.status
+        statusEnteredAt = snapshot.statusEnteredAt
+        hasUnseenCompletion = snapshot.hasUnseenCompletion
+        processExit = snapshot.processExit
+        isStalled = snapshot.isStalled
+        stalledSince = snapshot.stalledSince
+        threadId = snapshot.threadId
+        chatNativeSessionId = snapshot.chatNativeSessionId
+        appServerUserAgent = snapshot.appServerUserAgent
+        rawEventLog = snapshot.rawEventLog
+        pendingApprovals = snapshot.pendingApprovals
+        sendFailure = snapshot.sendFailure
+        completedTurnSeq = snapshot.completedTurnSeq
+        lastOutputAt = snapshot.lastOutputAt
+        lastTurnCompletedAt = snapshot.lastTurnCompletedAt
+        lastTurnUsage = snapshot.lastTurnUsage
+        turnUsageByItemID = snapshot.turnUsageByItemID
+        lastTurnCostUSD = snapshot.lastTurnCostUSD
+        launchFailure = snapshot.launchFailure
+        pendingFirstMessage = snapshot.pendingFirstMessage
+        submitBaselineTurnSeq = snapshot.submitBaselineTurnSeq
+        runningBackgroundTasks = snapshot.runningBackgroundTasks
+        restoreState = snapshot.restoreState
+        availableModels = snapshot.availableModels
+        availableSlashCommands = snapshot.availableSlashCommands
+        seedSlashCommands = snapshot.seedSlashCommands
+        permissionProfiles = snapshot.permissionProfiles
+        selectedModel = snapshot.selectedModel
+        selectedEffort = snapshot.selectedEffort
+        selectedPermissionProfile = snapshot.selectedPermissionProfile
+        selectedApprovalPolicy = snapshot.selectedApprovalPolicy
+        selectedCodexSandbox = snapshot.selectedCodexSandbox
+        isPlanMode = snapshot.isPlanMode
+        isPlanModeAvailable = snapshot.isPlanModeAvailable
+        availableSpawnAgentModels = snapshot.availableSpawnAgentModels
+        isCompacting = snapshot.isCompacting
+        isApplyingSpawnAgentPermission = snapshot.isApplyingSpawnAgentPermission
+        isTerminating = snapshot.isTerminating
+        usesStandardClaudeAuthentication = snapshot.usesStandardClaudeAuthentication
+        turnStartedAt = snapshot.turnStartedAt
+        lastEventAt = snapshot.lastEventAt
+        historySummaries = snapshot.historySummaries
+        codexSubAgentError = snapshot.codexSubAgentError
+        if !runtimeSendInFlight { inFlightText = snapshot.inFlightText }
+        transcript = snapshot.transcript
+        transcriptItemIDs = Set(transcript.map(\.id))
+        transcriptIndexByID = Dictionary(transcript.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { _, last in last })
+        transcriptRevision = snapshot.transcriptRevision
+        cachedHistoryEntries = snapshot.historyEntries
+        codexSubAgentState = snapshot.codexSubAgents
+        subAgentModel.applyRuntimeSnapshot(snapshot.subAgents)
+        if let plan = snapshot.plan {
+            if codexPlanTaskState == nil { codexPlanTaskState = CodexPlanTaskState() }
+            codexPlanTaskState?.applyRuntimeSnapshot(plan)
+        } else { codexPlanTaskState = nil }
+        if let skills = snapshot.skillSelection {
+            if let codexSkillSelectionState { codexSkillSelectionState.applyRuntimeSnapshot(skills) }
+            else {
+                codexSkillSelectionState = CodexSkillSelectionState(projection: skills,
+                    sessionCWD: workingDirectory ?? "") { [weak self] in
+                        await self?.forwardRuntimeCommandAndWait(.refreshSkills)
+                    }
+            }
+        } else { codexSkillSelectionState = nil }
+        runtimeConnectionError = nil
+        synchronizeRuntimeDraftRecovery(snapshot.draftRecoveryID)
+    }
+
+    public func performRuntimeCommand(_ command: SessionRuntimeSessionCommand, expectedExecutionID: UUID) async throws -> SessionRuntimeSessionCommandResult {
+        guard !isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
+        guard expectedExecutionID == executionID else { throw SessionRuntimeProjectionError.staleExecution }
+        switch command {
+        case .send(let text, let submit, let attachments, let skill):
+            return .accepted(try acceptRuntimeSend(text: text, submit: submit, attachments: attachments, skill: skill))
+        case .interrupt: await turnInterrupt()
+        case .terminate: await terminate()
+        case .approval(let id, let decision):
+            guard pendingApprovals.contains(where: { $0.id == id }) else { throw SessionRuntimeProjectionError.staleRequest }
+            await respondToApproval(id, decision: decision)
+        case .question(let requestId, let answers):
+            return .bool(await respondToUserQuestion(requestId: requestId, answers: answers))
+        case .declineQuestion(let requestId):
+            return .bool(await declineUserQuestion(requestId: requestId))
+        case .revert(let id):
+            let text = await revert(toUserMessageID: id)
+            return .draft(text: text, attachments: text == nil ? [] : composerAttachments)
+        case .recoverLaunchDraft(let id):
+            guard let recovery = runtimeDraftRecovery, recovery.id == id else {
+                throw SessionRuntimeProjectionError.staleRequest
+            }
+            return .draft(text: recovery.text, attachments: recovery.attachments)
+        case .acknowledgeRecoveredDraft(let id):
+            if runtimeDraftRecovery?.id == id { runtimeDraftRecovery?.acknowledged = true }
+        case .startFromHistory(let entry): await startFromHistory(entry)
+        case .resumeHistory(let entry, let approvalPolicy, let sandbox, let settings):
+            try await startFromHistory(entry, approvalPolicy: approvalPolicy, sandbox: sandbox, initialSettings: settings)
+        case .model(let model, let effort): try await setModel(model: model, effort: effort)
+        case .permission(let id): try await setPermissionProfile(id: id)
+        case .planMode(let on): try await setPlanMode(on)
+        case .spawnModel(let model): await setSpawnAgentModel(model)
+        case .spawnPermission(let permission): try await changeSpawnAgentPermission(permission)
+        case .spawnEffort(let effort): await setSpawnAgentEffort(effort)
+        case .cycleEffort: return .text(await cycleEffort())
+        case .retryModels: await retryModelListFetch()
+        case .refreshSkills: await codexSkillSelectionState?.refresh()
+        case .refreshSubAgents: await refreshCodexSubAgents()
+        case .stopSubAgent(let id): stopSubAgent(displayID: id)
+        case .dismissSubAgent(let id): dismissSubAgent(id)
+        case .markCompletionSeen: markCompletionSeen()
+        case .consumeSubmitBaseline: consumeSubmitBaseline()
+        case .rename(let title): titleState = title
+        case .input, .resize: throw SessionRuntimeProjectionError.unsupportedCommand
+        }
+        return .none
+    }
+
+    public func acceptRuntimeSend(text: String, submit: Bool, attachments: [ComposerAttachment],
+                                  skill: SkillIdentity?) throws -> UUID {
+        guard !isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
+        guard !runtimeSendInFlight, runtimeAcceptedSendTask == nil, inFlightText == nil,
+              pendingFirstMessage == nil, firstTurnInput == nil, activeInterruptTask == nil,
+              !isPreparingImageSend, !isTerminating else { throw ControlImageSendError.imageSendInProgress }
+        guard launchFailure == nil, processExit == nil else { throw CancellationError() }
+        guard runtimeDraftRecovery == nil || runtimeDraftRecovery?.acknowledged == true else {
+            throw SessionRuntimeProjectionError.pendingDraftRecovery
+        }
+        guard !isApplyingSpawnAgentPermission else { throw ChatSettingsUpdateError.spawnSettingsUpdateInProgress }
+        guard attachments.count <= ComposerAttachmentStore.maxCount,
+              attachments.allSatisfy({ $0.data.count <= ComposerAttachmentStore.maxBytesPerImage }),
+              attachments.reduce(0, { $0 + $1.data.count }) <= ComposerAttachmentStore.maxTotalRawBytes
+        else { throw SendRejected.totalSizeExceeded }
+        guard attachments.isEmpty || acceptsImageAttachments else { throw SendRejected.imagesUnsupported }
+        if let skill {
+            guard let state = codexSkillSelectionState,
+                  let expected = skill.runtimeFingerprint,
+                  CodexSkillFingerprint.read(skillPath: skill.path) == expected,
+                  state.select(name: skill.name, path: skill.path)
+            else { throw SendRejected.skillReselectionRequired }
+        } else { codexSkillSelectionState?.clearSelection() }
+        runtimeDraftRecovery = nil
+        attachmentStore.restore(attachments)
+        let receipt = UUID()
+        let expectedExecutionID = executionID
+        let input = RuntimeAcceptedInput(id: receipt, text: pendingInput + text,
+            attachments: attachments, turnGeneration: turnGeneration + 1)
+        runtimeAcceptedSendID = receipt
+        runtimeAcceptedInput = submit ? input : nil
+        runtimeSendInFlight = true
+        if submit { draftClearedForSend = input.text }
+        runtimeAcceptedSendTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.runtimeAcceptedSendID == receipt {
+                    self.runtimeAcceptedSendID = nil
+                    self.runtimeAcceptedSendTask = nil
+                    self.runtimeSendInFlight = false
+                }
+            }
+            guard !Task.isCancelled, self.executionID == expectedExecutionID else { return }
+            do { try await self.sendText(text, submit: submit) }
+            catch {
+                guard !Task.isCancelled, self.executionID == expectedExecutionID,
+                      self.runtimeAcceptedSendID == receipt, !self.isTerminating else { return }
+                self.restoreLaunchDraft(input.text, attachments: input.attachments)
+                self.sendFailure = SendFailure(reason: Self.sendFailureReason(error), restoredDraft: true)
+                if self.lastRecoveredRuntimeSendID != receipt {
+                    self.lastRecoveredRuntimeSendID = receipt
+                    self.publishRuntimeDraftRecovery(text: input.text, attachments: input.attachments)
+                }
+                if self.runtimeAcceptedInput?.id == receipt { self.runtimeAcceptedInput = nil }
+                self.reportError(error.localizedDescription)
+            }
+        }
+        return receipt
+    }
+
+    private func cancelRuntimeAcceptedSend() {
+        let task = runtimeAcceptedSendTask
+        removePendingFirstMessage()
+        firstTurnInput = nil
+        awaitsNewChatFirstResponse = false
+        runtimeAcceptedSendID = nil
+        runtimeAcceptedSendTask = nil
+        runtimeAcceptedInput = nil
+        runtimeSendInFlight = false
+        task?.cancel()
+    }
+
+    private func publishRuntimeDraftRecovery(text: String, attachments: [ComposerAttachment]) {
+        guard !isRuntimeProjection, runtimeDraftRecovery == nil,
+              !text.isEmpty || !attachments.isEmpty else { return }
+        runtimeDraftRecovery = RuntimeDraftRecovery(id: UUID(), text: text, attachments: attachments)
+    }
+
+    private func recoverAcceptedRuntimeInputIfNeeded(reason: String) {
+        guard let input = runtimeAcceptedInput, input.turnGeneration == turnGeneration, !isTerminating else { return }
+        runtimeAcceptedInput = nil
+        guard lastRecoveredRuntimeSendID != input.id else { return }
+        lastRecoveredRuntimeSendID = input.id
+        restoreLaunchDraft(input.text, attachments: input.attachments)
+        sendFailure = SendFailure(reason: reason, restoredDraft: true)
+        publishRuntimeDraftRecovery(text: input.text, attachments: input.attachments)
+    }
+
+    private func synchronizeRuntimeDraftRecovery(_ id: UUID?) {
+        guard let id, let runtimeCommandHandler, runtimeDraftRecoveryInFlightID == nil,
+              lastAcknowledgedRuntimeDraftRecoveryID != id else { return }
+        let expectedExecutionID = executionID
+        runtimeDraftRecoveryInFlightID = id
+        runtimeDraftRecoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.runtimeDraftRecoveryInFlightID == id {
+                    self.runtimeDraftRecoveryInFlightID = nil
+                    self.runtimeDraftRecoveryTask = nil
+                }
+            }
+            do {
+                if self.lastAppliedRuntimeDraftRecoveryID != id {
+                    let response = try await runtimeCommandHandler(expectedExecutionID, .recoverLaunchDraft(id))
+                    guard !Task.isCancelled, self.executionID == expectedExecutionID else { return }
+                    guard case .draft(let text, let attachments) = response else {
+                        throw SessionRuntimeProjectionError.invalidReply
+                    }
+                    let merged = ComposerAttachmentStore.mergingDrafts(text: text ?? "", attachments: attachments,
+                        nextText: self.draft, nextAttachments: self.composerAttachments)
+                    self.restoreLaunchDraft(merged.text, attachments: merged.attachments)
+                    self.lastAppliedRuntimeDraftRecoveryID = id
+                    self.requestComposerFocus(movesCaretToEnd: true)
+                }
+                guard !Task.isCancelled, self.executionID == expectedExecutionID else { return }
+                guard case .none = try await runtimeCommandHandler(expectedExecutionID, .acknowledgeRecoveredDraft(id)) else {
+                    throw SessionRuntimeProjectionError.invalidReply
+                }
+                guard !Task.isCancelled, self.executionID == expectedExecutionID else { return }
+                self.lastAcknowledgedRuntimeDraftRecoveryID = id
+            } catch {
+                guard !Task.isCancelled, self.executionID == expectedExecutionID else { return }
+                self.runtimeConnectionError = error.localizedDescription
+            }
+        }
+    }
+
+    func sendProjectedReply(_ command: SessionRuntimeSessionCommand) async -> Bool {
+        guard let runtimeCommandHandler else { return false }
+        do {
+            let reply = try await runtimeCommandHandler(executionID, command)
+            switch (command, reply) {
+            case (.approval, .none), (.interrupt, .none): return true
+            case (.question, .bool(let accepted)): return accepted
+            default: throw SessionRuntimeProjectionError.invalidReply
+            }
+        } catch {
+            runtimeConnectionError = error.localizedDescription
+            return false
+        }
+    }
+
+    private func forwardRuntimeCommand(_ command: SessionRuntimeSessionCommand) {
+        guard isRuntimeProjection else { return }
+        let expectedExecutionID = executionID
+        Task { [weak self] in await self?.forwardRuntimeCommandAndWait(command, executionID: expectedExecutionID) }
+    }
+
+    private func forwardRuntimeCommandAndWait(_ command: SessionRuntimeSessionCommand, executionID expectedExecutionID: UUID? = nil) async {
+        guard let runtimeCommandHandler else { return }
+        do { _ = try await runtimeCommandHandler(expectedExecutionID ?? executionID, command) }
+        catch { runtimeConnectionError = error.localizedDescription }
+    }
+
+    private func forwardRuntimeBool(_ command: SessionRuntimeSessionCommand) async -> Bool {
+        guard let runtimeCommandHandler else { return false }
+        do {
+            guard case .bool(let result) = try await runtimeCommandHandler(executionID, command) else {
+                throw SessionRuntimeProjectionError.invalidReply
+            }
+            return result
+        } catch { runtimeConnectionError = error.localizedDescription; return false }
     }
 }

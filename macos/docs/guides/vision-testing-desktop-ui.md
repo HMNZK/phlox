@@ -26,6 +26,22 @@ last-verified: 2026-10-15
 
 `screencapture -x -o -l<WID>`（`WID` は `CGWindowListCopyWindowInfo` の `kCGWindowNumber`）で**そのウィンドウだけ**を撮る。z-order 非依存でオクルードされても撮れ、**frontmost 化しない＝マウス/フォーカスを奪わない**。frontmost 化はウィンドウ位置・復元状態を壊すので撮るだけなら避ける。
 
+## 比較用画像を画面外で描画する
+
+`DesignSnapshotRenderTests` はウィンドウを表示せずに比較用画像を作る。エージェントが実行するときは、worktree のルートで次の環境変数を設定し、共通の `managed-build` と `compact-test` を経由して標準のパッケージテスト入口を実行する。XCUITest は使用しない。
+
+```bash
+export PHLOX_DESIGN_SNAPSHOTS=1
+export PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR="$PWD/.verification/ui-review/design-snapshots"
+export PHLOX_DESIGN_SNAPSHOT_FRAME_IDS="10-A1-dark-ja 11-T1-dark"
+```
+
+`PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR` には、その作業が所有するディレクトリの絶対パスを渡す。画像・描画用データ・`結果.md` は指定先に出力する。空文字・相対パス・ディレクトリとして作れないパスはエラーにする。未指定時の画像出力先は従来どおり `<worktree>/.build/design-snapshots`。
+
+`PHLOX_DESIGN_SNAPSHOT_FRAME_IDS` は、`比較用画像を書き出す` で描画する状態 ID を空白で区切って指定する。既存の `PHLOX_DESIGN_SNAPSHOT_SCOPE` で絞った候補から選ぶ。空文字や候補にない ID はエラーにする。未指定時は従来の範囲を描画する。結果は指定した状態の描画について報告する。
+
+新規チャットの描画は `renderStage8NewChat`、承認待ちセッションを含むタブ列の描画は `renderStage8ProjectTabs` を参照する。入口は `比較用画像を書き出す`。承認確認カード専用の画像書き出しは、このテストには未設定。
+
 ## Phlox の UI を AX で駆動する要点
 
 - **チャットのセッション生成は新規チャット画面から**: メニュー「ファイル ▸ 新規チャット」（⌘N）で画面を出し、入力欄（識別子 `newChat.composer`）に書いて送る（送信ボタン `newChat.sendButton`）。送るとセッションができて自動選択される（`AppRouter.completeNewChat`）。旧「メニューバー『セッション』経由の生成」・ツールバーの「追加」ボタンは無い。macOS 標準メニューバーは完全 AX 対応だが、SwiftUI の in-window `Menu` は AX に出ないことがある → 開いてキーボードナビ（↓×N→Return）。ただしキーが背面ターミナルに漏れるので事前にフォーカスを外す。

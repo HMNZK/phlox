@@ -21,7 +21,9 @@ public final class UsageMonitor {
         .map(\.kind)
 
     private let providers: [AgentKind: any UsageProvider]
-    private let defaults: UserDefaults
+    private let defaults: UserDefaults?
+    @ObservationIgnored private var runtimeCommandHandler: UsageRuntimeCommandHandler?
+    public private(set) var runtimeCommandError: String?
     private let stalenessInterval: TimeInterval
     @ObservationIgnored private let now: () -> Date
     private var refreshTask: Task<Void, Never>?
@@ -29,6 +31,37 @@ public final class UsageMonitor {
     public let claudeProcess: ClaudeUsageProcess?
     @ObservationIgnored private var claudeRefresh: ClaudeUsageRefresh?
     @ObservationIgnored private var settingsObserver: (any NSObjectProtocol)?
+
+    public init(projection snapshot: UsageRuntimeSnapshot,
+                commandHandler: @escaping UsageRuntimeCommandHandler) {
+        self.providers = [:]
+        self.defaults = nil
+        self.stalenessInterval = Self.defaultStalenessInterval
+        self.now = Date.init
+        self.usages = snapshot.usages
+        self.failures = snapshot.failures
+        self.lastSuccessfulUsages = [:]
+        self.claudeProcess = nil
+        self.runtimeCommandHandler = commandHandler
+    }
+
+    public func makeRuntimeSnapshot() -> UsageRuntimeSnapshot {
+        .init(usages: usages, failures: failures)
+    }
+
+    public func applyRuntimeSnapshot(_ snapshot: UsageRuntimeSnapshot) {
+        guard runtimeCommandHandler != nil else { return }
+        usages = snapshot.usages
+        failures = snapshot.failures
+    }
+
+    public func performRuntimeCommand(_ command: UsageRuntimeCommand) async throws {
+        guard runtimeCommandHandler == nil else { throw DashboardRuntimeError.ownedOperationUnavailable }
+        switch command {
+        case .refresh(let kinds): await refresh(kinds: kinds)
+        case .settingsChanged: usageSettingsChanged()
+        }
+    }
 
     public init(
         environment: AppEnvironment,
@@ -75,6 +108,7 @@ public final class UsageMonitor {
     }
 
     public func start() {
+        guard runtimeCommandHandler == nil else { return }
         guard refreshTask == nil else { return }
         claudeRefresh?.start(enabled: claudeEnabled, automatic: autoRefreshEnabled)
         settingsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { [weak self] _ in
@@ -94,6 +128,11 @@ public final class UsageMonitor {
     }
 
     public func refresh(kinds: [AgentKind] = AgentKind.allCases) async {
+        if let runtimeCommandHandler {
+            do { try await runtimeCommandHandler(.refresh(kinds)); runtimeCommandError = nil }
+            catch { runtimeCommandError = error.localizedDescription }
+            return
+        }
         if kinds.contains(.claudeCode), let claudeRefresh { await claudeRefresh.refreshIfDue() }
         let selectedProviders = kinds.filter { $0 != .claudeCode || claudeRefresh == nil }.compactMap { providers[$0] }
         guard !selectedProviders.isEmpty else { return }
@@ -124,6 +163,13 @@ public final class UsageMonitor {
     public func claudeConnectionsChanged() { claudeRefresh?.connectionsChanged() }
 
     public func usageSettingsChanged() {
+        if let runtimeCommandHandler {
+            Task { @MainActor in
+                do { try await runtimeCommandHandler(.settingsChanged); self.runtimeCommandError = nil }
+                catch { self.runtimeCommandError = error.localizedDescription }
+            }
+            return
+        }
         claudeRefresh?.updateSettings(enabled: claudeEnabled, automatic: autoRefreshEnabled)
     }
 
@@ -228,6 +274,7 @@ public final class UsageMonitor {
     }
 
     private var autoRefreshEnabled: Bool {
+        guard let defaults else { return false }
         guard defaults.object(forKey: "phlox.usage.autoRefresh") != nil else {
             return true
         }
@@ -235,7 +282,7 @@ public final class UsageMonitor {
     }
 
     private var claudeEnabled: Bool {
-        defaults.object(forKey: "phlox.usage.claudeScrape") as? Bool != false
+        defaults?.object(forKey: "phlox.usage.claudeScrape") as? Bool != false
     }
 
     private static func makeProviders(environment: AppEnvironment) -> [AgentKind: any UsageProvider] {
@@ -269,7 +316,7 @@ private struct EmptyUsageProvider: UsageProvider {
     }
 }
 
-public struct UsageFailure: Equatable, Sendable {
+public struct UsageFailure: Codable, Equatable, Sendable {
     public let reason: String
     public let at: Date
 }

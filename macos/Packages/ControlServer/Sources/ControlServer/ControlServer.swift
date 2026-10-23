@@ -89,7 +89,6 @@ public actor ControlServer {
                     connection.cancel()
                     return
                 }
-                connection.start(queue: self.connectionQueue)
                 Task {
                     await self.handle(connection: connection)
                 }
@@ -121,7 +120,7 @@ public actor ControlServer {
 
     private func handle(connection: NWConnection) async {
         do {
-            try await LocalHTTPConnection.waitUntilReady(connection)
+            try await LocalHTTPConnection.startAndWaitUntilReady(connection, queue: connectionQueue)
         } catch {
             connection.cancel()
             return

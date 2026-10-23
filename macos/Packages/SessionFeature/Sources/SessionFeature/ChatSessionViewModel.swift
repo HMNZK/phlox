@@ -1338,7 +1338,9 @@ public final class ChatSessionViewModel: Identifiable {
                     restoreCodexQuestionNotifications(from: read.thread)
                 }
                 guard restoreGeneration == codexRestoreGeneration else { return }
+                let restoredTurnID = codexEventTurnId
                 updateNativeSessionId(response.thread.id)
+                codexEventTurnId = restoredTurnID
                 applyRestoredThreadStatus(response.thread.status?.sessionStatus ?? .idle)
                 await codexClient.commitThreadResumeIfCurrent(threadID: threadId)
             } else {
@@ -1562,6 +1564,7 @@ public final class ChatSessionViewModel: Identifiable {
             return false
         }) else { return nil }
         guard case .userMessage(_, let userText, _, _) = transcript[index] else { return nil }
+        await expireAllPendingUserQuestions()
 
         // 該当メッセージ自身と以降を除去し、直前までを保持転写とする。
         let retained = Array(transcript[..<index])
@@ -1617,17 +1620,31 @@ public final class ChatSessionViewModel: Identifiable {
     /// requestId を記録して真の同時二重回答（両方 true・answers の競合上書き）を防ぐ。
     private var respondingUserQuestionIds: Set<String> = []
 
+    public func dismissUserQuestion(requestId: String) async {
+        if !(await declineUserQuestion(requestId: requestId)), agentRef != .builtin(.codex) {
+            await turnInterrupt()
+        }
+    }
+
     /// Codex 質問への回答を拒否し、wire を決着させてからターンを中断する（決定 D4）。
     /// 戻り値: 拒否を受理したら true。
     @discardableResult
     public func declineUserQuestion(requestId: String) async -> Bool {
         if isRuntimeProjection { return await forwardRuntimeBool(.declineQuestion(requestId: requestId)) }
         guard let index = userQuestionCardIndex(requestId: requestId),
-              case .userQuestion(_, _, _, _, .pending, _) = transcript[index],
-              codexUserInputRequestIDs[requestId] != nil
+              case .userQuestion(_, _, _, _, .pending, _) = transcript[index]
         else {
             return false
         }
+
+        if CodexAsyncQuestionID.isAsyncRequest(requestId) {
+            guard !respondingUserQuestionIds.contains(requestId),
+                  let origin = CodexAsyncQuestionID(requestID: requestId), origin.threadID == threadId else { return false }
+            applyUserQuestionResolution(requestId: requestId, outcome: .expired)
+            touchOutput()
+            return true
+        }
+        guard codexUserInputRequestIDs[requestId] != nil else { return false }
 
         await turnInterrupt()
         return true
@@ -1645,6 +1662,27 @@ public final class ChatSessionViewModel: Identifiable {
         respondingUserQuestionIds.insert(requestId)
         defer { respondingUserQuestionIds.remove(requestId) }
 
+        if CodexAsyncQuestionID.isAsyncRequest(requestId) {
+            guard agentRef == .builtin(.codex), processExit == nil, launchFailure == nil, !isTerminating,
+                  let origin = CodexAsyncQuestionID(requestID: requestId), origin.threadID == threadId,
+                  let sender = ownedClient as? any CodexUserMessageSending,
+                  let text = CodexAsyncQuestionID.answerText(questions: questions, answers: answers) else { return false }
+            do {
+                try await sender.sendUserMessage(text, expectedThreadID: origin.threadID)
+            } catch {
+                if origin.threadID == threadId, !isTerminating {
+                    reportError("質問への回答を送信できませんでした: \(error.localizedDescription)")
+                }
+                return false
+            }
+            guard origin.threadID == threadId, processExit == nil, !isTerminating,
+                  let currentIndex = userQuestionCardIndex(requestId: requestId),
+                  case .userQuestion(_, _, _, _, .pending, _) = transcript[currentIndex] else { return false }
+            applyUserQuestionResolution(requestId: requestId, outcome: .answered(answers: answers))
+            touchOutput()
+            return true
+        }
+
         if let userInputID = codexUserInputRequestIDs.removeValue(forKey: requestId) {
             await approvalBroker.answerUserInput(id: userInputID, answers: answers)
             applyUserQuestionResolution(
@@ -1655,6 +1693,7 @@ public final class ChatSessionViewModel: Identifiable {
             return true
         }
 
+        guard codexClient == nil else { return false }
         // 既知の制約: answered 表示と actor の実送信がずれうるが、未承認ツールは実行されず表示上のずれに留まる。
         await client.respondToUserQuestion(requestId: requestId, answers: answers)
         let persistedAnswers = ChatUserQuestion.persistedAnswers(from: answers, for: questions)
@@ -2660,7 +2699,7 @@ public final class ChatSessionViewModel: Identifiable {
             if codexClient != nil {
                 codexEventTurnId = nil
             }
-            await expireAllPendingUserQuestions()
+            await expireAllPendingUserQuestions(preservingAsync: true)
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
@@ -2870,7 +2909,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .answered(let resolvedAnswers):
             // カードは respondToUserQuestion がローカルで先に answered 化していることがある。
             // status の復帰はカードの重複ガードに巻き込まれると飛ばされるため、先に行う。
-            if status == .awaitingUserQuestion {
+            if status == .awaitingUserQuestion, !CodexAsyncQuestionID.isAsyncRequest(requestId) {
                 status = .running
             }
             guard state != .answered else { return }
@@ -2897,9 +2936,10 @@ public final class ChatSessionViewModel: Identifiable {
                 timestamp: timestamp
             ))
         }
+        enqueueTranscriptSnapshot()
     }
 
-    private func expireAllPendingUserQuestions() async {
+    private func expireAllPendingUserQuestions(preservingAsync: Bool = false) async {
         let pendingCodexUserInputIDs = Set(codexUserInputRequestIDs.values)
         codexUserInputRequestIDs.removeAll()
 
@@ -2909,6 +2949,7 @@ public final class ChatSessionViewModel: Identifiable {
             else {
                 continue
             }
+            if preservingAsync, CodexAsyncQuestionID(requestID: requestId) != nil { continue }
             transcript[index] = .userQuestion(
                 id: id,
                 requestId: requestId,
@@ -2921,6 +2962,7 @@ public final class ChatSessionViewModel: Identifiable {
         }
         if didChange {
             markTranscriptChanged()
+            enqueueTranscriptSnapshot()
         }
 
         for userInputID in pendingCodexUserInputIDs {
@@ -3016,6 +3058,12 @@ public final class ChatSessionViewModel: Identifiable {
             // 旧 thread の遅延 item で transcript / store を汚染しない。
             guard updatedThreadId == threadId else { return }
             flushPendingStreamDeltasBarrier()
+            if !item.asyncQuestions.isEmpty {
+                if case .itemCompleted(_, let turnID, _) = event {
+                    receiveCodexAsyncQuestion(item, threadID: updatedThreadId, turnID: turnID)
+                }
+                return
+            }
             if let chatItem = chatItem(from: item) {
                 switch chatItem {
                 case .userMessage, .error: break
@@ -3031,9 +3079,6 @@ public final class ChatSessionViewModel: Identifiable {
                     enqueueTranscriptSnapshot()
                 }
                 touchOutput()
-            }
-            if case .itemCompleted(_, let turnID, _) = event {
-                notifyCodexAsyncQuestion(item, threadID: updatedThreadId, turnID: turnID)
             }
             if case .itemStarted = event {
                 let type = item.type?.lowercased() ?? ""
@@ -3051,15 +3096,31 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
-    private func notifyCodexAsyncQuestion(_ item: ThreadItem, threadID: String, turnID: String) {
+    private func receiveCodexAsyncQuestion(_ item: ThreadItem, threadID: String, turnID: String) {
         guard turnStartedAt != nil,
               processExit == nil, launchFailure == nil, !isTerminating,
               let itemID = item.itemId ?? item.id,
-              turnID == codexEventTurnId else { return }
-        let titles = item.asyncQuestionTitles
-        guard !titles.isEmpty,
+              turnID == codexEventTurnId,
+              let origin = CodexAsyncQuestionID(threadID: threadID, turnID: turnID, itemID: itemID),
+              let card = asyncQuestionCard(item, origin: origin, state: .pending),
               notifiedQuestionIDs.insert(.asyncItem(thread: threadID, turn: turnID, item: itemID)).inserted else { return }
-        notifyUser(.questionReceived(titles.joined(separator: "\n")))
+        firstTurnInput = nil
+        awaitsNewChatFirstResponse = false
+        appendOrReplace(card)
+        notifyUser(.questionReceived(item.asyncQuestions.map(\.title).joined(separator: "\n")))
+        touchOutput()
+        enqueueTranscriptSnapshot()
+    }
+
+    private func asyncQuestionCard(_ item: ThreadItem, origin: CodexAsyncQuestionID, state: ChatUserQuestionState) -> ChatItem? {
+        let questions = item.asyncQuestions.enumerated().map { index, question in
+            ChatUserQuestion(question: question.title, header: "", options: (question.options ?? []).map {
+                ChatUserQuestionOption(label: $0)
+            }, multiSelect: false, id: "question-\(index)")
+        }
+        guard !questions.isEmpty else { return nil }
+        return .userQuestion(id: "question-\(origin.requestID)", requestId: origin.requestID,
+                             questions: questions, answers: nil, state: state, timestamp: Date())
     }
 
     /// turnCompleted / turnInterrupted の nativeSessionId を採用してよいか。
@@ -3631,9 +3692,21 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func rebuildTranscript(from thread: ThreadSummary) {
         restoreCodexQuestionNotifications(from: thread)
+        let previousQuestions = Dictionary(transcript.compactMap { item -> (String, ChatItem)? in
+            guard case .userQuestion(_, let requestID, _, _, _, _) = item,
+                  CodexAsyncQuestionID(requestID: requestID)?.threadID == thread.id else { return nil }
+            return (requestID, item)
+        }, uniquingKeysWith: { _, last in last })
         let items = thread.turns?
-            .flatMap { $0.items ?? [] }
-            .compactMap { chatItem(from: $0) } ?? []
+            .flatMap { turn in
+                (turn.items ?? []).compactMap { item -> ChatItem? in
+                    if !item.asyncQuestions.isEmpty, let turnID = turn.id, let itemID = item.itemId ?? item.id,
+                       let origin = CodexAsyncQuestionID(threadID: thread.id, turnID: turnID, itemID: itemID) {
+                        return previousQuestions[origin.requestID] ?? asyncQuestionCard(item, origin: origin, state: .expired)
+                    }
+                    return chatItem(from: item)
+                }
+            } ?? []
         setTranscript(items)
         completedTurnSeq = 0
         for turn in thread.turns ?? [] {
@@ -3660,6 +3733,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func chatItem(from item: ThreadItem) -> ChatItem? {
+        guard item.asyncQuestions.isEmpty else { return nil }
         let id = item.itemId ?? item.id ?? UUID().uuidString
         let type = item.type ?? ""
         let textKeys = ["text", "message", "summary", "content", "reasoning", "thinking"]
@@ -3880,6 +3954,12 @@ public final class ChatSessionViewModel: Identifiable {
             codexSubAgentState = CodexSubAgentState(parentThreadId: id)
         }
         if agentRef == .builtin(.codex), id != previous {
+            for item in transcript {
+                guard case .userQuestion(_, let requestID, _, _, .pending, _) = item,
+                      CodexAsyncQuestionID.isAsyncRequest(requestID),
+                      CodexAsyncQuestionID(requestID: requestID)?.threadID != id else { continue }
+                applyUserQuestionResolution(requestId: requestID, outcome: .expired)
+            }
             codexEventTurnId = nil
             codexPlanTaskState?.reset(threadId: id ?? "")
         }

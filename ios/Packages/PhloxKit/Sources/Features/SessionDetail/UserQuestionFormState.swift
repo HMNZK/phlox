@@ -45,9 +45,9 @@ struct UserQuestionFormState: Equatable {
 
     var unansweredCount: Int {
         questions.filter { question in
-            let custom = freeText[question.question]?
+            let custom = freeText[question.answerKey]?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return custom.isEmpty && (selections[question.question] ?? []).isEmpty
+            return custom.isEmpty && (selections[question.answerKey] ?? []).isEmpty
         }.count
     }
 
@@ -60,12 +60,12 @@ struct UserQuestionFormState: Equatable {
 
         var result: [String: [String]] = [:]
         for question in questions {
-            let custom = freeText[question.question]?
+            let custom = freeText[question.answerKey]?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !custom.isEmpty {
-                result[question.question] = [custom]
+                result[question.answerKey] = [custom]
             } else {
-                result[question.question] = Array(selections[question.question] ?? []).sorted()
+                result[question.answerKey] = Array(selections[question.answerKey] ?? []).sorted()
             }
         }
         return result
@@ -73,14 +73,14 @@ struct UserQuestionFormState: Equatable {
 
     mutating func seed(from answers: [String: [String]]) {
         for question in questions {
-            guard let values = answers[question.question] else { continue }
-            selections[question.question] = Set(values.filter { label in
+            guard let values = answers[question.answerKey] else { continue }
+            selections[question.answerKey] = Set(values.filter { label in
                 question.options.contains(where: { $0.label == label })
             })
             if let custom = values.first(where: { value in
                 !question.options.contains(where: { $0.label == value })
             }) {
-                freeText[question.question] = custom
+                freeText[question.answerKey] = custom
             }
         }
     }

@@ -76,6 +76,156 @@ struct DesignSnapshotRenderTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func sidebarChildrenUseRealHierarchy(light: Bool) async throws {
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let preferences = UserDefaults.standard
+        let arguments = preferences.volatileDomain(forName: UserDefaults.argumentDomain)
+        defer { preferences.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain) }
+        let theme = light ? AppTheme.phloxLight : AppTheme.phlox
+        var themeArguments = arguments
+        themeArguments[ThemeStore.themeKey] = theme.id
+        preferences.setVolatileDomain(themeArguments, forName: UserDefaults.argumentDomain)
+        #expect(ThemeStore.active.id == theme.id)
+        let axGetter = NSSelectorFromString("accessibilityAttributeValue:")
+        let axSetter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previousAX = NSApp.perform(axGetter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(axSetter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(axSetter, with: previousAX, with: "AXEnhancedUserInterface") }
+        var worktree = URL(fileURLWithPath: #filePath)
+        for _ in 0..<6 { worktree.deleteLastPathComponent() }
+        let root = worktree.appendingPathComponent(".verification/sidebar-children/fixture-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { cleanupTemporaryWorkspaceRoot(root) }
+        let (hooks, events) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+        defer { events.finish() }
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(
+            pty: MockPTYManager(), hookStream: hooks, workspaceDirectory: root,
+            agentBinaryPaths: [.codex: "/usr/local/bin/codex"]))
+        await dashboard.start()
+        let project = try #require(dashboard.addProject(name: "Phlox", directoryPath: root.path))
+        let parent = try await dashboard.spawnNewSession(kind: .claudeCode, projectID: project)
+        let child = try await dashboard.spawnNewSession(kind: .codex, from: parent, launchContext: .orchestration)
+        let sibling = try await dashboard.spawnNewSession(kind: .claudeCode, from: parent, launchContext: .interactive)
+        let grandchild = try await dashboard.spawnNewSession(kind: .claudeCode, from: child, launchContext: .orchestration)
+        let names = [parent: "プロセスのアーキテクチャ変更", child: "設定画面の外側クリック修正",
+                     sibling: "履歴読み込みの再現調査", grandchild: "変更内容のレビュー"]
+        for (id, name) in names {
+            dashboard.renameSession(id, to: name)
+            dashboard.sessionNode(id: id)?.pty?.userNotificationGate = { _ in false }
+            events.yield((id, .stop(turnId: nil)))
+        }
+        let router = AppRouter()
+        router.selectedProjectID = project
+        router.selectedSession = parent
+        let tree = SessionTreeViewModel()
+        let view = DashboardSidebarView(viewModel: dashboard, router: router,
+            expandedProjectIDs: .constant([project]), pendingProjectDeletion: .constant(nil),
+            pendingDeletion: .constant(nil), pendingWorkspaceChange: .constant(nil), pendingMove: .constant(nil),
+            renameRequest: .constant(nil), sessionTreeViewModel: .constant(tree), onChooseProjectDirectory: {})
+            .environment(\.locale, Locale(identifier: "ja"))
+            .environment(\.colorScheme, light ? .light : .dark)
+            .frame(width: 380, height: 520)
+            .background(DSColor.background)
+        let window = makeSnapshotWindow(view, id: "sidebar-children", width: 380, height: 520, light: light)
+        let host = try #require(window.contentView)
+        defer { window.contentView = nil; window.close() }
+
+        func elements() -> [NSObject] {
+            var visited = Set<ObjectIdentifier>()
+            func visit(_ object: NSObject) -> [NSObject] {
+                guard visited.insert(ObjectIdentifier(object)).inserted else { return [] }
+                let selector = NSSelectorFromString("accessibilityChildren")
+                let children = object.responds(to: selector)
+                    ? object.perform(selector)?.takeUnretainedValue() as? [NSObject] ?? [] : []
+                return [object] + children.flatMap(visit) + ((object as? NSView)?.subviews.flatMap(visit) ?? [])
+            }
+            return visit(host)
+        }
+        func row(_ id: SessionID) throws -> NSObject {
+            try #require(elements().first { object in
+                let selector = NSSelectorFromString("accessibilityLabel")
+                guard object.responds(to: selector), let label = object.perform(selector)?.takeUnretainedValue() as? String else { return false }
+                return label.hasPrefix(names[id]! + "、")
+            })
+        }
+        func action(_ name: String, on id: SessionID) throws {
+            let element = try row(id)
+            let actions = (element as AnyObject).accessibilityCustomActions() ?? []
+            let handler = try #require(actions.first { $0.name == name }?.handler)
+            #expect(handler())
+        }
+        func key(_ characters: String, code: UInt16, modifiers: NSEvent.ModifierFlags = []) async throws {
+            let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code))
+            window.sendEvent(event)
+            try await Task.sleep(for: .milliseconds(30))
+            host.layoutSubtreeIfNeeded()
+        }
+        func image(_ state: String) throws {
+            guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+            let output = try snapshotOutputDirectory()
+            try saveBitmap(host, bounds: host.bounds,
+                to: output.appendingPathComponent("sidebar-children-\(state)-\(light ? "light" : "dark")-ja.png"))
+        }
+        do {
+            try await Task.sleep(for: .milliseconds(100))
+            host.layoutSubtreeIfNeeded()
+            #expect((try row(parent) as AnyObject).accessibilityLabel().contains("子セッション 2 件"))
+            try action("展開", on: parent)
+            try await waitUntil { tree.isExpanded(parent) }
+            try await Task.sleep(for: .milliseconds(150))
+            host.layoutSubtreeIfNeeded()
+            #expect((try row(child) as AnyObject).accessibilityPerformPress())
+            try await waitUntil { router.selectedSession == child }
+            try action("展開", on: child)
+            try await Task.sleep(for: .milliseconds(150))
+            host.layoutSubtreeIfNeeded()
+            let parentRect = (try row(parent) as AnyObject).accessibilityFrame()
+            let childRect = (try row(child) as AnyObject).accessibilityFrame()
+            let siblingRect = (try row(sibling) as AnyObject).accessibilityFrame()
+            let grandchildRect = (try row(grandchild) as AnyObject).accessibilityFrame()
+            #expect(parentRect.minY > childRect.minY)
+            #expect(childRect.minY > grandchildRect.minY)
+            #expect(grandchildRect.minY > siblingRect.minY)
+            #expect(!elements().contains { object in
+                let selector = NSSelectorFromString("accessibilityLabel")
+                return object.responds(to: selector)
+                    && (object.perform(selector)?.takeUnretainedValue() as? String)?.hasPrefix("内部セッション") == true
+            })
+            try image("expanded")
+            #expect((try row(grandchild) as AnyObject).accessibilityPerformPress())
+            try await waitUntil { router.selectedSession == grandchild }
+            events.yield((grandchild, .preToolUse(toolName: "ExitPlanMode")))
+            dashboard.sessionNode(id: sibling)?.pty?.hasUnseenCompletion = true
+            try await waitUntil {
+                if case .awaitingApproval = dashboard.sessionNode(id: grandchild)?.status { return true }
+                return false
+            }
+            try action("折りたたむ", on: parent)
+            try await waitUntil { router.selectedSession == parent && !tree.isExpanded(parent) }
+            try await Task.sleep(for: .milliseconds(150))
+            host.layoutSubtreeIfNeeded()
+            try image("collapsed")
+            try await key("\u{F703}", code: 124)
+            try await waitUntil { tree.isExpanded(parent) }
+            try await key("\u{F701}", code: 125)
+            #expect(router.selectedSession == child)
+            try await key("\u{F701}", code: 125)
+            #expect(router.selectedSession == grandchild)
+            try await key("\u{F702}", code: 123)
+            #expect(router.selectedSession == child)
+            try await key("\u{F701}", code: 125, modifiers: [.control, .command])
+            #expect(dashboard.sessionForest(in: project).first?.children.map(\.id) == [sibling, child])
+        } catch {
+            for session in dashboard.sessions { await session.kill() }
+            throw error
+        }
+        for session in dashboard.sessions { await session.kill() }
+    }
+
     private func snapshotOutputDirectory() throws -> URL {
         let output: URL
         if let path = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"]

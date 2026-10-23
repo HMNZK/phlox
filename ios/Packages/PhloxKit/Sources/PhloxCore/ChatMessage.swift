@@ -62,6 +62,7 @@ public struct UserQuestionOption: Sendable, Equatable {
 
 /// AskUserQuestion の質問 1 件（Mac の `ChatUserQuestion` に対応）。
 public struct UserQuestionItem: Sendable, Equatable {
+    public let id: String?
     public let question: String
     public let header: String
     public let options: [UserQuestionOption]
@@ -73,15 +74,19 @@ public struct UserQuestionItem: Sendable, Equatable {
     /// A tool name marks this question as a tool-use permission request.
     public var isToolPermission: Bool { toolName != nil }
 
+    public var answerKey: String { id ?? question }
+
     public init(
         question: String,
         header: String,
         options: [UserQuestionOption],
         multiSelect: Bool,
+        id: String? = nil,
         toolName: String? = nil,
         toolDetail: String? = nil,
         allowsSessionScope: Bool = false
     ) {
+        self.id = id
         self.question = question
         self.header = header
         self.options = options

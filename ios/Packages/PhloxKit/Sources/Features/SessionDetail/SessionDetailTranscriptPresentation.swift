@@ -70,7 +70,7 @@ enum SessionDetailTranscriptPresentation {
         answers: [String: [String]]?
     ) -> [SettledQuestionDetail] {
         if state == .expired { return [.expired] }
-        return (answers?[question.question] ?? []).map { answer in
+        return (answers?[question.answerKey] ?? []).map { answer in
             if let option = question.options.first(where: { $0.label == answer }) {
                 return .option(label: answer, description: option.description)
             }

@@ -1,6 +1,10 @@
 // JSON-RPC レスポンス型。
 import Foundation
 
+public struct TurnSteerResponse: Codable, Equatable, Sendable {
+    public var turnId: String
+}
+
 public struct InitializeResponse: Codable, Equatable, Sendable {
     public var codexHome: String
     public var platformFamily: String

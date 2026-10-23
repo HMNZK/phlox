@@ -389,57 +389,6 @@ struct SidebarHoverCardContent: View {
     }
 }
 
-// MARK: - Internal sessions row
-
-/// オーケストレーションの内部セッションを親ごとにまとめた行（PhloxSidebar の isInternal。高さ 24・破線の四角）。
-struct SidebarInternalSessionsRow: View {
-    let depth: Int
-    let count: Int
-    let isExpanded: Bool
-    let onToggle: () -> Void
-
-    private var padding: CGFloat { SidebarRowMetrics.leadingPadding(depth: depth) }
-
-    var body: some View {
-        HStack(spacing: 7) {
-            RoundedRectangle(cornerRadius: 3)
-                .strokeBorder(DSColor.textTertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
-                .frame(width: 12, height: 12)
-                .accessibilityHidden(true)
-            Text("内部セッション（オーケストレーション）")
-                .font(DSFont.auxiliary)
-                .foregroundStyle(DSColor.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(verbatim: "\(count)")
-                .font(DSFont.meta)
-                .foregroundStyle(DSColor.textTertiary)
-                .monospacedDigit()
-        }
-        .padding(.leading, padding)
-        .padding(.trailing, 8)
-        .frame(height: 24)
-        .background(alignment: .leading) { SidebarGuides(depth: depth) }
-        .overlay(alignment: .leading) {
-            Text(verbatim: "›")
-                .font(DSFont.row)
-                .foregroundStyle(DSColor.textTertiary)
-                .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                .frame(width: 10, height: 20)
-                .offset(x: padding - 13)
-                .accessibilityHidden(true)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onToggle)
-        .help(isExpanded ? Text("折りたたむ") : Text("展開"))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("内部セッション \(count) 件、\(isExpanded ? Text("展開中") : Text("折りたたみ"))"))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(.default, onToggle)
-    }
-}
-
 // MARK: - Reorder
 
 /// 並べ替えの挿入位置の線（PhloxSidebar の drag: 左 18・右 6・2pt の accent、左端に 6pt の丸）。

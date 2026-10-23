@@ -337,6 +337,18 @@ public struct TurnStartParams: Codable, Equatable, Sendable {
     }
 }
 
+public struct TurnSteerParams: Codable, Equatable, Sendable {
+    public var threadId: String
+    public var input: [UserInput]
+    public var expectedTurnId: String
+
+    public init(threadId: String, input: [UserInput], expectedTurnId: String) {
+        self.threadId = threadId
+        self.input = input
+        self.expectedTurnId = expectedTurnId
+    }
+}
+
 public struct TurnInterruptParams: Codable, Equatable, Sendable {
     public var threadId: String
     public var turnId: String

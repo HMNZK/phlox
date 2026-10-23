@@ -237,7 +237,7 @@ public struct AppEnvironment: Sendable {
     /// Codex `app-server` 子プロセス起動時の arguments。
     /// `model_reasoning_summary=detailed` を config override で渡し、Reasoning サマリを有効化する。
     static func codexAppServerProcessArguments() -> [String] {
-        ["app-server", "-c", "model_reasoning_summary=detailed"]
+        ["app-server", "-c", "model_reasoning_summary=detailed", "-c", "features.default_mode_request_user_input=true"]
     }
 
     private static func defaultStructuredClientFactory(
@@ -253,7 +253,11 @@ public struct AppEnvironment: Sendable {
                     workingDirectory: workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
                 )
                 try transport.start()
-                let client = CodexAppServerClient(transport: transport, serverRequestHandler: handler)
+                let client = CodexAppServerClient(
+                    transport: transport,
+                    serverRequestHandler: handler,
+                    additionalDeveloperInstructions: CodexQuestionPolicy.instructions
+                )
                 return CodexStructuredAgentClient(client: client)
             case .builtin(.claudeCode):
                 let fullAccess = fullAccessProvider(agentRef)

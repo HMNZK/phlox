@@ -58,7 +58,7 @@ struct SessionDetailAnsweredQuestionCard: View {
             } content: {
                 DSDisclosureContent(isExpanded: isExpanded) {
                     VStack(alignment: .leading, spacing: DSSpacing.m) {
-                        ForEach(questions, id: \.question) { question in
+                        ForEach(questions, id: \.answerKey) { question in
                             let details = SessionDetailTranscriptPresentation.settledQuestionDetails(
                                 for: question,
                                 state: state,

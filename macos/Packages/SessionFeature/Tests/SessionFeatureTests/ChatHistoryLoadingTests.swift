@@ -79,7 +79,7 @@ struct ChatHistoryLoadingTests {
         let window = makeWindow(host)
         defer { window.close() }
         let initial = 130 - TranscriptWindow.defaultLimit(for: context)
-        try await wait(host) { hiddenCount(host) == initial }
+        try await wait(host, stage: "initial grid=\(grid)") { hiddenCount(host) == initial }
         #expect(element(host, "ChatTranscript.loadEarlier") == nil)
         #expect(element(host, "ChatTranscript.historyLoading") == nil)
         let scroll = try #require(scrollViews(host).first)
@@ -87,7 +87,7 @@ struct ChatHistoryLoadingTests {
         host.layoutSubtreeIfNeeded()
         let previousHeight = try #require(scroll.documentView).frame.height
         let wheel = try startHistoryPull(host)
-        try await wait(host) { element(host, "ChatTranscript.historyLoading") != nil }
+        try await wait(host, stage: "loader grid=\(grid)") { element(host, "ChatTranscript.historyLoading") != nil }
         #expect(hiddenCount(host) == initial, "ローダーを表示してから履歴を追加する")
         try await Task.sleep(for: .milliseconds(400))
         #expect(hiddenCount(host) == initial, "押し続けている間は履歴を追加しない")
@@ -96,8 +96,8 @@ struct ChatHistoryLoadingTests {
         wheel.testPhase = .ended
         NSApp.sendEvent(wheel)
         // グリッドの既存描画予算は16件刻みなので、窓を50増やすと64件まで描画する。
-        try await wait(host) { hiddenCount(host) == (grid ? 66 : 30) }
-        try await wait(host) { scroll.contentView.bounds.minY > 0 }
+        try await wait(host, stage: "expansion grid=\(grid)") { hiddenCount(host) == (grid ? 66 : 30) }
+        try await wait(host, stage: "anchor grid=\(grid)") { scroll.contentView.bounds.minY > 0 }
         #expect(element(host, "ChatTranscript.historyLoading") == nil)
         let insertedHeight = try #require(scroll.documentView).frame.height - previousHeight
         #expect(abs(scroll.contentView.bounds.minY - insertedHeight) < 3, "追加前の先頭が上端に残る")
@@ -376,9 +376,9 @@ struct ChatHistoryLoadingTests {
         return wheel
     }
 
-    private func wait(_ host: NSView, stage: String = "", until ready: () -> Bool) async throws {
+    private func wait(_ host: NSView, stage: String = "", sourceLine: Int = #line, until ready: () -> Bool) async throws {
         // 描画だけでなく、次のrun loopで取り付くAppKitのイベント購読も待つ。
-        try await Task.sleep(for: .milliseconds(20))
+        await Task.yield()
         let deadline = ContinuousClock.now + .seconds(3)
         repeat {
             host.layoutSubtreeIfNeeded()
@@ -386,15 +386,23 @@ struct ChatHistoryLoadingTests {
             for resolver in elements(host).compactMap({ $0 as? ChatAutoFollowScrollObserver.ResolverView }) {
                 resolver.onResolve?(resolver)
             }
-            if ready() { return }
+            if ready() {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    DispatchQueue.main.async { continuation.resume() }
+                }
+                if ready() { return }
+            }
             try await Task.sleep(for: .milliseconds(20))
         } while ContinuousClock.now < deadline
+        if let scroll = scrollViews(host).first {
+            print("履歴状態: line=\(sourceLine) \(stage) clip=\(scroll.contentView.bounds) document=\(String(describing: scroll.documentView?.frame))")
+        }
         for object in elements(host) {
             if let id = attribute(object, "accessibilityIdentifier") as? String, id.hasPrefix("ChatTranscript") {
                 print("履歴AX: \(id) role=\(String(describing: attribute(object, "accessibilityRole"))) label=\(String(describing: attribute(object, "accessibilityLabel"))) value=\(String(describing: attribute(object, "accessibilityValue")))")
             }
         }
-        try #require(ready(), "UI が期待する状態へ遷移しなかった: \(stage)")
+        try #require(ready(), "UI が期待する状態へ遷移しなかった: line=\(sourceLine) \(stage)")
     }
 
     private func scrollViews(_ view: NSView) -> [NSScrollView] {

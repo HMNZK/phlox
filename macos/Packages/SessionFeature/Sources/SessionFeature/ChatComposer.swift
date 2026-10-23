@@ -126,7 +126,7 @@ struct ChatComposer: View {
             ChatComposerFooter(
                 viewModel: viewModel,
                 layout: controlsLayout,
-                isRunning: isRunning || hasPendingReplyCard,
+                isRunning: isRunning || hasPendingBlockingReplyCard,
                 canSubmit: canSubmit,
                 sendUnavailableReason: sendUnavailableReason,
                 onSend: onSend,
@@ -184,9 +184,8 @@ struct ChatComposer: View {
         }
     }
 
-    /// 承認・質問を待っている間も実行中として扱う（■ を出す。PhloxReply.dc.html）。
-    private var hasPendingReplyCard: Bool {
-        !viewModel.replyApprovals.isEmpty || ChatReplyArea<EmptyView>.hasPendingQuestion(in: viewModel.transcript)
+    private var hasPendingBlockingReplyCard: Bool {
+        !viewModel.replyApprovals.isEmpty || ChatReplyArea<EmptyView>.hasPendingBlockingQuestion(in: viewModel.transcript)
     }
 
     /// 状態ごとの案内（PhloxReply.dc.html の placeholder）。

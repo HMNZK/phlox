@@ -68,7 +68,7 @@ struct ChatReplyArea<Composer: View>: View {
         let timestamp: Date
     }
 
-    /// 返答エリアに質問が出ているか（入力欄の案内と ■ に使う）。
+    /// 返答エリアに質問が出ているか（入力欄の案内に使う）。
     static func hasPendingQuestion(in transcript: [ChatItem]) -> Bool {
         transcript.contains { item in
             guard case .userQuestion(_, _, let questions, _, .pending, _) = item else { return false }
@@ -76,15 +76,28 @@ struct ChatReplyArea<Composer: View>: View {
         }
     }
 
+    static func hasPendingBlockingQuestion(in transcript: [ChatItem]) -> Bool {
+        guard case .userQuestion(_, let requestId, _, _, .pending, _)? = pendingQuestionItem(in: transcript) else { return false }
+        return !CodexAsyncQuestionID.isAsyncRequest(requestId)
+    }
+
     /// 返答エリアに出す質問（ツールの使用許可は承認カード側）。最初の 1 件だけ。
     private var pendingQuestion: PendingQuestion? {
-        for item in viewModel.transcript {
-            guard case .userQuestion(let id, let requestId, let questions, _, .pending, let timestamp) = item,
+        guard let item = Self.pendingQuestionItem(in: viewModel.transcript),
+              case .userQuestion(let id, let requestId, let questions, _, .pending, let timestamp) = item else { return nil }
+        return PendingQuestion(itemId: id, requestId: requestId, questions: questions, timestamp: timestamp)
+    }
+
+    static func pendingQuestionItem(in transcript: [ChatItem]) -> ChatItem? {
+        var asynchronous: ChatItem?
+        for item in transcript {
+            guard case .userQuestion(_, let requestId, let questions, _, .pending, _) = item,
                   !ChatSessionViewModel.isToolPermissionQuestion(questions)
             else { continue }
-            return PendingQuestion(itemId: id, requestId: requestId, questions: questions, timestamp: timestamp)
+            if !CodexAsyncQuestionID.isAsyncRequest(requestId) { return item }
+            if asynchronous == nil { asynchronous = item }
         }
-        return nil
+        return asynchronous
     }
 
     private func questionCard(_ question: PendingQuestion, receivesFocus: Bool) -> some View {
@@ -100,10 +113,7 @@ struct ChatReplyArea<Composer: View>: View {
             },
             onDismiss: {
                 Task {
-                    // Codex の質問なら先に wire を決着させる。Claude の質問は従来どおり直接中断する。
-                    if !(await viewModel.declineUserQuestion(requestId: question.requestId)) {
-                        await viewModel.turnInterrupt()
-                    }
+                    await viewModel.dismissUserQuestion(requestId: question.requestId)
                 }
             },
             placement: .replyArea,

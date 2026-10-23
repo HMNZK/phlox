@@ -972,6 +972,7 @@ private struct ChatMessageDTO: Encodable {
 }
 
 private struct UserQuestionWireDTO: Encodable {
+    let id: String?
     let question: String
     let header: String
     let multiSelect: Bool
@@ -982,6 +983,7 @@ private struct UserQuestionWireDTO: Encodable {
 
     static func from(_ question: ChatUserQuestion) -> UserQuestionWireDTO {
         UserQuestionWireDTO(
+            id: question.id,
             question: question.question,
             header: question.header,
             multiSelect: question.multiSelect,
@@ -994,6 +996,7 @@ private struct UserQuestionWireDTO: Encodable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: WireCodingKey.self)
+        try container.encodeIfPresent(id, forKey: .init("id"))
         try container.encode(question, forKey: .init(ControlQuestionWireContract.questionKey))
         try container.encode(header, forKey: .init(ControlQuestionWireContract.headerKey))
         try container.encode(multiSelect, forKey: .init(ControlQuestionWireContract.multiSelectKey))

@@ -107,8 +107,8 @@ struct ReplyApproval: Identifiable, Equatable, Sendable {
         let detail = question.toolDetail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let subject = detail.flatMap { $0.isEmpty ? nil : $0 } ?? question.question
         return Self(
-            id: "question:\(requestID):\(question.question)",
-            source: .claudeToolPermission(requestID: requestID, answerKey: question.question),
+            id: "question:\(requestID):\(question.answerKey)",
+            source: .claudeToolPermission(requestID: requestID, answerKey: question.answerKey),
             kind: kind,
             subject: subject,
             explanation: subject == question.question ? nil : question.question,

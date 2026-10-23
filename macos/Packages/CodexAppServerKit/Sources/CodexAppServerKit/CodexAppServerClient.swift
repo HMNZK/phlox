@@ -38,6 +38,7 @@ public protocol CodexOrderedEventsProviding: Sendable {
 
 public enum CodexAppServerClientError: Error, Equatable, Sendable {
     case threadIDMismatch(requested: String, received: String)
+    case turnIDMismatch(requested: String, received: String)
 }
 
 public actor CodexAppServerClient {
@@ -49,6 +50,7 @@ public actor CodexAppServerClient {
     }
 
     private let rpc: JSONRPCClient
+    private let additionalDeveloperInstructions: String?
     private var notificationTask: Task<Void, Never>?
     private var turnStates: [String: TurnState] = [:]
     private var nextTurnStartGeneration: UInt64 = 0
@@ -58,8 +60,9 @@ public actor CodexAppServerClient {
     private let eventContinuation: AsyncStream<ThreadEvent>.Continuation
     public nonisolated let events: AsyncStream<ThreadEvent>
 
-    public init(rpc: JSONRPCClient) {
+    public init(rpc: JSONRPCClient, additionalDeveloperInstructions: String? = nil) {
         self.rpc = rpc
+        self.additionalDeveloperInstructions = additionalDeveloperInstructions
         var eventContinuation: AsyncStream<ThreadEvent>.Continuation?
         self.events = AsyncStream { eventContinuation = $0 }
         self.eventContinuation = eventContinuation!
@@ -67,9 +70,13 @@ public actor CodexAppServerClient {
 
     public init(
         transport: any AppServerTransport,
-        serverRequestHandler: JSONRPCClient.ServerRequestHandler? = nil
+        serverRequestHandler: JSONRPCClient.ServerRequestHandler? = nil,
+        additionalDeveloperInstructions: String? = nil
     ) {
-        self.init(rpc: JSONRPCClient(transport: transport, serverRequestHandler: serverRequestHandler))
+        self.init(
+            rpc: JSONRPCClient(transport: transport, serverRequestHandler: serverRequestHandler),
+            additionalDeveloperInstructions: additionalDeveloperInstructions
+        )
     }
 
     deinit {
@@ -99,10 +106,18 @@ public actor CodexAppServerClient {
     }
 
     public func threadStart(_ params: ThreadStartParams) async throws -> ThreadResponse {
-        try await rpc.request(method: "thread/start", params: params)
+        var params = params
+        params.developerInstructions = try await developerInstructions(
+            existing: params.developerInstructions, cwd: params.cwd
+        )
+        return try await rpc.request(method: "thread/start", params: params)
     }
 
     public func threadResume(_ params: ThreadResumeParams) async throws -> ThreadResponse {
+        var params = params
+        params.developerInstructions = try await developerInstructions(
+            existing: params.developerInstructions, cwd: params.cwd
+        )
         let response: ThreadResponse = try await rpc.request(method: "thread/resume", params: params)
         guard response.thread.id == params.threadId else {
             throw CodexAppServerClientError.threadIDMismatch(
@@ -112,6 +127,22 @@ public actor CodexAppServerClient {
         }
         seedRestoredTurnIdentity(from: response.thread)
         return response
+    }
+
+    private func developerInstructions(existing: String?, cwd: String?) async throws -> String? {
+        guard let additionalDeveloperInstructions else { return existing }
+        let original: String?
+        if let existing {
+            original = existing
+        } else {
+            let response: ConfigReadResponse = try await rpc.request(
+                method: "config/read", params: ConfigReadParams(cwd: cwd)
+            )
+            original = response.config.developerInstructions
+        }
+        guard let original, !original.isEmpty else { return additionalDeveloperInstructions }
+        if original.hasSuffix(additionalDeveloperInstructions) { return original }
+        return original + "\n\n" + additionalDeveloperInstructions
     }
 
     public func threadRead(_ params: ThreadReadParams) async throws -> ThreadReadResponse {
@@ -162,6 +193,17 @@ public actor CodexAppServerClient {
 
     public func turnStartNative(_ input: [UserInput], threadId: String) async throws {
         _ = try await turnStart(TurnStartParams(threadId: threadId, input: input))
+    }
+
+    public func turnSteer(_ params: TurnSteerParams) async throws -> TurnSteerResponse {
+        try Task.checkCancellation()
+        let response: TurnSteerResponse = try await rpc.request(method: "turn/steer", params: params)
+        guard response.turnId == params.expectedTurnId else {
+            throw CodexAppServerClientError.turnIDMismatch(
+                requested: params.expectedTurnId, received: response.turnId
+            )
+        }
+        return response
     }
 
     public func turnInterrupt(_ params: TurnInterruptParams) async throws -> TurnInterruptResponse {
@@ -592,6 +634,29 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     /// 新 threadId を採用し、旧 thread の遅延イベントと弁別するために参照する。
     public func activeThreadId() -> String? { currentThreadId }
 
+    public func sendUserMessage(_ text: String, expectedThreadID: String) async throws {
+        try Task.checkCancellation()
+        guard currentThreadId == expectedThreadID else {
+            throw CodexStructuredClientError.staleThreadOperation
+        }
+        let generation = threadIdentityGeneration
+        let activeTurnID = await client.activeTurnId(for: expectedThreadID)
+        guard generation == threadIdentityGeneration, currentThreadId == expectedThreadID else {
+            throw CodexStructuredClientError.staleThreadOperation
+        }
+        pendingResumeRollback = nil
+        if let activeTurnID {
+            _ = try await client.turnSteer(TurnSteerParams(
+                threadId: expectedThreadID, input: [.text(text)], expectedTurnId: activeTurnID
+            ))
+        } else {
+            _ = try await client.turnStart(TurnStartParams(threadId: expectedThreadID, input: [.text(text)]))
+        }
+        guard generation == threadIdentityGeneration, currentThreadId == expectedThreadID else {
+            throw CodexStructuredClientError.staleThreadOperation
+        }
+    }
+
     /// 再開（thread/resume）引数から、reset 時の thread/start に流用できる ThreadStartParams を作る。
     /// これにより復元セッションでも resetConversation が cwd 等を保った新 thread を開始できる。
     static func threadStartParams(from resume: ThreadResumeParams) -> ThreadStartParams {
@@ -853,6 +918,12 @@ public enum CodexStructuredClientError: Error, Equatable, Sendable {
 public protocol CodexImageInputConfiguring: Sendable {
     func setNativeImageInputEnabled(_ enabled: Bool) async
 }
+
+public protocol CodexUserMessageSending: Sendable {
+    func sendUserMessage(_ text: String, expectedThreadID: String) async throws
+}
+
+extension CodexStructuredAgentClient: CodexUserMessageSending {}
 
 extension CodexStructuredAgentClient: CodexImageInputConfiguring {}
 

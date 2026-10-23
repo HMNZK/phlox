@@ -509,6 +509,11 @@ public struct TurnSummary: Codable, Equatable, Sendable {
     public var items: [ThreadItem]?
 }
 
+public struct CodexAsyncUserInputQuestion: Equatable, Sendable {
+    public var title: String
+    public var options: [String]?
+}
+
 public struct ThreadItem: Codable, Equatable, Sendable {
     public var id: String?
     public var itemId: String?
@@ -538,6 +543,31 @@ public struct ThreadItem: Codable, Equatable, Sendable {
                   !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             return title
         }
+    }
+
+    public var asyncQuestions: [CodexAsyncUserInputQuestion] {
+        guard type == "agentMessage", raw?["delivery"]?.stringValue == "async",
+              case .array(let values)? = raw?["questions"], !values.isEmpty else { return [] }
+        var questions: [CodexAsyncUserInputQuestion] = []
+        for value in values {
+            guard case .object = value, let title = value["title"]?.stringValue,
+                  !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+            let options: [String]?
+            switch value["options"] {
+            case nil, .some(.null):
+                options = nil
+            case .array(let values):
+                let labels = values.compactMap(\.stringValue)
+                guard !labels.isEmpty, labels.count == values.count,
+                      labels.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+                else { return [] }
+                options = labels
+            default:
+                return []
+            }
+            questions.append(CodexAsyncUserInputQuestion(title: title, options: options))
+        }
+        return questions
     }
 
     /// fileChange item の変更（0.156 のスキーマでは `changes: [{path, diff, kind}]`）。

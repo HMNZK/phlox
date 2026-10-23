@@ -166,6 +166,24 @@ import AppBootstrap
         #expect(answers["デプロイ先は?"] as? [String] == ["staging"])
     }
 
+    @Test func messagesPreserveDistinctQuestionIDsForIdenticalTitles() async throws {
+        let dashboard = QuestionDashboardStub()
+        let questions = ["first", "second"].map {
+            ChatUserQuestion(question: "同じ質問", header: "", options: [], multiSelect: false, id: $0)
+        }
+        dashboard.deltaResponse = TranscriptDelta(items: [.userQuestion(
+            id: "q", requestId: "request", questions: questions, answers: ["first": ["A"], "second": ["B"]],
+            state: .answered, timestamp: Self.ts
+        )], cursor: "cursor", isSnapshot: false)
+        let response = await makeHandler(dashboard).handle(
+            ControlRequest(requester: nil, action: .messages(id: SessionID(), since: nil, wait: nil))
+        )
+        let message = try #require((try bodyJSON(response)["messages"] as? [[String: Any]])?.first)
+        let wireQuestions = try #require(message["questions"] as? [[String: Any]])
+        #expect(wireQuestions.compactMap { $0["id"] as? String } == ["first", "second"])
+        #expect(message["answers"] as? [String: [String]] == ["first": ["A"], "second": ["B"]])
+    }
+
     @Test func messagesDeltaEmitsExpiredUserQuestionWithWireStateKey() async throws {
         let dashboard = QuestionDashboardStub()
         dashboard.deltaResponse = TranscriptDelta(

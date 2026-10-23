@@ -664,7 +664,7 @@ public struct SessionDetailView: View {
             Task {
                 if await viewModel.answerQuestion(
                     requestId: question.requestId,
-                    answers: [question.questions[0].question: [answer]]
+                    answers: [question.questions[0].answerKey: [answer]]
                 ) {
                     viewModel.inputText = ""
                 }

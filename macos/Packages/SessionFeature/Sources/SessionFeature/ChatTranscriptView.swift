@@ -19,7 +19,7 @@ struct ChatTranscriptView: View {
     private let defaultWindowLimit: Int
     @State private var autoFollow = ChatAutoFollowController()
     // 表示件数制限（末尾 N 件のみ描画。ADR 0030:22）。view-local な @State に住み、
-    // body 評価中には書かない（visibleRange は読み取りのみ）。expand はボタン action、
+    // body 評価中には書かない（visibleRange は読み取りのみ）。expand は明示スクロール入力、
     // reset はセッション切替の onChange から呼ぶ（ADR 0010: 描画中 state 変更の禁止）。
     @State private var window: TranscriptWindow
     /// 明示ジャンプで必要になった末尾ブロック数。通常のコスト予算より優先する。
@@ -27,10 +27,11 @@ struct ChatTranscriptView: View {
     // 遅延 scrollTo の世代トークン。ジャンプごと・セッション切替ごと・展開ごとに増やし、pending 遅延
     // Task は捕捉した世代が現在値と一致するときだけ scrollTo する（stale/後続操作時の誤スクロール防止）。
     @State private var jumpGeneration = 0
-    // 「以前のメッセージを表示」押下時に、展開前の先頭可視 item の id を捕捉して置く一時アンカー。
+    // 履歴追加前の先頭可視 item の id を捕捉して置く一時アンカー。
     // 展開後にビューポートが履歴の先頭へ飛ぶのを防ぎ、押下時に見えていた位置へ留めるための単発シグナル
     // （requestedScrollTarget と同じ @State ワンショット方式・ScrollViewReader レベルの onChange で処理）。
     @State private var pendingExpandAnchor: String?
+    @State private var isLoadingEarlier = false
     /// 各ユーザー入力ブロックの content 座標系での minY。スクロール不変なので、
     /// レイアウト変化時のみ preference から更新される（スクロールでは再計算されない・ADR 0030）。
     @State private var userMessageOffsets: [String: CGFloat] = [:]
@@ -39,7 +40,6 @@ struct ChatTranscriptView: View {
     /// 追従を外してから増えた項目の数（「新着 n」）。
     @State private var unseenSinceDetach = 0
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
-    @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     /// content 座標系の名前空間。ブロックの縦位置をスクロール不変に測るために使う。
     private static let contentSpaceName = "transcriptContent"
@@ -84,13 +84,27 @@ struct ChatTranscriptView: View {
                         ChatAutoFollowScrollObserver(
                             controller: autoFollow,
                             onViewportCenterChanged: { updateCurrentInputPosition(viewportCenterY: $0, items: items) },
-                            onDetachedChanged: setDetached
+                            onDetachedChanged: setDetached,
+                            onScrollPastTop: beginLoadingEarlier,
+                            onScrollAwayFromTop: {
+                                if isLoadingEarlier { isLoadingEarlier = false }
+                            },
+                            onScrollReleased: finishLoadingEarlier
                         )
+                        .id(viewModel.id)
                     )
             }
             .onPreferenceChange(TranscriptBlockOffsetsKey.self) { offsets in
                 userMessageOffsets = offsets
             }
+            .overlay(alignment: .top) {
+                if isLoadingEarlier {
+                    CometLoader()
+                        .padding(12)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onDisappear { isLoadingEarlier = false }
             // 追従を外している間だけ、最新へ戻るボタンを会話の下端（入力欄の上）に浮かせる。
             // レイアウトには参加させない（ADR 0030: スクロール位置を内容のレイアウトへ戻さない）。
             .overlay(alignment: .bottom) {
@@ -134,7 +148,7 @@ struct ChatTranscriptView: View {
                 requestedScrollTarget = nil
             }
             .onChange(of: pendingExpandAnchor) { _, anchor in
-                // 「以前のメッセージを表示」押下による展開後、押下時の先頭可視 item を
+                // 履歴追加後、追加前の先頭可視 item を
                 // ビューポート上端へ据える（履歴の一番最初へ飛ばさず、そこから上へ遡れるように）。
                 // window 拡張で上に挿入された行がレンダされた後に届くよう次の MainActor ターンへ遅延。
                 // scroll 観測には連動しない単発イベント（ADR 0030 非該当）。世代ガードで stale を無効化。
@@ -151,6 +165,7 @@ struct ChatTranscriptView: View {
                 // セッション切替（vm identity 変化）で表示件数を既定へ戻す。
                 // イベント文脈での mutation なので body 中の観測 state 変更にならない（ADR 0010）。
                 window.reset()
+                isLoadingEarlier = false
                 revealMinimumBlockCount = 0
                 // 別セッションを開いたので、前の読み戻し状態を持ち越さず最下部へ寄せる。
                 autoFollow.sessionDidChange()
@@ -207,14 +222,6 @@ struct ChatTranscriptView: View {
         // スクラバー連動用: 各ユーザー入力ブロックだけ縦位置を測る（スクロール不変な content 座標系）。
         let userMessageIDs = Set(InputHistoryPolicy.entries(from: items).map(\.id))
         return VStack(alignment: .leading, spacing: 0) {
-            if visibleSlice.hiddenBlockCount > 0 {
-                // 展開前の先頭可視 block をアンカーに（押下時に見えていた最初のメッセージ）。
-                loadEarlierButton(
-                    hiddenCount: visibleSlice.hiddenBlockCount,
-                    anchorID: visibleSlice.blocks.first?.id
-                )
-                .padding(.bottom, TranscriptTypography.itemGap)
-            }
             ForEach(Array(visibleSlice.blocks.enumerated()), id: \.element.id) { index, block in
                 let after: TranscriptTypography.BlockRole? = index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole
                 let role = block.content.typographyRole
@@ -278,6 +285,13 @@ struct ChatTranscriptView: View {
         .padding(.horizontal, TranscriptTypography.transcriptHorizontalInset)
         .padding(.vertical, TranscriptTypography.transcriptVerticalInset)
         .coordinateSpace(.named(Self.contentSpaceName))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("チャット履歴。以前のメッセージ: \(visibleSlice.hiddenBlockCount) 件")
+        .accessibilityIdentifier("ChatTranscript.history")
+        .accessibilityAction(named: Text("以前のメッセージを読み込む")) {
+            beginLoadingEarlier()
+            finishLoadingEarlier()
+        }
     }
 
     private func renderBlockLimit(for blocks: [ChatTranscriptBlock]) -> Int {
@@ -348,29 +362,25 @@ struct ChatTranscriptView: View {
         }
     }
 
-    /// 先頭に隠れた古いメッセージを段階的に表示するボタン。
-    /// window の拡張契機は「このボタンの押下のみ」。スクロール位置・可視領域には一切連動しない
-    /// （ADR 0030 再入禁止）。expand はボタン action での mutation なので body 中書込にならない。
-    /// - Parameter anchorID: 押下時の先頭可視 block の id。展開後にこの位置へ留めるためのアンカー。
-    private func loadEarlierButton(hiddenCount: Int, anchorID: String?) -> some View {
-        Button {
-            // anchorID は描画時（＝展開前）の先頭可視 item。展開して上に古い行を追加し、
-            // その後アンカー位置へ留めるシグナルを立てる（ビューポートを履歴先頭へ飛ばさない）。
-            window.expand()
-            pendingExpandAnchor = anchorID
-        } label: {
-            // PhloxChat.dc.html: 高さ 26・角丸 13・ホバー色の地・12pt。
-            Text("以前のメッセージを表示（さらに \(hiddenCount) 件）")
-                .font(.system(size: 12 * ChatFontSettings.adjusted(from: chatScale, by: 0)))
-                .foregroundStyle(DSColor.chatTextSecondary)
-                .padding(.horizontal, 12)
-                .frame(height: 26)
-                .background(DSColor.fillSubtle, in: Capsule())
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("ChatTranscript.loadEarlier")
-        .id("chat-load-earlier")
+    private func beginLoadingEarlier() {
+        guard !isLoadingEarlier else { return }
+        let blocks = ChatTranscriptGrouping.blocks(from: transcriptItems)
+        guard renderBlockLimit(for: blocks) < blocks.count else { return }
+        jumpGeneration += 1
+        autoFollow.userInitiatedJump()
+        setDetached(true)
+        isLoadingEarlier = true
+    }
+
+    private func finishLoadingEarlier() {
+        guard isLoadingEarlier else { return }
+        autoFollow.userInitiatedJump()
+        setDetached(true)
+        let blocks = ChatTranscriptGrouping.blocks(from: transcriptItems)
+        let slice = ChatTranscriptGrouping.visibleSlice(fromBlocks: blocks, blockLimit: renderBlockLimit(for: blocks))
+        window.expand()
+        pendingExpandAnchor = slice.blocks.first?.id
+        isLoadingEarlier = false
     }
 
     private var agentDescriptor: AgentDescriptor {
@@ -462,6 +472,7 @@ struct ChatTranscriptView: View {
 
     /// 「↓ 最新へ」・End。最下部へ寄せて追従を戻す。
     private func jumpToLatest(_ proxy: ScrollViewProxy) {
+        isLoadingEarlier = false
         jumpGeneration += 1
         proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
         autoFollow.scrollPositionChanged(isAtBottom: true)
@@ -475,6 +486,7 @@ struct ChatTranscriptView: View {
     }
 
     private func jumpToTarget(_ target: String, proxy: ScrollViewProxy) {
+        isLoadingEarlier = false
         autoFollow.userInitiatedJump()
         setDetached(true)
         // 新しいジャンプは以前の pending 遅延 scrollTo を無効化する。

@@ -12,6 +12,7 @@ last-verified: 2026-10-17
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0217 | [チャット履歴を最上部での追加スクロールから表示する](0217-transcript-scroll-to-load-history.md) | accepted |
 | 0216 | [入力欄の設定（推論の深さ・権限・Plan）とプロジェクト一覧を Control API に載せる](0216-mobile-composer-settings-and-projects-wire.md) | accepted |
 | 0214 | [Claude使用量を通知優先・1分補完・専用プロセスで取得する](0214-claude-usage-notifications-and-refresh.md) | accepted |
 | 0213 | [Metal 描画の切り替えを見送る](0213-terminal-metal-renderer-trial.md) | rejected（見送り・計測結果を記録） |

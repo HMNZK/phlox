@@ -34,7 +34,6 @@ enum CodexSkillFingerprint {
         guard !enumerationFailed else { return nil }
         do {
             var hash = SHA256()
-            var bytes = 0
             for path in paths.sorted(by: { $0.path < $1.path }) {
                 let values = try path.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey])
                 guard values.isSymbolicLink != true else { return nil }
@@ -46,23 +45,24 @@ enum CodexSkillFingerprint {
                 } else {
                     guard values.isRegularFile == true else { return nil }
                     let handle = try FileHandle(forReadingFrom: path)
-                    var data = Data()
                     do {
-                        while let chunk = try handle.read(upToCount: min(65_536, 8_388_608 - bytes - data.count + 1)), !chunk.isEmpty {
-                            data.append(chunk)
-                            if bytes + data.count > 8_388_608 { break }
+                        let size = try handle.seekToEnd()
+                        try handle.seek(toOffset: 0)
+                        hash.update(data: Data([1, FileManager.default.isExecutableFile(atPath: path.path) ? 1 : 0]))
+                        hash.update(data: Data(String(size).utf8))
+                        hash.update(data: Data([0]))
+                        var bytesRead: UInt64 = 0
+                        while let chunk = try handle.read(upToCount: 65_536), !chunk.isEmpty {
+                            bytesRead += UInt64(chunk.count)
+                            if bytesRead > size { break }
+                            hash.update(data: chunk)
                         }
                         try handle.close()
+                        guard bytesRead == size else { return nil }
                     } catch {
                         try handle.close()
                         throw error
                     }
-                    bytes += data.count
-                    guard bytes <= 8_388_608 else { return nil }
-                    hash.update(data: Data([1, FileManager.default.isExecutableFile(atPath: path.path) ? 1 : 0]))
-                    hash.update(data: Data(String(data.count).utf8))
-                    hash.update(data: Data([0]))
-                    hash.update(data: data)
                 }
             }
             return hash.finalize().map { String(format: "%02x", $0) }.joined()

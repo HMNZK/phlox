@@ -40,6 +40,34 @@ struct CodexSkillFingerprintTests {
         #expect(!state.requiresReselection)
     }
 
+    @Test("8MiBを超えるスキルも同一更新後に送信でき、末尾の変更は再選択を求める")
+    func largeBundleKeepsSelectionAndDetectsChanges() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let reference = fixture.root.appendingPathComponent("large-reference.bin")
+        var contents = Data(repeating: 0, count: 9 * 1_024 * 1_024)
+        try contents.write(to: reference)
+        let state = CodexSkillSelectionState(client: fixture.client, sessionCWD: fixture.root.path)
+        await state.refresh()
+        #expect(state.select(try #require(state.skills.first)))
+
+        for _ in 0..<2 {
+            state.invalidate()
+            await state.refresh()
+            #expect(!state.requiresReselection)
+            #expect(state.nativeInputs(for: "$review 本文") == [
+                .text("本文"), .skill(name: "review", path: fixture.skill.path),
+            ])
+        }
+
+        contents[contents.count - 1] = 1
+        try contents.write(to: reference)
+        state.invalidate()
+        await state.refresh()
+        #expect(state.requiresReselection)
+        #expect(state.nativeInputs(for: "$review 本文") == nil)
+    }
+
     @Test("同じパスと説明でも共有の参照ファイルが変われば再選択を求める")
     func changedReferenceRejectsSelection() async throws {
         let fixture = try Fixture()
@@ -92,7 +120,7 @@ private struct Fixture {
     init() throws {
         var repository = URL(fileURLWithPath: #filePath)
         for _ in 0..<6 { repository.deleteLastPathComponent() }
-        root = repository.appendingPathComponent(".verification/pstack-codex/skill-fingerprint-tests/\(UUID().uuidString)")
+        root = repository.appendingPathComponent(".verification/codex-skill-refresh/skill-fingerprint-tests/\(UUID().uuidString)")
         skill = root.appendingPathComponent("skills/review/SKILL.md")
         try FileManager.default.createDirectory(at: skill.deletingLastPathComponent(), withIntermediateDirectories: true)
         try "---\nname: review\ndescription: review\n---\nReview the target.\n".write(to: skill, atomically: true, encoding: .utf8)

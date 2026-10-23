@@ -170,7 +170,7 @@
     <div id="G3" style="background:#fff;border-radius:12px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);display:flex;flex-direction:column;gap:10px;">
       <div style="font-size:16px;font-weight:700;color:#7438BD;">G3. 分岐候補</div>
       <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:8px;">
-        <div><b>オーケストレーションの子セッション</b>。現行はサイドバーに出さない（プロジェクトで絞ったグリッドにだけ出る）。案 A: 現行どおり出さない。案 B: 親の下に「内部セッション n」として畳んで出す（<a href="#S6">S6</a>）。B なら、内部で承認待ちが出たときにも見つけられる。</div>
+        <div><b>オーケストレーションの子セッション</b>。2026-10-23 決定。実際の親の直下に保存順で表示する。まとめ行は置かず、親の開閉だけで子を表示する。孫も実際の親から1段下げる。子件数は直下の実数とし、折りたたんだ要約には子孫の対応待ちと未読を含める。詳細は決定 C-8。</div>
         <div><b>並べ替えの範囲</b>。案: 同じ親の中だけ。プロジェクト行へのドロップを「移動」にする拡張は、再起動を伴うので確認を挟む前提で候補にとどめる。</div>
         <div><b>移動時の再起動</b>。機能一覧では移動も restartSession を共有するとあるため、全件で確認を出す前提で描いた。待機中のセッションで確認を省けるかは未確認。</div>
       </div>

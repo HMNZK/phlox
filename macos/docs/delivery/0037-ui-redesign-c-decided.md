@@ -44,9 +44,12 @@
 - 実装: 要（中）| `macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift`（`reorderSession`）, `SessionTreeSidebarSection.swift`
 
 ### C-8 オーケストレーションの子セッションをサイドバーに出すか
-- 決定: ②親の下に畳んで表示する
-- 根拠: `03 Sidebar.dc.html:170-173`（G3「案B: 親の下に『内部セッション n』として畳んで出す」）。`PhloxSidebar.dc.html:112-119` の `isInternal` 行が `scenario="deep"` のデータで実際に描画されている。
-- 実装: 要（中）| `macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/SessionTreeSidebarSection.swift`, `macos/Packages/SessionFeature/Sources/SessionFeature/SessionTreeViewModel.swift`
+- 決定（2026-10-23 改訂）: 子セッションを実際の親の直下に表示する。「内部セッション（オーケストレーション）」のまとめ行と、その行だけの開閉状態を廃止する。
+- 理由: まとめ行をセッションと誤認し、取りまとめ役の会話が別にあるように見える。取りまとめ役は実際の親セッションであり、追加の階層は不要。
+- 表示と操作: 保存された兄弟順と実際の深さで並べる。親の開閉だけで直下の子を表示・非表示にする。孫はその親の展開状態に従う。各行の選択でそのセッションの会話を開く。上下キーも画面と同じ順を使い、左右キーは実際の親子だけを開閉・移動する。名前変更時は実際の祖先だけを開く。選択中の子孫が親の折りたたみで隠れるときは、その親を選択する。
+- 件数と要約: 親の子件数は実際の直下の件数。折りたたんだ親の要約と、プロジェクトおよびホバーカードの件数には表示対象の子孫を含める。同じ親の子は起動経路で区別せず並べ替える。
+- データ: `launchContext` と `parentSessionID` は保持する。新規チャットに親を指定する操作は追加しない。親のない内部セッションの扱い、グリッド、通知、実行中件数の内訳は変更しない。
+- 表示元: `SessionTreeViewModel.rows(from:)`。見本は `design_handoff_phlox_ui/designs/03 Sidebar.dc.html` と `PhloxSidebar.dc.html`。
 
 ### C-9 選択操作によるフォーカス移動
 - 決定: ①今のまま

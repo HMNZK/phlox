@@ -1,7 +1,6 @@
 import Foundation
 import AgentDomain
 import DesignSystem
-import SessionFeature
 
 /// サイドバーでキー操作の対象になる行（03「キーボード」）。
 enum SidebarItem: Hashable {
@@ -53,45 +52,6 @@ struct SidebarCollapsedSummary: Equatable {
             return count > 0 ? Entry(kind: kind, count: count) : nil
         }
         return SidebarCollapsedSummary(attention: attention, unread: states.filter { $0 == .doneUnread }.count)
-    }
-}
-
-/// サイドバーのセッション一覧の 1 行。オーケストレーションの内部セッションは親ごとに 1 行へまとめる
-/// （PhloxSidebar の「内部セッション（オーケストレーション）」・03 G3 案 B）。
-enum SidebarTreeLine: Identifiable, Equatable {
-    /// `depthOffset` はまとめ行を開いたときに中の行を 1 段下げる分。
-    case session(SessionTreeViewModel.Row, depthOffset: Int)
-    case internalSessions(parent: SessionID, depth: Int, count: Int, isExpanded: Bool)
-
-    var id: String {
-        switch self {
-        case .session(let row, _): "session-\(row.id.rawValue)"
-        case .internalSessions(let parent, _, _, _): "internal-\(parent.rawValue)"
-        }
-    }
-
-    /// 見本どおり、内部セッションのまとめ行は親の子の末尾に置く。
-    /// `isExpanded` は子を開いたセッション、`expandedParents` はまとめ行を開いた親。
-    static func make(
-        _ forest: [SessionTreeNode],
-        isExpanded: (SessionID) -> Bool,
-        expandedParents: Set<SessionID>,
-        depthOffset: Int = 0
-    ) -> [SidebarTreeLine] {
-        forest.flatMap { node -> [SidebarTreeLine] in
-            let expanded = isExpanded(node.id)
-            var lines: [SidebarTreeLine] = [.session(SessionTreeViewModel.Row(node: node, isExpanded: expanded), depthOffset: depthOffset)]
-            guard expanded else { return lines }
-            let internalChildren = node.children.filter { $0.launchContext == .orchestration }
-            lines += make(node.children.filter { $0.launchContext != .orchestration }, isExpanded: isExpanded, expandedParents: expandedParents, depthOffset: depthOffset)
-            guard !internalChildren.isEmpty else { return lines }
-            let groupExpanded = expandedParents.contains(node.id)
-            lines.append(.internalSessions(parent: node.id, depth: node.depth + 1 + depthOffset, count: internalChildren.count, isExpanded: groupExpanded))
-            if groupExpanded {
-                lines += make(internalChildren, isExpanded: isExpanded, expandedParents: expandedParents, depthOffset: depthOffset + 1)
-            }
-            return lines
-        }
     }
 }
 

@@ -139,47 +139,44 @@ private func input(
     }
 }
 
-// 見本（PhloxSidebar）: オーケストレーションの内部セッションは親の子の末尾に「内部セッション n」の 1 行でまとめる。
-@Suite struct SidebarTreeLineTests {
-    private func describe(_ lines: [SidebarTreeLine]) -> [String] {
-        lines.map { line in
-            switch line {
-            case .session(let row, let offset): "\(row.name)@\(row.depth + offset)"
-            case .internalSessions(_, let depth, let count, let isExpanded): "internal(\(count))@\(depth)\(isExpanded ? "+" : "")"
-            }
-        }
-    }
-
-    @Test func internalSessionsAreFoldedIntoOneRowAtTheEndOfTheParent() {
+@Suite struct SidebarChildRowsTests {
+    @Test func childrenKeepStoredOrderAcrossLaunchContexts() {
         let parent = input(1, name: "pm")
         let worker1 = input(2, parent: parent.id, launchContext: .orchestration, name: "w1")
         let normal = input(3, parent: parent.id, name: "child")
         let worker2 = input(4, parent: parent.id, launchContext: .orchestration, name: "w2")
         let forest = SessionTree.buildForest(from: [parent, worker1, normal, worker2])
 
-        let lines = SidebarTreeLine.make(forest, isExpanded: { $0 == parent.id }, expandedParents: [])
+        let rows = SessionTreeViewModel(expandedSessionIDs: [parent.id]).rows(from: forest)
 
-        #expect(describe(lines) == ["pm@0", "child@1", "internal(2)@1"])
+        #expect(rows.map(\.id) == [parent.id, worker1.id, normal.id, worker2.id])
+        #expect(rows.map(\.depth) == [0, 1, 1, 1])
     }
 
-    @Test func openingTheFoldShowsTheInternalSessionsOneLevelDeeper() {
+    @Test func descendantsUseOnlyTheRealParentDepth() {
         let parent = input(1, name: "pm")
         let worker = input(2, parent: parent.id, launchContext: .orchestration, name: "w")
         let grandchild = input(3, parent: worker.id, launchContext: .orchestration, name: "g")
         let forest = SessionTree.buildForest(from: [parent, worker, grandchild])
         let expanded: Set<SessionID> = [parent.id, worker.id]
 
-        let lines = SidebarTreeLine.make(forest, isExpanded: { expanded.contains($0) }, expandedParents: expanded)
+        let rows = SessionTreeViewModel(expandedSessionIDs: expanded).rows(from: forest)
 
-        #expect(describe(lines) == ["pm@0", "internal(1)@1+", "w@2", "internal(1)@3+", "g@4"])
+        #expect(rows.map(\.id) == [parent.id, worker.id, grandchild.id])
+        #expect(rows.map(\.depth) == [0, 1, 2])
     }
 
-    @Test func collapsedParentShowsNoFold() {
+    @Test func reopeningParentRestoresChildExpansion() {
         let parent = input(1, name: "pm")
         let worker = input(2, parent: parent.id, launchContext: .orchestration, name: "w")
-        let forest = SessionTree.buildForest(from: [parent, worker])
+        let grandchild = input(3, parent: worker.id, launchContext: .orchestration, name: "g")
+        let forest = SessionTree.buildForest(from: [parent, worker, grandchild])
+        let viewModel = SessionTreeViewModel(expandedSessionIDs: [parent.id, worker.id])
 
-        #expect(describe(SidebarTreeLine.make(forest, isExpanded: { _ in false }, expandedParents: [parent.id])) == ["pm@0"])
+        viewModel.toggleExpansion(for: parent.id, in: forest)
+        #expect(viewModel.rows(from: forest).map(\.id) == [parent.id])
+        viewModel.toggleExpansion(for: parent.id, in: forest)
+        #expect(viewModel.rows(from: forest).map(\.id) == [parent.id, worker.id, grandchild.id])
     }
 }
 

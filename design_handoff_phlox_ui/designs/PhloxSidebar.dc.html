@@ -109,15 +109,6 @@
       <sc-if value="{{ r.isSection }}">
         <div style="padding:14px 8px 3px;font-size:11px;font-weight:600;color:var(--fg3);flex:none;">{{ r.name }}</div>
       </sc-if>
-      <sc-if value="{{ r.isInternal }}">
-        <div role="treeitem" aria-expanded="false" aria-label="{{ r.aria }}" style="{{ r.rowStyle }}">
-          <sc-for list="{{ r.guides }}" as="gd"><span style="{{ gd }}"></span></sc-for>
-          <span style="{{ r.chev }}">›</span>
-          <span style="width:12px;height:12px;border-radius:3px;border:1px dashed var(--fg3);box-sizing:border-box;flex:none;"></span>
-          <span style="flex:1;min-width:0;font-size:12px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.title }}</span>
-          <span style="font-size:11px;color:var(--fg3);">{{ r.meta }}</span>
-        </div>
-      </sc-if>
       <sc-if value="{{ r.isSession }}">
         <div role="treeitem" aria-selected="{{ r.selected }}" aria-label="{{ r.aria }}" style="{{ r.rowStyle }}">
           <sc-for list="{{ r.guides }}" as="gd"><span style="{{ gd }}"></span></sc-for>
@@ -246,7 +237,7 @@ class Component extends DCLogic {
         n('0d3e','リンク切れ検査','custom','idle','40分')]},
     ], others:[n('f3a1','scratch','claude','done','2時間')]};
     if (sc === 'deep') return {projects:[
-      {name:'phlox-core', path:'~/dev/phlox', open:true, selected:true, running:2, nodes:[
+      {name:'phlox-core', path:'~/dev/phlox', open:true, selected:true, running:3, nodes:[
         n('r1','リリース 0.14 の準備','claude','running','34分',{kids:[
           n('r2','変更履歴の作成','claude','done','20分'),
           n('r3','回帰テスト一式','codex','running','18分',{kids:[
@@ -256,7 +247,9 @@ class Component extends DCLogic {
           n('r7','ローカライズ確認','cursor','idle','25分',{open:false,kids:[
             n('r8','英語で長い文言の洗い出し','cursor','done','22分'),
             n('r9','xcstrings 未登録キー','cursor','error','21分',{wait:1260})]}),
-          {internal:true, count:3}]}),
+          n('r10','設定画面の外側クリック修正','codex','running','3分'),
+          n('r11','履歴読み込みの再現調査','codex','idle','4分'),
+          n('r12','変更内容のレビュー','claude','done','2分')]}),
         n('7c21','PaneTree 正規化の修正','codex','idle','1時間')]},
       {name:'mobile-proxy', path:'~/dev/phlox-mobile-proxy', open:false, nodes:[n('19ae','Tailscale bind の E2E テスト','codex','done','3時間')]},
     ], others:[]};
@@ -311,7 +304,7 @@ class Component extends DCLogic {
     const D = this.data(sc);
     const sel = sc === 'deep' ? 'r4' : 'a3f9';
     const all = [];
-    const walk = (nodes, proj) => nodes.forEach(x => { if (x.internal) return; all.push({...x, proj}); walk(x.kids, proj); });
+    const walk = (nodes, proj) => nodes.forEach(x => { all.push({...x, proj}); walk(x.kids, proj); });
     D.projects.forEach(pr => walk(pr.nodes, pr.name)); walk(D.others, 'その他');
     const qs = all.filter(x => INK[x.state]).sort((a,b) => (b.wait||0) - (a.wait||0));
     const unread = all.filter(x => x.unread);
@@ -323,7 +316,7 @@ class Component extends DCLogic {
     const rows = [];
     const T = {hover:{proj:'mobile-proxy', sess:'7c21'}, rename:'a3f9', menuSession: sc==='normal'?'a3f9':'', menuOther:'f3a1', drag:'e810'};
     const summaryOf = nodes => {
-      const flat = []; const w = ns => ns.forEach(x => { if (x.internal) return; flat.push(x); w(x.kids); }); w(nodes);
+      const flat = []; const w = ns => ns.forEach(x => { flat.push(x); w(x.kids); }); w(nodes);
       const out = [];
       ['approval','question','error','stalled'].forEach(s => { const c = flat.filter(x => x.state===s).length; if (c) { const g = this.glyph(s,9); out.push({g:g.style,ch:g.ch,n:c}); } });
       const u = flat.filter(x => x.unread).length; if (u) out.push({g:this.glyph('unread').style,ch:'',n:u});
@@ -333,12 +326,6 @@ class Component extends DCLogic {
       const pad = 22 + (depth-1)*16;
       const guides = [];
       for (let L = 1; L < depth; L++) guides.push({position:'absolute',top:0,bottom:0,left:22 + (L-1)*16 + 5,width:1,background:'var(--guide)'});
-      if (x.internal) {
-        rows.push({isInternal:true, title:`内部セッション（オーケストレーション）`, meta:`${x.count}`, aria:`内部セッション ${x.count} 件、折りたたみ`, guides,
-          chev:{position:'absolute',left:pad-13,width:10,fontSize:13,color:'var(--fg3)',textAlign:'center'},
-          rowStyle:{display:'flex',alignItems:'center',gap:7,height:24,padding:`0 8px 0 ${pad}px`,borderRadius:6,flex:'none',position:'relative'}});
-        return;
-      }
       const a = !!INK[x.state]; const hasKids = x.kids.length > 0;
       const hover = ov==='hover' && x.id===T.hover.sess;
       const renaming = ov==='rename' && x.id===T.rename;
@@ -366,7 +353,7 @@ class Component extends DCLogic {
       const menuProject = ov==='projectMenu' && pr.selected;
       const newSession = ov==='newSession' && pr.selected;
       const summary = pr.open ? [] : summaryOf(pr.nodes);
-      const cnt = pr.nodes.filter(x=>!x.internal).length;
+      const cnt = pr.nodes.length;
       rows.push({isProject:true, name:pr.name, open:pr.open, selected:!!pr.selected,
         aria:`プロジェクト ${pr.name}、${pr.path}、${pr.open?'展開':'折りたたみ'}${pr.selected?'、選択中':''}`,
         chev:{display:'inline-block',width:10,fontSize:13,color:'var(--fg3)',textAlign:'center',transform:pr.open?'rotate(90deg)':'none',flex:'none'},

@@ -37,8 +37,6 @@ struct DashboardSidebarView: View {
     /// ドラッグで並べ替え中のセッションと、挿入位置（03 F10）。
     @State private var draggingSession: SessionID?
     @State private var dropTarget: SidebarDropTarget?
-    /// 「内部セッション」のまとめ行を開いた親。
-    @State private var expandedInternalParents: Set<SessionID> = []
     @State private var typeSelectBuffer = ""
     @State private var typeSelectAt = Date.distantPast
     /// キーで選んだ直後は、開いたターミナル・入力欄が入力先を取っても一覧に戻す（↑↓ で続けて動けるように）。
@@ -376,47 +374,11 @@ struct DashboardSidebarView: View {
     @ViewBuilder
     private func projectSessionRows(_ project: Project) -> some View {
         let forest = viewModel.sessionForest(in: project.id)
-        ForEach(treeLines(forest)) { line in
-            switch line {
-            case .session(let row, let offset):
-                if let node = viewModel.sessionNode(id: row.id) {
-                    sessionRow(node, depth: row.depth + 1 + offset, treeRow: row, forest: forest)
-                }
-            case .internalSessions(let parent, let depth, let count, let isExpanded):
-                SidebarInternalSessionsRow(depth: depth + 1, count: count, isExpanded: isExpanded) {
-                    if isExpanded { closeInternalSessions(of: parent) } else {
-                        withAnimation(.easeInOut(duration: 0.12)) { _ = expandedInternalParents.insert(parent) }
-                    }
-                }
+        ForEach(sessionTreeViewModel.rows(from: forest)) { row in
+            if let node = viewModel.sessionNode(id: row.id) {
+                sessionRow(node, depth: row.depth + 1, treeRow: row, forest: forest)
             }
         }
-    }
-
-    /// まとめ行を閉じる。中の行を選んでいたら親へ選択を移す（隠れた行を選んだままにしない）。
-    private func closeInternalSessions(of parent: SessionID) {
-        if let selected = router.selectedSession, isInsideInternalSessions(selected, of: parent) {
-            selectSession(parent, holdFocus: true)
-        }
-        withAnimation(.easeInOut(duration: 0.12)) { _ = expandedInternalParents.remove(parent) }
-    }
-
-    /// `id` が `parent` の内部セッション（またはその子孫）か。
-    private func isInsideInternalSessions(_ id: SessionID, of parent: SessionID) -> Bool {
-        var current = id
-        while let node = viewModel.sessionNode(id: current), let up = node.controllable.parentSessionID {
-            if up == parent { return launchContext(of: current) == .orchestration }
-            current = up
-        }
-        return false
-    }
-
-    private func launchContext(of id: SessionID) -> SessionLaunchContext? {
-        guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return nil }
-        return Self.findNode(id, in: viewModel.sessionForest(in: projectID))?.launchContext
-    }
-
-    private func treeLines(_ forest: [SessionTreeNode]) -> [SidebarTreeLine] {
-        SidebarTreeLine.make(forest, isExpanded: sessionTreeViewModel.isExpanded, expandedParents: expandedInternalParents)
     }
 
     private func sessionRow(
@@ -426,15 +388,13 @@ struct DashboardSidebarView: View {
         forest: [SessionTreeNode]
     ) -> some View {
         let children = treeRow?.hasChildren == true ? Self.findNode(node.id, in: forest)?.children ?? [] : []
-        let descendantStates = children.filter { $0.launchContext != .orchestration }.flatMap(Self.flatten).compactMap { viewModel.sessionNode(id: $0.id)?.tabDisplayState }
+        let descendantStates = children.flatMap(Self.flatten).compactMap { viewModel.sessionNode(id: $0.id)?.tabDisplayState }
         return SidebarSessionRow(
             node: node,
             depth: depth,
             hasChildren: treeRow?.hasChildren ?? false,
             isExpanded: treeRow?.isExpanded ?? false,
-            // 内部セッションはまとめ行 1 つと数える（見本の「+n」）。
-            childCount: children.filter { $0.launchContext != .orchestration }.count
-                + (children.contains { $0.launchContext == .orchestration } ? 1 : 0),
+            childCount: children.count,
             descendantSummary: .make(descendantStates),
             isSelected: router.selectedSession == node.id,
             isRenaming: renaming == .session(node.id),
@@ -470,7 +430,6 @@ struct DashboardSidebarView: View {
         .id(SidebarItem.session(node.id))
     }
 
-    /// 並べ替えの相手になる兄弟（同じ親の子。内部セッションは内部セッションどうし）。
     private func siblingIDs(of node: SessionNode) -> [SessionID] {
         guard let projectID = node.projectID else { return viewModel.unassignedSessionNodes.map(\.id) }
         let forest = viewModel.sessionForest(in: projectID)
@@ -478,10 +437,7 @@ struct DashboardSidebarView: View {
         guard let parent = node.controllable.parentSessionID, let parentNode = Self.findNode(parent, in: forest) else {
             return forest.map(\.id)
         }
-        let isInternal = Self.findNode(node.id, in: forest)?.launchContext == .orchestration
-        return parentNode.children
-            .filter { ($0.launchContext == .orchestration) == isInternal }
-            .map(\.id)
+        return parentNode.children.map(\.id)
     }
 
     private func moveSession(_ id: SessionID, to destination: Int) {
@@ -597,8 +553,6 @@ struct DashboardSidebarView: View {
                 if !sessionTreeViewModel.isExpanded(ancestor) {
                     sessionTreeViewModel.toggleExpansion(for: ancestor, in: viewModel.sessionForest(in: projectID))
                 }
-                // 内部セッションなら、親の下のまとめ行も開く。
-                if launchContext(of: child) == .orchestration { expandedInternalParents.insert(ancestor) }
                 child = ancestor
             }
         }
@@ -613,7 +567,7 @@ struct DashboardSidebarView: View {
         for project in viewModel.projects {
             items.append((.project(project.id), project.name))
             guard isProjectExpanded(project.id) else { continue }
-            for case .session(let row, _) in treeLines(viewModel.sessionForest(in: project.id)) {
+            for row in sessionTreeViewModel.rows(from: viewModel.sessionForest(in: project.id)) {
                 if let node = viewModel.sessionNode(id: row.id) {
                     items.append((.session(row.id), node.displayName))
                 }
@@ -718,12 +672,7 @@ struct DashboardSidebarView: View {
             guard let node = viewModel.sessionNode(id: id) else { return }
             if let projectID = node.projectID, sessionTreeViewModel.isExpanded(id),
                Self.findNode(id, in: viewModel.sessionForest(in: projectID))?.children.isEmpty == false {
-                // → と逆順: 開いたまとめ行があれば先にそれを閉じる。
-                if expandedInternalParents.contains(id) {
-                    closeInternalSessions(of: id)
-                } else {
-                    toggleSessionExpansion(id, projectID: projectID)
-                }
+                toggleSessionExpansion(id, projectID: projectID)
             } else if let parent = node.controllable.parentSessionID, viewModel.sessionNode(id: parent) != nil {
                 selectSession(parent, holdFocus: true)
             } else if let projectID = node.projectID {
@@ -742,9 +691,6 @@ struct DashboardSidebarView: View {
             guard let projectID = viewModel.sessionNode(id: id)?.projectID else { return }
             if !sessionTreeViewModel.isExpanded(id) {
                 toggleSessionExpansion(id, projectID: projectID)
-            } else if Self.findNode(id, in: viewModel.sessionForest(in: projectID))?.children.contains(where: { $0.launchContext == .orchestration }) == true {
-                // 開いた親でもう一度 → を押すと、内部セッションのまとめ行も開く（まとめ行はキーで選べないため）。
-                withAnimation(.easeInOut(duration: 0.12)) { _ = expandedInternalParents.insert(id) }
             }
         case nil:
             break
@@ -769,8 +715,14 @@ struct DashboardSidebarView: View {
 
     private func toggleSessionExpansion(_ id: SessionID, projectID: ProjectID?) {
         guard let projectID else { return }
+        let forest = viewModel.sessionForest(in: projectID)
+        if sessionTreeViewModel.isExpanded(id), let selected = router.selectedSession,
+           let parent = Self.findNode(id, in: forest),
+           parent.children.flatMap(Self.flatten).contains(where: { $0.id == selected }) {
+            selectSession(id, holdFocus: true)
+        }
         withAnimation(.easeInOut(duration: 0.12)) {
-            sessionTreeViewModel.toggleExpansion(for: id, in: viewModel.sessionForest(in: projectID))
+            sessionTreeViewModel.toggleExpansion(for: id, in: forest)
         }
     }
 
@@ -803,9 +755,8 @@ struct DashboardSidebarView: View {
         }
     }
 
-    /// 件数と畳んだ行の要約に使う。内部セッション（とその子）は見本どおり数えない。
     private static func flatten(_ node: SessionTreeNode) -> [SessionTreeNode] {
-        [node] + node.children.filter { $0.launchContext != .orchestration }.flatMap(flatten)
+        [node] + node.children.flatMap(flatten)
     }
 
     private static func findNode(_ id: SessionID, in nodes: [SessionTreeNode]) -> SessionTreeNode? {

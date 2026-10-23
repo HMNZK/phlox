@@ -85,7 +85,7 @@ last-verified: 2026-10-13
 | 新規チャット（プロジェクト行の「＋」） | プロジェクト行の「＋」（ホバー時。「⋯」と同じ枠なしのボタン。メニューは挟まず押した時点で切り替え）、右クリック・「⋯」の「新規チャット」、サイドバー下端の「＋ 新規チャット ⌘N」 | `NewChatEntryActions` が `router.showNewChat(projectID:)` を呼ぶ。そのプロジェクトを送信先にして新規チャット画面（タブではなくモード）を出す。セッションは作らない | — | 9 章・10 章 | `SidebarRows.swift`（プロジェクト行の「＋」）、`DashboardSidebarView.swift`（プロジェクトメニューの「新規チャット」）、`DashboardView.swift`（`sidebarFooter`）、`NewChatEntryActions.swift` |
 | 未割当セッション表示 | — | 「その他」セクション | — | — | `DashboardSidebarView.swift:71-81` |
 | セッション行表示 | — | セッション名。右端に状態の文字（「実行中」「承認待ち」「質問あり」「エラー」「無応答」「完了」。待機中は何も出さない）。略号・状態の図形・未読の丸は出さない（ADR 0184） | 実行中は名前全体が点滅（動きを減らす設定では静止）。未読は題名を主文字色・やや太く | — | `SidebarRows.swift`、`SidebarRowEmphasis.swift` |
-| セッションツリー展開/折りたたみ | 子持ち行のシェブロン | `SessionTreeViewModel.Row` | 展開/折りたたみ | — | `DashboardSidebarView.swift:146-153, 176-189, 525-542` |
+| セッションツリー展開/折りたたみ | 子持ち行のシェブロン、左右キー | `SessionTreeViewModel.Row`。子は実際の親の直下に保存順で表示する。起動経路によるまとめ行は置かない。子件数は直下、折りたたみ時の要約は子孫を数える | 実際の親ごとに展開/折りたたみ | — | `DashboardSidebarView.swift`、`SessionTreeViewModel.swift`、決定 C-8 |
 | セッション選択 | 行クリック | `router.selectedSession` | 選択中はグレーの面 | — | `DashboardSidebarView.swift`, `SidebarRowEmphasis.swift` |
 | セッション名ホバー | 名前にマウスホバー | 名前・エージェント・状態・経過時間・プロジェクト名とセッション数・作業ディレクトリをカード表示 | ポインタをカードへ移しても表示を維持 | — | `SidebarRows.swift` |
 | 要注意（未読完了・質問待ち）表示 | — | セッション行の面の強調。注意が必要な状態の右端の文字は注意の色 | 選択中でも状態の色を優先 | — | `SidebarRowEmphasis.swift`, `DashboardSidebarView.swift` |

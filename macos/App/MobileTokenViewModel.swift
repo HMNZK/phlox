@@ -29,19 +29,29 @@ public final class MobileTokenViewModel: ObservableObject {
   /// 直近に解決したモバイルプロキシの待ち受けポート。回復・再解決で更新される。
   @Published public private(set) var mobileProxyPort: Int?
   /// スマホへの通知を送る鍵がそろっているか（設定「プッシュ通知」の注記、C-55）。
-  public var isPushSendingConfigured = true
+  @Published public var isPushSendingConfigured = true
 
-  private let provisioner: MobileDeviceProvisioner
-  private let tokenStore: SessionTokenStore
-  private let proxy: MobileProxy
-  /// 端末集合の変化（QR 発行・失効）のたびに、最新の特権 requester 集合を Dashboard へ
-  /// 反映するためのフック。集合の算出規則自体は `MobileBootstrap.privilegedRequesters(for:)`
-  /// （AgentDomain 側）が正本で、ここでは再実装しない（task-4 レビュー2巡目 HIGH）。
-  private let onPrivilegedRequestersChanged: (Set<SessionID>) -> Void
+  public typealias RuntimeCommandHandler = @MainActor (MobileRuntimeCommand) async throws -> MobileRuntimeReply
+
+  private struct OwnedDependencies {
+    let provisioner: MobileDeviceProvisioner
+    let tokenStore: SessionTokenStore
+    let proxy: MobileProxy
+    let onPrivilegedRequestersChanged: (Set<SessionID>) -> Void
+  }
+
+  private enum Backing {
+    case owned(OwnedDependencies)
+    case projected(RuntimeCommandHandler)
+  }
+
+  private let backing: Backing
   /// 直近に「QR を表示」で発行した端末のトークン。QR 画像の生成にのみ使う（表示・コピーはしない）。
   private var pendingQRToken: String?
   private var hidePairingQRTask: Task<Void, Never>?
   private var autoRecoveryTask: Task<Void, Never>?
+  private var runtimeRevision: UInt64 = 0
+  private var projectedHostName: String?
 
   private static let logger = Logger(subsystem: "com.phlox.Phlox", category: "MobileToken")
 
@@ -58,34 +68,117 @@ public final class MobileTokenViewModel: ObservableObject {
     onPrivilegedRequestersChanged: @escaping (Set<SessionID>) -> Void
   ) {
     self.devices = devices
-    self.provisioner = provisioner
-    self.tokenStore = tokenStore
-    self.proxy = proxy
+    self.backing = .owned(OwnedDependencies(
+      provisioner: provisioner,
+      tokenStore: tokenStore,
+      proxy: proxy,
+      onPrivilegedRequestersChanged: onPrivilegedRequestersChanged
+    ))
     self.bindMode = bindMode
     self.mobileProxyPort = mobileProxyPort
-    self.onPrivilegedRequestersChanged = onPrivilegedRequestersChanged
+  }
+
+  public init(snapshot: MobileRuntimeSnapshot, commandHandler: @escaping RuntimeCommandHandler) {
+    backing = .projected(commandHandler)
+    applyRuntimeSnapshot(snapshot)
+  }
+
+  public func makeRuntimeSnapshot() -> MobileRuntimeSnapshot {
+    if case .owned = backing { runtimeRevision += 1 }
+    return MobileRuntimeSnapshot(
+      revision: runtimeRevision,
+      devices: devices.map(MobileRuntimeSnapshot.Device.init),
+      lastSeenAt: lastSeenAt,
+      lastError: lastError,
+      exposure: bindMode.map(MobileRuntimeSnapshot.Exposure.init),
+      mobileProxyPort: mobileProxyPort,
+      isPushSendingConfigured: isPushSendingConfigured,
+      isPairingQRVisible: isPairingQRVisible,
+      pairingQRHidesAt: pairingQRHidesAt,
+      pendingQRToken: isPairingQRVisible ? pendingQRToken : nil,
+      hostName: pairingHostName
+    )
+  }
+
+  public func applyRuntimeSnapshot(_ snapshot: MobileRuntimeSnapshot) {
+    guard case .projected = backing, snapshot.revision >= runtimeRevision else { return }
+    runtimeRevision = snapshot.revision
+    devices = snapshot.devices.map(\.pairedDevice)
+    lastSeenAt = snapshot.lastSeenAt
+    lastError = snapshot.lastError
+    bindMode = snapshot.exposure?.bindMode
+    mobileProxyPort = snapshot.mobileProxyPort
+    isPushSendingConfigured = snapshot.isPushSendingConfigured
+    hidePairingQRTask?.cancel()
+    hidePairingQRTask = nil
+    let visibleUntil = snapshot.pairingQRHidesAt.flatMap { $0 > Date() ? $0 : nil }
+    isPairingQRVisible = snapshot.isPairingQRVisible && visibleUntil != nil
+    pairingQRHidesAt = isPairingQRVisible ? visibleUntil : nil
+    pendingQRToken = isPairingQRVisible ? snapshot.pendingQRToken : nil
+    projectedHostName = snapshot.hostName
+    if isPairingQRVisible, let visibleUntil {
+      schedulePairingQRAutoHide(at: visibleUntil)
+    }
+  }
+
+  public func performRuntimeCommand(_ command: MobileRuntimeCommand) async throws -> MobileRuntimeReply {
+    guard case .owned = backing else { throw MobileRuntimeError.projectionCannotPerformOwnedCommand }
+    switch command {
+    case .showPairingQR(let deviceName): await showPairingQR(deviceName: deviceName)
+    case .hidePairingQR: hidePairingQR()
+    case .revoke(let id): await revoke(id: id)
+    case .refreshReachability: await refreshReachability()
+    case .startAutoRecovery: startAutoRecovery()
+    }
+    return MobileRuntimeReply(snapshot: makeRuntimeSnapshot())
+  }
+
+  private var pairingHostName: String? {
+    switch backing {
+    case .owned: Host.current().localizedName
+    case .projected: projectedHostName
+    }
+  }
+
+  private func sendRuntimeCommand(_ command: MobileRuntimeCommand) async {
+    guard case .projected(let handler) = backing else { return }
+    do {
+      let reply = try await handler(command)
+      applyRuntimeSnapshot(reply.snapshot)
+    } catch {
+      lastError = "常駐プロセスとの通信に失敗しました。操作の結果を確認できません。"
+      Self.logger.error("Mobile runtime command failed: \(String(describing: error), privacy: .public)")
+    }
   }
 
   /// オンデマンドで Tailscale 到達性を再解決し、UI 向け状態へ反映する。
   public func refreshReachability() async {
-    let refreshedBindMode = await proxy.refresh()
-    let refreshedPort = await proxy.boundPort.map(Int.init)
+    guard case .owned(let owned) = backing else {
+      await sendRuntimeCommand(.refreshReachability)
+      return
+    }
+    let refreshedBindMode = await owned.proxy.refresh()
+    let refreshedPort = await owned.proxy.boundPort.map(Int.init)
     bindMode = refreshedBindMode
     mobileProxyPort = refreshedPort
   }
 
   /// 起動直後の短い自動回復を一度だけ駆動する。既に Tailscale 到達済みなら何もしない。
   public func startAutoRecovery() {
+    guard case .owned(let owned) = backing else {
+      Task { [weak self] in await self?.sendRuntimeCommand(.startAutoRecovery) }
+      return
+    }
     if case .tailscale = bindMode { return }
     guard autoRecoveryTask == nil else { return }
 
     autoRecoveryTask = Task { [weak self] in
       guard let self else { return }
-      let recoveredBindMode = await proxy.recoverUntilReachable(
+      let recoveredBindMode = await owned.proxy.recoverUntilReachable(
         maxAttempts: 5,
         delay: .seconds(2)
       )
-      let recoveredPort = await proxy.boundPort.map(Int.init)
+      let recoveredPort = await owned.proxy.boundPort.map(Int.init)
       bindMode = recoveredBindMode
       mobileProxyPort = recoveredPort
       autoRecoveryTask = nil
@@ -124,17 +217,21 @@ public final class MobileTokenViewModel: ObservableObject {
       bindMode: bindMode,
       port: port,
       token: pendingQRToken,
-      name: Host.current().localizedName
+      name: pairingHostName
     )
   }
 
   /// 新しい端末を発行し QR 表示を開始する。既存端末の token / requester には触れない。
   /// 60 秒後に自動非表示。
   public func showPairingQR(deviceName: String) async {
+    guard case .owned(let owned) = backing else {
+      await sendRuntimeCommand(.showPairingQR(deviceName: deviceName))
+      return
+    }
     guard isPairingQREnabled else { return }
     do {
-      let device = try provisioner.issueDevice(name: deviceName)
-      await provisioner.syncRegistrations(into: tokenStore)
+      let device = try owned.provisioner.issueDevice(name: deviceName)
+      await owned.provisioner.syncRegistrations(into: owned.tokenStore)
       try reloadDevicesAndPrivilegedRequesters()
       pendingQRToken = device.token.value
       lastError = nil
@@ -148,17 +245,26 @@ public final class MobileTokenViewModel: ObservableObject {
 
   /// QR ペアリング表示を手動で終了する。
   public func hidePairingQR() {
+    guard case .owned = backing else {
+      Task { [weak self] in await self?.sendRuntimeCommand(.hidePairingQR) }
+      return
+    }
     hidePairingQRTask?.cancel()
     hidePairingQRTask = nil
     isPairingQRVisible = false
     pairingQRHidesAt = nil
+    pendingQRToken = nil
   }
 
   /// 端末を 1 台失効させる。失効後は `SessionTokenStore` への登録も取り消し、一覧を更新する。
   public func revoke(id: UUID) async {
+    guard case .owned(let owned) = backing else {
+      await sendRuntimeCommand(.revoke(id: id))
+      return
+    }
     do {
-      try provisioner.revoke(id: id)
-      await provisioner.syncRegistrations(into: tokenStore)
+      try owned.provisioner.revoke(id: id)
+      await owned.provisioner.syncRegistrations(into: owned.tokenStore)
       try reloadDevicesAndPrivilegedRequesters()
       lastError = nil
     } catch {
@@ -178,6 +284,7 @@ public final class MobileTokenViewModel: ObservableObject {
   /// を使い、ここで新しい規則を作らない。再読込自体が失敗しても認証済み接続は継続しているため、
   /// ユーザー向けエラー表示（`lastError`）は出さずログにのみ残す。
   public func handleAuthenticatedPairingRecorded() {
+    guard case .owned = backing else { return }
     do {
       try reloadDevicesAndPrivilegedRequesters()
       // 表示中の QR の端末が成立したら、フルアクセスのトークンを画面に残さず閉じる（10 Settings）。
@@ -191,6 +298,7 @@ public final class MobileTokenViewModel: ObservableObject {
 
   /// 認証が通った要求のトークンから端末を引き、最後の要求の時刻を進める（C-54）。
   public func noteSeen(token: String, at date: Date = Date()) {
+    guard case .owned = backing else { return }
     guard let device = devices.first(where: { $0.token.value == token }) else { return }
     if let last = lastSeenAt[device.id], date.timeIntervalSince(last) < 10 { return }
     lastSeenAt[device.id] = date
@@ -206,18 +314,22 @@ public final class MobileTokenViewModel: ObservableObject {
   /// `provisioner.loadAndMigrate()` + `MobileBootstrap.privilegedRequesters(for:)` の
   /// 呼び出しをそれぞれで再実装しない。
   private func reloadDevicesAndPrivilegedRequesters() throws {
-    devices = try provisioner.loadAndMigrate()
-    onPrivilegedRequestersChanged(MobileBootstrap.privilegedRequesters(for: devices))
+    guard case .owned(let owned) = backing else { throw MobileRuntimeError.projectionCannotPerformOwnedCommand }
+    devices = try owned.provisioner.loadAndMigrate()
+    owned.onPrivilegedRequestersChanged(MobileBootstrap.privilegedRequesters(for: devices))
   }
 
-  private func schedulePairingQRAutoHide() {
+  private func schedulePairingQRAutoHide(at deadline: Date? = nil) {
     hidePairingQRTask?.cancel()
-    pairingQRHidesAt = Date().addingTimeInterval(Self.pairingQRVisibleDuration)
+    let hidesAt = deadline ?? Date().addingTimeInterval(Self.pairingQRVisibleDuration)
+    pairingQRHidesAt = hidesAt
     hidePairingQRTask = Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .seconds(Self.pairingQRVisibleDuration))
+      do { try await Task.sleep(for: .seconds(max(0, hidesAt.timeIntervalSinceNow))) }
+      catch { return }
       guard !Task.isCancelled, let self else { return }
       self.isPairingQRVisible = false
       self.pairingQRHidesAt = nil
+      self.pendingQRToken = nil
       self.hidePairingQRTask = nil
     }
   }

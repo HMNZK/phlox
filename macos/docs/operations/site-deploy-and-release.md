@@ -92,6 +92,15 @@ Phloxの回転は「表示を回転」で手動指定する。Simulator.app側�
 2. **Sparkle 更新バイナリ（zip/delta）を `HMNZK/phlox-dist` の Release（tag `updates`）にアップロードする**（現行の更新配信基盤）。
 3. **`site/appcast.xml`（＝phlox.cc が配信する正）に新バージョンの `<item>` を追記して `main` に push する**。旧 `phlox-dist/appcast.xml` はもう phlox.cc では配信されないので更新しても意味がない。`<item>` には `<description>`（リリースノート）を必ず含め、enclosure URL・`sparkle:version`・`sparkle:edSignature` を新バイナリに合わせる。push で Pages が自動デプロイ。
 
+常駐実行方式へ移行した版の新規`<item>`には、更新後のGUIが接続できる実行プロトコルの範囲も記す。現在の実装は版1で、次を追加する。既に公開した旧方式のバイナリへ、この互換性情報を後付けしない。
+
+```xml
+<phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+<phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+```
+
+新規更新候補は、この範囲が現在の実行プロトコルを含む場合にだけ受け入れる。情報なし、不正な範囲、非互換の候補は延期する。セッションの開始有無で判定を変えないため、ダウンロード中の新規開始で判定が変わる競合を避ける。初回導入前に既に準備済みだったSparkleの更新処理は、この判定の保証対象外。再開時にはSparkleが候補判定delegateを省略するため、過去に判定を通していないキャッシュまで保証したとは扱わない。
+
 ### リリースノートを書く（必須）
 
 **すべてのリリースにリリースノートを付ける。** 同じ内容を次の 2 箇所へ載せる:

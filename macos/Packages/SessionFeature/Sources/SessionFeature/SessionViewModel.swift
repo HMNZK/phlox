@@ -16,12 +16,18 @@ import Observation
 public final class SessionViewModel: Identifiable {
     public let id: SessionID
     public let startedAt: Date
+    public private(set) var executionID = UUID()
     public private(set) var status: SessionStatus
     /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
     public private(set) var statusEnteredAt: Date?
     public var isProcessing: Bool { status == .running }
     public let terminalCoordinator: TerminalCoordinator
-    public var titleState: SessionTitleState = .legacy(name: "")
+    public var titleState: SessionTitleState = .legacy(name: "") {
+        didSet {
+            guard !isApplyingRuntimeSnapshot, oldValue != titleState else { return }
+            forwardRuntimeCommand(.rename(titleState))
+        }
+    }
     public var name: String {
         get { titleState.name }
         set { titleState = titleState.renamed(to: newValue) }
@@ -41,7 +47,11 @@ public final class SessionViewModel: Identifiable {
     public private(set) var isRestored = false
     public var hasUnseenCompletion: Bool = false {
         didSet {
-            guard oldValue != hasUnseenCompletion else { return }
+            guard !isApplyingRuntimeSnapshot, oldValue != hasUnseenCompletion else { return }
+            if isRuntimeProjection {
+                if !hasUnseenCompletion { forwardRuntimeCommand(.markCompletionSeen) }
+                return
+            }
             unseenCompletionDidChange?()
         }
     }
@@ -58,6 +68,7 @@ public final class SessionViewModel: Identifiable {
     private static let inputReadinessSettleDuration: Duration = .milliseconds(400)
 
     public var isReadyForInput: Bool {
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.isReadyForInput }
         switch spawnRequest.statusBootstrap {
         case .viaHook:
             // SessionStart フック受信（.starting 脱出）が必須。さらに起動描画が静止する
@@ -120,33 +131,63 @@ public final class SessionViewModel: Identifiable {
     }
 
     /// このセッションが起動した CLI の種類。
-    public var agentRef: AgentRef { spawnRequest.agentDescriptor.ref }
-    public var agentDescriptor: AgentDescriptor { spawnRequest.agentDescriptor }
-    public var agentKind: AgentKind { spawnRequest.agentDescriptor.kind }
+    public var agentRef: AgentRef { runtimeProjectionSnapshot?.agentRef ?? spawnRequest.agentDescriptor.ref }
+    public var agentDescriptor: AgentDescriptor {
+        runtimeProjectionSnapshot.map { AgentRegistry.descriptor(for: $0.agentRef.builtinKind) }
+            ?? spawnRequest.agentDescriptor
+    }
+    public var agentKind: AgentKind { agentRef.builtinKind }
 
     /// 現在のワークスペース (CWD) の末尾ディレクトリ名。一覧・グリッドの簡易表示用。
     /// restart で workingDirectory が差し替わると spawnRequest 経由で自動的に更新される。
     public var workspaceName: String {
-        guard let dir = spawnRequest.workingDirectory, !dir.isEmpty else { return "" }
+        guard let dir = workingDirectory, !dir.isEmpty else { return "" }
         return (dir as NSString).lastPathComponent
     }
 
     /// 現在のワークスペース (CWD) のフルパス（ホームを ~ に短縮）。ツールチップ等の詳細表示用。
     public var workspacePath: String {
-        guard let dir = spawnRequest.workingDirectory, !dir.isEmpty else { return "" }
+        guard let dir = workingDirectory, !dir.isEmpty else { return "" }
         return (dir as NSString).abbreviatingWithTildeInPath
     }
 
     /// 現在のワークスペース (CWD) の生パス。衝突判定など、表示用に短縮しない用途で使う。
     public var rawWorkspacePath: String {
-        spawnRequest.workingDirectory ?? ""
+        workingDirectory ?? ""
     }
 
-    private let ptyManager: any PTYManagerProtocol
+    private var workingDirectory: String? {
+        if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.workingDirectory }
+        return spawnRequest.workingDirectory
+    }
+    @ObservationIgnored private var ownedPTYManager: (any PTYManagerProtocol)?
+    private var ptyManager: any PTYManagerProtocol {
+        guard let ownedPTYManager else { preconditionFailure("A projection cannot own a PTY") }
+        return ownedPTYManager
+    }
+    @ObservationIgnored private var runtimeCommandHandler: SessionRuntimeSessionCommandHandler?
+    private var runtimeProjectionSnapshot: SessionRuntimePTYSnapshot?
+    @ObservationIgnored private var isApplyingRuntimeSnapshot = false
+    public private(set) var runtimeConnectionError: String?
+    public var isRuntimeProjection: Bool { runtimeCommandHandler != nil }
     // restart 時に新 hook stream / 新 workingDirectory へ差し替えるため var とする
     // （API 契約上 private メンバーの let→var 化は許容）。
-    private var hookEvents: AsyncStream<(SessionID, HookEvent)>
-    private var spawnRequest: SpawnRequest
+    private var ownedHookEvents: AsyncStream<(SessionID, HookEvent)>?
+    private var hookEvents: AsyncStream<(SessionID, HookEvent)> {
+        get {
+            guard let ownedHookEvents else { preconditionFailure("A projection cannot subscribe to hooks") }
+            return ownedHookEvents
+        }
+        set { ownedHookEvents = newValue }
+    }
+    private var ownedSpawnRequest: SpawnRequest?
+    private var spawnRequest: SpawnRequest {
+        get {
+            guard let ownedSpawnRequest else { preconditionFailure("A projection cannot spawn a process") }
+            return ownedSpawnRequest
+        }
+        set { ownedSpawnRequest = newValue }
+    }
     private var didSpawn = false
     /// 復元準備を中止したプレースホルダを、resize/eager のどの経路からも起動させない。
     private var spawnSuppressed = false
@@ -208,6 +249,25 @@ public final class SessionViewModel: Identifiable {
         submitDiagnosticRecorder.hasObservedProcessing
     }
 
+    public init(projection snapshot: SessionRuntimePTYSnapshot,
+                commandHandler: @escaping SessionRuntimeSessionCommandHandler) throws {
+        try snapshot.display.validate()
+        self.id = snapshot.id
+        self.startedAt = snapshot.startedAt
+        self.status = snapshot.status
+        self.terminalCoordinator = try TerminalCoordinator(runtimeProjection: snapshot.display)
+        self.nonHookIdleFallbackTracker = NonHookIdleFallbackTracker(
+            settleDuration: Self.inputReadinessSettleDuration)
+        self.codexAdapter = nil
+        self.submitDiagnosticRecorder = SubmitDiagnosticRecorder(
+            sessionLabel: Self.shortID(for: snapshot.id),
+            agentKind: { snapshot.agentRef.builtinKind },
+            visibleText: { "" })
+        self.runtimeCommandHandler = commandHandler
+        try applyRuntimeSnapshot(snapshot)
+        bindCoordinator()
+    }
+
     public init(
         id: SessionID,
         startedAt: Date = Date(),
@@ -220,10 +280,10 @@ public final class SessionViewModel: Identifiable {
         self.id = id
         self.startedAt = startedAt
         self.status = .starting
-        self.ptyManager = ptyManager
-        self.hookEvents = hookEvents
+        self.ownedPTYManager = ptyManager
+        self.ownedHookEvents = hookEvents
         self.terminalCoordinator = terminalCoordinator
-        self.spawnRequest = spawnRequest
+        self.ownedSpawnRequest = spawnRequest
         self.titleState = titleState
         self.nonHookIdleFallbackTracker = NonHookIdleFallbackTracker(
             settleDuration: SessionViewModel.inputReadinessSettleDuration
@@ -240,6 +300,7 @@ public final class SessionViewModel: Identifiable {
     /// M6a で実装。Hook イベントの購読を開始する。PTY spawn と終了監視 (exitTask) は
     /// `spawnIfNeeded` で遅延する。exitTask を spawn 後に張る理由は spawnIfNeeded のコメント参照。
     public func start() async {
+        guard !isRuntimeProjection else { return }
         let events = hookEvents
 
         hookTask = Task { @MainActor [weak self] in
@@ -279,6 +340,10 @@ public final class SessionViewModel: Identifiable {
     /// View が attach され SwiftTerm のサイズが確定したときに spawn する（debounce 経由）。
     /// eager spawn 済みのときは spawnOnce 内の didSpawn ガードで no-op になる。
     public func spawnIfNeeded(initialCols: UInt16, initialRows: UInt16) async {
+        if isRuntimeProjection {
+            await forwardRuntimeCommandAndWait(.resize(cols: initialCols, rows: initialRows))
+            return
+        }
         await spawnOnce(cols: initialCols, rows: initialRows)
     }
 
@@ -288,6 +353,7 @@ public final class SessionViewModel: Identifiable {
     /// （codex/cursor は scrollback 無効化済みのため、既定サイズ→実サイズの resize でも
     /// ゴーストは蓄積しない）。
     public func spawnEager() async {
+        guard !isRuntimeProjection else { return }
         // TerminalCoordinator は 800x480 の初期 frame から算出した暫定グリッドを持つ。
         // それを使えば実サイズに近く resize 差分が小さい。0 のときは 80x24 にフォールバック。
         let cols = terminalCoordinator.initialCols
@@ -451,10 +517,12 @@ public final class SessionViewModel: Identifiable {
     /// 送信直後に呼び、次ターンの userPromptSubmit 待ち状態にする。
     /// send と userPromptSubmit の隙間に来た古い Stop が誤マッチしないようにする。
     public func markAwaitingNewTurn() {
+        guard !isRuntimeProjection else { return }
         activeTurnId = nil
     }
 
     public func markInputSubmitted() {
+        guard !isRuntimeProjection else { return }
         onInputSubmitted?()
         codexAdapter?.noteInputSubmitted()
         guard usesNonHookIdleFallback else { return }
@@ -466,11 +534,13 @@ public final class SessionViewModel: Identifiable {
     }
 
     public func markCompletionSeen() {
+        if isRuntimeProjection { forwardRuntimeCommand(.markCompletionSeen); return }
         hasUnseenCompletion = false
     }
 
     /// M6a で実装。ユーザー入力を PTY の stdin に書き込む。
     public func sendInput(_ data: Data) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.input(data)); return }
         guard didSpawn else { return }
         if data.containsSubmitKey {
             markInputSubmitted()
@@ -562,6 +632,7 @@ public final class SessionViewModel: Identifiable {
 
     /// M6a で実装。セッションを終了させる（SIGTERM）。
     public func kill() async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.terminate); return }
         initialSpawnTask?.cancel()
         initialSpawnTask = nil
         outputTask?.cancel()
@@ -588,6 +659,11 @@ public final class SessionViewModel: Identifiable {
         workingDirectory: String,
         hookEvents: AsyncStream<(SessionID, HookEvent)>
     ) async {
+        guard !isRuntimeProjection else {
+            runtimeConnectionError = SessionRuntimeProjectionError.unsupportedCommand.localizedDescription
+            return
+        }
+        executionID = UUID()
         // 1. 旧プロセスを kill し、outputTask/hookTask/exitTask を cancel→nil 化する。
         await kill()
 
@@ -653,16 +729,29 @@ public final class SessionViewModel: Identifiable {
 
     private func bindCoordinator() {
         terminalCoordinator.onInput = { [weak self] data in
-            Task { await self?.sendInput(data) }
+            guard let self else { return }
+            let expectedExecutionID = self.executionID
+            Task {
+                guard self.executionID == expectedExecutionID else { return }
+                if self.isRuntimeProjection {
+                    await self.forwardRuntimeCommandAndWait(.input(data), executionID: expectedExecutionID)
+                } else { await self.sendInput(data) }
+            }
         }
         terminalCoordinator.onResize = { [weak self] cols, rows in
+            guard let self else { return }
+            let expectedExecutionID = self.executionID
             Task { @MainActor in
-                await self?.handleResize(cols: cols, rows: rows)
+                guard self.executionID == expectedExecutionID else { return }
+                if self.isRuntimeProjection {
+                    await self.forwardRuntimeCommandAndWait(.resize(cols: cols, rows: rows), executionID: expectedExecutionID)
+                } else { await self.handleResize(cols: cols, rows: rows) }
             }
         }
     }
 
     private func handleResize(cols: UInt16, rows: UInt16) async {
+        if isRuntimeProjection { await forwardRuntimeCommandAndWait(.resize(cols: cols, rows: rows)); return }
         guard !spawnSuppressed else { return }
         if !didSpawn {
             // 初回 spawn のみ trailing debounce する。起動直後のレイアウト確定やサイドバー
@@ -823,7 +912,12 @@ private extension SessionStatus {
 
 extension SessionViewModel: ControllableSession {
     public func sendText(_ text: String, submit: Bool) async throws {
+        if let runtimeCommandHandler {
+            _ = try await runtimeCommandHandler(executionID, .send(text: text, submit: submit, attachments: [], skill: nil))
+            return
+        }
         guard didSpawn else { throw ControllableSessionError.notSpawned }
+        let expectedExecutionID = executionID
         markAwaitingNewTurn()
         // 子アプリが bracketed paste mode を有効化しているときは本文をペーストとして
         // 包む。これにより codex のペーストバースト Enter 抑制窓(ADR 0002 §8)に末尾の
@@ -833,13 +927,17 @@ extension SessionViewModel: ControllableSession {
         if wrapAsPaste {
             try await ptyManager.write(Self.bracketedPasteStart, to: id)
         }
+        guard executionID == expectedExecutionID else { throw SessionRuntimeProjectionError.staleExecution }
         try await ptyManager.write(Data(text.utf8), to: id)
+        guard executionID == expectedExecutionID else { throw SessionRuntimeProjectionError.staleExecution }
         if wrapAsPaste {
             try await ptyManager.write(Self.bracketedPasteEnd, to: id)
         }
+        guard executionID == expectedExecutionID else { throw SessionRuntimeProjectionError.staleExecution }
         if submit {
             submitBaselineTurnSeq = completedTurnSeq
             try await Task.sleep(for: submitKeyDelay)
+            guard executionID == expectedExecutionID else { throw SessionRuntimeProjectionError.staleExecution }
             markInputSubmitted()
             try await ptyManager.write(Data("\r".utf8), to: id)
             // codex の submit 滞留(ADR 0002 §8.5)を次の再発で捕捉するための観測を始める。
@@ -877,10 +975,102 @@ extension SessionViewModel: ControllableSession {
     }
 
     public func consumeSubmitBaseline() {
+        if isRuntimeProjection { forwardRuntimeCommand(.consumeSubmitBaseline); return }
         submitBaselineTurnSeq = nil
     }
 
     public func terminate() async {
         await kill()
+    }
+
+    public func makeRuntimeSnapshot() throws -> SessionRuntimePTYSnapshot {
+        var value = SessionRuntimePTYSnapshot(id: id, startedAt: startedAt, agentRef: agentRef,
+            workingDirectory: workingDirectory, display: try terminalCoordinator.makeRuntimeDisplaySnapshot())
+        value.executionID = executionID
+        value.titleState = titleState
+        value.projectID = projectID
+        value.parentSessionID = parentSessionID
+        value.launchContext = launchContext
+        value.status = status
+        value.statusEnteredAt = statusEnteredAt
+        value.hasUnseenCompletion = hasUnseenCompletion
+        value.hasProducedOutput = hasProducedOutput
+        value.lastOutputAt = lastOutputAt
+        value.lastTurnCompletedAt = lastTurnCompletedAt
+        value.submitBaselineTurnSeq = submitBaselineTurnSeq
+        value.completedTurnSeq = completedTurnSeq
+        value.activeTurnId = activeTurnId
+        value.isRestored = isRestored
+        value.isReadyForInput = isReadyForInput
+        return value
+    }
+
+    public func validateRuntimeSnapshot(_ snapshot: SessionRuntimePTYSnapshot) throws {
+        guard isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
+        guard snapshot.id == id, snapshot.startedAt == startedAt,
+              runtimeProjectionSnapshot == nil || snapshot.agentRef == runtimeProjectionSnapshot?.agentRef
+        else { throw SessionRuntimeProjectionError.wrongSession }
+        try snapshot.display.validate()
+    }
+
+    public func applyRuntimeSnapshot(_ snapshot: SessionRuntimePTYSnapshot) throws {
+        try validateRuntimeSnapshot(snapshot)
+        try terminalCoordinator.applyRuntimeDisplaySnapshot(snapshot.display)
+        isApplyingRuntimeSnapshot = true
+        defer { isApplyingRuntimeSnapshot = false }
+        runtimeProjectionSnapshot = snapshot
+        executionID = snapshot.executionID
+        titleState = snapshot.titleState
+        projectID = snapshot.projectID
+        parentSessionID = snapshot.parentSessionID
+        launchContext = snapshot.launchContext
+        status = snapshot.status
+        statusEnteredAt = snapshot.statusEnteredAt
+        hasUnseenCompletion = snapshot.hasUnseenCompletion
+        hasProducedOutput = snapshot.hasProducedOutput
+        lastOutputAt = snapshot.lastOutputAt
+        lastTurnCompletedAt = snapshot.lastTurnCompletedAt
+        submitBaselineTurnSeq = snapshot.submitBaselineTurnSeq
+        completedTurnSeq = snapshot.completedTurnSeq
+        activeTurnId = snapshot.activeTurnId
+        isRestored = snapshot.isRestored
+        runtimeConnectionError = nil
+    }
+
+    public func performRuntimeCommand(_ command: SessionRuntimeSessionCommand, expectedExecutionID: UUID) async throws -> SessionRuntimeSessionCommandResult {
+        guard !isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
+        guard expectedExecutionID == executionID else { throw SessionRuntimeProjectionError.staleExecution }
+        switch command {
+        case .send(let text, let submit, let attachments, let skill):
+            guard attachments.isEmpty, skill == nil else { throw SessionRuntimeProjectionError.unsupportedCommand }
+            try await sendText(text, submit: submit)
+        case .input(let data): await sendInput(data)
+        case .resize(let cols, let rows):
+            guard cols >= 2, rows > 0,
+                  Int(cols) <= TerminalRuntimeDisplaySnapshot.maximumDimension,
+                  Int(rows) <= TerminalRuntimeDisplaySnapshot.maximumDimension
+            else { throw SessionRuntimeProjectionError.unsupportedCommand }
+            terminalCoordinator.terminalView.getTerminal().resize(cols: Int(cols), rows: Int(rows))
+            await handleResize(cols: cols, rows: rows)
+        case .interrupt: await sendInput(Data([0x1b]))
+        case .terminate: await terminate()
+        case .markCompletionSeen: markCompletionSeen()
+        case .consumeSubmitBaseline: consumeSubmitBaseline()
+        case .rename(let title): titleState = title
+        default: throw SessionRuntimeProjectionError.unsupportedCommand
+        }
+        return .none
+    }
+
+    private func forwardRuntimeCommand(_ command: SessionRuntimeSessionCommand) {
+        guard isRuntimeProjection else { return }
+        let expectedExecutionID = executionID
+        Task { [weak self] in await self?.forwardRuntimeCommandAndWait(command, executionID: expectedExecutionID) }
+    }
+
+    private func forwardRuntimeCommandAndWait(_ command: SessionRuntimeSessionCommand, executionID expectedExecutionID: UUID? = nil) async {
+        guard let runtimeCommandHandler else { return }
+        do { _ = try await runtimeCommandHandler(expectedExecutionID ?? executionID, command) }
+        catch { runtimeConnectionError = error.localizedDescription }
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 /// 実行中エージェントが「いま何をしているか」の 6 状態（表示用の粒度）。
 /// transcript の直近の項目とセッション状態から導出する（ThinkingRecap と同じく純粋関数）。
-public enum AgentActivityState: String, CaseIterable, Sendable {
+public enum AgentActivityState: String, Codable, CaseIterable, Sendable {
     /// 推論中（ツールを使っていない）。
     case thinking
     /// 読み取り系ツール（Read / Grep / Glob / WebSearch など）。

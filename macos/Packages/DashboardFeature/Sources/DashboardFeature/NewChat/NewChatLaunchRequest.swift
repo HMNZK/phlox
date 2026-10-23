@@ -1,7 +1,7 @@
 import AgentDomain
 import SessionFeature
 
-public struct NewChatLaunchRequest: Sendable {
+public struct NewChatLaunchRequest: Codable, Sendable {
     public let projectID: ProjectID
     public let agentRef: AgentRef
     public let settings: CodexAppServerSessionSettings

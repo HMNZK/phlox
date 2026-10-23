@@ -8,7 +8,7 @@ import DesignSystem
 // 実装契約の正本: tasks/task-8.md
 
 /// composer に添付された画像1件。
-public struct ComposerAttachment: Equatable, Identifiable, Sendable {
+public struct ComposerAttachment: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     /// 本文の `[Image #N]` と対応する表示番号（1始まり・欠番は詰めない）。task-2 契約。
     public let number: Int

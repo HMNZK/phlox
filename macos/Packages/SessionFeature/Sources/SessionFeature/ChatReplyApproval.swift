@@ -143,7 +143,26 @@ extension ChatSessionViewModel {
     @discardableResult
     public func respond(to approval: ReplyApproval, decision: ApprovalDecision, now: Date = Date()) async -> Bool {
         guard isApprovalArmed(approval.id, now: now) else { return false }
+        let presentedAt = approvalPresentedAt[approval.id]
         approvalPresentedAt[approval.id] = nil
+        if isRuntimeProjection {
+            let command: SessionRuntimeSessionCommand
+            switch approval.source {
+            case .approval(let id):
+                command = .approval(id, decision: decision)
+            case .toolPermission(let requestId, let answerKey):
+                switch decision {
+                case .accept: command = .question(requestId: requestId, answers: [answerKey: ["Allow"]])
+                case .acceptForSession:
+                    command = .question(requestId: requestId, answers: [answerKey: [Self.allowForSessionAnswer]])
+                case .decline: command = .question(requestId: requestId, answers: [answerKey: ["Deny"]])
+                case .cancel: command = .interrupt
+                }
+            }
+            let accepted = await sendProjectedReply(command)
+            if !accepted { approvalPresentedAt[approval.id] = presentedAt }
+            return accepted
+        }
         switch approval.source {
         case .approval(let id):
             await respondToApproval(id, decision: decision)

@@ -80,7 +80,7 @@ enum CodexSubAgentPresentation {
     }
 }
 
-public struct CodexChildThread: Identifiable, Equatable, Sendable {
+public struct CodexChildThread: Codable, Identifiable, Equatable, Sendable {
     public let id: String
     public let parentThreadId: String
     public let ancestorThreadId: String?
@@ -115,7 +115,7 @@ public struct CodexChildThread: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct CodexSubAgentStopRequest: Equatable, Sendable {
+public struct CodexSubAgentStopRequest: Codable, Equatable, Sendable {
     public let threadId: String
     public let turnId: String
     public let parentThreadId: String
@@ -127,13 +127,13 @@ public struct CodexSubAgentStopRequest: Equatable, Sendable {
     }
 }
 
-public enum CodexSubAgentControlState: Equatable, Sendable {
+public enum CodexSubAgentControlState: Codable, Equatable, Sendable {
     case available
     case unavailable
     case stale
 }
 
-public enum CodexSubAgentStopState: Equatable, Sendable {
+public enum CodexSubAgentStopState: Codable, Equatable, Sendable {
     case available
     case stopping
     case stopped
@@ -149,7 +149,7 @@ public enum CodexSubAgentEvent: Equatable, Sendable {
     case turnCompleted(threadId: String, turnId: String, status: String)
 }
 
-public struct CodexSubAgentState: Equatable, Sendable {
+public struct CodexSubAgentState: Codable, Equatable, Sendable {
     public let parentThreadId: String
     public private(set) var children: [CodexChildThread] = []
 
@@ -164,7 +164,7 @@ public struct CodexSubAgentState: Equatable, Sendable {
     /// ユーザーの停止は完了通知の順序に頼らず、停止要求を出した時点で記録する。
     /// 外れるのは (1) 停止要求が失敗（rejectStop）、(2) 記録した turn と別の turn（activeTurnId が非 nil）で
     /// 実行中に戻った refresh、(3) `.unavailable`、(4) 一覧から消えたときだけ。turnId は記録した turn（不明なら nil）。
-    private struct StickyTerminal: Equatable, Sendable {
+    private struct StickyTerminal: Codable, Equatable, Sendable {
         var status: String
         var turnId: String?
         var isUserStop = false

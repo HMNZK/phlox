@@ -409,6 +409,7 @@ open class Terminal {
     private var charToIndexMap: [Character:Int32] = [:]
     private var indexToCharMap: [Int32: Character] = [:]
     private var lastCharIndex: Int32 = Int32(CharData.maxRune + 1)
+    private var runtimeDisplayLinkAtoms: [String: TinyAtom] = [:]
     var gLevel: UInt8 = 0
     var cursorBlink: Bool = false
     
@@ -417,6 +418,14 @@ open class Terminal {
     public var parser: EscapeSequenceParser
     var kittyGraphicsState = KittyGraphicsState()
     var kittyPlacementContext: KittyPlacementContext?
+    var runtimeDisplayVirtualImageCache: [UInt32: (tick: UInt64, image: TTImage)] = [:]
+    var runtimeDisplayVirtualPlacements: [KittyPlacementRecord] {
+        kittyGraphicsState.placementsByKey.values.filter {
+            $0.isVirtual && $0.isAlternateBuffer == isDisplayBufferAlternate && kittyGraphicsState.imagesById[$0.imageId] != nil
+        }.sorted {
+            $0.imageId == $1.imageId ? $0.placementId < $1.placementId : $0.imageId < $1.imageId
+        }
+    }
     
     var refreshStart = Int.max
     var refreshEnd = -1
@@ -469,7 +478,7 @@ open class Terminal {
     // The mouse coordinates can be encoded in a number of ways, and obey to historical
     // upgrades to the protocol, but also attempts at fixing limitations of the different
     // encodings.
-    enum MouseProtocolEncoding {
+    enum MouseProtocolEncoding: Int {
         // The default x10 mode is limited to coordinates up to 223.
         // (255-32).   The other modes solve this limitaion
         case x10
@@ -568,7 +577,7 @@ open class Terminal {
     /// Represents the mouse operation mode that the terminal is currently using and higher level
     /// implementations should use the functions in this enumeration to determine what events to
     /// send
-    public enum MouseMode {
+    public enum MouseMode: Int {
         /// No mouse events are reported
         case off
         
@@ -5555,6 +5564,165 @@ open class Terminal {
     /**
      * Registers that the region between startRow and endRow was modified and needs to be updated by the
      */
+    public func makeRuntimeDisplaySnapshot(
+        imageEncoder: (TerminalImage) throws -> RuntimeDisplaySnapshot.Image = { _ in
+            throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+        },
+        virtualImageEncoder: (UInt32) throws -> String = { _ in
+            throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+        }
+    ) throws -> RuntimeDisplaySnapshot {
+        let source = displayBuffer
+        let columns = min(cols, RuntimeDisplaySnapshot.maximumDimension)
+        let height = min(rows, RuntimeDisplaySnapshot.maximumDimension)
+        let limit = min(RuntimeDisplaySnapshot.maximumLines, RuntimeDisplaySnapshot.maximumCells / columns)
+        let end = min(source.lines.count, source.yBase + height)
+        let start = max(0, end - limit)
+        var clipped = columns != cols || height != rows || start != 0
+        var textBytes = 0
+        var snapshotLines: [RuntimeDisplaySnapshot.Line] = []
+        for index in start..<end {
+            let line = source.lines[index]
+            let cells = (0..<min(columns, line.count)).map { col -> RuntimeDisplaySnapshot.Cell in
+                let cell = line[col]
+                var text = String(getCharacter(for: cell))
+                var hyperlink = cell.getPayload() as? String
+                let bytes = text.utf8.count + (hyperlink?.utf8.count ?? 0)
+                if text.utf8.count > RuntimeDisplaySnapshot.maximumCellTextBytes ||
+                    (hyperlink?.utf8.count ?? 0) > RuntimeDisplaySnapshot.maximumCellTextBytes ||
+                    textBytes + bytes > RuntimeDisplaySnapshot.maximumTextBytes - RuntimeDisplaySnapshot.maximumCells * 3 {
+                    text = "�"
+                    hyperlink = nil
+                    clipped = true
+                }
+                textBytes += text.utf8.count + (hyperlink?.utf8.count ?? 0)
+                return .init(text: text, width: cell.width, attribute: cell.attribute, hyperlink: hyperlink)
+            }
+            let renderMode: Int
+            switch line.renderMode {
+            case .single: renderMode = 0
+            case .doubleWidth: renderMode = 1
+            case .doubledTop: renderMode = 2
+            case .doubledDown: renderMode = 3
+            }
+            let images = try (line.images ?? []).map { image in
+                return try imageEncoder(image)
+            }
+            snapshotLines.append(.init(cells: cells, wrapped: line.isWrapped, renderMode: renderMode, images: images))
+        }
+        while snapshotLines.count < height {
+            snapshotLines.append(.init(cells: [.init(text: "\0", width: 1,
+                attribute: CharData.defaultAttr, hyperlink: nil)], wrapped: false, renderMode: 0))
+        }
+        let placements = runtimeDisplayVirtualPlacements
+        var virtualImages: [UInt32: String] = [:]
+        for id in Set(placements.map(\.imageId)) { virtualImages[id] = try virtualImageEncoder(id) }
+        let snapshot = RuntimeDisplaySnapshot(columns: columns, rows: height, lines: snapshotLines,
+            firstLine: source.linesTop + start, cursorColumn: min(source.x, columns),
+            cursorRow: min(source.y, height - 1), alternateScreen: isDisplayBufferAlternate,
+            cursorHidden: cursorHidden, cursorStyle: options.cursorStyle,
+            applicationCursor: applicationCursor, applicationKeypad: applicationKeypad,
+            bracketedPaste: bracketedPasteMode, focusReporting: sendFocus,
+            mouseMode: mouseMode.rawValue, mouseEncoding: mouseProtocol.rawValue,
+            keyboardFlags: keyboardEnhancementFlags.rawValue, lineFeedMode: lineFeedMode,
+            send8bit: cc.send8bit, virtualPlacements: placements, virtualImageContents: virtualImages,
+            truncated: clipped)
+        try snapshot.validate()
+        return snapshot
+    }
+
+    /// Replaces only the display model. It never feeds bytes or invokes a query handler.
+    public func applyRuntimeDisplaySnapshot(_ snapshot: RuntimeDisplaySnapshot,
+        imageFactory: ((RuntimeDisplaySnapshot.Image) -> TerminalImage)? = nil,
+        virtualImageData: [UInt32: Data] = [:]) throws {
+        try snapshot.validate()
+        guard Set(virtualImageData.keys) == Set(snapshot.virtualImageContents.keys) else {
+            throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+        }
+        guard imageFactory != nil || snapshot.lines.allSatisfy({ $0.images.isEmpty }) else {
+            throw RuntimeDisplaySnapshot.InvalidSnapshot.images
+        }
+        let old = buffer
+        let following = old.yDisp == old.yBase
+        let previousTop = old.linesTop + old.yDisp
+        let sameScreen = isCurrentBufferAlternate == snapshot.alternateScreen
+        let restored = Buffer(cols: snapshot.columns, rows: snapshot.rows, tabStopWidth: tabStopWidth,
+            scrollback: snapshot.alternateScreen ? nil : max(0, snapshot.lines.count - snapshot.rows))
+        charToIndexMap.removeAll(keepingCapacity: true)
+        indexToCharMap.removeAll(keepingCapacity: true)
+        lastCharIndex = Int32(CharData.maxRune + 1)
+        let links = Set(snapshot.lines.flatMap { $0.cells.compactMap(\.hyperlink) })
+        for (link, atom) in runtimeDisplayLinkAtoms where !links.contains(link) {
+            TinyAtom.release(code: atom.code)
+            runtimeDisplayLinkAtoms.removeValue(forKey: link)
+        }
+        for source in snapshot.lines {
+            let line = BufferLine(cols: snapshot.columns, isWrapped: source.wrapped)
+            switch source.renderMode {
+            case 1: line.renderMode = .doubleWidth
+            case 2: line.renderMode = .doubledTop
+            case 3: line.renderMode = .doubledDown
+            default: line.renderMode = .single
+            }
+            for (index, cell) in source.cells.enumerated() {
+                var value = makeCharData(attribute: cell.attribute, char: cell.text.first!, size: cell.width)
+                if let link = cell.hyperlink {
+                    if runtimeDisplayLinkAtoms[link] == nil {
+                        runtimeDisplayLinkAtoms[link] = TinyAtom.lookup(value: link)
+                    }
+                    if let atom = runtimeDisplayLinkAtoms[link] { value.setPayload(atom: atom) }
+                }
+                line[index] = value
+            }
+            restored.lines.push(line)
+            if let imageFactory {
+                for image in source.images {
+                    restored.attachImage(imageFactory(image), toLineAt: restored.lines.count - 1)
+                }
+            }
+        }
+        restored.linesTop = snapshot.firstLine
+        restored.yBase = snapshot.lines.count - snapshot.rows
+        restored.yDisp = following || !sameScreen ? restored.yBase :
+            min(restored.yBase, max(0, previousTop - snapshot.firstLine))
+        restored.x = snapshot.cursorColumn
+        restored.y = snapshot.cursorRow
+        cols = snapshot.columns
+        rows = snapshot.rows
+        normalBuffer = snapshot.alternateScreen ? Buffer(cols: cols, rows: rows,
+            tabStopWidth: tabStopWidth, scrollback: 0) : restored
+        altBuffer = snapshot.alternateScreen ? restored : Buffer(cols: cols, rows: rows,
+            tabStopWidth: tabStopWidth, scrollback: nil)
+        buffer = restored
+        synchronizedOutputBuffer = nil
+        synchronizedOutputActive = false
+        synchronizedOutputTimeoutItem?.cancel()
+        applicationCursor = snapshot.applicationCursor
+        applicationKeypad = snapshot.applicationKeypad
+        bracketedPasteMode = snapshot.bracketedPaste
+        sendFocus = snapshot.focusReporting
+        mouseProtocol = MouseProtocolEncoding(rawValue: snapshot.mouseEncoding)!
+        mouseMode = MouseMode(rawValue: snapshot.mouseMode)!
+        let flags = KittyKeyboardFlags(rawValue: snapshot.keyboardFlags)
+        keyboardModeNormal = KeyboardModeState(flags: flags)
+        keyboardModeAlt = KeyboardModeState(flags: flags)
+        lineFeedMode = snapshot.lineFeedMode
+        cc.send8bit = snapshot.send8bit
+        kittyGraphicsState = KittyGraphicsState()
+        for (id, data) in virtualImageData {
+            kittyGraphicsState.imagesById[id] = KittyGraphicsImage(payload: .png(data),
+                byteSize: data.count, lastAccessTick: 0)
+        }
+        for placement in snapshot.virtualPlacements {
+            kittyGraphicsState.placementsByKey[KittyPlacementKey(imageId: placement.imageId,
+                placementId: placement.placementId)] = placement
+        }
+        if snapshot.cursorHidden { hideCursor() } else { showCursor() }
+        setCursorStyle(snapshot.cursorStyle)
+        tdel?.bufferActivated(source: self)
+        refresh(startRow: 0, endRow: rows - 1)
+    }
+
     public func refresh (startRow: Int, endRow: Int)
     {
         // TO BE HONEST - This probably should not be called directly,

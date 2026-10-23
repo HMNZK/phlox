@@ -837,10 +837,26 @@ struct NewChatView: View {
     }
 
     private func send(workingDirectoryOverride: String? = nil) {
-        guard canSend, let projectID = draft.projectIDForSend(selected: project?.id, in: viewModel) else { return }
-        router.newChatProjectID = projectID
-        guard let request = draft.makeLaunchRequest(projectID: projectID, workingDirectoryOverride: workingDirectoryOverride) else { return }
-        launch(request, isHistoryResume: false)
+        guard canSend, !isLaunching else { return }
+        isLaunching = true
+        Task { @MainActor in
+            do {
+                guard let projectID = try await draft.projectIDForSendFromRuntime(selected: project?.id, in: viewModel) else {
+                    isLaunching = false
+                    return
+                }
+                router.newChatProjectID = projectID
+                guard let request = draft.makeLaunchRequest(projectID: projectID, workingDirectoryOverride: workingDirectoryOverride) else {
+                    isLaunching = false
+                    return
+                }
+                isLaunching = false
+                launch(request, isHistoryResume: false)
+            } catch {
+                isLaunching = false
+                onLaunchFailure(draft.agentRef, error)
+            }
+        }
     }
 
     private func resumeHistory(_ historyID: String, workingDirectoryOverride: String? = nil) {
@@ -875,7 +891,10 @@ struct NewChatView: View {
                 }
                 isLaunching = false
                 pendingResumeHistoryID = nil
-                let phase: NewChatLaunchAnnouncement.Phase = viewModel.sessionNode(id: id)?.appServer?.launchFailure == nil ? .succeeded : .failed
+                let phase: NewChatLaunchAnnouncement.Phase
+                if viewModel.sessionNode(id: id)?.appServer?.launchFailure != nil { phase = .failed }
+                else if viewModel.isRuntimeProjection, !isHistoryResume { phase = .accepted }
+                else { phase = .succeeded }
                 AccessibilityNotification.Announcement(NewChatLaunchAnnouncement.text(
                     phase: phase, resumesHistory: isHistoryResume, locale: locale, bundle: localizationBundle
                 )).post()
@@ -919,7 +938,7 @@ struct NewChatAccessibilityCopy: Equatable {
 }
 
 enum NewChatLaunchAnnouncement {
-    enum Phase { case starting, succeeded, failed }
+    enum Phase { case starting, accepted, succeeded, failed }
 
     static func text(phase: Phase, resumesHistory: Bool, locale: Locale, bundle: Bundle = .main) -> String {
         let key: String
@@ -928,6 +947,7 @@ enum NewChatLaunchAnnouncement {
         case (.starting, false): key = "起動しています。終わったら最初のメッセージを送ります"
         case (.succeeded, true): key = "会話を再開しました"
         case (.succeeded, false): key = "起動しました。最初のメッセージを送りました"
+        case (.accepted, _): key = "メッセージを受け付けました。"
         case (.failed, true): key = "会話を再開できませんでした"
         case (.failed, false): key = "起動できませんでした。本文を入力欄に戻しました"
         }

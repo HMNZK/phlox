@@ -40,9 +40,13 @@ public final class CompositionRoot {
     private let actionHandler: ControlActionHandler
 
     public init(
+        migrationEnabled: Bool = true,
+        worktreeRecreationConfirmer: (@MainActor (String, String, Bool) -> Bool)? = nil,
         onDashboardReady: (@MainActor (DashboardViewModel, PTYManager, ClaudeUsageProcess?) -> Void)? = nil
     ) async throws {
-        let appSupportMigrationOutcome = Self.migrateAndCleanupAppSupport()
+        let appSupportMigrationOutcome: MigrationOutcome = migrationEnabled
+            ? Self.migrateAndCleanupAppSupport()
+            : .skippedExistingData(reason: "runtime uses an explicit data directory")
         if let reason = appSupportMigrationOutcome.startupFailureReason {
             throw CompositionError.migrationFailed(reason: reason)
         }
@@ -155,7 +159,7 @@ public final class CompositionRoot {
         self.actionHandler = control.actionHandler
         control.actionHandler.dashboard = started.dashboard
         // 09 E2: 復元で壊れた worktree を作り直す前にたずねる（画面が出る前なので独立したパネルで）。
-        started.dashboard.worktreeRecreationConfirmer = { path, branchName, branchExists in
+        started.dashboard.worktreeRecreationConfirmer = worktreeRecreationConfirmer ?? { path, branchName, branchExists in
             WorktreeRecreationDialog.confirm(path: path, branchName: branchName, branchExists: branchExists)
         }
         await started.dashboard.start()
@@ -447,7 +451,9 @@ public final class CompositionRoot {
         )
         let dashboard = DashboardViewModel(
             environment: env,
-            livePIDProvider: { id in await pty.pid(for: id) }
+            livePIDProvider: { id in await pty.pid(for: id) },
+            paneLayoutStore: SessionRuntimeLaunchRole(arguments: ProcessInfo.processInfo.arguments) == .sessionRuntime
+                ? nil : PaneLayoutStore(userDefaults: .phloxDefaults())
         )
         let usage = UsageMonitor(
             environment: env,
@@ -690,6 +696,10 @@ public final class CompositionRoot {
     /// scripts ディレクトリ内の実行ファイルパスを実行形態に応じて解決する。
     /// Debug ではリポジトリ内、Release ではアプリバンドル同梱リソース内を参照する。
     private static func scriptPath(_ name: String, repositoryRoot: URL = defaultRepositoryRoot) -> String {
+        if SessionRuntimeLaunchRole(arguments: ProcessInfo.processInfo.arguments) == .sessionRuntime,
+           let resourceURL = Bundle.main.resourceURL {
+            return resourceURL.appendingPathComponent("scripts/\(name)").path
+        }
         #if DEBUG
             return repositoryRoot.appendingPathComponent("scripts/\(name)").path
         #else
@@ -703,6 +713,10 @@ public final class CompositionRoot {
     private static let hookDispatcherPath = scriptPath("hook-dispatcher.sh")
 
     static let cliPath = scriptPath("phlox")
+
+    static var runtimeAssetsRoot: URL {
+        URL(fileURLWithPath: hookDispatcherPath).deletingLastPathComponent()
+    }
 
     @MainActor
     private static func liveClaudeUsageConnections(

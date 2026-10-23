@@ -5,7 +5,7 @@ import StructuredChatKit
 
 // 隠している秘密: DashboardViewModel 本体の責務ではない表示値・エラー型・復元失敗用 no-op client。
 
-public struct RestoredSessionPresentation: Sendable, Equatable {
+public struct RestoredSessionPresentation: Codable, Sendable, Equatable {
     public let selectedSessionID: SessionID
     public let expandedProjectIDs: Set<ProjectID>
 

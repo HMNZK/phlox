@@ -179,6 +179,14 @@ public struct DashboardView: View {
                     }
                 }
             }
+            .alert("操作できませんでした", isPresented: Binding(
+                get: { viewModel.runtimeCommandError != nil },
+                set: { if !$0 { viewModel.clearRuntimeCommandError() } }
+            )) {
+                Button("閉じる") { viewModel.clearRuntimeCommandError() }
+            } message: {
+                Text(viewModel.runtimeCommandError ?? "")
+            }
             .dsDialog(item: $pendingDeletion) { selection in
                 let rows = deletionDialogRows(for: selection.id)
                 DSDialog(
@@ -215,14 +223,18 @@ public struct DashboardView: View {
                         DSDialogButton("削除", role: .destructive) {
                             let projectID = project.id
                             pendingProjectDeletion = nil
-                            expandedProjectIDs.remove(projectID)
-                            if let selected = router.selectedSession,
-                               viewModel.gridSessionNodes(in: projectID).contains(where: { $0.id == selected }) {
-                                router.selectedSession = nil
-                            }
+                            let selected = router.selectedSession
+                            let selectedBelongsToProject = selected.map { id in
+                                viewModel.gridSessionNodes(in: projectID).contains(where: { $0.id == id })
+                            } ?? false
                             Task {
-                                await router.forgetProject(projectID, terminals: sessionTerminals, simulatorHub: simulatorHub)
                                 await viewModel.removeProject(projectID)
+                                guard !viewModel.projects.contains(where: { $0.id == projectID }) else { return }
+                                expandedProjectIDs.remove(projectID)
+                                if selectedBelongsToProject, router.selectedSession == selected {
+                                    router.selectedSession = nil
+                                }
+                                await router.forgetProject(projectID, terminals: sessionTerminals, simulatorHub: simulatorHub)
                             }
                         },
                         DSDialogButton("キャンセル", role: .primary) { pendingProjectDeletion = nil },
@@ -978,12 +990,16 @@ public struct DashboardView: View {
         Task { @MainActor in
             guard let url = ProjectFolderPanel.choose(locale: locale) else { return }
             let name = url.lastPathComponent
-            if let projectID = viewModel.addProject(name: name, directoryPath: url.path) {
-                expandedProjectIDs.insert(projectID)
-                // 送信先の無い新規チャット画面から追加したら、そのまま送信先にする（要件 FR-3）。
-                if router.viewMode == .single, router.selectedProjectID == nil, router.selectedSession == nil {
-                    router.showNewChat(projectID: projectID)
+            do {
+                if let projectID = try await viewModel.addProjectFromRuntime(name: name, directoryPath: url.path) {
+                    expandedProjectIDs.insert(projectID)
+                    // 送信先の無い新規チャット画面から追加したら、そのまま送信先にする（要件 FR-3）。
+                    if router.viewMode == .single, router.selectedProjectID == nil, router.selectedSession == nil {
+                        router.showNewChat(projectID: projectID)
+                    }
                 }
+            } catch {
+                spawnError = SpawnError(agentName: name, message: error.localizedDescription, opensAgentConsole: false)
             }
         }
     }

@@ -4,13 +4,13 @@ import CodexAppServerKit
 import StructuredChatKit
 
 // Hidden secret: session DTOs and app-server conversion adapters shared by chat sessions.
-public enum ChatApprovalKind: Sendable, Equatable {
+public enum ChatApprovalKind: Codable, Sendable, Equatable {
     case command
     case fileChange
     case permissions
 }
 
-public struct ChatApprovalRequest: Identifiable, Equatable, Sendable {
+public struct ChatApprovalRequest: Codable, Identifiable, Equatable, Sendable {
     public let id: UUID
     public let kind: ChatApprovalKind
     public let threadId: String
@@ -28,7 +28,7 @@ public struct ChatApprovalRequest: Identifiable, Equatable, Sendable {
 }
 
 /// 権限の変更の 1 行。`label` と `value`（パス以外）は表示時に翻訳する。
-public struct ApprovalPermissionRow: Equatable, Sendable {
+public struct ApprovalPermissionRow: Codable, Equatable, Sendable {
     public let label: String
     public let value: String
     public let isPath: Bool
@@ -60,7 +60,7 @@ public struct ChatUserInputRequest: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct RunningBackgroundTask: Identifiable, Equatable, Sendable {
+public struct RunningBackgroundTask: Codable, Identifiable, Equatable, Sendable {
     public let taskId: String
     public let taskType: String
     public let description: String
@@ -80,7 +80,7 @@ struct CachedSubAgentTranscript {
     let items: [ChatItem]
 }
 
-public enum ChatRestoreState: Equatable, Sendable {
+public enum ChatRestoreState: Codable, Equatable, Sendable {
     case notRestored
     case restoring
     case restored

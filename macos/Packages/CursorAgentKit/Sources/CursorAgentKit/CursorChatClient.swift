@@ -92,6 +92,7 @@ public actor CursorChatClient: StructuredAgentClient {
     public func start() async {}
 
     public func turnStart(_ input: [ChatInput]) async throws {
+        try Task.checkCancellation()
         guard !isClosed else { return }
 
         // Snapshot settings at turn entry (before the approval await) so a
@@ -124,6 +125,7 @@ public actor CursorChatClient: StructuredAgentClient {
             isPreApproved = false
         }
 
+        try Task.checkCancellation()
         var arguments = ["-p", prompt, "--output-format", "stream-json"]
         if let modelSnapshot {
             arguments.append(contentsOf: ["--model", modelSnapshot])

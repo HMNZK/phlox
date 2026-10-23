@@ -64,7 +64,7 @@ struct KittyPlacementKey: Hashable {
     let placementId: UInt32
 }
 
-struct KittyPlacementRecord {
+public struct KittyPlacementRecord: Codable, Sendable, Equatable {
     let imageId: UInt32
     let placementId: UInt32
     let parentImageId: UInt32?

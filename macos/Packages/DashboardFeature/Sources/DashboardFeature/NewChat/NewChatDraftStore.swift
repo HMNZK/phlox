@@ -121,6 +121,16 @@ public final class NewChatDraft {
         return id
     }
 
+    func projectIDForSendFromRuntime(selected: ProjectID?, in dashboard: DashboardViewModel) async throws -> ProjectID? {
+        if let selected, dashboard.projects.contains(where: { $0.id == selected }) { return selected }
+        guard let path = pendingFolderPath,
+              let id = try await dashboard.addProjectFromRuntime(name: URL(fileURLWithPath: path).lastPathComponent,
+                                                               directoryPath: path) else { return nil }
+        worktreeStartPoints[id] = worktreeStartPoint(projectID: nil, directory: path)
+        pendingFolderPath = nil
+        return id
+    }
+
     func makeLaunchRequest(projectID: ProjectID, workingDirectoryOverride: String? = nil) -> NewChatLaunchRequest? {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.attachments.isEmpty else { return nil }
         let request = NewChatLaunchRequest(

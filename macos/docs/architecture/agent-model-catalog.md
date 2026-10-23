@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-10-08
+last-verified: 2026-10-23
 ---
 
 # エージェントモデルカタログ（spawn 前のモデル一覧・現行構造）
@@ -10,16 +10,24 @@ last-verified: 2026-10-08
 
 ## 全体像
 
+CLI からの live 取得は常駐プロセスが担当する。GUI は常駐側のモデル一覧を受け取り、自プロセスの同期読み取り用カタログへ反映する。
+
 ```
-起動（CompositionRoot）
+常駐側の起動（SessionRuntimeHost → CompositionRoot）
   └─ LiveAgentModelProvider ──(CLI 実行)── claude / cursor-agent / codex
         └─ CachingAgentModelProvider（TTL 300 秒）
               └─ AgentModelCatalog.configure(provider:)
                     └─ Task.detached { 300 秒ごとに refresh() }
                           └─ AgentModelCatalog（プロセス内スナップショット・NSLock）
                                 ├─ 同期読み取り: ControlServer（GET /agents/{kind}/models 等）
-                                └─ 同期読み取り: macOS UI（SessionSpawnService ほか）
+                                ├─ 同期読み取り: 実行側の SessionSpawnService
+                                └─ SessionRuntimeApplicationSnapshot.models
+                                      └─ GUI: DesktopCompositionRoot
+                                            └─ SessionRuntimeModelProvider
+                                                  └─ GUI の AgentModelCatalog → macOS UI
 ```
+
+`DesktopCompositionRoot` は初回接続でモデル一覧を反映し、以後の application snapshot で一覧が変わったときだけ provider を差し替えて `refresh()` する。GUI の `SessionRuntimeModelProvider` は受信済みの値を返し、CLI の live 取得や300秒周期の取得タスクを別途起動しない。モデル一覧は `SessionRuntimeHost` が snapshot 作成時に常駐側の `AgentModelCatalog` から読む。
 
 ## 構成要素
 
@@ -30,7 +38,9 @@ last-verified: 2026-10-08
 | 同 — `AgentModelCatalog` | プロセス全体で**同期読み取り可能な**スナップショット。`models(for:)` / `builtinModels(for:)` / `defaultModel(for:)` / `refresh()` / `kindsUsingFallback()` |
 | `ControlServer/AgentModelProviders.swift` — `LiveAgentModelProvider` | CLI を実際に叩く実装。`ClaudeModelListParser` / `CursorModelListParser` が出力をパースする |
 | 同 — `CachingAgentModelProvider` | TTL 300 秒の actor キャッシュ |
-| `App/CompositionRoot.swift` | 起動時に provider を配線し、300 秒周期の refresh タスクを起こす。フォールバック中の kind を warning ログに出す |
+| `App/CompositionRoot.swift` | 常駐側で provider を配線し、300 秒周期の refresh タスクを起こす。フォールバック中の kind を warning ログに出す |
+| `App/SessionRuntimeHost.swift`・`SessionRuntimeApplicationState.swift` | 常駐側のモデル一覧を application snapshot へ載せる。GUI 向けの `SessionRuntimeModelProvider` は受信済み一覧を供給する |
+| `App/DesktopCompositionRoot.swift` | 初回接続と一覧変更時に GUI のカタログへ snapshot を反映する |
 
 ## 取得コマンドとパース
 
@@ -58,6 +68,6 @@ Claude の表示名解決（②）は表示する5件だけを並列に問い合
 |---|---|
 | モバイル（spawn 前） | `GET /agents/{kind}/models` → iOS `Features/SessionDetail` のモデルピッカー |
 | モバイル（既存セッション） | `GET /sessions/{id}/settings` の `availableModels` |
-| macOS UI | `SessionSpawnService` 経由で spawn 時の既定・選択肢に使う |
+| macOS UI | `DesktopCompositionRoot` が snapshot を GUI のカタログへ反映し、モデル選択 UI が読む。spawn の実行と初期設定の適用は常駐側の `SessionSpawnService` が担当する |
 
 いずれも `AgentModelCatalog.defaultModel(for:)` を**唯一の既定規則**として読む（→ ADR 0123）。

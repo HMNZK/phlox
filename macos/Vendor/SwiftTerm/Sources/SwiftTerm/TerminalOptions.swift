@@ -10,7 +10,7 @@ import Foundation
 
 /// Configuration option for the desired cursor style, this style can also be overwritten by the application
 /// inside the terminal, and the UI control can choose to honor this request.
-public enum CursorStyle {
+public enum CursorStyle: Codable, Sendable, Equatable {
     case blinkBlock
     case steadyBlock
     case blinkUnderline

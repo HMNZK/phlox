@@ -3,11 +3,11 @@ import Foundation
 // PM3 task-8 純ロジック（ADR 0030:22 の規定対処）。
 // 非 Lazy VStack を維持したまま「末尾 N 件のみ描画」の件数制限を担う純粋な値型。
 // - items ≤ limit なら全件、超過時は末尾 limit 件＋隠れ件数。
-// - expand() はユーザー操作（「以前のメッセージを表示」ボタン）でのみ呼ばれ、limit が step 分増える。
+// - expand() はユーザーの追加スクロールまたはアクセシビリティ操作で呼ばれ、limit が step 分増える。
 // - reset() はセッション切替時に既定へ戻す。
 //
 // 設計の一線（ADR 0030 再入禁止）: この型はスクロール量・可視領域・GeometryReader 計測を
-// 一切参照しない。window の拡張契機は expand() の明示呼び出し（＝ボタン操作）のみで、
+// 一切参照しない。window の拡張契機は expand() の明示呼び出しのみで、
 // レイアウト観測フィードバックに連動しない。visibleRange は totalCount のみから決まる純関数なので、
 // ストリーミングで item が増えても末尾を含み続ける（AutoFollow と自然に整合する）。
 /// transcript の表示文脈（task-2 契約面）。窓の既定件数を文脈別に定める。
@@ -27,7 +27,7 @@ struct TranscriptWindow: Equatable {
     /// 「1 行更新で無効化される表示対象数」の母数になる。9 タイル同時表示では最大 40×9=360 件が
     /// メインスレッドのハング要因になっていた（Instruments 実測）ため、母数を約 60% 削減する。
     static let gridTileDefaultLimit: Int = 16
-    /// 「以前のメッセージを表示」1回あたりの拡張幅（50 以上の定数）。
+    /// 履歴追加1回あたりの拡張幅（50 以上の定数）。
     static let expandStep: Int = 50
 
     private let presentationContext: TranscriptPresentationContext

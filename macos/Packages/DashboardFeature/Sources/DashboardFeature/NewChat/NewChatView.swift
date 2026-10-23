@@ -30,68 +30,6 @@ extension EnvironmentValues {
     }
 }
 
-struct NewChatChipLabel: View {
-    let title: String?
-    let systemImage: String?
-    let harnessKind: AgentKind?
-    let compact: Bool
-    let usesMiddleTruncation: Bool
-    let allowsTruncation: Bool
-    let showsChevron: Bool
-
-    init(
-        title: String?,
-        systemImage: String? = nil,
-        harnessKind: AgentKind? = nil,
-        compact: Bool = false,
-        usesMiddleTruncation: Bool = false,
-        allowsTruncation: Bool = false,
-        showsChevron: Bool = true
-    ) {
-        self.title = title
-        self.systemImage = systemImage
-        self.harnessKind = harnessKind
-        self.compact = compact
-        self.usesMiddleTruncation = usesMiddleTruncation
-        self.allowsTruncation = allowsTruncation
-        self.showsChevron = showsChevron
-    }
-
-    var body: some View {
-        HStack(spacing: DSLayout.controlChipContentGap) {
-            if let harnessKind {
-                AgentBrandIcon(kind: harnessKind, size: DSLayout.controlChipIconSize)
-                    .accessibilityHidden(true)
-            } else if let systemImage {
-                Image(systemName: systemImage)
-                    .font(DSFont.controlIcon)
-                    .frame(width: DSLayout.controlChipIconSize, height: DSLayout.controlChipIconSize)
-                    .fixedSize()
-                    .accessibilityHidden(true)
-            }
-            if let title, !compact {
-                Text(verbatim: title)
-                    .font(DSFont.auxiliary)
-                    .lineLimit(1)
-                    .truncationMode(usesMiddleTruncation ? .middle : .tail)
-                    .fixedSize(horizontal: !allowsTruncation, vertical: false)
-            }
-            if showsChevron {
-                Image(systemName: "chevron.down")
-                    .font(DSFont.controlChevron)
-                    .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
-                    .fixedSize()
-                    .accessibilityHidden(true)
-            }
-        }
-        .fixedSize(horizontal: !allowsTruncation, vertical: false)
-        .foregroundStyle(DSColor.textSecondary)
-        .padding(.horizontal, DSLayout.controlChipHorizontalPadding)
-        .frame(height: DSLayout.controlChipHeight)
-        .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
-    }
-}
-
 private struct NewChatSendButtonStyle: ButtonStyle {
     let canSend: Bool
 
@@ -221,17 +159,14 @@ struct NewChatView: View {
         guard let selected = draft.settings.selectedEffort, !available.contains(where: { $0.value == selected }) else { return available }
         return available + [ComposerSettingOption(value: selected, title: effortTitle(selected))]
     }
-    private var permissionOptions: [ComposerSettingOption] {
+    private var permissionOptions: [ComposerModeOption] {
         guard let kind = selectedKind else { return [] }
-        return newChatSettingsOptions(for: kind, languageCode: languageCode, bundle: localizationBundle)
-            .availablePermissions.map { ComposerSettingOption(value: $0.value, title: $0.displayName) }
-            + [ComposerSettingOption(value: Self.planSelection, title: "Plan")]
-    }
-    private var selectedPermissionSelection: String? {
-        draft.settings.isPlanMode == true ? Self.planSelection : draft.settings.selectedPermissionProfile
+        return composerModeOptions(for: .builtin(kind), codexProfileIDs: [":danger-full-access", ":workspace", ":read-only"], languageCode: languageCode)
     }
     private var selectedPermissionTitle: String {
-        permissionOptions.first(where: { $0.value == selectedPermissionSelection })?.title
+        permissionOptions.first(where: {
+            draft.settings.isPlanMode == true ? $0.isPlan : !$0.isPlan && $0.value == draft.settings.selectedPermissionProfile
+        })?.title
             ?? localized("既定")
     }
     private var historyKey: String? {
@@ -241,8 +176,6 @@ struct NewChatView: View {
     private var showsHistoryResumeButton: Bool {
         historyKey != nil && (historyModel.state != .empty || historyPopoverPresented)
     }
-    private static let planSelection = "__plan"
-
     var body: some View {
         GeometryReader { geometry in
             let composerWidth = max(0, min(760, geometry.size.width - 48))
@@ -423,7 +356,7 @@ struct NewChatView: View {
     }
 
     private func harnessModelPicker(allowsTruncation: Bool) -> some View {
-        SelectablePopoverButton(
+        ComposerSettingPopover(
             options: modelPickerOptions,
             selectedID: selectedModelMenuID,
             accessibilityLabel: harnessAccessibility.role,
@@ -434,18 +367,17 @@ struct NewChatView: View {
             maxHeight: DSLayout.harnessMenuHeight,
             footer: modelPickerFooter,
             searchText: $modelSearch,
+            searchAccessibilityIdentifier: "newChat.modelSearch",
             showsFocusRing: true,
             onSelect: { selectModel(id: $0.id) }
         ) { _ in
-            NewChatChipLabel(title: selectedModelTitle, harnessKind: selectedKind, allowsTruncation: allowsTruncation)
+            ComposerSettingChipLabel(title: selectedModelTitle, harnessKind: selectedKind, allowsTruncation: allowsTruncation)
         }
         .focused($harnessPickerFocused)
     }
 
     private var modelPickerFooter: String {
-        locale.language.languageCode?.identifier == "en"
-            ? "↑↓ Move · ↩ Select · Type to filter · Esc Close"
-            : "↑↓ 移動 · ↩ 決定 · 文字入力で絞り込み · Esc 閉じる"
+        composerModelPickerFooter(languageCode: locale.language.languageCode?.identifier ?? locale.identifier)
     }
 
     private var modelPickerOptions: [SelectablePopoverOption] {
@@ -512,65 +444,64 @@ struct NewChatView: View {
     }
 
     private var permissionPicker: some View {
-        ComposerSettingChip(
-            title: selectedPermissionTitle,
-            options: permissionOptions,
-            selection: selectedPermissionSelection,
+        ComposerSettingPopover(
+            accessibilityLabel: permissionAccessibility.role,
+            accessibilityValue: permissionAccessibility.value,
             accessibilityIdentifier: "newChat.permissionPicker",
-            leadingSystemImage: "shield",
-            showsFocusRing: true,
-            onSelect: selectPermission
-        )
-        .accessibilityLabel(Text(verbatim: permissionAccessibility.role))
-        .accessibilityValue(Text(verbatim: permissionAccessibility.value))
+            showsFocusRing: true
+        ) { _ in
+            ComposerSettingChipLabel(title: selectedPermissionTitle, systemImage: "shield")
+        } content: { dismiss in
+            ComposerPopupSurface(width: 340, padding: 10) {
+                permissionPanel(onClose: dismiss)
+            }
+        }
     }
 
     private var compactSettingsMenu: some View {
-        SelectablePopoverButton(
-            options: compactSettingsOptions,
-            selectedID: compactSettingsSelectedID,
+        ComposerSettingPopover(
             accessibilityLabel: localized("設定"),
             accessibilityValue: "\(effortAccessibility.value)、\(permissionAccessibility.value)",
             accessibilityIdentifier: "newChat.settingsOverflow",
-            width: DSLayout.menuWidth,
-            showsFocusRing: true,
-            onSelect: selectCompactSetting
+            showsFocusRing: true
         ) { _ in
             Image(systemName: "ellipsis")
                 .font(DSFont.controlIcon)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(width: 24, height: 28)
                 .contentShape(Rectangle())
+        } content: { dismiss in
+            ComposerPopupSurface(width: 340, padding: 10) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if !effortOptions.isEmpty {
+                        Picker(localized("推論の深さ"), selection: $draft.settings.selectedEffort) {
+                            if draft.settings.selectedEffort == nil {
+                                Text(verbatim: localized("既定")).tag(nil as String?)
+                            }
+                            ForEach(effortOptions) { option in
+                                Text(verbatim: option.title).tag(option.value)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier("newChat.compactEffortPicker")
+                        Divider()
+                    }
+                    permissionPanel(onClose: dismiss)
+                }
+            }
         }
     }
 
-    private var compactSettingsOptions: [SelectablePopoverOption] {
-        let efforts = effortOptions.map { option in
-            SelectablePopoverOption(
-                id: "effort:\(option.id)", value: option.value, title: option.title,
-                sectionTitle: localized("推論の深さ"), isSelected: draft.settings.selectedEffort == option.value,
-                isEnabled: option.isEnabled
-            )
-        }
-        let permissions = permissionOptions.map { option in
-            SelectablePopoverOption(
-                id: "permission:\(option.id)", value: option.value, title: option.title,
-                sectionTitle: localized(selectedKind == .cursor ? "mode" : "権限"),
-                isSelected: selectedPermissionSelection == option.value, isEnabled: option.isEnabled
-            )
-        }
-        return efforts + permissions
-    }
-
-    private var compactSettingsSelectedID: String? {
-        if let option = effortOptions.first(where: { $0.value == draft.settings.selectedEffort }) { return "effort:\(option.id)" }
-        if let option = permissionOptions.first(where: { $0.value == selectedPermissionSelection }) { return "permission:\(option.id)" }
-        return nil
-    }
-
-    private func selectCompactSetting(_ option: SelectablePopoverOption) {
-        if option.id.hasPrefix("effort:") { selectEffort(option.value) }
-        else { selectPermission(option.value) }
+    private func permissionPanel(onClose: @escaping () -> Void) -> some View {
+        ComposerPermissionPanel(
+            agentRef: draft.agentRef, options: permissionOptions,
+            currentValue: draft.settings.selectedPermissionProfile,
+            isPlanOn: draft.settings.isPlanMode == true, isPlanAvailable: true,
+            languageCode: languageCode,
+            onSelect: { selectPermission($0.value) }, onPlanChange: setPlanMode, onClose: onClose
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("newChat.permissionPanel")
     }
 
     private func projectPicker(isCompact: Bool) -> some View {
@@ -643,7 +574,7 @@ struct NewChatView: View {
     }
 
     private func footerLabel(icon: String, title: String, compact: Bool) -> some View {
-        NewChatChipLabel(title: title, systemImage: icon, compact: compact, usesMiddleTruncation: true)
+        ComposerSettingChipLabel(title: title, systemImage: icon, compact: compact, usesMiddleTruncation: true)
     }
 
     private var sendButton: some View {
@@ -782,12 +713,12 @@ struct NewChatView: View {
     }
 
     func selectPermission(_ value: String?) {
-        if value == Self.planSelection {
-            draft.settings.isPlanMode = true
-        } else {
-            draft.settings.isPlanMode = false
-            draft.settings.selectedPermissionProfile = value
-        }
+        draft.settings.isPlanMode = false
+        draft.settings.selectedPermissionProfile = value
+    }
+
+    func setPlanMode(_ isOn: Bool) {
+        draft.settings.isPlanMode = isOn
     }
 
     func selectProject(_ id: ProjectID) {

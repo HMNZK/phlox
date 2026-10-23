@@ -53,7 +53,7 @@ struct WorktreeStartPointPicker: View {
             onOpen: reloadItems,
             onSelect: choose
         ) { _ in
-            NewChatChipLabel(title: selected.title(locale: locale, bundle: bundle),
+            ComposerSettingChipLabel(title: selected.title(locale: locale, bundle: bundle),
                              systemImage: "point.topleft.down.to.point.bottomright.curvepath",
                              usesMiddleTruncation: true, allowsTruncation: true)
         }

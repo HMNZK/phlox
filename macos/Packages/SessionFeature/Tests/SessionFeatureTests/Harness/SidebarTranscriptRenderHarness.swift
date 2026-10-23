@@ -74,8 +74,10 @@ struct SidebarTranscriptRenderHarness {
         try writeSidebarHarnessDiagnostics(hosting, window: window, to: output, name: "initial")
         try #require(initialReady, "initial layout/AX not ready; inspect initial-ax.txt and initial.png")
         for expansion in 0..<expansions {
-            let button = try #require(findSidebarHarnessElement(hosting, identifier: "ChatTranscript.loadEarlier"))
-            try #require(performPress(button))
+            let history = try #require(findSidebarHarnessElement(hosting, identifier: "ChatTranscript.history"))
+            let actions = try #require(sidebarHarnessAXAttribute(history, "accessibilityCustomActions") as? [NSAccessibilityCustomAction])
+            let action = try #require(actions.first { $0.name == "以前のメッセージを読み込む" })
+            try #require(action.handler?() == true)
             let ready = try await waitForSidebarHarness(hosting) {
                 sidebarHarnessHasHiddenCount(hosting, count: 500 - SidebarTranscriptFixture.allowed(expansions: expansion + 1))
             }
@@ -87,14 +89,14 @@ struct SidebarTranscriptRenderHarness {
         if all {
             controls.target = SidebarTranscriptFixture.items[0].id
             let ready = try await waitForSidebarHarness(hosting) {
-                findSidebarHarnessElement(hosting, identifier: "ChatTranscript.loadEarlier") == nil
+                sidebarHarnessHasHiddenCount(hosting, count: 0)
             }
             try writeSidebarHarnessDiagnostics(hosting, window: window, to: output, name: "all")
-            try #require(ready, "first-block jump did not remove the load-earlier control")
+            try #require(ready, "first-block jump did not expose the entire history")
         } else {
-            let button = try #require(findSidebarHarnessElement(hosting, identifier: "ChatTranscript.loadEarlier"))
+            let history = try #require(findSidebarHarnessElement(hosting, identifier: "ChatTranscript.history"))
             let expectedHidden = 500 - SidebarTranscriptFixture.allowed(expansions: expansions)
-            let text = sidebarHarnessAccessibilityText(button)
+            let text = sidebarHarnessAccessibilityOwnText(history)
             #expect(text.contains("\(expectedHidden)"), "actual load-earlier label: \(text)")
         }
         let config: [String: String] = [
@@ -260,7 +262,7 @@ private struct SidebarWidthProbe: NSViewRepresentable {
 }
 
 @MainActor
-private func findSidebarHarnessElement(_ element: Any, identifier: String) -> Any? {
+private func findSidebarHarnessElement(_ element: Any, identifier: String) -> AnyObject? {
     sidebarHarnessElements(element).first {
         (sidebarHarnessAXAttribute($0, "accessibilityIdentifier") as? String) == identifier
     }
@@ -291,8 +293,8 @@ private func sidebarHarnessAccessibilityText(_ element: Any) -> String {
 
 @MainActor
 private func sidebarHarnessHasHiddenCount(_ hosting: NSView, count: Int) -> Bool {
-    guard let button = findSidebarHarnessElement(hosting, identifier: "ChatTranscript.loadEarlier") else { return false }
-    return sidebarHarnessAccessibilityText(button).contains("\(count)")
+    guard let history = findSidebarHarnessElement(hosting, identifier: "ChatTranscript.history") else { return false }
+    return sidebarHarnessAccessibilityOwnText(history).contains("以前のメッセージ: \(count) 件")
 }
 
 @MainActor

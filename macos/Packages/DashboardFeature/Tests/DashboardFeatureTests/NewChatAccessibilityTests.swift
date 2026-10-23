@@ -12,6 +12,33 @@ import PTYKit
 @Suite("AC-17 新規チャットの読み上げ")
 @MainActor
 struct NewChatAccessibilityTests {
+    @Test func planTogglePreservesTheDraftPermissionForEachHarness() throws {
+        let suite = "phlox.new-chat-permission-panel.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = NewChatDraftStore(lastUsedChatSettingsStore: LastUsedChatSettingsStore(defaults: defaults))
+        let dashboard = DashboardViewModel(environment: makeTestEnvironment(
+            pty: MockPTYManager(), hookStream: AsyncStream { $0.finish() }
+        ))
+        let cases: [(AgentKind, String?)] = [(.claudeCode, "acceptEdits"), (.codex, ":workspace"), (.cursor, nil)]
+        for (kind, value) in cases {
+            let draft = store.draft
+            draft.selectHarness(.builtin(kind))
+            let view = NewChatView(viewModel: dashboard, router: AppRouter(), draft: draft, project: nil, onLaunchFailure: { _, _ in })
+            view.selectPermission(value)
+            view.setPlanMode(true)
+            #expect(draft.settings.isPlanMode == true)
+            #expect(draft.settings.selectedPermissionProfile == value)
+            view.setPlanMode(false)
+            #expect(draft.settings.isPlanMode == false)
+            #expect(draft.settings.selectedPermissionProfile == value)
+            view.setPlanMode(true)
+            view.selectPermission(value)
+            #expect(draft.settings.isPlanMode == false)
+            #expect(draft.settings.selectedPermissionProfile == value)
+        }
+    }
+
     @Test func labelsAreNotTruncatedAt900ptEquivalentWidth() async throws {
         let suite = "phlox.new-chat-layout-900.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -53,6 +80,12 @@ struct NewChatAccessibilityTests {
         renderer.scale = 2
         let image = try #require(renderer.nsImage)
         let cgImage = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        if let path = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT"] {
+            let output = URL(fileURLWithPath: path, isDirectory: true)
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+            let png = try #require(NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:]))
+            try png.write(to: output.appendingPathComponent("new-chat-900.png"))
+        }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.recognitionLanguages = ["ja-JP", "en-US"]

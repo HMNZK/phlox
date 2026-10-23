@@ -36,7 +36,8 @@ extension ThemeRenderingTests {
 struct DesignSnapshotRenderTests {
     private func snapshotOutputDirectory() throws -> URL {
         let output: URL
-        if let path = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"] {
+        if let path = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"]
+            ?? ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT"] {
             guard (path as NSString).isAbsolutePath, !path.utf8.contains(0) else {
                 throw CocoaError(.fileWriteInvalidFileName, userInfo: [
                     NSLocalizedDescriptionKey: "PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR には絶対パスを指定してください",
@@ -55,7 +56,8 @@ struct DesignSnapshotRenderTests {
 
     private func snapshotFixtureDirectory(package: URL, prefix: String) throws -> URL {
         let parent: URL
-        if ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"] != nil {
+        if ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"] != nil
+            || ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT"] != nil {
             parent = try snapshotOutputDirectory()
         } else {
             parent = package.appendingPathComponent(".build", isDirectory: true)
@@ -712,10 +714,8 @@ struct DesignSnapshotRenderTests {
         guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
-        let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let fixtures = try snapshotFixtureDirectory(package: package, prefix: "design-snapshot-fixtures")
         let output = try snapshotOutputDirectory()
+        let fixtures = output.appendingPathComponent("fixtures-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: fixtures, withIntermediateDirectories: true)
         let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
         if FileManager.default.fileExists(atPath: cachedStrings.path) {
@@ -729,8 +729,9 @@ struct DesignSnapshotRenderTests {
         var written = 0
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
-        try #require(["all", "files", "simulator", "syntax", "large-files", "browser", "worktree-start"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser・worktree-start のいずれか")
+        try #require(["all", "files", "simulator", "syntax", "large-files", "browser", "worktree-start", "setting-cards"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser・worktree-start・setting-cards のいずれか")
         let scopedFrames = (frames + syntaxFrames + browserFrames + stage8Frames).filter { frame in
+            if scope == "setting-cards" { return frame.id.hasPrefix("10-M") }
             if scope == "worktree-start" { return frame.id.hasPrefix("10-WS") }
             if scope == "browser" { return frame.id.hasPrefix("9-") }
             if scope == "large-files" { return ["3l", "3large", "changes-deleted", "changes-readonly", "changes-oversized"].contains(frame.stateID) || frame.stateID.hasPrefix("3readonly") }

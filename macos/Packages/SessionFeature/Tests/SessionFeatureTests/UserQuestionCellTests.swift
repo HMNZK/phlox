@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Testing
 import AgentDomain
+import CodexAppServerKit
 import StructuredChatKit
 @testable import SessionFeature
 
@@ -14,6 +15,137 @@ import StructuredChatKit
 @MainActor
 @Suite("UserQuestionCell: 実際に描かれた画面")
 struct UserQuestionCellTests {
+    @Test(arguments: [false, true])
+    func 非同期質問は実行中と完了後にも同文の入力欄を別々に表示する(completed: Bool) async throws {
+        let previous = NSApplication.shared.accessibilityAttributeValue(NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        defer { NSApplication.shared.accessibilitySetValue(previous, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")) }
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
+        let wire = QuestionWire()
+        let client = CodexStructuredAgentClient(client: CodexAppServerClient(transport: wire))
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.codex), client: client,
+                                      approvalBroker: ChatApprovalBroker(), workingDirectory: nil)
+        do {
+            try await vm.startNew(approvalPolicy: .named("never"), sandbox: .named("danger-full-access"))
+            try wire.turnStarted()
+            try wire.question("ui-async", questions: [.object(["title": .string("同じ質問")]), .object(["title": .string("同じ質問")])])
+            for _ in 0..<100 where !ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript) {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            if completed {
+                try wire.turnCompleted()
+                for _ in 0..<100 where vm.status != .idle {
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                #expect(vm.status == .idle)
+            } else {
+                #expect(vm.status == .running)
+            }
+            #expect(ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript))
+            let hosting = NSHostingView(rootView: AnyView(ChatSessionView(viewModel: vm).environment(\.locale, Locale(identifier: "ja_JP"))))
+            let window = NSWindow(contentRect: CGRect(x: -10000, y: -10000, width: 620, height: 720),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            defer { window.close() }
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.contentView = hosting
+            for _ in 0..<5 {
+                hosting.layoutSubtreeIfNeeded()
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            func elements(_ object: AnyObject) -> [AnyObject] {
+                [object] + (object.accessibilityChildren() ?? []).flatMap { elements($0 as AnyObject) }
+            }
+            let identifiers = Set(elements(hosting).compactMap { $0.accessibilityIdentifier() })
+            #expect(identifiers.contains("UserQuestionCell.freeText.question-0"))
+            #expect(identifiers.contains("UserQuestionCell.freeText.question-1"))
+            #expect(identifiers.contains(completed ? "ChatComposer.sendButton" : "ChatComposer.stopButton"))
+            #expect(!identifiers.contains(completed ? "ChatComposer.stopButton" : "ChatComposer.sendButton"))
+            try snapshot(hosting, name: completed ? "async-completed-duplicate-titles" : "async-running-duplicate-titles")
+            await vm.terminate()
+        } catch {
+            await vm.terminate()
+            throw error
+        }
+    }
+
+    @Test func 回答送信中は閉じるボタンを出さずEscでも独立作業を中断しない() async throws {
+        let attribute = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previous = NSApplication.shared.accessibilityAttributeValue(attribute)
+        defer { NSApplication.shared.accessibilitySetValue(previous, forAttribute: attribute) }
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: attribute)
+        let wire = QuestionWire()
+        defer { wire.releaseMessages() }
+        let vm = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.codex),
+            client: CodexStructuredAgentClient(client: CodexAppServerClient(transport: wire)),
+            approvalBroker: ChatApprovalBroker(), workingDirectory: nil)
+        do {
+            try await vm.startNew(approvalPolicy: .named("never"), sandbox: .named("danger-full-access"))
+            try wire.turnStarted()
+            try wire.question("sending-ui")
+            try await wait { ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript) }
+            let hosting = NSHostingView(rootView: AnyView(ChatSessionView(viewModel: vm).environment(\.locale, Locale(identifier: "ja_JP"))))
+            let window = NSWindow(contentRect: CGRect(x: -10000, y: -10000, width: 620, height: 720),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            defer { window.close() }
+            window.contentView = hosting
+            let hosted = Hosted(window: window, hosting: hosting)
+            try await wait { hosted.settle(); return hosted.button(named: "順番に実行") != nil }
+            let option = try #require(hosted.button(named: "順番に実行"))
+            let optionPressed = option.accessibilityPerformPress()
+            #expect(optionPressed)
+            hosted.settle()
+            wire.holdsMessages = true
+            let submit = try #require(hosted.button(named: "回答を送信"))
+            let submitPressed = submit.accessibilityPerformPress()
+            #expect(submitPressed)
+            try await wait { wire.heldMessageCount == 1 }
+            hosted.settle()
+            let canDismissWhileSubmitting = hosted.button(named: "回答せずに閉じる") != nil
+            #expect(!canDismissWhileSubmitting)
+            vm.requestReplyCardFocus()
+            try await Task.sleep(for: .milliseconds(50))
+            try sendEscape(to: window)
+            try await Task.sleep(for: .milliseconds(50))
+            #expect(vm.status == .running)
+            #expect(!wire.requests.contains { $0["method"]?.stringValue == "turn/interrupt" })
+            wire.releaseMessages()
+            try await wait { !ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript) }
+
+            try wire.question("esc-control")
+            try await wait { ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript) }
+            hosted.settle()
+            vm.requestReplyCardFocus()
+            try await Task.sleep(for: .milliseconds(50))
+            try sendEscape(to: window)
+            try await wait { !ChatReplyArea<EmptyView>.hasPendingQuestion(in: vm.transcript) }
+            #expect(vm.status == .running)
+            #expect(!wire.requests.contains { $0["method"]?.stringValue == "turn/interrupt" })
+            await vm.terminate()
+        } catch {
+            wire.releaseMessages()
+            await vm.terminate()
+            throw error
+        }
+    }
+
+    private func wait(_ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + .seconds(3)
+        while !condition() {
+            guard ContinuousClock.now < deadline else { throw QuestionUIWaitError.timedOut }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private func sendEscape(to window: NSWindow) throws {
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+            isARepeat: false, keyCode: 53))
+        window.sendEvent(event)
+    }
+
+    private enum QuestionUIWaitError: Error { case timedOut }
+
     @Test(arguments: [CGFloat(320), 500, 900], [1, 4])
     func 長い質問と選択肢は全体をスクロールでき送信ボタンは枠内に残る(width: CGFloat, count: Int) throws {
         let questions = (0..<count).map { index in

@@ -206,6 +206,7 @@ struct ChatMessageDTO: Decodable {
 
 /// AskUserQuestion の質問 1 件（wire）。
 struct UserQuestionItemDTO: Decodable {
+    let id: String?
     let question: String
     let header: String
     let multiSelect: Bool
@@ -220,6 +221,7 @@ struct UserQuestionItemDTO: Decodable {
             header: header,
             options: options.map { $0.toDomain() },
             multiSelect: multiSelect,
+            id: id,
             toolName: toolName,
             toolDetail: toolDetail,
             allowsSessionScope: allowsSessionScope ?? false

@@ -8,10 +8,10 @@ import Foundation
 /// メッセージ側（GET /sessions/{id}/messages の ChatMessageDTO）:
 ///   type == "userQuestion" のとき追加フィールド
 ///   {"requestId": String, "state": "pending"|"answered"|"expired",
-///    "questions": [{"question","header","multiSelect","options":[{"label","description"?}],"allowsSessionScope": Bool?}],
-///    "answers": {"<question文>": [String]}? }
+///    "questions": [{"id"?: String,"question","header","multiSelect","options":[{"label","description"?}],"allowsSessionScope": Bool?}],
+///    "answers": {"<id ?? question文>": [String]}? }
 /// 回答側:
-///   POST /sessions/{id}/question  body {"requestId": String, "answers": {"<question文>": [String]}}
+///   POST /sessions/{id}/question  body {"requestId": String, "answers": {"<id ?? question文>": [String]}}
 ///   → 200（受理）/ 404（セッション or pending 質問なし）/ 400（body 不正）
 ///   セッション中の許可は answers に ["AllowForSession"] を返す（options には追加しない）。
 public enum ControlQuestionWireContract {

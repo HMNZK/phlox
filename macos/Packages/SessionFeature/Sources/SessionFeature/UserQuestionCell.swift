@@ -97,7 +97,7 @@ struct UserQuestionCell: View {
     /// 閉じられるのは「未回答のカード」で「閉じる操作が配線されている」ときだけ。
     /// 回答済み・期限切れのカードには出さない（押しても何も起きないボタンを見せない）。
     private var canDismiss: Bool {
-        state == .pending && onDismiss != nil
+        state == .pending && onDismiss != nil && !isSubmitting
     }
 
     var body: some View {
@@ -118,7 +118,7 @@ struct UserQuestionCell: View {
             // 質問文だけでなく選択肢も含めて制限し、複数の質問でもカードが画面上端を越えないようにする。
             ScrollView {
                 VStack(alignment: .leading, spacing: 9) {
-                    ForEach(questions, id: \.question) { question in
+                    ForEach(questions, id: \.answerKey) { question in
                         questionBlock(question, scale: scale)
                     }
                 }
@@ -161,6 +161,7 @@ struct UserQuestionCell: View {
             return .handled
         }
         .onKeyPress(.escape) {
+            guard !isSubmitting else { return .handled }
             guard canDismiss else { return .ignored }
             onDismiss?()
             onReturnToComposer?()
@@ -284,7 +285,9 @@ struct UserQuestionCell: View {
     /// 回答せずに別の指示を出したいときのための閉じるボタン。
     /// グリッドタイルのヘッダー（`PaneLayoutView`）と同じ手触りに揃える。
     private var dismissButton: some View {
-        Button(action: { onDismiss?() }) {
+        let help: LocalizedStringKey = CodexAsyncQuestionID.isAsyncRequest(requestId)
+            ? "回答せずに閉じる" : "回答せずに閉じる（ターンを中断する）"
+        return Button(action: { onDismiss?() }) {
             Text("閉じる")
                 .font(DSFont.auxiliary)
                 .foregroundStyle(DSColor.textSecondary)
@@ -293,7 +296,7 @@ struct UserQuestionCell: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("回答せずに閉じる（ターンを中断する）")
+        .help(help)
         .accessibilityLabel("回答せずに閉じる")
         .accessibilityIdentifier("UserQuestionCell.dismiss.\(itemId)")
     }

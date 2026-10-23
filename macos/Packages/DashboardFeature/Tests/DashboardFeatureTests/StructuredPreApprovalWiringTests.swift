@@ -11,7 +11,7 @@ import StructuredChatKit
 func appEnvironmentCodexAppServerProcessArguments_includeReasoningSummaryOverride() {
     #expect(
         AppEnvironment.codexAppServerProcessArguments()
-            == ["app-server", "-c", "model_reasoning_summary=detailed"]
+            == ["app-server", "-c", "model_reasoning_summary=detailed", "-c", "features.default_mode_request_user_input=true"]
     )
 }
 
@@ -44,7 +44,7 @@ func appEnvironmentCodexFactoryPassesReasoningSummaryArgsToProcess() async throw
 
     try await assertEventuallyFileExists(argsURL)
     let argsText = try String(contentsOf: argsURL, encoding: .utf8)
-    #expect(argsText == "app-server\n-c\nmodel_reasoning_summary=detailed\n")
+    #expect(argsText == "app-server\n-c\nmodel_reasoning_summary=detailed\n-c\nfeatures.default_mode_request_user_input=true\n")
 }
 
 // フルアクセス ON の Claude/Cursor 送信は handler を呼ばずに実行する。

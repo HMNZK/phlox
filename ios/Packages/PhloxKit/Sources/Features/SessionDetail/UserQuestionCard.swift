@@ -92,7 +92,7 @@ struct UserQuestionCard: View {
                     .foregroundStyle(IOSColor.status.question)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(Array(questions.enumerated()), id: \.element.question) { index, question in
+            ForEach(Array(questions.enumerated()), id: \.element.answerKey) { index, question in
                 if index > 0 { Rectangle().fill(IOSColor.bg.separator).frame(height: 1) }
                 questionBlock(question, number: index + 1)
             }
@@ -171,7 +171,7 @@ struct UserQuestionCard: View {
             }
             TextField(
                 placeholder,
-                text: freeTextBinding(for: question.question),
+                text: freeTextBinding(for: question.answerKey),
                 axis: .vertical
             )
             .textFieldStyle(.plain)
@@ -182,8 +182,8 @@ struct UserQuestionCard: View {
             .frame(minHeight: 41)
             .background(IOSColor.bg.card, in: Capsule())
             .overlay(Capsule().stroke(IOSColor.bg.separator, lineWidth: 1))
-            .focused($focusedQuestion, equals: question.question)
-            .accessibilityIdentifier("UserQuestionCard.freeText.\(question.question)")
+            .focused($focusedQuestion, equals: question.answerKey)
+            .accessibilityIdentifier("UserQuestionCard.freeText.\(question.answerKey)")
         }
     }
 
@@ -233,15 +233,15 @@ struct UserQuestionCard: View {
     }
 
     private func isSelected(question: UserQuestionItem, label: String) -> Bool {
-        (form.selections[question.question] ?? []).contains(label)
+        (form.selections[question.answerKey] ?? []).contains(label)
     }
 
     private func toggle(question: UserQuestionItem, label: String) {
         guard isInteractive else { return }
         if question.multiSelect {
-            form.toggleMulti(question: question.question, label: label)
+            form.toggleMulti(question: question.answerKey, label: label)
         } else {
-            form.selectSingle(question: question.question, label: label)
+            form.selectSingle(question: question.answerKey, label: label)
         }
         focusedQuestion = nil
     }
@@ -252,7 +252,7 @@ struct UserQuestionCard: View {
     }
 
     private func customAnswerText(for question: UserQuestionItem) -> String? {
-        answers?[question.question]?.first
+        answers?[question.answerKey]?.first
     }
 
     private func isKnownOption(_ value: String, in question: UserQuestionItem) -> Bool {

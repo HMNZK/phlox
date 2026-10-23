@@ -330,16 +330,8 @@ struct ChatTranscriptView: View {
                 },
                 onDismissUserQuestion: {
                     Task {
-                        // Codex の質問なら、先に broker の wire を決着させる。
-                        // Claude の質問と未知のカードは、従来どおり直接中断する。
-                        let accepted: Bool
                         if case .userQuestion(_, let requestId, _, _, _, _) = item {
-                            accepted = await viewModel.declineUserQuestion(requestId: requestId)
-                        } else {
-                            accepted = false
-                        }
-                        if !accepted {
-                            await viewModel.turnInterrupt()
+                            await viewModel.dismissUserQuestion(requestId: requestId)
                         }
                     }
                 },

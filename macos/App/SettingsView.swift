@@ -755,6 +755,7 @@ struct SettingsView: View {
         func body(content: Content) -> some View {
             content
                 .focusable()
+                .focusEffectDisabled()
                 .onKeyPress(.leftArrow) { move(by: -1) }
                 .onKeyPress(.rightArrow) { move(by: 1) }
                 .onKeyPress(.upArrow) { move(by: -columns) }

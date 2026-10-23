@@ -680,7 +680,12 @@ struct SettingsView: View {
                 SettingsGroupBox("接続済みの端末") {
                     ForEach(Array(viewModel.devices.enumerated()), id: \.element.id) { index, device in
                         if index > 0 { SettingsDivider() }
-                        MobileDeviceRow(device: device, lastSeenAt: viewModel.lastSeenAt[device.id]) { pendingRevoke = device }
+                        MobileDeviceRow(
+                            device: device,
+                            lastSeenAt: viewModel.lastSeenAt[device.id],
+                            onRename: { viewModel.rename(id: device.id, name: $0) },
+                            onRevoke: { pendingRevoke = device }
+                        )
                     }
                 }
             }
@@ -710,18 +715,49 @@ struct SettingsView: View {
     private struct MobileDeviceRow: View {
         let device: PairedDevice
         let lastSeenAt: Date?
+        let onRename: (String) -> Bool
         let onRevoke: () -> Void
+        @State private var isRenaming = false
+        @State private var editedName = ""
+        @FocusState private var isNameFocused: Bool
         @Environment(\.locale) private var locale
 
         var body: some View {
             SettingsRow {
-                TimelineView(.periodic(from: .now, by: 10)) { context in
-                    SettingsLabel(title: Text(verbatim: device.name), detail: Text(verbatim: detailText(now: context.date)))
+                if isRenaming {
+                    TextField("端末の名前", text: $editedName)
+                        .settingsField(width: 180, isInvalid: editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityLabel(Text("端末の名前"))
+                        .focused($isNameFocused)
+                        .onSubmit(saveName)
+                        .onExitCommand { isRenaming = false }
+                    Spacer(minLength: 0)
+                    Button("保存", action: saveName)
+                        .buttonStyle(.ds(.primary, height: 22, fontSize: 12, padding: 10, cornerRadius: 5))
+                        .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("キャンセル") { isRenaming = false }
+                        .buttonStyle(.ds(.secondary, height: 22, fontSize: 12, padding: 10, fill: DSColor.settingsControlBackground, cornerRadius: 5))
+                } else {
+                    TimelineView(.periodic(from: .now, by: 10)) { context in
+                        SettingsLabel(title: Text(verbatim: device.name), detail: Text(verbatim: detailText(now: context.date)))
+                    }
+                    Button("名前を変更") {
+                        editedName = device.name
+                        isRenaming = true
+                        isNameFocused = true
+                    }
+                    .buttonStyle(.ds(.secondary, height: 22, fontSize: 12, padding: 10, fill: DSColor.settingsControlBackground, cornerRadius: 5))
+                    .accessibilityLabel(Text(verbatim: String(format: AppLocalizedString.string("「%@」の名前を変更", locale: locale), device.name)))
+                    Button("失効", action: onRevoke)
+                        .buttonStyle(.ds(.destructive, height: 22, fontSize: 12, padding: 10, fill: DSColor.settingsControlBackground, cornerRadius: 5))
+                        .accessibilityLabel(Text(verbatim: String(format: AppLocalizedString.string("「%@」を失効", locale: locale), device.name)))
                 }
-                Button("失効", action: onRevoke)
-                    .buttonStyle(.ds(.destructive, height: 22, fontSize: 12, padding: 10, fill: DSColor.settingsControlBackground, cornerRadius: 5))
-                    .accessibilityLabel(Text(verbatim: String(format: AppLocalizedString.string("「%@」を失効", locale: locale), device.name)))
             }
+        }
+
+        private func saveName() {
+            guard !editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            if onRename(editedName) { isRenaming = false }
         }
 
         private func detailText(now: Date) -> String {

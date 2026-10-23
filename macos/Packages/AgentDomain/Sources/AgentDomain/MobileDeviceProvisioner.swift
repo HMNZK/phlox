@@ -1,6 +1,8 @@
 import Foundation
 
 public enum MobileDeviceProvisionerError: Error, Equatable {
+    case invalidDeviceName
+    case deviceNotFound
     /// 生成したトークンが既存端末と衝突し、規定回数の再生成でも解消しなかった。
     /// 「1 端末 = 1 トークン」の不変条件を壊すより、発行を失敗させる。
     case tokenGenerationExhausted
@@ -26,7 +28,7 @@ public enum MobileDeviceProvisionerError: Error, Equatable {
 /// `PairedDeviceStore` に compare-and-swap が無いため、「1 件ずつ書く」だけでは
 /// 読んだ後・書く前に他操作が挟まる TOCTOU が残る（掃除が一覧を読んだ直後に
 /// `markPaired` された端末を、古い判定のまま消す等）。
-/// そこで `issueDevice` / `markPaired` / `revoke` / `pruneExpired` / `loadAndMigrate` は
+/// そこで `issueDevice` / `rename` / `markPaired` / `revoke` / `pruneExpired` / `loadAndMigrate` は
 /// **読み取りから書き込みまでを 1 つのミューテックスで直列化**する。
 /// `syncRegistrations` は `await` を跨ぐため `NSLock` を保持できないので、
 /// 待ち行列を持つ非同期ゲート（`SerialGate`）で直列化し、古い同期の `register` が
@@ -136,6 +138,20 @@ public final class MobileDeviceProvisioner: @unchecked Sendable {
         device.pairedAt = now()
         // 該当端末だけを書く。読んだ一覧を書き戻さないので、
         // この間に発行・失効された他端末を巻き戻さない。
+        try store.upsert(device)
+    }
+
+    /// 接続情報を維持し、最新の端末の表示名だけを保存する。
+    public func rename(id: UUID, name: String) throws {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw MobileDeviceProvisionerError.invalidDeviceName }
+        stateLock.lock()
+        defer { stateLock.unlock() }
+
+        guard var device = try store.loadAll().first(where: { $0.id == id }) else {
+            throw MobileDeviceProvisionerError.deviceNotFound
+        }
+        device.name = name
         try store.upsert(device)
     }
 

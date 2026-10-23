@@ -154,6 +154,20 @@ public final class MobileTokenViewModel: ObservableObject {
     pairingQRHidesAt = nil
   }
 
+  /// 保存に失敗したときは編集を続けられるよう、成否を返す。
+  public func rename(id: UUID, name: String) -> Bool {
+    do {
+      try provisioner.rename(id: id, name: name)
+      try reloadDevicesAndPrivilegedRequesters()
+      lastError = nil
+      return true
+    } catch {
+      lastError = "端末名の変更に失敗しました。しばらくしてから再度お試しください。"
+      Self.logger.error("Mobile device rename failed: \(String(describing: error), privacy: .public)")
+      return false
+    }
+  }
+
   /// 端末を 1 台失効させる。失効後は `SessionTokenStore` への登録も取り消し、一覧を更新する。
   public func revoke(id: UUID) async {
     do {

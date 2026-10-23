@@ -8473,6 +8473,28 @@
         }
       }
     },
+    "「%@」の名前を変更": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename “%@”"
+          }
+        }
+      }
+    },
+    "端末名の変更に失敗しました。しばらくしてから再度お試しください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not rename the device. Please try again later."
+          }
+        }
+      }
+    },
     "端末の名前": {
       "extractionState": "manual",
       "localizations": {

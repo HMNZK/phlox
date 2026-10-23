@@ -11,13 +11,13 @@ last-verified: 2026-08-02
 ## 全体像
 
 ```
-SettingsView / MobileTokenViewModel   ← UI（端末一覧・QR 表示・失効）
+SettingsView / MobileTokenViewModel   ← UI（端末一覧・名前変更・QR 表示・失効）
         │
         ▼
 MobileBootstrap                       ← 起動シーケンスと特権 requester 規則の正本
         │
         ▼
-MobileDeviceProvisioner               ← 端末の発行・ペアリング記録・失効・期限切れ掃除
+MobileDeviceProvisioner               ← 端末の発行・名前変更・ペアリング記録・失効・期限切れ掃除
         │
         ▼
 PairedDeviceStore (protocol)          ← 永続化の境界
@@ -71,6 +71,12 @@ Keychain アクセスが失敗しても起動は続行し、インメモリの `
   - `ControlServer` は UI 層より先に組み立てられるため、通知は `MobileDevicePairingRelay`（actor）が中継する。ハンドラ差し込み前に届いた通知は真偽のラッチで保持し、`setHandler` 時に 1 回だけ配送する。
 - **失効**（`revoke(id:)`）でその端末を削除し、requester を特権集合から**取り除く**。
 
+## 端末名の変更
+
+設定の「モバイル連携」→「接続済みの端末」で「名前を変更」を押し、行内の入力欄で編集して「保存」する。「キャンセル」または Esc で変更を破棄する。前後の空白・改行は取り除き、空の名前は保存しない。保存失敗時はエラーを表示し、入力内容を残す。
+
+`MobileDeviceProvisioner.rename(id:name:)` は既存操作と同じロックで最新の端末を読み直し、名前だけを更新して同じストアへ保存する。端末 ID・トークン・requester・発行日時・ペアリング日時は維持する。失効済みなど、対象が存在しない場合はエラーにする。
+
 ## 並行性
 
-`MobileDeviceProvisioner` の read-modify-write（`issueDevice` / `markPaired` / `revoke` / `pruneExpired`）は `NSLock` で直列化し、`async` の `syncRegistrations` は内部の actor で直列化する。`KeychainPairedDeviceStore` の直列化ロックは**インスタンス変数**なので、同じ Keychain 項目を指すストアを 2 つ作るとロストアップデートが起きる。`CompositionRoot` で**単一インスタンスを生成して全消費者へ共有**すること。
+`MobileDeviceProvisioner` の read-modify-write（`issueDevice` / `rename` / `markPaired` / `revoke` / `pruneExpired`）は `NSLock` で直列化し、`async` の `syncRegistrations` は内部の actor で直列化する。`KeychainPairedDeviceStore` の直列化ロックは**インスタンス変数**なので、同じ Keychain 項目を指すストアを 2 つ作るとロストアップデートが起きる。`CompositionRoot` で**単一インスタンスを生成して全消費者へ共有**すること。

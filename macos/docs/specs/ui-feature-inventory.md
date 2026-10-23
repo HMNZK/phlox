@@ -466,7 +466,7 @@ Control API経由（デスクトップUI外、リモート/モバイル制御用
 | QR警告文言表示 | — | "QRにはフルアクセス権限のトークンが含まれます。60秒後に自動的に非表示になります。" | — | — | `App/PairingQRView.swift:9-22` |
 | ペアリング無効理由表示 | — | 理由テキスト（ループバックのみ/明示ホスト等、`MobileProxy.BindMode`: loopbackOnly/explicitHost/tailscaleにより出し分け） | 条件付き表示 | — | `App/SettingsView.swift:374-378`、`App/MobileTokenViewModel.swift:95-110`、`MobileProxy/MobileProxy.swift:22` |
 | エラー表示 | — | `lastError` | 条件付き赤字表示 | — | `App/SettingsView.swift:393-397`、`App/MobileTokenViewModel.swift:16-17` |
-| 接続済み端末一覧・失効 | 行タップ「失効」Button（destructive） | 端末リスト（端末名・ペアリング日時、未接続なら「未接続」） | 空なら非表示 | — | `App/SettingsView.swift:407-417,422-451`、`App/MobileTokenViewModel.swift:14,151` |
+| 接続済み端末一覧・名前変更・失効 | 「名前を変更」で行内編集→保存／キャンセル（Esc）、または「失効」Button（destructive） | 端末名・ペアリング日時・接続状態。名前の前後の空白を除去し、空なら保存不可。保存失敗時は入力を保持してエラー表示 | 空なら非表示 | 名前変更で接続情報は維持 | `App/SettingsView.swift` の `MobileDeviceRow`、`App/MobileTokenViewModel.swift` の `rename(id:name:)` |
 | ペアリング成立の自動反映 | 端末側QR読取→ControlServer経由で認証成立 | `MobileDevicePairingRelay`が`handleAuthenticatedPairingRecorded()`を呼び、端末一覧が自動更新 | — | — | `App/CompositionRoot.swift:123-129`、`App/MobileTokenViewModel.swift:173-179` |
 
 ### 12.5 詳細タブ

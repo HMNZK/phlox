@@ -97,9 +97,12 @@ public struct SelectablePopover: View {
     public let onSelect: (SelectablePopoverOption) -> Void
     public let onClose: ((SelectablePopoverOption) -> Void)?
     public let onDismiss: () -> Void
+    public let notice: String?
+    public let onRetry: (() -> Void)?
 
     @Environment(\.locale) private var locale
     @State private var navigation = SelectablePopoverNavigation()
+    @State private var noticeHeight: CGFloat = 0
     @FocusState private var listFocused: Bool
     @FocusState private var searchFocused: Bool
 
@@ -115,7 +118,9 @@ public struct SelectablePopover: View {
         accessibilityIdentifier: String? = nil,
         onSelect: @escaping (SelectablePopoverOption) -> Void,
         onClose: ((SelectablePopoverOption) -> Void)? = nil,
-        onDismiss: @escaping () -> Void = {}
+        onDismiss: @escaping () -> Void = {},
+        notice: String? = nil,
+        onRetry: (() -> Void)? = nil
     ) {
         self.options = options
         self.selectedID = selectedID
@@ -129,6 +134,8 @@ public struct SelectablePopover: View {
         self.onSelect = onSelect
         self.onClose = onClose
         self.onDismiss = onDismiss
+        self.notice = notice
+        self.onRetry = onRetry
     }
 
     private var query: String { searchText?.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" }
@@ -157,6 +164,7 @@ public struct SelectablePopover: View {
         let reserved: CGFloat = (searchText == nil ? 0 : DSLayout.menuSearchReservedHeight)
             + (footer == nil ? 0 : DSLayout.menuFooterReservedHeight)
             + DSLayout.menuPadding * 2
+            + noticeHeight
         return min(max(DSLayout.menuMinimumScrollHeight, rows + sections + gaps), max(DSLayout.menuMinimumScrollHeight, maxHeight - reserved))
     }
 
@@ -202,6 +210,21 @@ public struct SelectablePopover: View {
                 }
             }
 
+            if let notice {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(verbatim: notice).fixedSize(horizontal: false, vertical: true)
+                    if let onRetry {
+                        Button(localized("再試行"), action: onRetry)
+                            .buttonStyle(.plain)
+                    }
+                }
+                .font(DSFont.meta)
+                .foregroundStyle(DSColor.textSecondary)
+                .padding(8)
+                .background(DSColor.attentionTint(.approval), in: RoundedRectangle(cornerRadius: DSRadius.row))
+                .padding(.top, 5)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { noticeHeight = $0 }
+            }
             if let footer {
                 Text(verbatim: footer)
                     .font(DSFont.meta)
@@ -230,6 +253,7 @@ public struct SelectablePopover: View {
             navigation.reset(availableIDs: selectableIDs, selectedID: selectedID)
             if searchText == nil { listFocused = true } else { searchFocused = true }
         }
+        .onChange(of: selectedID) { _, id in navigation.reset(availableIDs: selectableIDs, selectedID: id) }
         .onChange(of: selectableIDs) { _, ids in navigation.reset(availableIDs: ids, selectedID: selectedID) }
         .onChange(of: query) { _, _ in navigation.reset(availableIDs: selectableIDs, selectedID: nil) }
         .accessibilityElement(children: .contain)
@@ -317,9 +341,6 @@ public struct SelectablePopoverButton<Label: View>: View {
     public let onClose: ((SelectablePopoverOption) -> Void)?
     @ViewBuilder public let label: (Bool) -> Label
 
-    @State private var isPresented = false
-    @FocusState private var triggerFocused: Bool
-
     public init(
         options: [SelectablePopoverOption],
         selectedID: String?,
@@ -361,42 +382,20 @@ public struct SelectablePopoverButton<Label: View>: View {
     }
 
     public var body: some View {
-        Button { isPresented = true } label: { label(isPresented).contentShape(RoundedRectangle(cornerRadius: DSRadius.row)) }
-            .buttonStyle(HoverableSurfaceButtonStyle(cornerRadius: DSRadius.row, hoverFill: DSColor.fillSubtle, hoverBorderColor: .clear))
-            .focusable()
-            .modifier(SelectablePopoverFocusEffectSuppression(isEnabled: showsFocusRing))
-            .focused($triggerFocused)
-            .onKeyPress(keys: [.space, .return], phases: .down) { _ in isPresented = true; return .handled }
-            .popover(isPresented: $isPresented, arrowEdge: .top) {
-                SelectablePopover(
-                    options: options,
-                    selectedID: selectedID,
-                    width: width,
-                    maxHeight: maxHeight,
-                    footer: footer,
-                    searchText: searchText,
-                    searchPrompt: searchPrompt,
-                    searchAccessibilityIdentifier: searchAccessibilityIdentifier,
-                    accessibilityIdentifier: "\(accessibilityIdentifier).menu",
-                    onSelect: { option in onSelect(option); isPresented = false },
-                    onClose: onClose,
-                    onDismiss: { isPresented = false }
-                )
-                .task { await onOpen() }
-            }
-            .onChange(of: isPresented) { _, presented in if !presented { triggerFocused = true } }
-            .overlay {
-                if showsFocusRing && triggerFocused && !isPresented {
-                    RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
-                        // 白黒のアクセントでは focusRing の 2pt が強すぎるので、控えめな 1pt にする（2026-10-13 ユーザー指示）。
-                        .strokeBorder(DSColor.textSecondary, lineWidth: 1)
-                }
-            }
-            .disabled(!isEnabled)
-            .accessibilityLabel(Text(verbatim: accessibilityLabel))
-            .accessibilityValue(Text(verbatim: accessibilityValue))
-            .accessibilityIdentifier(accessibilityIdentifier)
-            .help(Text(verbatim: help ?? accessibilityLabel))
+        ComposerSettingPopover(
+            accessibilityLabel: accessibilityLabel, accessibilityValue: accessibilityValue,
+            accessibilityIdentifier: accessibilityIdentifier, help: help,
+            showsFocusRing: showsFocusRing, isEnabled: isEnabled, label: label
+        ) { dismiss in
+            SelectablePopover(
+                options: options, selectedID: selectedID, width: width, maxHeight: maxHeight,
+                footer: footer, searchText: searchText, searchPrompt: searchPrompt,
+                searchAccessibilityIdentifier: searchAccessibilityIdentifier,
+                accessibilityIdentifier: "\(accessibilityIdentifier).menu",
+                onSelect: { option in onSelect(option); dismiss() }, onClose: onClose, onDismiss: dismiss
+            )
+            .task { await onOpen() }
+        }
     }
 }
 
@@ -487,17 +486,4 @@ private struct SelectablePopoverRow: View {
     }
 
     private func localized(_ key: String) -> String { AppLocalizedString.string(key, locale: locale) }
-}
-
-private struct SelectablePopoverFocusEffectSuppression: ViewModifier {
-    let isEnabled: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content.focusEffectDisabled()
-        } else {
-            content
-        }
-    }
 }

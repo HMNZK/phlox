@@ -321,7 +321,7 @@ struct ComposerOverflowLayoutTests {
     /// モデル名や effort のチップは、狭い幅を渡されても省略せず全文の幅で描く。
     @Test @MainActor
     func chipLabelKeepsTheFullTitle() throws {
-        let label = ComposerChipLabel(title: "Opus 4.7 (1M context)")
+        let label = ComposerSettingChipLabel(title: "Opus 4.7 (1M context)")
         let fullWidth = try intrinsicWidth(label)
         let squeezed = try renderSize(label, proposedWidth: 60)
         #expect(fullWidth > 60)

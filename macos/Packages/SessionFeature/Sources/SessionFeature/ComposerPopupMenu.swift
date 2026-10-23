@@ -1,51 +1,21 @@
 import SwiftUI
 import AppKit
 import DesignSystem
-
-/// 新規チャットの設定チップ。セッション側のブランチ表示は従来どおり等幅 11pt・面なし。
-struct ComposerChipLabel: View {
-    let title: String
-    var isBranch = false
-    var trailing: AnyView? = nil
-    var leadingSystemImage: String? = nil
-
-    var body: some View {
-        HStack(spacing: DSLayout.controlChipContentGap) {
-            if let leadingSystemImage {
-                Image(systemName: leadingSystemImage)
-                    .font(DSFont.controlIcon)
-                    .frame(width: DSLayout.controlChipIconSize, height: DSLayout.controlChipIconSize)
-                    .fixedSize()
-                    .accessibilityHidden(true)
-            }
-            Text(verbatim: title)
-                .font(isBranch ? DSFont.monoCaption : DSFont.auxiliary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            if let trailing { trailing }
-            if !isBranch {
-                Image(systemName: "chevron.down")
-                    .font(DSFont.controlChevron)
-                    .frame(width: DSLayout.controlChipChevronSize, height: DSLayout.controlChipChevronSize)
-                    .fixedSize()
-                    .accessibilityHidden(true)
-            }
-        }
-        .fixedSize(horizontal: !isBranch, vertical: false)
-        .foregroundStyle(DSColor.textSecondary)
-        .padding(.horizontal, DSLayout.controlChipHorizontalPadding)
-        .frame(height: DSLayout.controlChipHeight)
-        .contentShape(RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous))
-    }
-}
+import AgentDomain
 
 /// 入力欄の上に浮かせる箱（外枠は `dsPopupSurface()`。ADR 0190）。
-struct ComposerPopupSurface<Content: View>: View {
+public struct ComposerPopupSurface<Content: View>: View {
     var width: CGFloat
     var padding: CGFloat = 5
     @ViewBuilder let content: () -> Content
 
-    var body: some View {
+    public init(width: CGFloat, padding: CGFloat = 5, @ViewBuilder content: @escaping () -> Content) {
+        self.width = width
+        self.padding = padding
+        self.content = content
+    }
+
+    public var body: some View {
         content()
             .padding(padding)
             .frame(width: width, alignment: .leading)
@@ -480,7 +450,7 @@ struct ComposerMenuWithSideList: View {
 }
 
 /// 権限の箱（PhloxReply.dc.html の O4〜O6）: 題と件数 → ラジオの 2 行項目 → 区切り線 → Plan モードのスイッチ → 脚注。
-struct ComposerPermissionPanel: View {
+public struct ComposerPermissionPanel: View {
     let title: String
     let subtitle: String
     let options: [ComposerModeOption]
@@ -495,7 +465,49 @@ struct ComposerPermissionPanel: View {
     @FocusState private var isFocused: Bool
     @Environment(\.composerPopupKey) private var popupKey
 
-    var body: some View {
+    public init(
+        agentRef: AgentRef,
+        options: [ComposerModeOption],
+        currentValue: String?,
+        isPlanOn: Bool,
+        isPlanAvailable: Bool,
+        languageCode: String,
+        onSelect: @escaping (ComposerModeOption) -> Void,
+        onPlanChange: @escaping (Bool) -> Void,
+        onClose: @escaping () -> Void
+    ) {
+        let locale = Locale(identifier: languageCode)
+        let title: String
+        let agentName: String
+        let footnote: String
+        switch agentRef {
+        case .builtin(.codex):
+            title = "承認とサンドボックス"
+            agentName = "Codex"
+            footnote = "このセッションだけに効く。既定は エージェント管理 > 設定"
+        case .builtin(.claudeCode):
+            title = "権限モード"
+            agentName = "Claude Code"
+            footnote = "許可・確認・拒否のルールは エージェント管理 > パーミッション"
+        case .builtin(.cursor):
+            title = "権限"
+            agentName = "Cursor"
+            footnote = "許可・拒否のルールは エージェント管理 > パーミッション"
+        }
+        let choices = options.filter { !$0.isPlan }
+        self.title = AppLocalizedString.string(title, locale: locale)
+        self.subtitle = String(format: AppLocalizedString.string("%@ · %lld 種", locale: locale), agentName, choices.count)
+        self.options = choices
+        self.isSelected = { !isPlanOn && $0.value == currentValue }
+        self.isPlanOn = isPlanOn
+        self.isPlanAvailable = isPlanAvailable
+        self.footnote = AppLocalizedString.string(footnote, locale: locale)
+        self.onSelect = onSelect
+        self.onPlanChange = onPlanChange
+        self.onClose = onClose
+    }
+
+    public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(verbatim: title)
@@ -562,6 +574,7 @@ struct ComposerPermissionPanel: View {
         }
         .onAppear {
             highlightedIndex = options.firstIndex(where: isSelected) ?? 0
+            isFocused = true
         }
     }
 

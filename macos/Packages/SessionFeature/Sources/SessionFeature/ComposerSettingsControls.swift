@@ -94,7 +94,7 @@ struct ComposerSettingsControlsView: View {
     var accessibilityPrefix: String = "ChatComposer"
     var hidesPermission = false
     @Environment(\.locale) private var locale
-    @State private var openMenu: OpenMenu?
+    @Environment(\.localizationBundle) private var localizationBundle
     @State private var modelSearch = ""
     @State private var lastNonPlanPermission: String?
 
@@ -102,15 +102,6 @@ struct ComposerSettingsControlsView: View {
 
     private var controls: [ComposerControlKind] {
         composerControls(for: viewModel.agentRef, side: side).filter { !hidesPermission || $0 != .permission }
-    }
-
-    private func selectionChip(kind: ComposerSelectionChip.Kind, value: String, identifier: String) -> some View {
-        ComposerSelectionChip(
-            kind: kind,
-            value: value,
-            identifier: "\(accessibilityPrefix).\(identifier)",
-            onTap: { toggle(kind == .model ? .model : .effort) }
-        )
     }
 
     private var showsAttachPlaceholder: Bool {
@@ -170,91 +161,39 @@ struct ComposerSettingsControlsView: View {
     // MARK: - Spawn agent (Claude/Cursor) menus
 
     private var spawnModelMenu: some View {
-        let isCursor = viewModel.agentRef == .builtin(.cursor)
         let title = viewModel.selectedModel.map(viewModel.spawnAgentModelDisplayName) ?? UIWording.text(.modelLabel, languageCode: languageCode)
-        return selectionChip(kind: .model, value: title, identifier: "spawnModelMenu")
-        .disabled(viewModel.availableSpawnAgentModels.isEmpty)
-        .composerPopup(isPresented: binding(for: .model)) {
-            ComposerPopupSurface(width: 260) {
-                ComposerMenuList(
-                    search: isCursor ? $modelSearch : nil,
-                    searchPlaceholder: String(
-                        format: AppLocalizedString.string("モデルを検索（%lld）", locale: locale),
-                        viewModel.availableSpawnAgentModels.count
-                    ),
-                    sections: [ComposerMenuSection(id: "models", rows: filteredSpawnModels.map { model in
-                        ComposerMenuRow(
-                            id: model,
-                            title: viewModel.spawnAgentModelDisplayName(model),
-                            isSelected: model == viewModel.selectedModel,
-                            action: { setSpawnModel(model) }
-                        )
-                    })],
-                    onClose: closeMenu
-                ) {
-                    // CLI から一覧を取れず内蔵の一覧を出しているとき（05 O3）。
-                    if viewModel.isUsingBuiltinModelList {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text("CLI からモデル一覧を取得できませんでした。内蔵の一覧を表示しています。")
-                                .foregroundStyle(DSColor.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Button("再試行") {
-                                Task { await viewModel.retryModelListFetch() }
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(DSColor.textSecondary)
-                        }
-                        .font(.system(size: 11.5))
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 7)
-                        .background(DSColor.attentionTint(.approval), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .padding(.horizontal, 3)
-                        .padding(.top, 5)
-                        .padding(.bottom, 2)
-                    }
-                }
-            }
-        }
-    }
-
-    private var filteredSpawnModels: [String] {
-        let query = modelSearch.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return viewModel.availableSpawnAgentModels }
-        return viewModel.availableSpawnAgentModels.filter {
-            $0.lowercased().contains(query) || viewModel.spawnAgentModelDisplayName($0).lowercased().contains(query)
-        }
+        return modelPopover(options: viewModel.availableSpawnAgentModels.map { model in
+            SelectablePopoverOption(id: model, title: viewModel.spawnAgentModelDisplayName(model),
+                                    sectionTitle: viewModel.agentRef == .builtin(.cursor) ? "Cursor" : "Claude Code",
+                                    sectionAgent: viewModel.agentRef == .builtin(.cursor) ? .cursor : .claudeCode,
+                                    isSelected: model == viewModel.selectedModel)
+        }, title: title, identifier: "spawnModelMenu", onSelect: { setSpawnModel($0.id) })
     }
 
     private var effortMenu: some View {
-        let title = viewModel.selectedEffort ?? UIWording.text(.reasoningEffortLabel, languageCode: languageCode)
-        return selectionChip(kind: .effort, value: title, identifier: viewModel.agentRef == .builtin(.codex) ? "codexEffortMenu" : "claudeEffortMenu")
-        .composerPopup(isPresented: binding(for: .effort)) {
-            ComposerPopupSurface(width: 150) {
-                ComposerMenuList(
-                    sections: [ComposerMenuSection(id: "efforts", rows: viewModel.cyclableEfforts.map { effort in
-                        ComposerMenuRow(
-                            id: effort,
-                            title: effort,
-                            isSelected: effort == viewModel.selectedEffort,
-                            action: { setEffort(effort) }
-                        )
-                    })],
-                    onClose: closeMenu
-                )
-            }
+        let title = viewModel.selectedEffort.map { composerEffortTitle($0, languageCode: languageCode, bundle: localizationBundle) }
+            ?? UIWording.text(.reasoningEffortLabel, languageCode: languageCode)
+        return ComposerSettingPopover(
+            options: viewModel.cyclableEfforts.map { effort in
+                SelectablePopoverOption(id: effort, title: composerEffortTitle(effort, languageCode: languageCode, bundle: localizationBundle),
+                                        isSelected: effort == viewModel.selectedEffort)
+            }, selectedID: viewModel.selectedEffort,
+            accessibilityLabel: "\(UIWording.text(.reasoningEffortLabel, languageCode: languageCode)): \(title)",
+            accessibilityValue: title,
+            accessibilityIdentifier: "\(accessibilityPrefix).\(viewModel.agentRef == .builtin(.codex) ? "codexEffortMenu" : "claudeEffortMenu")",
+            onSelect: { setEffort($0.id) }
+        ) { _ in
+            ComposerSettingChipLabel(title: title, systemImage: "gauge")
         }
     }
 
     private var claudePermissionMenu: some View {
         let options = composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode)
-        let title = permissionChipTitle(viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title)
+        let title = viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .claude, kind: .claudePermissionMode, value: selectedClaudePermission, languageCode: languageCode).title
         return permissionChip(
             title: title,
-            panelTitle: AppLocalizedString.string("権限モード", locale: locale),
-            agentName: "Claude Code",
             options: options,
             currentValue: selectedClaudePermission,
-            footnote: AppLocalizedString.string("許可・確認・拒否のルールは エージェント管理 > パーミッション", locale: locale),
             onSelect: { setSpawnPermission($0.value) },
             onPlanChange: { isOn in
                 // Plan のまま開いたときは前のモードが分からないので、毎回確認する manual に戻す（強い権限へは戻さない）。
@@ -266,14 +205,11 @@ struct ComposerSettingsControlsView: View {
 
     private var cursorModeMenu: some View {
         let options = composerModeOptions(for: viewModel.agentRef, codexProfileIDs: [], languageCode: languageCode)
-        let title = permissionChipTitle(viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title)
+        let title = viewModel.isPlanMode ? UIWording.text(.planOption, languageCode: languageCode) : UIWording.permission(agent: .cursor, kind: .cursorOperationMode, value: viewModel.selectedPermissionProfile, languageCode: languageCode).title
         return permissionChip(
             title: title,
-            panelTitle: AppLocalizedString.string("権限", locale: locale),
-            agentName: "Cursor",
             options: options,
             currentValue: viewModel.selectedPermissionProfile,
-            footnote: AppLocalizedString.string("許可・拒否のルールは エージェント管理 > パーミッション", locale: locale),
             onSelect: { setSpawnPermission($0.value) },
             onPlanChange: { isOn in
                 setSpawnPermission(isOn ? options.first(where: \.isPlan)?.value : lastNonPlanPermission)
@@ -285,38 +221,29 @@ struct ComposerSettingsControlsView: View {
     /// 権限のチップと箱（05 O4〜O6）。Plan はラジオではなく下のスイッチで切り替える。
     private func permissionChip(
         title: String,
-        panelTitle: String,
-        agentName: String,
         options: [ComposerModeOption],
         currentValue: String?,
-        footnote: String,
         onSelect: @escaping (ComposerModeOption) -> Void,
         onPlanChange: @escaping (Bool) -> Void,
         accessibilityIdentifier: String
     ) -> some View {
-        let choices = options.filter { !$0.isPlan }
-        return Button { toggle(.permission) } label: {
-            ComposerChipLabel(title: title)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: title))
-        .accessibilityIdentifier(accessibilityIdentifier)
-        .composerPopup(isPresented: binding(for: .permission)) {
+        return ComposerSettingPopover(accessibilityLabel: "\(AppLocalizedString.string("権限", locale: locale)): \(title)", accessibilityIdentifier: accessibilityIdentifier) { _ in
+            ComposerSettingChipLabel(title: title, systemImage: "shield")
+        } content: { dismiss in
             ComposerPopupSurface(width: 340, padding: 10) {
                 ComposerPermissionPanel(
-                    title: panelTitle,
-                    subtitle: String(format: AppLocalizedString.string("%@ · %lld 種", locale: locale), agentName, choices.count),
-                    options: choices,
-                    isSelected: { modeOptionIsSelected($0, currentValue: currentValue) },
+                    agentRef: viewModel.agentRef,
+                    options: options,
+                    currentValue: currentValue,
                     isPlanOn: viewModel.isPlanMode,
                     isPlanAvailable: viewModel.isPlanModeAvailable,
-                    footnote: footnote,
+                    languageCode: languageCode,
                     onSelect: { option in
                         lastNonPlanPermission = option.value
                         onSelect(option)
                     },
                     onPlanChange: onPlanChange,
-                    onClose: closeMenu
+                    onClose: dismiss
                 )
             }
         }
@@ -331,19 +258,13 @@ struct ComposerSettingsControlsView: View {
     }
 
     /// 「権限: 標準」（05 O4〜O6）。
-    private func permissionChipTitle(_ value: String) -> String {
-        AppLocalizedString.string("権限", locale: locale) + ": " + value
-    }
-
-    // MARK: - Codex app-server menus
-
     private var selectedModel: AppServerModel? {
         guard let selected = viewModel.selectedModel else { return nil }
         return viewModel.availableModels.first { $0.id == selected || $0.model == selected }
     }
 
     private var modelTitle: String {
-        selectedModel?.displayName ?? viewModel.selectedModel ?? UIWording.text(.modelLabel, languageCode: languageCode)
+        selectedModel?.id ?? viewModel.selectedModel ?? UIWording.text(.modelLabel, languageCode: languageCode)
     }
 
     private var selectedPermissionTitle: String {
@@ -358,24 +279,34 @@ struct ComposerSettingsControlsView: View {
 
     /// Codex のモデル選択。推論の深さは独立したチップから選ぶ。
     private var modelMenu: some View {
-        selectionChip(kind: .model, value: modelTitle, identifier: "modelMenu")
-        .disabled(viewModel.availableModels.isEmpty)
-        .composerPopup(isPresented: binding(for: .model)) {
-            ComposerPopupSurface(width: 260) {
-                ComposerMenuList(sections: [codexModelSection], onClose: closeMenu)
-            }
-        }
+        modelPopover(options: viewModel.availableModels.map { model in
+            SelectablePopoverOption(id: model.id, title: model.id, sectionTitle: "Codex", sectionAgent: .codex,
+                                    badge: model.isDefault ? AppLocalizedString.string("既定", locale: locale) : nil,
+                                    isSelected: model.id == viewModel.selectedModel || model.model == viewModel.selectedModel)
+        }, title: modelTitle, identifier: "modelMenu", onSelect: { setModel($0.id, effort: nil) })
     }
 
-    private var codexModelSection: ComposerMenuSection {
-        ComposerMenuSection(id: "models", rows: viewModel.availableModels.map { model in
-            ComposerMenuRow(
-                id: model.id,
-                title: model.displayName,
-                isSelected: model.id == viewModel.selectedModel,
-                action: { setModel(model.id, effort: nil) }
+    private func modelPopover(options: [SelectablePopoverOption], title: String, identifier: String,
+                              onSelect: @escaping (SelectablePopoverOption) -> Void) -> some View {
+        let identifier = "\(accessibilityPrefix).\(identifier)"
+        let usesBuiltinList = viewModel.agentRef != .builtin(.codex) && viewModel.isUsingBuiltinModelList
+        return ComposerSettingPopover(
+            accessibilityLabel: "\(UIWording.text(.modelLabel, languageCode: languageCode)): \(title)",
+            accessibilityValue: title, accessibilityIdentifier: identifier, isEnabled: !options.isEmpty
+        ) { _ in
+            ComposerSettingChipLabel(title: title, harnessKind: viewModel.agentRef.builtinKind)
+        } content: { dismiss in
+            SelectablePopover(
+                options: options, selectedID: options.first(where: \.isSelected)?.id,
+                width: DSLayout.harnessMenuWidth, maxHeight: DSLayout.harnessMenuHeight,
+                footer: composerModelPickerFooter(languageCode: languageCode), searchText: $modelSearch,
+                searchAccessibilityIdentifier: "\(identifier).search", accessibilityIdentifier: "\(identifier).menu",
+                onSelect: { option in onSelect(option); dismiss() }, onDismiss: dismiss,
+                notice: usesBuiltinList ? AppLocalizedString.string("CLI からモデル一覧を取得できませんでした。内蔵の一覧を表示しています。", locale: locale) : nil,
+                onRetry: usesBuiltinList ? { Task { await viewModel.retryModelListFetch() } } : nil
             )
-        })
+            .onAppear { modelSearch = "" }
+        }
     }
 
     private var permissionMenu: some View {
@@ -385,31 +316,13 @@ struct ComposerSettingsControlsView: View {
             languageCode: languageCode
         )
         return permissionChip(
-            title: permissionChipTitle(selectedPermissionTitle),
-            panelTitle: AppLocalizedString.string("承認とサンドボックス", locale: locale),
-            agentName: "Codex",
+            title: selectedPermissionTitle,
             options: options,
             currentValue: viewModel.selectedCodexPermissionPreset,
-            footnote: AppLocalizedString.string("このセッションだけに効く。既定は エージェント管理 > 設定", locale: locale),
             onSelect: { selectCodexModeOption($0) },
             onPlanChange: { setPlanMode($0) },
             accessibilityIdentifier: "\(accessibilityPrefix).permissionMenu"
         )
-    }
-
-    // MARK: - Open state
-
-    private enum OpenMenu { case model, effort, permission }
-
-    private func toggle(_ menu: OpenMenu) {
-        modelSearch = ""
-        openMenu = openMenu == menu ? nil : menu
-    }
-
-    private func closeMenu() { openMenu = nil }
-
-    private func binding(for menu: OpenMenu) -> Binding<Bool> {
-        Binding(get: { openMenu == menu }, set: { if !$0, openMenu == menu { openMenu = nil } })
     }
 
     // MARK: - Actions
@@ -467,40 +380,9 @@ struct ComposerSettingsControlsView: View {
         }
     }
 
-    private func modeOptionIsSelected(_ option: ComposerModeOption, currentValue: String?) -> Bool {
-        if option.isPlan {
-            return viewModel.isPlanMode
-        }
-        return !viewModel.isPlanMode && option.value == currentValue
-    }
-
     // MARK: - Labels
 
     private static let claudeDefaultPermission = "bypassPermissions"
-}
-
-/// モデルと effort の表示をエージェントに依存させない入力欄チップ。
-private struct ComposerSelectionChip: View {
-    enum Kind { case model, effort }
-
-    let kind: Kind
-    let value: String
-    let identifier: String
-    let onTap: () -> Void
-    @Environment(\.locale) private var locale
-
-    private var title: String {
-        value
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            ComposerChipLabel(title: title)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: kind == .model ? AppLocalizedString.string("モデル", locale: locale) + ": " + value : "effort: " + value))
-        .accessibilityIdentifier(identifier)
-    }
 }
 
 private enum ComposerControlFill {
@@ -725,6 +607,7 @@ struct ComposerSettingsOverflowMenu: View {
     let workspacePath: String
     let accessibilityIdentifier: String
     @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var localizationBundle
 
     private var languageCode: String { locale.language.languageCode?.identifier ?? locale.identifier }
 
@@ -814,7 +697,7 @@ struct ComposerSettingsOverflowMenu: View {
                 Task { await viewModel.setSpawnAgentEffort(effort) }
             } label: {
                 SettingsMenuRow(
-                    title: Self.spawnEffortTitle(for: effort, languageCode: languageCode),
+                    title: composerEffortTitle(effort, languageCode: languageCode, bundle: localizationBundle),
                     isSelected: effort == viewModel.selectedEffort
                 )
             }
@@ -860,7 +743,7 @@ struct ComposerSettingsOverflowMenu: View {
                 Task { try? await viewModel.setModel(model: model.id, effort: nil) }
             } label: {
                 SettingsMenuRow(
-                    title: model.displayName,
+                    title: model.id,
                     isSelected: model.id == viewModel.selectedModel
                 )
             }
@@ -874,7 +757,7 @@ struct ComposerSettingsOverflowMenu: View {
                 Task { try? await viewModel.setModel(model: selectedCodexModel.id, effort: effort) }
             } label: {
                 SettingsMenuRow(
-                    title: Self.reasoningEffortTitle(effort, languageCode: languageCode),
+                    title: composerEffortTitle(effort, languageCode: languageCode, bundle: localizationBundle),
                     isSelected: effort == viewModel.selectedEffort
                 )
             }
@@ -923,26 +806,6 @@ struct ComposerSettingsOverflowMenu: View {
         return !viewModel.isPlanMode && option.value == currentValue
     }
 
-    private static func spawnEffortTitle(for effort: String, languageCode: String) -> String {
-        switch effort {
-        case "low": UIWording.text(.effortLow, languageCode: languageCode)
-        case "medium": UIWording.text(.effortMedium, languageCode: languageCode)
-        case "high": UIWording.text(.effortHigh, languageCode: languageCode)
-        case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
-        case "max": UIWording.text(.effortMax, languageCode: languageCode)
-        default: effort
-        }
-    }
-
-    private static func reasoningEffortTitle(_ effort: String, languageCode: String) -> String {
-        switch effort {
-        case "low": UIWording.text(.effortLow, languageCode: languageCode)
-        case "medium": UIWording.text(.effortMedium, languageCode: languageCode)
-        case "high": UIWording.text(.effortHigh, languageCode: languageCode)
-        case "xhigh": UIWording.text(.effortXHigh, languageCode: languageCode)
-        default: effort
-        }
-    }
 }
 
 private struct ComposerOverflowBranchMenu: View {

@@ -199,7 +199,7 @@ public struct ComposerSettingChip: View {
     }
 
     public var body: some View {
-        SelectablePopoverButton(
+        ComposerSettingPopover(
             options: options.map { option in
                 SelectablePopoverOption(
                     id: option.id.isEmpty ? "__default" : option.id,
@@ -218,7 +218,7 @@ public struct ComposerSettingChip: View {
             showsFocusRing: showsFocusRing,
             onSelect: { onSelect($0.value) }
         ) { _ in
-            ComposerChipLabel(title: title, leadingSystemImage: leadingSystemImage)
+            ComposerSettingChipLabel(title: title, systemImage: leadingSystemImage)
         }
     }
 }

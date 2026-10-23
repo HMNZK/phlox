@@ -701,9 +701,11 @@ struct DesignSnapshotRenderTests {
         NSApp.setActivationPolicy(.prohibited)
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        let fixtures = package.appendingPathComponent(".build/design-snapshot-fixtures-\(UUID().uuidString)")
         let worktree = package.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let output = worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
+        let output = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? worktree.appendingPathComponent(".build/design-snapshots", isDirectory: true)
+        let fixtures = output.appendingPathComponent("fixtures-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: fixtures, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
@@ -718,8 +720,9 @@ struct DesignSnapshotRenderTests {
         var written = 0
         var failures: [String] = []
         let scope = ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] ?? "all"
-        try #require(["all", "files", "simulator", "syntax", "large-files", "browser", "worktree-start"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser・worktree-start のいずれか")
+        try #require(["all", "files", "simulator", "syntax", "large-files", "browser", "worktree-start", "setting-cards"].contains(scope), "撮影範囲は all・files・simulator・syntax・large-files・browser・worktree-start・setting-cards のいずれか")
         let selectedFrames = (frames + syntaxFrames + browserFrames + stage8Frames).filter { frame in
+            if scope == "setting-cards" { return frame.id.hasPrefix("10-M") }
             if scope == "worktree-start" { return frame.id.hasPrefix("10-WS") }
             if scope == "browser" { return frame.id.hasPrefix("9-") }
             if scope == "large-files" { return ["3l", "3large", "changes-deleted", "changes-readonly", "changes-oversized"].contains(frame.stateID) || frame.stateID.hasPrefix("3readonly") }

@@ -13,7 +13,7 @@ func fileMarkdownTheme(hoveredLink: URL?) -> Theme {
             FontSize(11)
             BackgroundColor(DSColor.fillSubtle)
         }
-        .link { ForegroundColor(DSColor.accentInk) }
+        .link { ForegroundColor(DSColor.accentInk); UnderlineStyle(.single) }
         .paragraph { configuration in
             Group {
                 if configuration.content.renderMarkdown().contains("![") {
@@ -181,9 +181,9 @@ func fileMarkdownAttributed(_ markdown: String, hoveredLink: URL?) -> Attributed
         text.replaceSubrange(run.range, with: replacement)
     }
     for run in text.runs {
-        if let link = run.link {
+        if run.link != nil {
             text[run.range].foregroundColor = DSColor.accentInk
-            if link == hoveredLink { text[run.range].underlineStyle = .single }
+            text[run.range].underlineStyle = .single
         }
         if run.inlinePresentationIntent?.contains(.code) == true {
             text[run.range].font = DSFont.monoCaption

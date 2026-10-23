@@ -27,6 +27,7 @@ enum ChatProseText {
             } else if run.link != nil {
                 // MarkdownUI のテーマ（.link）と同じリンク色。
                 text[run.range].foregroundColor = DSColor.accentInk
+                text[run.range].underlineStyle = .single
             } else if !intent.contains(.stronglyEmphasized) {
                 plainRanges.append(run.range)
             }

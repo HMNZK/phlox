@@ -200,6 +200,8 @@ FileTabView ── FileTabDocument（draft が唯一の正本。ルート固定�
 （チャット用の前処理 `TranscriptMarkdownPresentation.prepare` を通さず、リンク処理を注入できる。ファイル用は別テーマ `fileMarkdownTheme` を使う）。
 既存の init とチャットの挙動は変えない。
 
+チャットとファイルの Markdown リンクは、ホバー前から常に下線を表示する。コード書式のファイルリンクも対象とし、リンクでない本文やコードには下線を加えない。リンク色は既存の無彩色を保つ。
+
 **編集状態の契約（`FileTabDocument` が所有）**
 
 ```swift

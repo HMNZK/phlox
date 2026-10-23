@@ -77,6 +77,8 @@ Keychain アクセスが失敗しても起動は続行し、インメモリの `
 
 `MobileDeviceProvisioner.rename(id:name:)` は既存操作と同じロックで最新の端末を読み直し、名前だけを更新して同じストアへ保存する。端末 ID・トークン・requester・発行日時・ペアリング日時は維持する。失効済みなど、対象が存在しない場合はエラーにする。
 
+GUI が常駐プロセスの状態を表示している場合は `MobileRuntimeCommand.rename(id:name:)` を送り、常駐プロセス側で同じ保存処理を実行する。応答を待つ間は編集操作を無効にし、保存の成功を受けてから編集を閉じる。
+
 ## 並行性
 
 `MobileDeviceProvisioner` の read-modify-write（`issueDevice` / `rename` / `markPaired` / `revoke` / `pruneExpired`）は `NSLock` で直列化し、`async` の `syncRegistrations` は内部の actor で直列化する。`KeychainPairedDeviceStore` の直列化ロックは**インスタンス変数**なので、同じ Keychain 項目を指すストアを 2 つ作るとロストアップデートが起きる。`CompositionRoot` で**単一インスタンスを生成して全消費者へ共有**すること。

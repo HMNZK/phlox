@@ -68,6 +68,7 @@ public enum MobileRuntimeCommand: Codable, Equatable, Sendable {
   case showPairingQR(deviceName: String)
   case hidePairingQR
   case revoke(id: UUID)
+  case rename(id: UUID, name: String)
   case refreshReachability
   case startAutoRecovery
 }

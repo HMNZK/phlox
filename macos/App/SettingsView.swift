@@ -683,7 +683,7 @@ struct SettingsView: View {
                         MobileDeviceRow(
                             device: device,
                             lastSeenAt: viewModel.lastSeenAt[device.id],
-                            onRename: { viewModel.rename(id: device.id, name: $0) },
+                            onRename: { await viewModel.rename(id: device.id, name: $0) },
                             onRevoke: { pendingRevoke = device }
                         )
                     }
@@ -715,10 +715,11 @@ struct SettingsView: View {
     private struct MobileDeviceRow: View {
         let device: PairedDevice
         let lastSeenAt: Date?
-        let onRename: (String) -> Bool
+        let onRename: (String) async -> Bool
         let onRevoke: () -> Void
         @State private var isRenaming = false
         @State private var editedName = ""
+        @State private var isSaving = false
         @FocusState private var isNameFocused: Bool
         @Environment(\.locale) private var locale
 
@@ -730,13 +731,15 @@ struct SettingsView: View {
                         .accessibilityLabel(Text("端末の名前"))
                         .focused($isNameFocused)
                         .onSubmit(saveName)
-                        .onExitCommand { isRenaming = false }
+                        .onExitCommand { if !isSaving { isRenaming = false } }
+                        .disabled(isSaving)
                     Spacer(minLength: 0)
                     Button("保存", action: saveName)
                         .buttonStyle(.ds(.primary, height: 22, fontSize: 12, padding: 10, cornerRadius: 5))
-                        .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(isSaving || editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("キャンセル") { isRenaming = false }
                         .buttonStyle(.ds(.secondary, height: 22, fontSize: 12, padding: 10, fill: DSColor.settingsControlBackground, cornerRadius: 5))
+                        .disabled(isSaving)
                 } else {
                     TimelineView(.periodic(from: .now, by: 10)) { context in
                         SettingsLabel(title: Text(verbatim: device.name), detail: Text(verbatim: detailText(now: context.date)))
@@ -756,8 +759,12 @@ struct SettingsView: View {
         }
 
         private func saveName() {
-            guard !editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            if onRename(editedName) { isRenaming = false }
+            guard !isSaving, !editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            isSaving = true
+            Task {
+                defer { isSaving = false }
+                if await onRename(editedName) { isRenaming = false }
+            }
         }
 
         private func detailText(now: Date) -> String {

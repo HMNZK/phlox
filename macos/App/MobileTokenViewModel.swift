@@ -127,6 +127,7 @@ public final class MobileTokenViewModel: ObservableObject {
     case .showPairingQR(let deviceName): await showPairingQR(deviceName: deviceName)
     case .hidePairingQR: hidePairingQR()
     case .revoke(let id): await revoke(id: id)
+    case .rename(let id, let name): _ = await rename(id: id, name: name)
     case .refreshReachability: await refreshReachability()
     case .startAutoRecovery: startAutoRecovery()
     }
@@ -140,14 +141,17 @@ public final class MobileTokenViewModel: ObservableObject {
     }
   }
 
-  private func sendRuntimeCommand(_ command: MobileRuntimeCommand) async {
-    guard case .projected(let handler) = backing else { return }
+  @discardableResult
+  private func sendRuntimeCommand(_ command: MobileRuntimeCommand) async -> Bool {
+    guard case .projected(let handler) = backing else { return false }
     do {
       let reply = try await handler(command)
       applyRuntimeSnapshot(reply.snapshot)
+      return reply.snapshot.lastError == nil
     } catch {
       lastError = "常駐プロセスとの通信に失敗しました。操作の結果を確認できません。"
       Self.logger.error("Mobile runtime command failed: \(String(describing: error), privacy: .public)")
+      return false
     }
   }
 
@@ -257,9 +261,12 @@ public final class MobileTokenViewModel: ObservableObject {
   }
 
   /// 保存に失敗したときは編集を続けられるよう、成否を返す。
-  public func rename(id: UUID, name: String) -> Bool {
+  public func rename(id: UUID, name: String) async -> Bool {
+    guard case .owned(let owned) = backing else {
+      return await sendRuntimeCommand(.rename(id: id, name: name))
+    }
     do {
-      try provisioner.rename(id: id, name: name)
+      try owned.provisioner.rename(id: id, name: name)
       try reloadDevicesAndPrivilegedRequesters()
       lastError = nil
       return true

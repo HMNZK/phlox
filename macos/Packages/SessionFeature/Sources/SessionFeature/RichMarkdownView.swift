@@ -96,6 +96,7 @@ private func chatMarkdownTheme(scale: CGFloat, languageCode: String, bodyColor: 
         }
         .link {
             ForegroundColor(DSColor.accentInk)
+            UnderlineStyle(.single)
         }
         // NOTE: 箇条書きの項目が折り返すと、折り返し行の縦高さが確保されず次項目と重なって潰れる
         // （MarkdownUI v2.4.1 の ListItemView は Label{content} icon:{marker} 構成で、項目 content に

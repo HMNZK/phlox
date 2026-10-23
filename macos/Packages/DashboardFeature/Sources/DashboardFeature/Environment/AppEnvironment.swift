@@ -67,6 +67,7 @@ public struct AppEnvironment: Sendable {
     public let projects: any ProjectStoreProtocol
     /// アプリ再起動後にセッションを復元するための永続化ストア。
     public let sessions: any SessionStoreProtocol
+    public let sessionHistoryNames: JSONSessionHistoryNameStore
     /// 全 appServer セッションの表示用 transcript を Phlox 側に保存するストア。
     public let transcriptStore: any TranscriptStore
     public let cliPath: String
@@ -94,6 +95,7 @@ public struct AppEnvironment: Sendable {
         messages: any MessageStoreProtocol,
         projects: any ProjectStoreProtocol = NoOpProjectStore(),
         sessions: any SessionStoreProtocol = NoOpSessionStore(),
+        sessionHistoryNames: JSONSessionHistoryNameStore = JSONSessionHistoryNameStore(),
         transcriptStore: any TranscriptStore = NoOpTranscriptStore(),
         cliPath: String,
         fullAccessProvider: (@Sendable (AgentRef) -> Bool)? = nil,
@@ -117,6 +119,7 @@ public struct AppEnvironment: Sendable {
         self.messages = messages
         self.projects = projects
         self.sessions = sessions
+        self.sessionHistoryNames = sessionHistoryNames
         self.transcriptStore = transcriptStore
         self.cliPath = cliPath
         let resolvedFullAccessProvider = fullAccessProvider ?? { ref in
@@ -216,15 +219,16 @@ public struct AppEnvironment: Sendable {
 
     func newChatSessionHistoryLoader(
         agentRef: AgentRef,
-        workingDirectories: [String]
+        workingDirectories: [String],
+        limit: Int = 20
     ) -> (@Sendable () throws -> [ClaudeSessionHistoryEntry])? {
         switch agentRef {
         case .builtin(.claudeCode):
             let discovery = ClaudeSessionHistoryDiscovery(projectsRoot: Self.claudeProjectsRoot)
-            return { try discovery.loadEntries(forWorkingDirectories: workingDirectories, limit: 20) }
+            return { try discovery.loadEntries(forWorkingDirectories: workingDirectories, limit: limit) }
         case .builtin(.codex):
             let discovery = CodexSessionHistoryDiscovery(codexHome: codexHome)
-            return { try discovery.loadEntries(forWorkingDirectories: workingDirectories, limit: 20) }
+            return { try discovery.loadEntries(forWorkingDirectories: workingDirectories, limit: limit) }
         default:
             return nil
         }

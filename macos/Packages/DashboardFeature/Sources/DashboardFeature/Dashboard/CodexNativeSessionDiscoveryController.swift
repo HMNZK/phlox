@@ -63,6 +63,7 @@ final class CodexNativeSessionDiscoveryController {
 
         if descriptor.launchSpec.followsNativeSessionIDFromHook {
             guard let normalizedNativeSessionId = Self.normalizedUUIDString(nativeSessionId) else { return }
+            sessionNodesSnapshot().first(where: { $0.id == sessionID })?.pty?.nativeSessionID = normalizedNativeSessionId
             persistence.persistFollowedNativeResumeID(
                 sessionID: sessionID,
                 nativeSessionId: normalizedNativeSessionId,
@@ -78,6 +79,8 @@ final class CodexNativeSessionDiscoveryController {
         guard descriptor.launchSpec.initialResumeIDStrategy == .codexNativeFromHook else {
             return
         }
+
+        sessionNodesSnapshot().first(where: { $0.id == sessionID })?.pty?.nativeSessionID = nativeSessionId
 
         persistence.persistCodexNativeResumeID(
             sessionID: sessionID,

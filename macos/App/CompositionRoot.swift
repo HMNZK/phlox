@@ -446,6 +446,10 @@ public final class CompositionRoot {
             messages: stores.messageStore,
             projects: stores.projectStore,
             sessions: stores.sessionStore,
+            sessionHistoryNames: JSONSessionHistoryNameStore(
+                fileURL: try Self.sessionsStoreURL().deletingLastPathComponent()
+                    .appendingPathComponent("session-history-names.json")
+            ),
             transcriptStore: FileTranscriptStore(),
             cliPath: Self.cliPath
         )

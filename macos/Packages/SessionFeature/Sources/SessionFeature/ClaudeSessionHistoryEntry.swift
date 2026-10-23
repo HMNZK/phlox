@@ -17,6 +17,7 @@ public struct ClaudeSessionHistoryEntry: Codable, Equatable, Sendable, Identifia
     public let titleUserMessages: [String]?
     public let titleSummary: String?
     public let sourceWorkingDirectory: String?
+    public var savedTitle: String?
 
     public init(
         sessionID: String,
@@ -27,7 +28,8 @@ public struct ClaudeSessionHistoryEntry: Codable, Equatable, Sendable, Identifia
         fileURL: URL,
         titleUserMessages: [String]? = nil,
         titleSummary: String? = nil,
-        sourceWorkingDirectory: String? = nil
+        sourceWorkingDirectory: String? = nil,
+        savedTitle: String? = nil
     ) {
         self.sessionID = sessionID
         self.preview = preview
@@ -38,6 +40,7 @@ public struct ClaudeSessionHistoryEntry: Codable, Equatable, Sendable, Identifia
         self.titleUserMessages = titleUserMessages
         self.titleSummary = titleSummary
         self.sourceWorkingDirectory = sourceWorkingDirectory
+        self.savedTitle = savedTitle
     }
 
     public func located(in workingDirectory: String) -> Self {
@@ -50,7 +53,8 @@ public struct ClaudeSessionHistoryEntry: Codable, Equatable, Sendable, Identifia
             fileURL: fileURL,
             titleUserMessages: titleUserMessages,
             titleSummary: titleSummary,
-            sourceWorkingDirectory: workingDirectory
+            sourceWorkingDirectory: workingDirectory,
+            savedTitle: savedTitle
         )
     }
 

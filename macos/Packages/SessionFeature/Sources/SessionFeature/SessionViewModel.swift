@@ -17,6 +17,7 @@ public final class SessionViewModel: Identifiable {
     public let id: SessionID
     public let startedAt: Date
     public private(set) var executionID = UUID()
+    public var nativeSessionID: String?
     public private(set) var status: SessionStatus
     /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。
     public private(set) var statusEnteredAt: Date?
@@ -987,6 +988,7 @@ extension SessionViewModel: ControllableSession {
         var value = SessionRuntimePTYSnapshot(id: id, startedAt: startedAt, agentRef: agentRef,
             workingDirectory: workingDirectory, display: try terminalCoordinator.makeRuntimeDisplaySnapshot())
         value.executionID = executionID
+        value.nativeSessionID = nativeSessionID
         value.titleState = titleState
         value.projectID = projectID
         value.parentSessionID = parentSessionID
@@ -1020,6 +1022,7 @@ extension SessionViewModel: ControllableSession {
         defer { isApplyingRuntimeSnapshot = false }
         runtimeProjectionSnapshot = snapshot
         executionID = snapshot.executionID
+        nativeSessionID = snapshot.nativeSessionID
         titleState = snapshot.titleState
         projectID = snapshot.projectID
         parentSessionID = snapshot.parentSessionID

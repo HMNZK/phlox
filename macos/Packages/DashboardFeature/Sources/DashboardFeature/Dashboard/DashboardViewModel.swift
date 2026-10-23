@@ -128,6 +128,7 @@ public final class DashboardViewModel {
     }
     @ObservationIgnored private var hasAppliedInitialRuntimePresentation = false
     public private(set) var runtimeCommandError: String?
+    private var historyNames: [SessionHistoryKey: String] = [:]
     public var isRuntimeProjection: Bool { runtimeCommandHandler != nil }
 
     private var requiredOwnedServices: OwnedServices {
@@ -295,6 +296,13 @@ public final class DashboardViewModel {
                 }
             }
         )
+        spawnService?.historyEntriesProvider = { [weak self] ref, directories in
+            guard let self else { return [] }
+            return try await self.loadHistoryEntries(agentRef: ref, workingDirectories: directories)
+        }
+        spawnService?.historyEntriesFilter = { [weak self] ref, entries in
+            self?.availableHistoryEntries(entries, agentRef: ref) ?? []
+        }
         spawnService?.onClaudeUsage = { [weak self] snapshot, id in self?.claudeUsageDidChange?(snapshot, id) }
         spawnService?.onWorktreeCreation = { [weak self] path, isStarting in
             guard let self, Self.reportsWorktreeCreation else { return }
@@ -1153,7 +1161,7 @@ public final class DashboardViewModel {
             .filter { $0.projectID == projectID }
             .map(\.id)
         for sessionID in sessionIDs {
-            await removeSession(sessionID)
+            if sessionNode(id: sessionID) != nil, !(await removeSession(sessionID)) { return }
         }
         projects.removeAll { $0.id == projectID }
         persistProjects()
@@ -1311,15 +1319,54 @@ public final class DashboardViewModel {
             guard case .history(let entries) = try await sendRuntimeCommand(.history(projectID, agentRef)) else {
                 throw DashboardRuntimeError.unexpectedReply
             }
-            return entries
+            return availableHistoryEntries(entries, agentRef: agentRef)
         }
         guard let project = projects.first(where: { $0.id == projectID }) else { return [] }
         let directories = [project.directoryPath] + (project.worktreePaths ?? [])
+        return try await loadHistoryEntries(agentRef: agentRef, workingDirectories: directories)
+    }
+
+    func availableHistoryEntries(_ entries: [ClaudeSessionHistoryEntry], agentRef: AgentRef) -> [ClaudeSessionHistoryEntry] {
+        let open = Set(sessionNodes.filter { $0.agentRef == agentRef }.compactMap { node in
+            (node.appServer?.threadId ?? node.pty?.nativeSessionID).map {
+                SessionHistoryKey(agentRef: agentRef, nativeSessionID: $0)
+            }
+        })
+        return entries.filter { !open.contains(SessionHistoryKey(agentRef: agentRef, nativeSessionID: $0.sessionID)) }.map { entry in
+            var result = entry
+            result.savedTitle = historyNames[SessionHistoryKey(agentRef: agentRef, nativeSessionID: entry.sessionID)] ?? entry.savedTitle
+            return result
+        }
+    }
+
+    private func synchronizeHistorySessionIDs() async {
+        await persistence.waitForPendingWrites()
+        for descriptor in await environment.sessions.load() {
+            if let session = sessionNode(id: descriptor.id)?.pty, session.nativeSessionID == nil {
+                session.nativeSessionID = descriptor.resumeID
+            }
+        }
+    }
+
+    private func loadHistoryEntries(agentRef: AgentRef, workingDirectories: [String]) async throws -> [ClaudeSessionHistoryEntry] {
+        await synchronizeHistorySessionIDs()
+        let limit = 20 + sessionNodes.filter { $0.agentRef == agentRef }.count
         guard let provider = Self.newChatHistoryLoader ?? environment.newChatSessionHistoryLoader(
-            agentRef: agentRef,
-            workingDirectories: directories
+            agentRef: agentRef, workingDirectories: workingDirectories, limit: limit
         ) else { return [] }
-        return try await Task.detached(priority: .userInitiated) { try provider() }.value
+        let raw = try await Task.detached(priority: .userInitiated) { try provider() }.value
+        let savedNames = await environment.sessionHistoryNames.names()
+        historyNames.merge(savedNames, uniquingKeysWith: { current, _ in current })
+        await synchronizeHistorySessionIDs()
+        return Array(availableHistoryEntries(raw, agentRef: agentRef).prefix(20))
+    }
+
+    private func rememberHistoryName(_ node: SessionNode, name: String) async throws {
+        guard node.agentRef == .builtin(.claudeCode) || node.agentRef == .builtin(.codex),
+              let nativeID = node.appServer?.threadId ?? node.pty?.nativeSessionID else { return }
+        let key = SessionHistoryKey(agentRef: node.agentRef, nativeSessionID: nativeID)
+        try await environment.sessionHistoryNames.record(key: key, name: name)
+        historyNames[key] = name
     }
 
     public func restartNewChat(_ id: SessionID,
@@ -1477,6 +1524,8 @@ public final class DashboardViewModel {
                 launchContext: sessionOrigin.launchContext,
                 titleState: .generated(flowerName: generatedName)
             )
+
+            sessionVM.nativeSessionID = resumeID
 
             observeUnseenCompletion(for: sessionVM)
             sessions.append(sessionVM)
@@ -1782,7 +1831,7 @@ public final class DashboardViewModel {
 
         let affected = subtreeSessionIDsDeepestFirst(rootedAt: id)
         for sessionID in affected {
-            await removeSingleSession(sessionID)
+            guard await removeSingleSession(sessionID) else { return false }
         }
         return true
     }
@@ -1829,19 +1878,35 @@ public final class DashboardViewModel {
         return result
     }
 
-    private func removeSingleSession(_ id: SessionID) async {
-        failedNewChatRequests.removeValue(forKey: id)
+    private func removeSingleSession(_ id: SessionID) async -> Bool {
         guard !removingSessionIDs.contains(id),
-              let node = sessionNodes.first(where: { $0.id == id }) else { return }
+              let node = sessionNodes.first(where: { $0.id == id }) else { return false }
         let session = node.controllable
+        let deletedName = node.displayName
         removingSessionIDs.insert(id)
         defer { removingSessionIDs.remove(id) }
+
+        do {
+            await synchronizeHistorySessionIDs()
+            try await rememberHistoryName(node, name: deletedName)
+        } catch {
+            runtimeCommandError = "履歴の名前を保存できなかったため削除しませんでした。\(error.localizedDescription)"
+            return false
+        }
 
         let firstMessage = runtimeFirstMessages.removeValue(forKey: id)
         firstMessage?.task.cancel()
         sessionHooks.cleanup(for: id)
         await session.terminate()
         await firstMessage?.task.value
+        do {
+            await synchronizeHistorySessionIDs()
+            try await rememberHistoryName(node, name: deletedName)
+        } catch {
+            runtimeCommandError = "履歴の名前を保存できなかったため登録を残しました。\(error.localizedDescription)"
+            return false
+        }
+        failedNewChatRequests.removeValue(forKey: id)
         await cleanupOwnedWorkspace(for: id)
         sessionHookContinuations[id]?.finish()
         sessionHookContinuations.removeValue(forKey: id)
@@ -1854,6 +1919,7 @@ public final class DashboardViewModel {
         await environment.tokenStore.remove(session: id)
         persistence.removeSession(id)
         normalizeGridSessionSelection()
+        return true
     }
 
     /// MC-2b: モバイルトークンごとの安定 requester。集合の各要素は全 remove（cascade 含む）を
@@ -2321,8 +2387,15 @@ extension DashboardViewModel {
         case .reorderSession(let source, let target): reorderSession(source, with: target)
         case .moveSession(let id, let project): await moveSession(id, to: project)
         case .changeWorkspace(let id, let directory): await changeWorkspace(id, to: directory)
-        case .removeSession(let id): return .bool(await removeSession(id))
-        case .removeProject(let id): await removeProject(id)
+        case .removeSession(let id):
+            runtimeCommandError = nil
+            let removed = await removeSession(id)
+            if !removed, let reason = runtimeCommandError { throw DashboardRuntimeError.removalFailed(reason) }
+            return .bool(removed)
+        case .removeProject(let id):
+            runtimeCommandError = nil
+            await removeProject(id)
+            if let reason = runtimeCommandError { throw DashboardRuntimeError.removalFailed(reason) }
         case .history(let project, let ref): return .history(try await newChatHistoryEntries(projectID: project, agentRef: ref))
         case .persistRole(let id, let role): persistSessionRole(id: id, role: role)
         case .clearWorkspaceCleanupWarning: clearWorkspaceCleanupWarning()

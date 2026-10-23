@@ -74,6 +74,10 @@ func chatHistoryStart_whitebox_initReturnsBeforeSlowProviderCompletes() async th
         gitBranch: "main",
         fileURL: URL(fileURLWithPath: "/tmp/d.jsonl")
     )
+    let slowProvider: @Sendable () -> [ClaudeSessionHistoryEntry] = {
+        Thread.sleep(forTimeInterval: 0.5)
+        return [entry]
+    }
     let start = Date()
     let vm = ChatSessionViewModel(
         id: SessionID(),
@@ -81,10 +85,7 @@ func chatHistoryStart_whitebox_initReturnsBeforeSlowProviderCompletes() async th
         client: HistoryStartRecordingClient(),
         approvalBroker: ChatApprovalBroker(),
         workingDirectory: "/tmp/work",
-        historyProvider: {
-            Thread.sleep(forTimeInterval: 0.5)
-            return [entry]
-        },
+        historyProvider: slowProvider,
         historyTranscriptLoader: { _ in [] }
     )
     let elapsed = Date().timeIntervalSince(start)

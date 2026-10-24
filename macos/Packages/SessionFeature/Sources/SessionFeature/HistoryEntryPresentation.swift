@@ -30,8 +30,8 @@ public struct HistoryEntryPresentation: Equatable, Sendable {
         {
             derived = SessionTitleDeriver.derive(from: summary)
         }
-        title = derived?.title ?? "作業名なし"
-        fullTitle = derived?.fullTitle ?? "作業名なし"
+        title = entry.savedTitle ?? derived?.title ?? "作業名なし"
+        fullTitle = entry.savedTitle ?? derived?.fullTitle ?? "作業名なし"
 
         if let workingDirectory,
            !workingDirectory.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) })

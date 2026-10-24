@@ -46,6 +46,20 @@ struct ChatScreenHighlightTests {
         #expect(run("makeView", in: text)?.inlinePresentationIntent == nil)
     }
 
+    @Test("Web とファイルのリンクは常時下線を持ち、通常の文字とコードには付けない")
+    @MainActor
+    func proseUnderlinesLinksIncludingCodeLabels() throws {
+        let text = ChatProseText.compute("本文 [参照](https://example.com) [`File.swift`](/project/File.swift:12) `plainCode`")
+        for (label, destination) in [("参照", "https://example.com"), ("File.swift", "/project/File.swift:12")] {
+            let linked = try #require(run(label, in: text))
+            #expect(linked.link == URL(string: destination))
+            #expect(linked.underlineStyle == .single)
+            #expect(linked.foregroundColor == DSColor.accentInk)
+        }
+        #expect(run("本文", in: text)?.underlineStyle == nil)
+        #expect(run("plainCode", in: text)?.underlineStyle == nil)
+    }
+
     @Test("json はキーワードを太字にしない（細かい色分けをしない言語）")
     @MainActor
     func jsonKeepsKeywordsRegularWeight() {

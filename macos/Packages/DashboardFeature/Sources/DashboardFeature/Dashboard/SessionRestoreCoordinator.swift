@@ -164,6 +164,7 @@ final class SessionRestoreCoordinator {
                 launchContext: descriptor.launchContext,
                 titleState: descriptor.titleState
             )
+            vm.nativeSessionID = descriptor.resumeID
             appendPTYSession(vm)
             await vm.start()
 

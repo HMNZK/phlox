@@ -65,13 +65,54 @@ func fileMarkdownUsesItsOwnPresentationAndLeavesChatRenderingUnchanged() throws 
 }
 
 @Test
-func fileMarkdownUnderlinesOnlyTheHoveredLinkWithoutChatAutomaticEmphasis() {
+func fileMarkdownUnderlinesLinksBeforeHoverWithoutChatAutomaticEmphasis() {
     let url = URL(string: "https://example.com")!
-    let plain = fileMarkdownAttributed("success 123 [参照](https://example.com)", hoveredLink: nil)
-    let hovered = fileMarkdownAttributed("success 123 [参照](https://example.com)", hoveredLink: url)
-    #expect(!plain.runs.contains { $0.underlineStyle != nil })
-    #expect(hovered.runs.contains { $0.link == url && $0.underlineStyle == .single })
-    #expect(!hovered.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true })
+    let markdown = "success 123 [参照](https://example.com) [`File.swift`](File.swift) `code`"
+    for hoveredLink in [nil, url] {
+        let text = fileMarkdownAttributed(markdown, hoveredLink: hoveredLink)
+        #expect(text.runs.contains { $0.link == url && $0.underlineStyle == .single })
+        #expect(text.runs.contains { $0.link == URL(string: "File.swift") && $0.underlineStyle == .single })
+        #expect(!text.runs.contains { $0.link == nil && $0.underlineStyle != nil })
+        #expect(!text.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true })
+    }
+}
+
+extension ThemeRenderingTests {
+    @Test @MainActor
+    func markdownLinkPresentationSnapshots() throws {
+        guard let path = ProcessInfo.processInfo.environment["PHLOX_LINK_SNAPSHOTS"] else { return }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let defaults = UserDefaults.standard
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        defer { defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain) }
+        let markdown = """
+        ## 見出しの [Webリンク](https://example.com)
+
+        本文の [参照ページ](https://example.com) と [`File.swift`](/project/File.swift:12)
+
+        通常の本文と `plainCode` は下線なし。
+
+        | 種別 | 開ける項目 | 通常の文字 |
+        | --- | --- | --- |
+        | Web | [参照ページ](https://example.com) | 参照ページ |
+        | File | [`File.swift`](/project/File.swift:12) | `plainCode` |
+        """
+        for light in [false, true] {
+            var themed = arguments
+            themed[ThemeStore.themeKey] = light ? AppTheme.phloxLight.id : AppTheme.phlox.id
+            defaults.setVolatileDomain(themed, forName: UserDefaults.argumentDomain)
+            for file in [false, true] {
+                let image = try renderImage(from: Group {
+                    if file { RichMarkdownView(source: markdown, openURL: { _ in .discarded }) }
+                    else { RichMarkdownView(markdown) }
+                }.environment(\.colorScheme, light ? .light : .dark))
+                let bitmap = try #require(NSBitmapImageRep(data: tiffData(from: image)))
+                let png = try #require(bitmap.representation(using: .png, properties: [:]))
+                try png.write(to: output.appendingPathComponent("\(file ? "file" : "chat")-\(light ? "light" : "dark").png"))
+            }
+        }
+    }
 }
 
 @Test(arguments: [400.0, 760.0]) @MainActor

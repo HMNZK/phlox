@@ -121,6 +121,7 @@ public enum DashboardRuntimeError: Error, LocalizedError, Sendable {
     case ownedOperationUnavailable
     case sessionNotFound
     case commandQueueFull
+    case removalFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -129,6 +130,7 @@ public enum DashboardRuntimeError: Error, LocalizedError, Sendable {
         case .ownedOperationUnavailable: "この操作はバックグラウンド実行プロセスでのみ実行できます"
         case .sessionNotFound: "対象のセッションが見つかりません"
         case .commandQueueFull: "操作が混み合っています。処理が終わってからやり直してください"
+        case .removalFailed(let reason): reason
         }
     }
 }

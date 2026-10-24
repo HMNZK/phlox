@@ -674,7 +674,8 @@ struct NewChatView: View {
                     usesWorktree: draft.usesWorktree,
                     locale: locale,
                     onRetry: { Task { await loadHistoryEntries() } },
-                    onSelect: { resumeHistory($0.sessionID) }
+                    onSelect: { resumeHistory($0.sessionID) },
+                    entriesFilter: { viewModel.availableHistoryEntries($0, agentRef: draft.agentRef) }
                 )
                 .environment(\.locale, locale)
             }

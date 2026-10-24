@@ -103,6 +103,48 @@ struct DesignSnapshotRenderTests {
         }
     }
 
+    @Test func resumedHistoryPopoverSnapshots() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let axGetter = NSSelectorFromString("accessibilityAttributeValue:")
+        let axSetter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previousAX = NSApp.perform(axGetter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(axSetter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        let defaults = UserDefaults.standard
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        let appearance = NSApp.appearance
+        defer {
+            NSApp.perform(axSetter, with: previousAX, with: "AXEnhancedUserInterface")
+            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+            NSApp.appearance = appearance
+        }
+        let output = try snapshotOutputDirectory()
+        let project = Project(name: "Phlox-oss", directoryPath: "/Users/example/Projects/Phlox-oss", createdAt: .distantPast, isManagedDirectory: false)
+        let saved = ClaudeSessionHistoryEntry(sessionID: "deleted", preview: "元の依頼", firstUserAt: nil,
+            lastModified: Date().addingTimeInterval(-300), gitBranch: nil, fileURL: output.appendingPathComponent("unused.jsonl"),
+            sourceWorkingDirectory: project.directoryPath, savedTitle: "削除した時に自分で付けたセッション名")
+        let active = ClaudeSessionHistoryEntry(sessionID: "open", preview: "開いているため表示しない会話", firstUserAt: nil,
+            lastModified: Date(), gitBranch: nil, fileURL: output.appendingPathComponent("unused.jsonl"))
+        for light in [false, true] {
+            var themeArguments = arguments
+            themeArguments[ThemeStore.themeKey] = light ? AppTheme.phloxLight.id : AppTheme.phlox.id
+            defaults.setVolatileDomain(themeArguments, forName: UserDefaults.argumentDomain)
+            NSApp.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
+            let model = NewChatHistoryPopoverModel()
+            await model.load { [active, saved] }
+            let content = NewChatHistoryPopover(model: model, project: project, usesWorktree: false,
+                locale: Locale(identifier: "ja"), onRetry: {}, onSelect: { _ in },
+                entriesFilter: { $0.filter { $0.sessionID != active.sessionID } })
+            let frame = Frame(id: light ? "resume-history-light" : "resume-history-dark", name: "履歴名と開いている会話の除外",
+                width: 480, height: 365, light: light, language: "ja")
+            try await capture(content, frame: frame, output: output, prepare: { host, _ in
+                #expect(snapshotAccessibilityElement("newChat.history.entry.deleted", in: host) != nil)
+                #expect(snapshotAccessibilityElement("newChat.history.entry.open", in: host) == nil)
+            })
+        }
+    }
+
     @Test(arguments: [false, true])
     func sidebarChildrenUseRealHierarchy(light: Bool) async throws {
         _ = NSApplication.shared

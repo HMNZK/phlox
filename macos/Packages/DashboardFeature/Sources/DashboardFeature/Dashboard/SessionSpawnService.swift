@@ -464,6 +464,8 @@ enum WorktreeIsolationSpawnError: Error, LocalizedError {
 
 @MainActor
 final class SessionSpawnService {
+    var historyEntriesProvider: (@MainActor @Sendable (AgentRef, [String]) async throws -> [ClaudeSessionHistoryEntry])?
+    var historyEntriesFilter: (@MainActor (AgentRef, [ClaudeSessionHistoryEntry]) -> [ClaudeSessionHistoryEntry])?
     var onClaudeUsage: ((AgentRateLimitsSnapshot, UUID) -> Void)?
     struct AppServerSpawnResult {
         let vm: ChatSessionViewModel
@@ -751,10 +753,18 @@ final class SessionSpawnService {
                     return []
                 }
             },
-            historyProvider: history?.historyProvider,
+            historyProvider: history.map { history -> (@Sendable () async throws -> [ClaudeSessionHistoryEntry]) in
+                { [weak self, ref = plan.descriptor.ref] in
+                    guard let self else { return [] }
+                    return try await self.loadHistoryEntries(ref: ref, directories: projectDirectories, fallback: history.historyProvider)
+                }
+            },
             historyTranscriptLoader: history?.historyTranscriptLoader,
             titleState: titleState ?? .legacy(name: name)
         )
+        vm.historyEntriesFilter = { [weak self, ref = plan.descriptor.ref] entries in
+            self?.historyEntriesFilter?(ref, entries) ?? entries
+        }
         let sessionOrigin = sessionOriginForWrite?() ?? SessionOrigin(
             launchContext: launchContext,
             parentSessionID: parentSessionID
@@ -779,6 +789,12 @@ final class SessionSpawnService {
         }
         registerSessionForWrite?(vm)
         return vm
+    }
+
+    private func loadHistoryEntries(ref: AgentRef, directories: [String],
+                                   fallback: @escaping @Sendable () -> [ClaudeSessionHistoryEntry]) async throws -> [ClaudeSessionHistoryEntry] {
+        if let provider = historyEntriesProvider { return try await provider(ref, directories) }
+        return await Task.detached { fallback() }.value
     }
 
     func makeRestoreErrorSession(

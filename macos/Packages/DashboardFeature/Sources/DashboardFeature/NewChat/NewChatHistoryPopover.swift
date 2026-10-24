@@ -56,6 +56,7 @@ struct NewChatHistoryPopover: View {
     let locale: Locale
     let onRetry: () -> Void
     let onSelect: (ClaudeSessionHistoryEntry) -> Void
+    var entriesFilter: ([ClaudeSessionHistoryEntry]) -> [ClaudeSessionHistoryEntry] = { $0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -98,6 +99,7 @@ struct NewChatHistoryPopover: View {
             .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .entries(let entries):
+            let entries = entriesFilter(entries)
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(entries) { entry in
@@ -117,6 +119,13 @@ struct NewChatHistoryPopover: View {
                 }
             }
             .scrollIndicators(.automatic)
+            .overlay {
+                if entries.isEmpty {
+                    Text("履歴がありません")
+                        .font(DSFont.auxiliary)
+                        .foregroundStyle(DSColor.textSecondary)
+                }
+            }
         case .empty:
             Text("履歴がありません")
                 .font(DSFont.auxiliary)

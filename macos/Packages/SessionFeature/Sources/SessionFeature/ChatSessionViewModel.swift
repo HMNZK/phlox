@@ -473,7 +473,7 @@ public final class ChatSessionViewModel: Identifiable {
         transcriptStore: (any TranscriptStore)? = nil,
         spawnAgentPermissionOverride: String? = nil,
         spawnAgentModelsProvider: SpawnAgentModelsProvider? = nil,
-        historyProvider: (@Sendable () -> [ClaudeSessionHistoryEntry])? = nil,
+        historyProvider: (@Sendable () async throws -> [ClaudeSessionHistoryEntry])? = nil,
         historyTranscriptLoader: (@Sendable (ClaudeSessionHistoryEntry) -> [ChatItem])? = nil,
         availableCommandsStore: AvailableCommandsStore = AvailableCommandsStore(),
         titleState: SessionTitleState = .legacy(name: "")
@@ -638,7 +638,8 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     // task-9 契約（受け入れテスト ChatHistoryStart が凍結。実装契約の正本: tasks/task-9.md）
-    @ObservationIgnored private let historyProvider: (@Sendable () -> [ClaudeSessionHistoryEntry])?
+    @ObservationIgnored private let historyProvider: (@Sendable () async throws -> [ClaudeSessionHistoryEntry])?
+    @ObservationIgnored public var historyEntriesFilter: @MainActor ([ClaudeSessionHistoryEntry]) -> [ClaudeSessionHistoryEntry] = { $0 }
     @ObservationIgnored private let historyTranscriptLoader: (@Sendable (ClaudeSessionHistoryEntry) -> [ChatItem])?
     /// provider の結果を一度だけ格納（body 評価のたびに FS 走査しない）。SwiftUI 反応のため observable。
     private var cachedHistoryEntries: [ClaudeSessionHistoryEntry] = []
@@ -651,7 +652,7 @@ public final class ChatSessionViewModel: Identifiable {
         guard agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex) else { return false }
         guard historyProvider != nil || runtimeProjectionSnapshot?.hasHistoryProvider == true else { return false }
         guard transcript.isEmpty, submitBaselineTurnSeq == nil else { return false }
-        return !cachedHistoryEntries.isEmpty
+        return !historyEntries.isEmpty
     }
 
     /// 履歴カードの件数と最後の発言（履歴 ID ごと。読み終えたものから入る）。
@@ -659,7 +660,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// 履歴一覧（最大 20 件・task-9 契約）。
     public var historyEntries: [ClaudeSessionHistoryEntry] {
-        cachedHistoryEntries
+        historyEntriesFilter(cachedHistoryEntries)
     }
 
     /// UI 操作で発生した失敗を既存の ErrorMessageCell 経路へ載せる。
@@ -810,9 +811,15 @@ public final class ChatSessionViewModel: Identifiable {
         guard let historyProvider, !historyCacheLoaded else { return }
         guard historyCacheLoadTask == nil else { return }
         historyCacheLoadTask = Task { [weak self, historyProvider] in
-            let entries = await Task.detached {
-                Array(historyProvider().prefix(20))
-            }.value
+            let entries: [ClaudeSessionHistoryEntry]
+            do {
+                entries = try await Task.detached {
+                    Array(try await historyProvider().prefix(20))
+                }.value
+            } catch {
+                self?.reportError("履歴を読み込めませんでした。\(error.localizedDescription)")
+                return
+            }
             await MainActor.run { [weak self] in
                 guard let self, !self.historyCacheLoaded else { return }
                 self.cachedHistoryEntries = entries
@@ -872,6 +879,9 @@ public final class ChatSessionViewModel: Identifiable {
         sandbox: SandboxPolicy?,
         startsClient: Bool
     ) async throws {
+        guard !historyEntriesFilter([entry]).isEmpty else {
+            throw ChatLaunchError.processFailed("この会話はすでに Phlox で開かれています。")
+        }
         clearRunningBackgroundTasks()
         startEventTasks()
         let loaded = historyTranscriptLoader?(entry) ?? []
@@ -3795,6 +3805,10 @@ public final class ChatSessionViewModel: Identifiable {
         _ entry: ClaudeSessionHistoryEntry,
         loadedItems: [ChatItem]
     ) {
+        if let savedTitle = entry.savedTitle {
+            titleState = titleState.renamed(to: savedTitle)
+            return
+        }
         guard titleState.source == .flower else { return }
         if let messages = entry.titleUserMessages {
             for text in messages {

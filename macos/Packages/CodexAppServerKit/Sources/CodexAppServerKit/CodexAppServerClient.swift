@@ -161,14 +161,22 @@ public actor CodexAppServerClient {
     private func seedRestoredTurnIdentity(from thread: ThreadSummary) {
         let threadID = thread.id
         var state = turnStates[threadID] ?? TurnState()
-        guard !state.hasObservedLifecycle, state.activeTurnId == nil else { return }
         for turn in thread.turns ?? [] {
             guard let turnID = turn.id else { continue }
-            if turn.status == "inProgress" {
+            if turn.status == "inProgress", !state.hasObservedLifecycle,
+               !state.closedTurnIds.contains(turnID) {
+                if let tentativeTurnID = state.activeTurnId, tentativeTurnID != turnID {
+                    state.closedTurnIds.insert(tentativeTurnID)
+                }
                 state.activeTurnId = turnID
                 state.hasObservedLifecycle = true
             } else if ["completed", "interrupted", "failed"].contains(turn.status ?? "") {
+                // 遅い復元応答で、開始を観測済みの現在の turn を閉じない。
+                guard !state.hasObservedLifecycle || state.activeTurnId != turnID else { continue }
                 state.closedTurnIds.insert(turnID)
+                if state.activeTurnId == turnID {
+                    state.activeTurnId = nil
+                }
             }
         }
         turnStates[threadID] = state
@@ -327,7 +335,8 @@ public actor CodexAppServerClient {
         guard !state.closedTurnIds.contains(turnId) else { return false }
         // lifecycle event が見えている間は、別 identity の turn/started を旧 turn として捨てる。
         if let activeTurnId = state.activeTurnId, activeTurnId != turnId {
-            return false
+            guard !state.hasObservedLifecycle else { return false }
+            state.closedTurnIds.insert(activeTurnId)
         }
         state.activeTurnId = turnId
         state.pendingStartGeneration = nil

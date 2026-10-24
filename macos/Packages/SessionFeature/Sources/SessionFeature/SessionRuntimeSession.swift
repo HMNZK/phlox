@@ -28,6 +28,7 @@ public struct SessionRuntimePTYSnapshot: Codable, Sendable {
     public let agentRef: AgentRef
     public let workingDirectory: String?
     public var executionID = UUID()
+    public var nativeSessionID: String?
     public var titleState: SessionTitleState = .legacy(name: "")
     public var projectID: ProjectID?
     public var parentSessionID: SessionID?

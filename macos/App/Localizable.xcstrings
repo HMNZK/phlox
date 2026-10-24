@@ -1,6 +1,40 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "直前のカスタムに戻す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore Previous Custom Layout"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直前のカスタムに戻す"
+          }
+        }
+      }
+    },
+    "自動整列に戻す": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Automatic Layout"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動整列に戻す"
+          }
+        }
+      }
+    },
     "競合をターミナルなどで解消してください": {
       "extractionState": "manual",
       "localizations": {

@@ -62,10 +62,9 @@ extension PaneTree {
     public static let dividerHitThickness: CGFloat = 8
 
     /// 左上から数えたタイルの並び（行の上から、同じ行は左から）。⌘1–9 と見出しの番号が読む。
-    /// ウィンドウの大きさに左右されないよう、固定の大きさ・余白 0 で数える。
-    public func readingOrder() -> [SessionID] {
-        frames(in: CGSize(width: 1600, height: 1000), spacing: 0).tiles
-            .sorted { ($0.rect.minY, $0.rect.minX) < ($1.rect.minY, $1.rect.minX) }
+    public func readingOrder(in bounds: CGSize = CGSize(width: 1600, height: 1000), spacing: CGFloat = 0) -> [SessionID] {
+        frames(in: bounds, spacing: spacing).tiles
+            .sorted { (round($0.rect.minY * 1000), round($0.rect.minX * 1000)) < (round($1.rect.minY * 1000), round($1.rect.minX * 1000)) }
             .map(\.session)
     }
 
@@ -238,8 +237,8 @@ public enum PaneDirection: Sendable, CaseIterable {
 
 extension PaneTree {
     /// その向きで接しているタイルのうち、接している長さが一番長いもの（⌥⌘⇧＋矢印の相手）。
-    public func neighbor(of session: SessionID, toward direction: PaneDirection) -> SessionID? {
-        let tiles = frames(in: Self.keyboardBounds, spacing: 0).tiles
+    public func neighbor(of session: SessionID, toward direction: PaneDirection, in bounds: CGSize = CGSize(width: 1600, height: 1000), spacing: CGFloat = 0) -> SessionID? {
+        let tiles = frames(in: bounds, spacing: spacing).tiles
         guard let me = tiles.first(where: { $0.session == session })?.rect else { return nil }
         let candidates: [(SessionID, CGFloat)] = tiles.compactMap { tile in
             let r = tile.rect
@@ -247,10 +246,10 @@ extension PaneTree {
             let touches: Bool
             let shared: CGFloat
             switch direction {
-            case .left: touches = Self.near(r.maxX, me.minX); shared = Self.overlap(r.minY, r.maxY, me.minY, me.maxY)
-            case .right: touches = Self.near(r.minX, me.maxX); shared = Self.overlap(r.minY, r.maxY, me.minY, me.maxY)
-            case .up: touches = Self.near(r.maxY, me.minY); shared = Self.overlap(r.minX, r.maxX, me.minX, me.maxX)
-            case .down: touches = Self.near(r.minY, me.maxY); shared = Self.overlap(r.minX, r.maxX, me.minX, me.maxX)
+            case .left: touches = Self.near(r.maxX + spacing, me.minX); shared = Self.overlap(r.minY, r.maxY, me.minY, me.maxY)
+            case .right: touches = Self.near(r.minX - spacing, me.maxX); shared = Self.overlap(r.minY, r.maxY, me.minY, me.maxY)
+            case .up: touches = Self.near(r.maxY + spacing, me.minY); shared = Self.overlap(r.minX, r.maxX, me.minX, me.maxX)
+            case .down: touches = Self.near(r.minY - spacing, me.maxY); shared = Self.overlap(r.minX, r.maxX, me.minX, me.maxX)
             }
             return touches && shared > 0 ? (tile.session, shared) : nil
         }
@@ -260,23 +259,22 @@ extension PaneTree {
     /// ⌃⌥＋矢印で動かす分割線と、動かす量（隣り合う 2 枚の合計に対する取り分の差）。
     /// タイルの右（下）の辺の線を優先し、無ければ左（上）の辺の線。1 回で 5%。
     /// 最小の大きさの判定は、保存ツリーへ当てた結果で呼び出し元が行う（表示と保存で取り分の基準が違うため）。
-    public func nudgedDivider(of session: SessionID, toward direction: PaneDirection) -> (id: PaneDividerID, delta: Double)? {
-        let layout = frames(in: Self.keyboardBounds, spacing: 0)
+    public func nudgedDivider(of session: SessionID, toward direction: PaneDirection, in bounds: CGSize = CGSize(width: 1600, height: 1000), spacing: CGFloat = 0) -> (id: PaneDividerID, delta: Double)? {
+        let layout = frames(in: bounds, spacing: spacing)
         guard let me = layout.tiles.first(where: { $0.session == session })?.rect else { return nil }
         let isHorizontal = direction == .left || direction == .right
         let lines = layout.dividers.filter { $0.axis == (isHorizontal ? .horizontal : .vertical) }
         func touching(_ edge: CGFloat) -> PaneDividerFrame? {
             lines.first { line in
                 isHorizontal
-                    ? Self.near(line.gapRect.midX, edge) && Self.overlap(line.gapRect.minY, line.gapRect.maxY, me.minY, me.maxY) > 0
-                    : Self.near(line.gapRect.midY, edge) && Self.overlap(line.gapRect.minX, line.gapRect.maxX, me.minX, me.maxX) > 0
+                    ? (Self.near(line.gapRect.minX, edge) || Self.near(line.gapRect.maxX, edge)) && Self.overlap(line.gapRect.minY, line.gapRect.maxY, me.minY, me.maxY) > 0
+                    : (Self.near(line.gapRect.minY, edge) || Self.near(line.gapRect.maxY, edge)) && Self.overlap(line.gapRect.minX, line.gapRect.maxX, me.minX, me.maxX) > 0
             }
         }
         guard let line = touching(isHorizontal ? me.maxX : me.maxY) ?? touching(isHorizontal ? me.minX : me.minY) else { return nil }
         return (line.id, (direction == .right || direction == .down) ? 0.05 : -0.05)
     }
 
-    private static let keyboardBounds = CGSize(width: 1600, height: 1000)
     private static func near(_ a: CGFloat, _ b: CGFloat) -> Bool { abs(a - b) < 0.5 }
     private static func overlap(_ a0: CGFloat, _ a1: CGFloat, _ b0: CGFloat, _ b1: CGFloat) -> CGFloat {
         max(0, min(a1, b1) - max(a0, b0))

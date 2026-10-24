@@ -25,16 +25,17 @@ enum PaneWidthPolicy {
         sidebarVisible: Bool,
         inspectorVisible: Bool,
         sidebarWidth: CGFloat,
-        inspectorWidth: CGFloat
+        inspectorWidth: CGFloat,
+        centerMinimum: CGFloat = centerMinWidth
     ) -> PaneLayout {
         let sidebar = sidebarRange.clamped(sidebarWidth)
         let inspector = inspectorRange.clamped(inspectorWidth)
         let sidebarSpan = sidebarVisible ? sidebar + separatorWidth : 0
         let inspectorSpan = inspectorVisible ? inspector + separatorWidth : 0
 
-        let fitsDocked = windowWidth - sidebarSpan - inspectorSpan >= centerMinWidth
+        let fitsDocked = windowWidth - sidebarSpan - inspectorSpan >= centerMinimum
         let inspectorIsOverlay = inspectorVisible && !fitsDocked
-        let showsSidebar = sidebarVisible && windowWidth - sidebarSpan >= centerMinWidth
+        let showsSidebar = sidebarVisible && windowWidth - sidebarSpan >= centerMinimum
         return PaneLayout(
             sidebar: sidebar,
             inspector: inspector,
@@ -44,14 +45,14 @@ enum PaneWidthPolicy {
     }
 
     /// 境界ドラッグ中のサイドバー幅。範囲内に収め、中央 480pt を割り込まない。
-    static func draggedSidebarWidth(start: CGFloat, translation: CGFloat, windowWidth: CGFloat, inspectorSpan: CGFloat) -> CGFloat {
-        let limit = windowWidth - inspectorSpan - centerMinWidth - separatorWidth
+    static func draggedSidebarWidth(start: CGFloat, translation: CGFloat, windowWidth: CGFloat, inspectorSpan: CGFloat, centerMinimum: CGFloat = centerMinWidth) -> CGFloat {
+        let limit = windowWidth - inspectorSpan - centerMinimum - separatorWidth
         return sidebarRange.clamped(min(start + translation, max(sidebarRange.min, limit)))
     }
 
     /// 境界ドラッグ中のインスペクタ幅（右端から左へ引くと広がる）。
-    static func draggedInspectorWidth(start: CGFloat, translation: CGFloat, windowWidth: CGFloat, sidebarSpan: CGFloat) -> CGFloat {
-        let limit = windowWidth - sidebarSpan - centerMinWidth - separatorWidth
+    static func draggedInspectorWidth(start: CGFloat, translation: CGFloat, windowWidth: CGFloat, sidebarSpan: CGFloat, centerMinimum: CGFloat = centerMinWidth) -> CGFloat {
+        let limit = windowWidth - sidebarSpan - centerMinimum - separatorWidth
         return inspectorRange.clamped(min(start - translation, max(inspectorRange.min, limit)))
     }
 }

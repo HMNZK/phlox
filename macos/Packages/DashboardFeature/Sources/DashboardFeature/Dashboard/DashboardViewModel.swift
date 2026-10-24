@@ -143,11 +143,12 @@ public final class DashboardViewModel {
     /// 起動時のセッション復元が済んだか。前回の起動の通知を片付けるのは、これが済んでから（11）。
     public private(set) var hasRestoredSessions = false
 
-    /// task-3: 分割ツリーの永続ツリー（隠れているセッションの leaf も保持する。D4）。
-    /// 書き込み経路は `handlePaneLayoutAction` と、セッション増減に伴う `reconcilePaneLayout` の
-    /// 2つだけ（絞り込みの変更では書き換えない）。
-    public private(set) var paneLayout: PaneTree
-    public private(set) var paneLayoutPresetState: PaneLayoutStore.PresetState
+    public private(set) var gridLayoutState: GridLayoutState
+    public var paneLayout: PaneTree {
+        gridLayoutState.customLayout?.tree ?? PaneLayoutPreset.balanced.tree(for: sessionNodes.map(\.id))
+    }
+    public var paneLayoutPresetState: PaneLayoutStore.PresetState { gridLayoutState.customLayout?.presetState ?? .init() }
+    @ObservationIgnored public var gridCanvasSize = CGSize(width: 540, height: 440)
     @ObservationIgnored private let paneLayoutStore: PaneLayoutStore?
     private var hookMultiplexTask: Task<Void, Never>?
     private var sessionHookContinuations: [SessionID: AsyncStream<(SessionID, HookEvent)>.Continuation] = [:]
@@ -208,8 +209,7 @@ public final class DashboardViewModel {
 
     private init(projectionCommandHandler: @escaping DashboardRuntimeCommandHandler, paneLayoutStore: PaneLayoutStore?) {
         self.paneLayoutStore = paneLayoutStore
-        self.paneLayout = paneLayoutStore?.load() ?? PaneLayoutPreset.balanced.tree(for: [])
-        self.paneLayoutPresetState = paneLayoutStore?.loadPresetState() ?? .init()
+        self.gridLayoutState = paneLayoutStore?.loadState() ?? .automatic(previousCustom: nil)
         self.runtimeCommandHandler = projectionCommandHandler
     }
 
@@ -227,8 +227,7 @@ public final class DashboardViewModel {
         paneLayoutStore: PaneLayoutStore? = PaneLayoutStore(userDefaults: .phloxDefaults())
     ) {
         self.paneLayoutStore = paneLayoutStore
-        self.paneLayout = paneLayoutStore?.load() ?? PaneLayoutPreset.balanced.tree(for: [])
-        self.paneLayoutPresetState = paneLayoutStore?.loadPresetState() ?? .init()
+        self.gridLayoutState = paneLayoutStore?.loadState() ?? .automatic(previousCustom: nil)
         let sessionHooks = SessionHookInstaller(
             dispatcherPath: environment.hookDispatcherPath,
             logError: { error, context in
@@ -579,6 +578,7 @@ public final class DashboardViewModel {
     private func appendSessionNode(_ node: SessionNode) {
         sessionNodes.append(node)
         sessionNodeIndex[node.id] = node
+        if !layoutRestoreInProgress { gridSessionSelectionDidSpawn(node.id) }
         reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
@@ -593,6 +593,7 @@ public final class DashboardViewModel {
     private func removeSessionNode(id: SessionID) {
         sessionNodes.removeAll { $0.id == id }
         sessionNodeIndex.removeValue(forKey: id)
+        if !layoutRestoreInProgress { normalizeGridSessionSelection() }
         reconcilePaneLayout(persist: !layoutRestoreInProgress)
     }
 
@@ -680,71 +681,98 @@ public final class DashboardViewModel {
         gridTemporarySessionID = id
     }
 
-    /// task-3: 描画用の実効ツリー。`paneLayout`（絞り込み前の永続ツリー）を、
-    /// 現在のワークスペース絞り込み・表示セッション選択を適用した可視集合で刈り込む。
-    /// view body から呼ばれるため一切の副作用を持たない（状態更新も永続化もしない。ADR 0010）。
-    public func paneLayoutForDisplay() -> PaneTree {
+    /// 表示用の木は保存せず、呼び出し元ウィンドウの寸法から導く。
+    public func paneLayoutForDisplay(in viewport: CGSize? = nil) -> PaneTree { gridLayoutForDisplay(in: viewport).tree }
+
+    public func gridLayoutForDisplay(in viewport: CGSize? = nil) -> PaneGridLayout {
+        let viewport = viewport ?? gridCanvasSize
         let visible = Set(filteredGridSessionNodes(projectID: gridSessionFilterProjectID).map(\.id))
-        return paneLayout.pruned(visible: visible)
+        switch gridLayoutState {
+        case .automatic:
+            return .automatic(sessions: orderedGridSessionIDs(visible: visible), viewport: viewport)
+        case .custom(let custom):
+            return PaneGridLayout(tree: custom.tree.pruned(visible: visible), canvasSize: CGSize(
+                width: max(viewport.width, custom.canvasMinimum.width),
+                height: max(viewport.height, custom.canvasMinimum.height)))
+        }
     }
 
-    /// task-3: レイアウト操作の唯一のユーザー起点の書き込み経路。対象が木に無い等の無効な操作は
-    /// 状態を変えず永続化もしない。
-    public func handlePaneLayoutAction(_ action: PaneLayoutAction) {
-        let updated: PaneTree
+    private func orderedGridSessionIDs(visible: Set<SessionID>) -> [SessionID] {
+        var ordered: [SessionID] = []
+        let projectIDs = Set(projects.map(\.id))
+        let groups = projects.map { project in sessionNodes.filter { $0.projectID == project.id } }
+            + [sessionNodes.filter { $0.projectID.map { !projectIDs.contains($0) } ?? true }]
+        for group in groups {
+            let inputs = group.map { node in SessionTreeInput(
+                id: node.id, parentSessionID: node.controllable.parentSessionID, projectID: node.projectID,
+                launchContext: node.launchContext, status: node.status, name: node.name,
+                agentRef: node.agentRef, displayStatus: node.displayStatus) }
+            ordered += SessionTree.buildForest(from: inputs).flatMap(Self.sessionTreeNodeIDs)
+            let placed = Set(ordered)
+            ordered += group.map(\.id).filter { !placed.contains($0) }
+        }
+        var seen: Set<SessionID> = []
+        return ordered.filter { visible.contains($0) && seen.insert($0).inserted }
+    }
+
+    private func customStateForCurrentDisplay(in viewport: CGSize? = nil) -> CustomGridLayout {
+        if case .custom(let custom) = gridLayoutState { return custom }
+        let shown = gridLayoutForDisplay(in: viewport)
+        let tree = shown.tree.retainingHidden(from: paneLayout, allSessions: sessionNodes.map(\.id), bounds: shown.canvasSize, spacing: PaneGridLayout.spacing)
+        return CustomGridLayout(tree: tree, presetState: paneLayoutPresetState, canvasMinimum: shown.canvasSize)
+    }
+
+    private func commitGridLayout(_ state: GridLayoutState, persist: Bool = true) {
+        guard state != gridLayoutState else { return }
+        gridLayoutState = state
+        if persist { paneLayoutStore?.saveState(state) }
+    }
+
+    public func handlePaneLayoutAction(_ action: PaneLayoutAction, in viewport: CGSize? = nil) {
+        var custom = customStateForCurrentDisplay(in: viewport)
+        let original = custom.tree
         switch action {
-        case .setDivider(let divider, let leadingFraction):
-            updated = paneLayout.settingDivider(divider, leadingFraction: leadingFraction)
+        case .setDivider(let divider, let fraction): custom.tree = original.settingDivider(divider, leadingFraction: fraction)
         case .insertBySplitting(let session, let target, let edge):
-            // 差し込む session が実在のセッションでなければ何もしない
-            // （`inserting` 自体は target さえ実在すれば未知の session でも葉を作れてしまうため）。
             guard sessionNodeIndex[session] != nil else { return }
-            updated = paneLayout.inserting(session, splitting: target, edge: edge)
-        case .swap(let first, let second):
-            updated = paneLayout.swapping(first, second)
-        case .equalize(let split):
-            updated = paneLayout.equalizing(split)
+            custom.tree = original.inserting(session, splitting: target, edge: edge)
+        case .swap(let first, let second): custom.tree = original.swapping(first, second)
+        case .equalize(let split): custom.tree = original.equalizing(split)
         case .applyPreset(let preset):
-            updated = preset.tree(for: paneLayout.sessions)
-            setPaneLayoutPresetState(.init(preset: preset))
+            custom.tree = preset.tree(for: original.readingOrder(in: gridLayoutForDisplay(in: viewport).canvasSize, spacing: PaneGridLayout.spacing))
+            custom.presetState = .init(preset: preset)
         }
-        guard updated != paneLayout else { return }
         if case .applyPreset = action {} else {
-            setPaneLayoutPresetState(.init(preset: paneLayoutPresetState.preset, isAdjusted: true))
+            guard custom.tree != original else { return }
+            custom.presetState.isAdjusted = true
         }
-        paneLayout = updated
-        paneLayoutStore?.save(updated)
+        commitGridLayout(.custom(custom))
     }
 
-    /// task-3: 永続ツリーを「いずれかのグリッドに出得る全セッション」に合わせて reconcile する。
-    /// ワークスペース絞り込み中は .orchestration サブセッションもタイルになるため、ここでは
-    /// launchContext で絞らない（絞り込みごとの分岐は D4 違反。実際の可視化は
-    /// `paneLayoutForDisplay()` の `pruned(visible:)` が担う）。
     private func reconcilePaneLayout(persist: Bool = true) {
-        let reconciled = paneLayout.reconciled(
-            with: sessionNodes.map(\.id),
-            bounds: PaneLayoutStore.reconcileBounds,
-            spacing: 0
-        )
-        guard reconciled != paneLayout else { return }
-        paneLayout = reconciled
-        if persist {
-            paneLayoutStore?.save(reconciled)
-        }
+        guard var custom = gridLayoutState.customLayout else { return }
+        custom.tree = custom.tree.reconciled(with: sessionNodes.map(\.id), bounds: PaneLayoutStore.reconcileBounds, spacing: 0)
+        let state: GridLayoutState = gridLayoutState.isAutomatic ? .automatic(previousCustom: custom) : .custom(custom)
+        commitGridLayout(state, persist: persist)
     }
 
-    private func setPaneLayoutPresetState(_ state: PaneLayoutStore.PresetState) {
-        guard state != paneLayoutPresetState else { return }
-        paneLayoutPresetState = state
-        paneLayoutStore?.savePresetState(state)
+    public func restoreAutomaticGridLayout() {
+        guard case .custom(let custom) = gridLayoutState else { return }
+        commitGridLayout(.automatic(previousCustom: custom))
     }
 
-    /// 起動時、`PaneLayoutStore` から読み直してから reconcile する。
+    public var canUndoAutomaticGridLayout: Bool {
+        gridLayoutState.isAutomatic && gridLayoutState.customLayout != nil
+    }
+
+    public func undoAutomaticGridLayout() {
+        guard case .automatic(let previous?) = gridLayoutState else { return }
+        commitGridLayout(.custom(previous))
+        reconcilePaneLayout()
+    }
+
     private func reloadAndReconcilePaneLayout() {
-        paneLayout = paneLayoutStore?.load() ?? PaneLayoutPreset.balanced.tree(for: [])
-        paneLayoutPresetState = paneLayoutStore?.loadPresetState() ?? .init()
-        // 記録の無い旧データから決めた状態を残し、以後の自動の並べ直しで判定し直さない。
-        paneLayoutStore?.savePresetState(paneLayoutPresetState)
+        gridLayoutState = paneLayoutStore?.loadState() ?? .automatic(previousCustom: nil)
         reconcilePaneLayout()
     }
 
@@ -780,49 +808,50 @@ public final class DashboardViewModel {
     }
 
     /// グリッドのタイルを左上から数えた並び（⌘1–9 とタイル見出しの番号）。行の上から、同じ行は左から。
-    public func gridTileOrder() -> [SessionID] {
-        paneLayoutForDisplay().readingOrder()
+    public func gridTileOrder(in viewport: CGSize? = nil) -> [SessionID] {
+        let layout = gridLayoutForDisplay(in: viewport)
+        return layout.tree.readingOrder(in: layout.canvasSize, spacing: PaneGridLayout.spacing)
     }
 
     /// 06 キーボード（⌥⌘⇧＋矢印）: タイルをその向きの隣と入れ替える。隣が無ければ何もしない。
-    public func swapGridTile(_ id: SessionID, toward direction: PaneDirection) {
-        guard let other = paneLayoutForDisplay().neighbor(of: id, toward: direction) else { return }
-        handlePaneLayoutAction(.swap(id, other))
+    public func swapGridTile(_ id: SessionID, toward direction: PaneDirection, in viewport: CGSize? = nil) {
+        let layout = gridLayoutForDisplay(in: viewport)
+        guard let other = layout.tree.neighbor(of: id, toward: direction, in: layout.canvasSize, spacing: PaneGridLayout.spacing) else { return }
+        handlePaneLayoutAction(.swap(id, other), in: viewport)
     }
-
-    /// タイルを並べる領域の大きさ（⌃⌥＋矢印の下限の判定用。描画には使わない）。
-    @ObservationIgnored public var gridCanvasSize: CGSize = .zero
 
     /// 06 キーボード（⌃⌥＋矢印）: タイルの辺の分割線を 5% 動かす。
     /// 動かした結果を実際の大きさ・隙間で並べ、縮むタイルがドラッグと同じ最小の大きさを下回るなら動かさない。
-    public func nudgeGridDivider(of id: SessionID, toward direction: PaneDirection) {
-        let shown = paneLayoutForDisplay()
-        guard gridCanvasSize.width > 0, gridCanvasSize.height > 0,
-              let nudged = shown.nudgedDivider(of: id, toward: direction)
-        else { return }
-        let updated = paneLayout.nudgingDivider(nudged.id, by: nudged.delta)
-        guard updated != paneLayout else { return }
-        let visible = Set(filteredGridSessionNodes(projectID: gridSessionFilterProjectID).map(\.id))
-        let before = Dictionary(uniqueKeysWithValues: shown.frames(in: gridCanvasSize, spacing: DSSpacing.s).tiles.map { ($0.session, $0.rect.size) })
+    public func nudgeGridDivider(of id: SessionID, toward direction: PaneDirection, in viewport: CGSize? = nil) {
+        let layout = gridLayoutForDisplay(in: viewport)
+        let shown = layout.tree
+        let bounds = layout.canvasSize
+        guard let nudged = shown.nudgedDivider(of: id, toward: direction, in: bounds, spacing: PaneGridLayout.spacing) else { return }
+        let custom = customStateForCurrentDisplay(in: viewport)
+        let updated = custom.tree.nudgingDivider(nudged.id, by: nudged.delta)
+        guard updated != custom.tree else { return }
+        let visible = Set(shown.sessions)
+        let before = Dictionary(uniqueKeysWithValues: shown.frames(in: bounds, spacing: PaneGridLayout.spacing).tiles.map { ($0.session, $0.rect.size) })
         let isHorizontal = direction == .left || direction == .right
         let minimum = isHorizontal ? PaneLayoutView.minimumPaneWidth : PaneLayoutView.minimumPaneHeight
-        let tooSmall = updated.pruned(visible: visible).frames(in: gridCanvasSize, spacing: DSSpacing.s).tiles.contains { tile in
+        let tooSmall = updated.pruned(visible: visible).frames(in: bounds, spacing: PaneGridLayout.spacing).tiles.contains { tile in
             guard let old = before[tile.session] else { return false }
             let (was, now) = isHorizontal ? (old.width, tile.rect.width) : (old.height, tile.rect.height)
             return now < was && now < minimum
         }
         guard !tooSmall else { return }
-        setPaneLayoutPresetState(.init(preset: paneLayoutPresetState.preset, isAdjusted: true))
-        paneLayout = updated
-        paneLayoutStore?.save(updated)
+        var next = custom
+        next.tree = updated
+        next.presetState.isAdjusted = true
+        commitGridLayout(.custom(next))
     }
 
     /// グリッドから外す（06: タイルの ✕・⌘W・右クリック）。表示するセッションの選択から除くだけで、
     /// セッションは消さない。最後の 1 枚は外さない（選択が空になると全件表示へ戻るため）。
     /// 外したら、次にフォーカスするタイルを返す。
     @discardableResult
-    public func removeFromGrid(_ id: SessionID) -> SessionID? {
-        let order = gridTileOrder()
+    public func removeFromGrid(_ id: SessionID, in viewport: CGSize? = nil) -> SessionID? {
+        let order = gridTileOrder(in: viewport)
         guard order.count > 1, let index = order.firstIndex(of: id) else { return nil }
         if id == gridTemporarySessionID { gridTemporarySessionID = nil } else { toggleGridSessionSelection(id) }
         let remaining = order.filter { $0 != id }
@@ -1590,8 +1619,6 @@ public final class DashboardViewModel {
         // 生成成功を App 層へ通知する（解析配線用、PII なし）。
         sessionDidSpawn?(ref)
 
-        gridSessionSelectionDidSpawn(sessionID)
-
         return sessionID
     }
 
@@ -2258,6 +2285,7 @@ extension DashboardViewModel {
             default: throw DashboardRuntimeError.invalidSnapshot("セッションの種類が一致しません")
             }
         }
+        let addedIDs = Set(updated.map(\.id)).subtracting(sessionNodeIndex.keys)
         runtimeProjectionSnapshot = snapshot
         projects = snapshot.projects
         sessionNodes = updated
@@ -2268,6 +2296,7 @@ extension DashboardViewModel {
         workspaceCleanupWarning = snapshot.workspaceCleanupWarning
         workspaceCleanupFailureReason = snapshot.workspaceCleanupFailureReason
         discardedSessionCountNotice = snapshot.discardedSessionCount
+        for id in addedIDs { gridSessionSelectionDidSpawn(id) }
         reconcilePaneLayout(persist: paneLayoutStore != nil)
         normalizeGridSessionSelection()
         refreshUnseenCompletionCount()

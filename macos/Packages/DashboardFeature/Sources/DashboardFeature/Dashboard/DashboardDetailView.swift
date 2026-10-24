@@ -12,6 +12,7 @@ struct DashboardDetailView: View {
     @Binding var pendingWorkspaceChange: SessionViewModel?
     let onNewChatLaunchFailure: (AgentRef, Error) -> Void
     var displayTab: ProjectTab? = nil
+    let gridViewport: GridViewport
 
     private var displayedSessionID: SessionID? {
         if let displayTab {
@@ -68,17 +69,21 @@ struct DashboardDetailView: View {
         case .single:
             singleDetail
         case .grid:
+            let layout = viewModel.gridLayoutForDisplay(in: gridViewport.size)
             SessionGridView(
                 sessions: filteredGridSessions,
-                paneLayout: viewModel.paneLayoutForDisplay(),
+                paneLayout: layout.tree,
+                canvasSize: layout.canvasSize,
+                onViewportChange: { gridViewport.update($0) },
+                onLiveResizeChange: { gridViewport.liveResizeChanged($0) },
                 focusedID: $router.selectedSession,
                 onRemove: { session in pendingDeletion = SelectedSessionNode(session) },
                 onRename: { session in onRenameSession(session.id) },
                 onChangeWorkspace: { session in pendingWorkspaceChange = session },
-                onLayoutAction: { viewModel.handlePaneLayoutAction($0) },
+                onLayoutAction: { viewModel.handlePaneLayoutAction($0, in: gridViewport.size) },
                 projectNames: Dictionary(uniqueKeysWithValues: viewModel.projects.map { ($0.id, $0.name) }),
                 onRemoveFromGrid: { session in
-                    if let next = viewModel.removeFromGrid(session.id), router.selectedSession == session.id {
+                    if let next = viewModel.removeFromGrid(session.id, in: gridViewport.size), router.selectedSession == session.id {
                         router.selectedSession = next
                     }
                 },
@@ -86,14 +91,7 @@ struct DashboardDetailView: View {
                 parentNames: parentNames
             )
             .environment(\.chatLaunchFailureActions, launchFailureActions)
-            // ⌃⌥＋矢印で分割線を動かすときの下限の判定に、グリッドの実際の大きさを使う。
-            // SessionGridView の余白（左右 s・下 s・上 xs）を除いた、タイルを並べる領域。
-            .onGeometryChange(for: CGSize.self, of: \.size) { size in
-                viewModel.gridCanvasSize = CGSize(
-                    width: size.width - DSSpacing.s * 2,
-                    height: size.height - DSSpacing.s - DSSpacing.xs
-                )
-            }
+
         }
     }
 

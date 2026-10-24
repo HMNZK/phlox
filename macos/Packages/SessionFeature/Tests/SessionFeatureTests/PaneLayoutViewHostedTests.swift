@@ -16,6 +16,71 @@ import TerminalUI
 struct PaneLayoutViewHostedTests {
     final class Recorder { var actions: [PaneLayoutAction] = [] }
 
+    @Test func gridScrollHostPreservesTerminalIdentityAndCanvasWhenSwitchingToCustom() async throws {
+        let sessions = (0..<7).map { _ in Self.makeSession() }
+        let automatic = PaneGridLayout.automatic(sessions: sessions.map(\.id), viewport: CGSize(width: 1088, height: 500))
+        func view(_ layout: PaneGridLayout) -> SessionGridView {
+            SessionGridView(sessions: sessions.map { .pty($0) }, paneLayout: layout.tree, canvasSize: layout.canvasSize,
+                focusedID: .constant(nil), onRemove: { _ in }, onRename: { _ in }, onChangeWorkspace: { _ in }, onLayoutAction: { _ in })
+        }
+        let host = NSHostingView(rootView: view(automatic))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 1104, height: 512), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.contentView = nil; window.close() }
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+        let mounts = try sessions.map { try #require($0.terminalCoordinator.hostingView.superview) }
+        func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+        let scroll = try #require(descendants(host).compactMap { $0 as? NSScrollView }.first)
+        let document = try #require(scroll.documentView)
+        #expect(document.bounds.height >= automatic.canvasSize.height)
+        let custom = PaneGridLayout(tree: automatic.tree.swapping(sessions[0].id, sessions[1].id), canvasSize: automatic.canvasSize)
+        host.rootView = view(custom)
+        host.layoutSubtreeIfNeeded()
+        for (session, mount) in zip(sessions, mounts) {
+            #expect(session.terminalCoordinator.hostingView.superview === mount)
+        }
+        #expect(scroll.documentView === document)
+        #expect(document.bounds.height >= automatic.canvasSize.height)
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: document.bounds.height - scroll.contentView.bounds.height))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        #expect(scroll.contentView.bounds.maxY >= document.bounds.maxY - 1)
+    }
+
+    @Test func narrowGridAllowsHorizontalScrollingAndResizeNotificationsStayInTheirHostWindow() async throws {
+        final class ResizeEvents { var values: [Bool] = [] }
+        func host(_ events: ResizeEvents) -> NSWindow {
+            let sessions = [Self.makeSession(), Self.makeSession()]
+            let layout = PaneGridLayout.automatic(sessions: sessions.map(\.id), viewport: CGSize(width: 300, height: 500))
+            let view = SessionGridView(sessions: sessions.map { .pty($0) }, paneLayout: layout.tree, canvasSize: layout.canvasSize,
+                onLiveResizeChange: { events.values.append($0) }, focusedID: .constant(nil), onRemove: { _ in },
+                onRename: { _ in }, onChangeWorkspace: { _ in }, onLayoutAction: { _ in })
+            let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 316, height: 512), styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: view)
+            window.contentView?.layoutSubtreeIfNeeded()
+            return window
+        }
+        let firstEvents = ResizeEvents(), secondEvents = ResizeEvents()
+        let first = host(firstEvents), second = host(secondEvents)
+        defer { first.contentView = nil; second.contentView = nil; first.close(); second.close() }
+        try await Task.sleep(for: .milliseconds(50))
+        NotificationCenter.default.post(name: NSWindow.willStartLiveResizeNotification, object: first)
+        NotificationCenter.default.post(name: NSWindow.didEndLiveResizeNotification, object: first)
+        #expect(firstEvents.values == [true, false])
+        #expect(secondEvents.values.isEmpty)
+        func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+        let firstHost = try #require(first.contentView)
+        let scroll = try #require(descendants(firstHost).compactMap { $0 as? NSScrollView }.first)
+        let document = try #require(scroll.documentView)
+        #expect(document.bounds.width >= 540)
+        #expect(scroll.contentView.bounds.width < document.bounds.width)
+        scroll.contentView.scroll(to: NSPoint(x: document.bounds.width - scroll.contentView.bounds.width, y: 0))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        #expect(scroll.contentView.bounds.maxX >= document.bounds.maxX - 1)
+    }
+
     @MainActor
     struct Harness {
         let window: NSWindow

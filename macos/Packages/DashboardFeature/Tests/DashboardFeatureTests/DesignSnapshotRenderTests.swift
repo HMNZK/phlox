@@ -34,6 +34,75 @@ private final class Stage8SnapshotClients: @unchecked Sendable {
 extension ThemeRenderingTests {
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
+    @Test(arguments: [5, 6])
+    func automaticGridFullHD(count: Int) async throws {
+        _ = NSApplication.shared
+        let preferences = UserDefaults.standard
+        let arguments = preferences.volatileDomain(forName: UserDefaults.argumentDomain)
+        var settings = arguments
+        settings[UsageSettings.showInHeaderKey] = true
+        settings[ThemeStore.themeKey] = AppTheme.phlox.id
+        preferences.setVolatileDomain(settings, forName: UserDefaults.argumentDomain)
+        defer { preferences.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain) }
+        let getter = NSSelectorFromString("accessibilityAttributeValue:")
+        let setter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
+        let project = Project(name: "Phlox", directoryPath: "/runtime", createdAt: Date(), isManagedDirectory: false)
+        let sessions: [SessionRuntimeSessionSnapshot] = (0..<count).map { index in
+            var session = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: Date(), agentRef: .builtin(.codex), workingDirectory: "/runtime")
+            session.projectID = project.id
+            session.titleState = .legacy(name: "自動配置の確認 \(index + 1)")
+            session.status = .idle
+            return .chat(session)
+        }
+        let dashboard = try DashboardViewModel(projection: .init(projects: [project], sessions: sessions, availableAgentKinds: [])) { _ in .none }
+        let router = AppRouter()
+        router.selectedProjectID = project.id
+        router.selectedSession = sessions.first?.id
+        router.viewMode = .grid
+        router.sidebarVisible = true
+        router.inspectorVisible = false
+        let viewport = GridViewport()
+        let usage = CLIUsage(kind: .codex, state: .ok([UsageBucket(id: "5h", label: "5時間", usedPercent: 28)]), updatedAt: Date())
+        let monitor = UsageMonitor(projection: .init(usages: [.codex: usage], failures: [:])) { _ in }
+        let view = DashboardView(viewModel: dashboard, router: router, usageMonitor: monitor,
+            initialSidebarWidth: 260, initiallyExpandedProjectIDs: [project.id], gridViewport: viewport)
+            .environment(\.controlActiveState, .active)
+            .environment(\.locale, Locale(identifier: "ja"))
+            .environment(\.colorScheme, .dark)
+        let window = makeSnapshotWindow(view, id: "13-bp-window-grid-auto-\(count)", width: 1920, height: 1050)
+        window.setFrame(NSRect(x: -10000, y: -10000, width: 1920, height: 1050), display: false)
+        let host = try #require(window.contentView)
+        defer { window.contentViewController = nil; window.contentView = nil; window.close() }
+        try await Task.sleep(for: .milliseconds(500))
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(100))
+        let layout = dashboard.gridLayoutForDisplay(in: viewport.size)
+        #expect(layout.tree.sessions.count == count)
+        #expect(viewport.size == CGSize(width: 1643, height: 903))
+        var measured: [String: [Double]] = [:]
+        for session in sessions {
+            let tile = try #require(IntegrationFixAccessibility.find("grid-tile-\(session.id.rawValue.uuidString)", in: host))
+            let frame = (tile as AnyObject).accessibilityFrame()
+            #expect(frame.width >= 540 - 0.01)
+            #expect(frame.height >= 440 - 0.01)
+            measured[session.id.rawValue.uuidString] = [frame.origin.x, frame.origin.y, frame.width, frame.height]
+        }
+        if ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1",
+           ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_OUTPUT_DIR"] != nil {
+            let output = try snapshotOutputDirectory()
+            let frame = try #require(host.superview)
+            try saveBitmap(frame, bounds: frame.bounds, to: output.appendingPathComponent("grid-auto-fullhd-\(count).png"))
+            let record: [String: Any] = ["window": [window.frame.width, window.frame.height],
+                "viewport": [viewport.size.width, viewport.size.height],
+                "canvas": [layout.canvasSize.width, layout.canvasSize.height], "actualTileFrames": measured]
+            try JSONSerialization.data(withJSONObject: record, options: [.prettyPrinted, .sortedKeys])
+                .write(to: output.appendingPathComponent("grid-auto-fullhd-\(count)-frames.json"))
+        }
+    }
+
     @Test(arguments: [false, true])
     func sidebarChildrenUseRealHierarchy(light: Bool) async throws {
         _ = NSApplication.shared

@@ -28,13 +28,15 @@ struct AcceptancePaneDefaultsIsolationTests {
             // 通常側の非空入力は子プロセスのメモリ上だけで用意する。
             let originalArguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
             if mode == "missing" || mode == "empty" {
+                PaneLayoutStore(userDefaults: injected).saveState(.custom(CustomGridLayout(tree: injectedTree)))
                 var arguments = originalArguments
                 arguments[PaneLayoutStore.storageKey] = try JSONEncoder().encode(injectedTree)
+                arguments[PaneLayoutStore.stateStorageKey] = try #require(injected.data(forKey: PaneLayoutStore.stateStorageKey))
                 UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
             }
             defer { UserDefaults.standard.setVolatileDomain(originalArguments, forName: UserDefaults.argumentDomain) }
             func standardSnapshot() -> NSDictionary {
-                CFPreferencesCopyMultiple([PaneLayoutStore.storageKey] as CFArray,
+                CFPreferencesCopyMultiple([PaneLayoutStore.storageKey, PaneLayoutStore.stateStorageKey, PaneLayoutStore.presetStorageKey] as CFArray,
                     kCFPreferencesCurrentApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as NSDictionary
             }
             let standardBefore = standardSnapshot()

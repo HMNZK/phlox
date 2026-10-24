@@ -72,10 +72,10 @@ public struct PaneLayoutView: View {
 
     public var body: some View {
         GeometryReader { geometry in
-            let spacing = DSSpacing.s
+            let spacing = PaneGridLayout.spacing
             let frames = tree.frames(in: geometry.size, spacing: spacing)
             // ⌘1–9 と見出しの番号（DashboardViewModel.gridTileOrder と同じ並び）。
-            let numbers = Dictionary(uniqueKeysWithValues: tree.readingOrder().enumerated().map { ($1, $0 + 1) })
+            let numbers = Dictionary(uniqueKeysWithValues: tree.readingOrder(in: geometry.size, spacing: spacing).enumerated().map { ($1, $0 + 1) })
 
             ZStack(alignment: .topLeading) {
                 // ①タイル。ツリーの入れ子ではなく「セッション ID → 矩形」の絶対配置。
@@ -327,6 +327,7 @@ private struct PaneTileView: View {
             .contextMenu { contextMenuContent }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text(verbatim: accessibilityText))
+            .accessibilityIdentifier("grid-tile-\(session.id.rawValue.uuidString)")
     }
 
     private var tileShell: some View {

@@ -40,6 +40,7 @@ public struct DashboardView: View {
     /// 設定画面で変えたターミナルの文字サイズを、開いているセッションの端末にも当てる。
     @AppStorage(TerminalFontSettings.fontSizeKey) private var terminalFontSize = Double(NSFont.systemFontSize)
     @State private var gridSessionPickerPresented = false
+    @State private var gridViewport = GridViewport()
     @State private var editorPanel = EditorPanelCoordinator()
     @State private var bottomPanel: BottomPanelState
     @State private var fileTabs = FileTabDocuments()
@@ -64,7 +65,8 @@ public struct DashboardView: View {
         simulatorHub: SimulatorHub? = nil,
         initialSidebarWidth: CGFloat? = nil,
         initiallyExpandedProjectIDs: Set<ProjectID> = [],
-        bottomPanel: BottomPanelState? = nil
+        bottomPanel: BottomPanelState? = nil,
+        gridViewport: GridViewport? = nil
     ) {
         _viewModel = Bindable(wrappedValue: viewModel)
         _router = Bindable(wrappedValue: router)
@@ -76,6 +78,7 @@ public struct DashboardView: View {
         self.simulatorHub = simulatorHub
         self.initialSidebarWidth = initialSidebarWidth
         _expandedProjectIDs = State(initialValue: initiallyExpandedProjectIDs)
+        _gridViewport = State(initialValue: gridViewport ?? GridViewport())
     }
 
     private func deletionDialogTitle(for selection: SelectedSessionNode) -> String {
@@ -124,6 +127,7 @@ public struct DashboardView: View {
         shellWithTabDialogs
             .toolbar { DashboardToolbar(viewModel: viewModel, router: router, changeCount: editorPanel.viewModel.changes.count, bottomPanel: bottomPanel) }
             .focusedSceneValue(\.bottomPanelState, bottomPanel)
+            .focusedSceneValue(\.gridViewport, gridViewport)
             .focusedSceneValue(\.gitWorkflowModel,
                 router.inspectorVisible && router.inspectorTab == .git && router.selectedProjectID != nil
                     ? editorPanel.viewModel : nil)
@@ -350,10 +354,11 @@ public struct DashboardView: View {
                     HStack(spacing: 0) {
                         // 表示範囲バーは中央の列の上端だけに置き、インスペクタの上には掛けない（06 PhloxGrid）。
                         VStack(spacing: 0) {
-                            if router.viewMode == .grid, !viewModel.projects.isEmpty {
+                            if router.viewMode == .grid {
                                 GridModeBar(
                                     viewModel: viewModel,
                                     router: router,
+                                    gridViewport: gridViewport,
                                     sessionPickerPresented: $gridSessionPickerPresented
                                 )
                                 horizontalSeparator
@@ -416,7 +421,8 @@ public struct DashboardView: View {
                                 start: sidebarWidthAtDragStart,
                                 translation: translation,
                                 windowWidth: windowWidth,
-                                inspectorSpan: inspectorSpan(layout)
+                                inspectorSpan: inspectorSpan(layout),
+                                centerMinimum: gridCenterMinimum
                             )
                         },
                         onEnded: { sidebarWidthAtDragStart = sidebarWidth },
@@ -437,7 +443,8 @@ public struct DashboardView: View {
                                 start: inspectorWidthAtDragStart,
                                 translation: translation,
                                 windowWidth: windowWidth,
-                                sidebarSpan: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0
+                                sidebarSpan: layout.showsSidebar ? layout.sidebar + PaneWidthPolicy.separatorWidth : 0,
+                                centerMinimum: gridCenterMinimum
                             )
                         },
                         onEnded: { inspectorWidthAtDragStart = inspectorWidth },
@@ -753,7 +760,8 @@ public struct DashboardView: View {
                         opensAgentConsole: SpawnFailureDialogText.opensAgentConsole(for: error)
                     )
                 },
-                displayTab: displayTab
+                displayTab: displayTab,
+                gridViewport: gridViewport
             )
     }
 
@@ -798,13 +806,16 @@ public struct DashboardView: View {
 
     // MARK: - Widths
 
+    private var gridCenterMinimum: CGFloat { router.viewMode == .grid ? PaneGridLayout.minimumTileWidth + DSSpacing.s * 2 : PaneWidthPolicy.centerMinWidth }
+
     private func paneLayout(windowWidth: CGFloat) -> PaneLayout {
         PaneWidthPolicy.resolve(
             windowWidth: windowWidth,
             sidebarVisible: router.sidebarVisible,
             inspectorVisible: router.inspectorVisible,
             sidebarWidth: sidebarWidth,
-            inspectorWidth: inspectorWidth
+            inspectorWidth: inspectorWidth,
+            centerMinimum: gridCenterMinimum
         )
     }
 
@@ -815,7 +826,8 @@ public struct DashboardView: View {
             sidebarVisible: true,
             inspectorVisible: router.inspectorVisible,
             sidebarWidth: sidebarWidth,
-            inspectorWidth: inspectorWidth
+            inspectorWidth: inspectorWidth,
+            centerMinimum: gridCenterMinimum
         ).showsSidebar
     }
 
@@ -918,7 +930,7 @@ public struct DashboardView: View {
         case .closeChild(let id, let tab): requestChildClose(tab, of: id)
         case .openFile(let id): chooseFileToOpen(in: id)
         case .removeFromGrid(let id):
-            if let next = viewModel.removeFromGrid(id) { router.selectedSession = next }
+            if let next = viewModel.removeFromGrid(id, in: gridViewport.size) { router.selectedSession = next }
         }
     }
 

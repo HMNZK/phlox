@@ -804,6 +804,7 @@ private struct UpdateCommands: Commands {
 
 /// 01 F「表示」。表示モード・分割 ｜ 領域とタブ ｜ 文字の大きさ。
 private struct ViewCommands: Commands {
+    @FocusedValue(\.gridViewport) private var gridViewport
     @FocusedValue(\.bottomPanelState) private var bottomPanelState
     @FocusedValue(\.gitWorkflowModel) private var gitWorkflowModel
     var dashboard: DashboardViewModel?
@@ -956,10 +957,14 @@ private struct ViewCommands: Commands {
 
             // 表示範囲バーの「レイアウト ▾」と同じ 9 種（骨格 E2・06）。
             Menu("グリッドのレイアウト") {
+                Button("自動整列に戻す") { dashboard?.restoreAutomaticGridLayout() }
+                Button("直前のカスタムに戻す") { dashboard?.undoAutomaticGridLayout() }
+                    .disabled(dashboard?.canUndoAutomaticGridLayout != true)
+                Divider()
                 ForEach(PaneLayoutPreset.allCases, id: \.self) { preset in
                     Button(LocalizedStringKey(preset.displayName)) {
                         router?.viewMode = .grid
-                        dashboard?.handlePaneLayoutAction(.applyPreset(preset))
+                        dashboard?.handlePaneLayoutAction(.applyPreset(preset), in: gridViewport?.size)
                     }
                 }
             }
@@ -1031,6 +1036,7 @@ private struct ViewCommands: Commands {
 
 /// 01 F「セッション」。移動 ｜ 対応待ちへの返答 ｜ セッションの操作 ｜ 削除。
 private struct SessionCommands: Commands {
+    @FocusedValue(\.gridViewport) private var gridViewport
     var dashboard: DashboardViewModel?
     var router: AppRouter?
 
@@ -1150,6 +1156,7 @@ private struct SessionCommands: Commands {
 
     private func selectTab(_ number: Int) {
         guard let dashboard, let router else { return }
+        if router.viewMode == .grid { focusTile(number); return }
         let tabs = dashboard.numberedTabs(router: router)
         guard tabs.indices.contains(number - 1) else { return }
         NSApp.mainWindow?.makeFirstResponder(nil)
@@ -1160,7 +1167,7 @@ private struct SessionCommands: Commands {
 
     private func focusTile(_ number: Int) {
         guard let dashboard, let router, router.viewMode == .grid else { return }
-        let ids = dashboard.gridTileOrder()
+        let ids = dashboard.gridTileOrder(in: gridViewport?.size)
         guard ids.indices.contains(number - 1) else { return }
         NSApp.mainWindow?.makeFirstResponder(nil)
         router.selectedSession = ids[number - 1]
@@ -1169,9 +1176,9 @@ private struct SessionCommands: Commands {
     private func gridKeyboardMove(_ move: GridKeyboardMove) {
         guard let dashboard, let router, router.viewMode == .grid, let id = router.selectedSession else { return }
         if move.swaps {
-            dashboard.swapGridTile(id, toward: move.direction)
+            dashboard.swapGridTile(id, toward: move.direction, in: gridViewport?.size)
         } else {
-            dashboard.nudgeGridDivider(of: id, toward: move.direction)
+            dashboard.nudgeGridDivider(of: id, toward: move.direction, in: gridViewport?.size)
         }
     }
 

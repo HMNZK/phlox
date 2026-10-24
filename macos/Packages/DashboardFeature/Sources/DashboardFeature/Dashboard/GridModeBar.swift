@@ -8,6 +8,7 @@ import SessionFeature
 struct GridModeBar: View {
     @Bindable var viewModel: DashboardViewModel
     @Bindable var router: AppRouter
+    let gridViewport: GridViewport
     @Binding var sessionPickerPresented: Bool
 
     @Environment(\.locale) private var locale
@@ -28,10 +29,13 @@ struct GridModeBar: View {
             sessionSelectionButton
             Spacer(minLength: DSSpacing.s)
             PaneLayoutPresetMenu(
-                currentName: AppLocalizedString.string(viewModel.paneLayoutPresetState.preset.displayName, locale: locale),
-                isAdjusted: viewModel.paneLayoutPresetState.isAdjusted
+                currentName: AppLocalizedString.string(viewModel.gridLayoutState.isAutomatic ? "自動" : viewModel.paneLayoutPresetState.preset.displayName, locale: locale),
+                isAdjusted: !viewModel.gridLayoutState.isAutomatic && viewModel.paneLayoutPresetState.isAdjusted,
+                canUndoAutomatic: viewModel.canUndoAutomaticGridLayout,
+                onAutomatic: { viewModel.restoreAutomaticGridLayout() },
+                onUndoAutomatic: { viewModel.undoAutomaticGridLayout() }
             ) { preset in
-                viewModel.handlePaneLayoutAction(.applyPreset(preset))
+                viewModel.handlePaneLayoutAction(.applyPreset(preset), in: gridViewport.size)
             }
         }
         .font(DSFont.auxiliary)

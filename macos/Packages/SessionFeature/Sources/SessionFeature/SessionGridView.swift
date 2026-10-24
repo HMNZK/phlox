@@ -1,3 +1,4 @@
+import AppKit
 import CoreTransferable
 import SwiftUI
 import UniformTypeIdentifiers
@@ -19,6 +20,10 @@ struct DraggedSession: Codable, Transferable {
 public struct SessionGridView: View {
     let sessions: [SessionNode]
     let paneLayout: PaneTree
+    let canvasSize: CGSize?
+    let onViewportChange: (CGSize) -> Void
+    let onLiveResizeChange: (Bool) -> Void
+    @State private var windowReference = GridWindowReader.Reference()
     @Binding var focusedID: SessionID?
     let onRemove: (SessionNode) -> Void
     let onRename: (SessionNode) -> Void
@@ -33,6 +38,9 @@ public struct SessionGridView: View {
     public init(
         sessions: [SessionNode],
         paneLayout: PaneTree,
+        canvasSize: CGSize? = nil,
+        onViewportChange: @escaping (CGSize) -> Void = { _ in },
+        onLiveResizeChange: @escaping (Bool) -> Void = { _ in },
         focusedID: Binding<SessionID?>,
         onRemove: @escaping (SessionNode) -> Void,
         onRename: @escaping (SessionNode) -> Void,
@@ -45,6 +53,9 @@ public struct SessionGridView: View {
     ) {
         self.sessions = sessions
         self.paneLayout = paneLayout
+        self.canvasSize = canvasSize
+        self.onViewportChange = onViewportChange
+        self.onLiveResizeChange = onLiveResizeChange
         self._focusedID = focusedID
         self.onRemove = onRemove
         self.onRename = onRename
@@ -57,24 +68,56 @@ public struct SessionGridView: View {
     }
 
     public var body: some View {
-        PaneLayoutView(
-            sessions: sessions,
-            tree: paneLayout,
-            focusedID: $focusedID,
-            onRemove: onRemove,
-            onRename: onRename,
-            onChangeWorkspace: onChangeWorkspace,
-            onLayoutAction: onLayoutAction,
-            projectNames: projectNames,
-            onRemoveFromGrid: onRemoveFromGrid,
-            onOpenSingle: onOpenSingle,
-            parentNames: parentNames
-        )
+        GeometryReader { geometry in
+            ScrollView([.horizontal, .vertical]) {
+                PaneLayoutView(
+                    sessions: sessions,
+                    tree: paneLayout,
+                    focusedID: $focusedID,
+                    onRemove: onRemove,
+                    onRename: onRename,
+                    onChangeWorkspace: onChangeWorkspace,
+                    onLayoutAction: onLayoutAction,
+                    projectNames: projectNames,
+                    onRemoveFromGrid: onRemoveFromGrid,
+                    onOpenSingle: onOpenSingle,
+                    parentNames: parentNames
+                )
+                .frame(width: canvasSize?.width ?? geometry.size.width, height: canvasSize?.height ?? geometry.size.height)
+            }
+            .onGeometryChange(for: CGSize.self, of: \.size, action: onViewportChange)
+            .background(GridWindowReader { windowReference.window = $0 })
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.willStartLiveResizeNotification)) { notification in
+                if let window = notification.object as? NSWindow, window === windowReference.window { onLiveResizeChange(true) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEndLiveResizeNotification)) { notification in
+                if let window = notification.object as? NSWindow, window === windowReference.window { onLiveResizeChange(false) }
+            }
+            .onDisappear { onLiveResizeChange(false) }
+        }
         // 上余白だけ詰めてトップバーとの隙間を無くす（左右下は通常マージン）。
         .padding(.horizontal, DSSpacing.s)
         .padding(.bottom, DSSpacing.s)
         .padding(.top, DSSpacing.xs)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DSColor.gridAreaBackground)
+    }
+}
+
+private struct GridWindowReader: NSViewRepresentable {
+    final class Reference { weak var window: NSWindow? }
+    let attach: (NSWindow) -> Void
+    func makeNSView(context: Context) -> Reader {
+        let view = Reader()
+        view.attach = attach
+        return view
+    }
+    func updateNSView(_ view: Reader, context: Context) { view.attach = attach }
+    final class Reader: NSView {
+        var attach: ((NSWindow) -> Void)?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { attach?(window) }
+        }
     }
 }

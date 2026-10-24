@@ -22,16 +22,28 @@ struct PaneLayoutPresetMenu: View {
     let currentName: String
     let isAdjusted: Bool
     let onSelect: (PaneLayoutPreset) -> Void
+    let onAutomatic: () -> Void
+    let onUndoAutomatic: () -> Void
+    let canUndoAutomatic: Bool
     @Environment(\.locale) private var locale
 
-    init(currentName: String = "", isAdjusted: Bool = false, onSelect: @escaping (PaneLayoutPreset) -> Void) {
+    init(currentName: String = "", isAdjusted: Bool = false, canUndoAutomatic: Bool = false, onAutomatic: @escaping () -> Void = {}, onUndoAutomatic: @escaping () -> Void = {}, onSelect: @escaping (PaneLayoutPreset) -> Void) {
         self.currentName = currentName
         self.isAdjusted = isAdjusted
         self.onSelect = onSelect
+        self.onAutomatic = onAutomatic
+        self.onUndoAutomatic = onUndoAutomatic
+        self.canUndoAutomatic = canUndoAutomatic
     }
 
     var body: some View {
         Menu {
+            Button("自動整列に戻す", action: onAutomatic)
+                .accessibilityIdentifier("grid-layout-automatic")
+            Button("直前のカスタムに戻す", action: onUndoAutomatic)
+                .disabled(!canUndoAutomatic)
+                .accessibilityIdentifier("grid-layout-restore-custom")
+            Divider()
             ForEach(Self.items, id: \.self) { preset in
                 Button(AppLocalizedString.string(preset.displayName, locale: locale)) {
                     onSelect(preset)
@@ -52,6 +64,7 @@ struct PaneLayoutPresetMenu: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
+        .accessibilityIdentifier("grid-layout-menu")
         .help("レイアウトを選択")
     }
 }

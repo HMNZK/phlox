@@ -72,3 +72,6 @@ API、送信後の編集保護、添付、キーボード設定、画面デザ�
 - 上記修正後の統合検査は29テスト・3スイート成功（`resume-revision.log`、exit 0）。送信検査6件（うち1件は3入力）、既存のフォーカス・写真・描画検査、スキル候補の描画・AX操作を含む。画面遷移警告は0件。実キーボードを表示する検査では、シミュレーターの触覚素材 `hapticpatternlibrary.plist` 欠落ログが継続している。
 - 統合後の PhloxKit 検査は XCTest 402件・Swift Testing 676件、計1,078件成功（`resume-package.log`、exit 0）。raw-value lint と差分の空白検査も成功。
 - 統合後の `xcodebuild analyze` も成功（`resume-analyze.log`、exit 0）。呼出元2箇所と最終差分を手元で確認した。`dev` への反映は共通ツールが作る文書保守・品質・秘密情報検査の記録に従う。実機および見本のブラウザー描画との比較は引き続き未検証。
+- 共通ツールでの `dev` 反映は品質検査 exit 1 で停止した（`resume-dev-merge.log`）。`dev` は入力OID `a2ed7ae9` のまま、`updated=0`。文書検査は成功し、秘密情報検査は品質失敗のため未到達。
+- 失敗は Mac の SessionFeature の3指摘: `ComposerSettingPopoverTests.clickingOutsideClosesNativePopover` の legacy false/true（115行、閉じない）と、`ComposerSuggestionDescriptionTests.popupAnimatesOnlyTheSelectedDescription`（203行、アニメーションキーが期待1件に対し2件）。候補 `9f4a81f9` と入力 `dev` の間に macos/ のコード差分はない。Mac 側で失敗する根本原因は未確定で、追加の調査・修正範囲をユーザーへ確認した。スキップや期待値の変更で反映を通していない。
+- 品質入口の他パッケージは継続して実行された。DashboardFeature の既存 XCTest は6件中1件がスキップされたため、そこを全数成功とは記述しない。スキップ理由はこの成功要約ログでは確定できない。

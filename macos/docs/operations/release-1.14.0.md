@@ -11,6 +11,7 @@ macOS の DMG と Sparkle 更新を公開する。iOS アプリの配布は今�
 - `macos/scripts/run-swift-tests.sh` の標準ゲートは exit 1。AgentDomain 577 件、DesignSystem 205 件、MessageStore 44 件、DashboardFeature の実 Git 41 件、SimulatorBridgeKit 20 件は成功。SessionFeature は 1296 件中 `ComposerSettingPopoverTests.clickingOutsideClosesNativePopover` の2ケースだけ失敗した。
 - この2ケースは `780fc8c3` の時点から、テスト内で合成したクリックではポップアップが閉じず失敗する既知の問題。ユーザーの承認により、今回の統合検査（`gitflow.verifyCommand`）だけ `SWIFT_TEST_SKIP=clickingOutsideClosesNativePopover` で除外した。テストの修正は未実施。
 - 代わりに、同じコミットの Debug 版を専用の保存先で起動し、新規チャット画面の設定ポップアップとモデル選択ポップアップを開いて、実際のマウスクリックで外側を押すと両方とも閉じることを確認した（手元で実行、テストには未登録）。プロセスへ直接送ったクリックでは閉じず、テストの失敗と同じ挙動だった。開始済みチャット側のポップアップと Release アプリでの画面操作は未実施。
+- 最初の dev 統合検査では、DashboardFeature の `automaticGridFullHD`（5枚・6枚）が失敗した。タイトル付きの画面外ウィンドウが接続中の画面（内蔵 1512×982）へ縮められ、表示領域が 1235×802 になっていた。テスト用ウィンドウを画面で縮めない修正を加え、同テスト単独と DashboardFeature 全数（上記2ケースを除外した設定）が成功した。
 - `verify-simulator-allowlist.py` は Xcode 17C52 / iOS 26.2 で成功。
 - Release ビルド成功。Info.plist の版は 1.14.0 / build 36。
 - アプリ公証 Accepted（`6894a373-e2f3-4f04-adb7-137b69aec0eb`）、DMG 公証 Accepted（`50240e3e-7a55-48ae-9857-057c021eb62a`）。双方の stapler validate と Gatekeeper `Notarized Developer ID` を確認。

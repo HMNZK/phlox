@@ -2037,12 +2037,17 @@ struct DesignSnapshotRenderTests {
         return output.appendingPathComponent(name)
     }
 
+    /// 画面外描画の寸法を接続中のディスプレイに依存させない。タイトル付きウィンドウは既定で画面内へ縮められる。
+    private final class SnapshotWindow: NSWindow {
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+    }
+
     func makeSnapshotWindow<V: View>(_ content: V, id: String, width: CGFloat, height: CGFloat, light: Bool = false) -> NSWindow {
         let includesTitlebar = id.hasPrefix("13-bp-window-")
         let controller = includesTitlebar ? NSHostingController(rootView: content) : nil
         let host: NSView = controller?.view ?? NSHostingView(rootView: content)
         host.frame = NSRect(x: 0, y: 0, width: width, height: height)
-        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: height),
+        let window = SnapshotWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: height),
                               styleMask: includesTitlebar ? [.titled, .closable, .miniaturizable, .resizable] : [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: light ? .aqua : .darkAqua)

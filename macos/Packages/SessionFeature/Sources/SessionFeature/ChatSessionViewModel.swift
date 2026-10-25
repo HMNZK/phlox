@@ -26,6 +26,13 @@ private enum FirstMessageSkillError: LocalizedError {
 /// エージェントのプロセスが自分で終了したこと（04 B3）。終了コードが取れない transport では nil。
 public struct ChatProcessExit: Codable, Equatable, Sendable {
     public let exitCode: Int32?
+    /// 24 時間使われず Phlox が止めた（ADR 0221）。nil は自分で終了した。
+    public var suspendedForIdle: Bool?
+
+    public init(exitCode: Int32?, suspendedForIdle: Bool? = nil) {
+        self.exitCode = exitCode
+        self.suspendedForIdle = suspendedForIdle
+    }
 }
 
 @MainActor
@@ -4539,6 +4546,48 @@ extension ChatSessionViewModel: ControllableSession {
 
     public func terminate() async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.terminate); return }
+        await stopProcess()
+        status = .completed(exitCode: 0)
+    }
+
+    /// 最後に使われた時刻（出力・状態の変化・ターン完了のうち新しいもの）。ADR 0221。
+    public var lastActivityAt: Date {
+        [startedAt, lastOutputAt, statusEnteredAt, lastTurnCompletedAt].compactMap { $0 }.max() ?? startedAt
+    }
+
+    /// 止めてもやり取りを失わない状態か（ADR 0221）。Cursor はターンごとにプロセスが終わるので対象外。
+    public var canSuspendForIdle: Bool {
+        guard agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex),
+              resumeConversationHandler != nil,
+              processExit == nil, launchFailure == nil, !isTerminating,
+              restoreState == .restored || restoreState == .notRestored,
+              !showsProcessingIndicator, !isCompacting,
+              pendingApprovals.isEmpty, inFlightText == nil, pendingFirstMessage == nil,
+              sendFailure == nil, runtimeDraftRecovery == nil,
+              // 受け付け済みでまだ始まっていない送信（Control API・スマホ）を消さない。
+              !runtimeSendInFlight, runtimeAcceptedSendTask == nil, firstTurnInput == nil,
+              activeInterruptTask == nil, !isPreparingImageSend, !isApplyingSpawnAgentPermission
+        else { return false }
+        switch status {
+        case .idle, .completed: return true
+        case .starting, .running, .awaitingApproval, .awaitingUserQuestion, .error: return false
+        }
+    }
+
+    /// 使われていないチャットのエージェントプロセスを止める（ADR 0221）。会話と表示は残し、
+    /// 「この会話から再開」で開き直す。対応待ちにはしない（status を変えない）。止めたら true。
+    @discardableResult
+    public func suspendForIdle() async -> Bool {
+        guard !isRuntimeProjection, canSuspendForIdle else { return false }
+        // 先に立てる（下の await の間に届いたイベントや送信を受け付けないように）。
+        processExit = ChatProcessExit(exitCode: nil, suspendedForIdle: true)
+        // イベントの受信を先に止めてから会話を保存する（保存の待ち時間に届いたイベントで状態が動かないように）。
+        await stopProcess()
+        await flushTranscriptNow()
+        return true
+    }
+
+    private func stopProcess() async {
         isTerminating = true
         cancelRuntimeAcceptedSend()
         flushPendingStreamDeltasBarrier()
@@ -4563,7 +4612,6 @@ extension ChatSessionViewModel: ControllableSession {
         localOriginalUserTextByID.removeAll()
         releaseNativeSkillInputDirectories()
         await client.close()
-        status = .completed(exitCode: 0)
     }
 }
 extension ChatSessionViewModel {

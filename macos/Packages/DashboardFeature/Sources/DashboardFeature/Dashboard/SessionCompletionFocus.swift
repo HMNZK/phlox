@@ -1,4 +1,5 @@
 import Foundation
+import AgentDomain
 import SessionFeature
 import SwiftUI
 import AppKit
@@ -47,7 +48,20 @@ struct SessionCompletionFocusEvents: View {
             .onChange(of: router.focusedSessionID.flatMap { viewModel.sessionNode(id: $0)?.hasUnseenCompletion }) { _, _ in acknowledge() }
             .onChange(of: router.viewMode) { _, _ in acknowledge() }
             .onChange(of: router.viewMode == .grid ? viewModel.gridTileOrder() : []) { _, _ in acknowledge() }
+            .onChange(of: displayedSessionIDs, initial: true) { _, ids in viewModel.noteSessionsViewed(ids) }
+            // 表示し続けているセッションを常駐側が止めないよう、5 分ごとに知らせる（ADR 0221）。
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(5 * 60))
+                    viewModel.noteSessionsViewed(displayedSessionIDs)
+                }
+            }
             .accessibilityHidden(true)
+    }
+
+    /// 画面に表示中のセッション。単一表示では選択中の会話、グリッドでは並んでいるタイル。
+    private var displayedSessionIDs: [SessionID] {
+        router.viewMode == .grid ? viewModel.gridTileOrder() : router.focusedSessionID.map { [$0] } ?? []
     }
 
     private func acknowledge() {

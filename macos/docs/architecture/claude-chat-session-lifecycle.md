@@ -53,6 +53,10 @@ last-verified: 2026-08-21
 - `close()` / respawn / `interrupt()` は保留要求を `.expired` へ失効し、旧 transport へ deny を送る。CLI プロセスが既に終了した `handleStreamEnded` では deny を送らず、死因エラーへのノイズを避ける。世代ガード（`pending.generation == spawnGeneration`）により旧世代の応答が新 transport へ流れることはない。
 - `interrupt()` の deny 対象スナップショットは `isResponding`（allow 送信 suspend 中）の質問を除外する。除外しないと同一 `request_id` へ allow/deny の二重 `control_response` が届きうる不整合があったため（2026-07-19 修正）。
 
+## 使われていないチャットの休止
+
+24 時間使われていない Claude・Codex のチャットは、常駐側の見回り（10 分ごと）が `ChatSessionViewModel.suspendForIdle()` でエージェントのプロセスだけを止める。`processExit`（`suspendedForIdle: true`）を先に立てて送信・承認を止め、イベントの受信を止めてから会話を保存する。status は変えないので対応待ちにはならない。再開は「この会話から再開」（`resumeEndedChatSession`）で、起動時の復元と同じ経路を通る。条件と理由は [ADR 0221](../adr/0221-suspend-idle-chat-agent-processes.md)。
+
 ## バックグラウンドタスクイベント
 
 - `system/task_started {task_id, tool_use_id, description, task_type: local_bash|local_agent}` → `.backgroundTaskStarted`、`system/task_notification {status, summary}` → `.backgroundTaskCompleted` に正規化（`task_updated` は非正規化）。実測フィクスチャ: `docs/agent-output/claude-bg-task-events-fixture.jsonl`。

@@ -1,0 +1,146 @@
+import Foundation
+import Testing
+import AgentDomain
+import HookServer
+import StructuredChatKit
+@testable import DashboardFeature
+@testable import SessionFeature
+
+// ADR 0221: 24 時間使われていないチャットはエージェントのプロセスだけを止め、「この会話から再開」で開き直す。
+
+@MainActor
+private func makeIdleDashboard(_ clients: [CountingResumeStructuredClient]) async throws -> (DashboardViewModel, SessionID, InMemorySessionStore) {
+    let sessionStore = InMemorySessionStore()
+    let sequence = StructuredClientSequence(clients)
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = makeTestEnvironment(
+        pty: MockPTYManager(),
+        hookStream: hookStream,
+        sessions: sessionStore,
+        agentBinaryPaths: [.claudeCode: "/bin/echo"],
+        appServerClientFactory: { _, _, _, _, _ in try sequence.next() }
+    )
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+    let sessionID = try await dashboard.spawnNewSession(kind: .claudeCode, backend: .appServer)
+    try await waitUntil { await sessionStore.load().contains { $0.id == sessionID } }
+    return (dashboard, sessionID, sessionStore)
+}
+
+@MainActor
+private func chat(_ dashboard: DashboardViewModel, _ id: SessionID) throws -> ChatSessionViewModel {
+    guard case .appServer(let chat) = try #require(dashboard.sessionNode(id: id)) else {
+        throw IdleSuspendTestError.notChat
+    }
+    return chat
+}
+
+private enum IdleSuspendTestError: Error { case notChat }
+
+private let dayAndAMinute: TimeInterval = DashboardViewModel.idleSuspendAfter + 60
+
+@Test @MainActor
+func idleChatIsSuspendedWithoutAttentionAndResumesTheSameConversation() async throws {
+    let spawnClient = CountingResumeStructuredClient()
+    let resumeClient = CountingResumeStructuredClient()
+    let (dashboard, sessionID, _) = try await makeIdleDashboard([spawnClient, resumeClient])
+    let idle = try chat(dashboard, sessionID)
+    try await waitUntil { idle.canSuspendForIdle }
+
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(dayAndAMinute))
+
+    #expect(idle.processExit == ChatProcessExit(exitCode: nil, suspendedForIdle: true))
+    #expect(spawnClient.closes == 1)
+    #expect(!idle.hasUnseenCompletion)
+    #expect(dashboard.unseenCompletionCount == 0)
+    #expect(try chat(dashboard, sessionID) === idle)
+
+    await dashboard.resumeEndedChatSession(sessionID)
+    let resumed = try chat(dashboard, sessionID)
+    #expect(resumed !== idle)
+    #expect(resumed.processExit == nil)
+    #expect(resumeClient.resumes == [sessionID.rawValue.uuidString.lowercased()])
+}
+
+@Test @MainActor
+func chatIsNotSuspendedWithin24HoursOrWhileShownOnScreen() async throws {
+    let client = CountingResumeStructuredClient()
+    let (dashboard, sessionID, _) = try await makeIdleDashboard([client])
+    let idle = try chat(dashboard, sessionID)
+    try await waitUntil { idle.canSuspendForIdle }
+
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(DashboardViewModel.idleSuspendAfter - 60))
+    #expect(idle.processExit == nil)
+
+    // 画面に表示された時刻から数え直す（表示の直後なので、出力から 24 時間たっていても止めない）。
+    dashboard.noteSessionsViewed([sessionID])
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(DashboardViewModel.idleSuspendAfter - 60))
+    #expect(idle.processExit == nil)
+    #expect(client.closes == 0)
+}
+
+// 画面（常駐側の写し）から知らせた表示中のセッションが、エラーなしで常駐側に届く。
+@Test @MainActor
+func sessionsViewedFromTheScreenReachTheRuntimeWithoutError() async throws {
+    let client = CountingResumeStructuredClient()
+    let (owned, sessionID, _) = try await makeIdleDashboard([client])
+    let screen = try DashboardViewModel(projection: owned.makeRuntimeSnapshot()) { try await owned.performRuntimeCommand($0) }
+    screen.noteSessionsViewed([sessionID])
+    try await waitUntil { owned.lastViewedAt[sessionID] != nil }
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(screen.runtimeCommandError == nil)
+}
+
+// Cursor はターンごとにプロセスが終わるので止めない。端末セッションも触らない。
+@Test @MainActor
+func cursorChatsAndTerminalSessionsAreNotSuspended() async throws {
+    let cursorClient = CountingResumeStructuredClient()
+    let sequence = StructuredClientSequence([cursorClient])
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = makeTestEnvironment(
+        pty: MockPTYManager(),
+        hookStream: hookStream,
+        sessions: InMemorySessionStore(),
+        agentBinaryPaths: [.claudeCode: "/bin/echo", .cursor: "/bin/echo"],
+        appServerClientFactory: { _, _, _, _, _ in try sequence.next() }
+    )
+    let dashboard = DashboardViewModel(environment: environment)
+    await dashboard.start()
+    let terminalID = try await dashboard.spawnNewSession(kind: .claudeCode, backend: .pty)
+    let cursorID = try await dashboard.spawnNewSession(kind: .cursor, backend: .appServer)
+    let cursor = try chat(dashboard, cursorID)
+    try await waitUntil { cursor.status == .idle }
+    #expect(!cursor.canSuspendForIdle)
+
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(dayAndAMinute))
+
+    #expect(cursor.processExit == nil)
+    #expect(cursorClient.closes == 0)
+    guard case .pty(let terminal) = try #require(dashboard.sessionNode(id: terminalID)) else {
+        Issue.record("terminal node expected")
+        return
+    }
+    #expect(terminal.status != .completed(exitCode: 0))
+}
+
+@Test @MainActor
+func runningChatIsNotSuspended() async throws {
+    let client = CountingResumeStructuredClient()
+    let (dashboard, sessionID, _) = try await makeIdleDashboard([client])
+    let running = try chat(dashboard, sessionID)
+    try await waitUntil { running.canSuspendForIdle }
+    client.yield(.turnStarted)
+    try await waitUntil { running.showsProcessingIndicator }
+
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(dayAndAMinute))
+
+    #expect(running.processExit == nil)
+    #expect(client.closes == 0)
+}
+
+@Test
+func idleSuspendedExitRoundTripsAndOldSnapshotsDecode() throws {
+    let suspended = ChatProcessExit(exitCode: nil, suspendedForIdle: true)
+    #expect(try JSONDecoder().decode(ChatProcessExit.self, from: JSONEncoder().encode(suspended)) == suspended)
+    #expect(try JSONDecoder().decode(ChatProcessExit.self, from: Data(#"{"exitCode":3}"#.utf8)) == ChatProcessExit(exitCode: 3))
+}

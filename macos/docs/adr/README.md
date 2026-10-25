@@ -12,6 +12,7 @@ last-verified: 2026-10-24
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0221 | [24 時間使われていないチャットのエージェントプロセスを止める](0221-suspend-idle-chat-agent-processes.md) | accepted |
 | 0220 | [エージェントの出力パイプは届いたときだけ読み、読んだ分をすぐ解放する](0220-agent-pipe-reads-release-buffers.md) | accepted |
 | 0218 | [自動整列とカスタム配置を分ける](0218-grid-automatic-layout-and-custom-state.md) | accepted |
 | 0217 | [チャット履歴を最上部での追加スクロールから表示する](0217-transcript-scroll-to-load-history.md) | accepted |

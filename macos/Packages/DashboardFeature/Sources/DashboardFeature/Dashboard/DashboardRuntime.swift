@@ -60,6 +60,8 @@ public enum DashboardRuntimeCommand: Codable, Sendable {
     case launchNewChat(NewChatLaunchRequest)
     case restartNewChat(SessionID)
     case resumeChat(SessionID)
+    /// 画面に表示中のセッション（ADR 0221）。
+    case sessionsViewed([SessionID])
     case addProject(name: String, directoryPath: String)
     case renameProject(ProjectID, String)
     case renameSession(SessionID, String)

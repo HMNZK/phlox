@@ -172,6 +172,9 @@ public final class DashboardViewModel {
     /// 「この会話から再開」の処理中のセッション（続けて押しても 2 つ目のプロセスを作らない）。
     @ObservationIgnored private var resumingChatSessionIDs: Set<SessionID> = []
     @ObservationIgnored private var removingSessionIDs: Set<SessionID> = []
+    /// 画面に表示された最後の時刻（ADR 0221）。保存しない。
+    @ObservationIgnored var lastViewedAt: [SessionID: Date] = [:]
+    @ObservationIgnored private var idleSuspendTask: Task<Void, Never>?
     private var codexDiscoveryNow: @Sendable () -> Date { requiredOwnedServices.codexDiscoveryNow }
     /// send/spawn のレート制限に使う現在時刻シーム。既定は実時計。テストは固定時刻を
     /// 注入してスライディングウィンドウを決定論化する（実時計依存の断続的失敗の除去）。
@@ -439,6 +442,7 @@ public final class DashboardViewModel {
         }
         guard case .appServer(let ended) = sessionNode(id: id), ended.processExit != nil,
               resumingChatSessionIDs.insert(id).inserted else { return }
+        lastViewedAt[id] = Date()
         defer { resumingChatSessionIDs.remove(id) }
         await ended.terminate()
         guard let resumed = await sessionRestoreCoordinator.resumeChatSession(id: id) else {
@@ -497,6 +501,13 @@ public final class DashboardViewModel {
         layoutRestoreInProgress = false
         hasRestoredSessions = true
         reloadAndReconcilePaneLayout()
+        idleSuspendTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.idleSuspendCheckInterval)
+                guard let self else { return }
+                await self.suspendIdleChatSessions(now: Date())
+            }
+        }
     }
 
     /// セッション用 worktree の置き場所。
@@ -2452,6 +2463,7 @@ extension DashboardViewModel {
                 try await restartNewChat(id)
             })
         case .resumeChat(let id): await resumeEndedChatSession(id)
+        case .sessionsViewed(let ids): noteSessionsViewed(ids)
         case .addProject(let name, let path): return .projectID(addProject(name: name, directoryPath: path))
         case .renameProject(let id, let name): renameProject(id, to: name)
         case .renameSession(let id, let name): renameSession(id, to: name)
@@ -2519,7 +2531,7 @@ extension DashboardViewModel {
                 case (.session, .session), (.spawn, .sessionID), (.launchNewChat, .acceptedSession),
                      (.restartNewChat, .sessionID), (.addProject, .projectID), (.removeSession, .bool),
                      (.history, .history), (.message, .sendOutcome): break
-                case (.resumeChat, .none), (.renameProject, .none), (.renameSession, .none),
+                case (.resumeChat, .none), (.sessionsViewed, .none), (.renameProject, .none), (.renameSession, .none),
                      (.reorderSession, .none), (.moveSession, .none), (.changeWorkspace, .none),
                      (.removeProject, .none), (.persistRole, .none), (.clearWorkspaceCleanupWarning, .none),
                      (.takeDiscardedSessionCountNotice, .none), (.usage, .none): break
@@ -2536,7 +2548,7 @@ extension DashboardViewModel {
         return request
     }
 
-    private func enqueueProjectedAction(_ command: DashboardRuntimeCommand) {
+    func enqueueProjectedAction(_ command: DashboardRuntimeCommand) {
         do { _ = try beginRuntimeCommand(command) }
         catch { runtimeCommandError = error.localizedDescription }
     }

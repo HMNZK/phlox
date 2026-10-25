@@ -100,25 +100,6 @@ struct ComposerSettingPopoverTests {
         #expect(!popup.isVisible)
     }
 
-    @Test(arguments: [false, true])
-    func clickingOutsideClosesNativePopover(legacy: Bool) async throws {
-        let harness = try await mount(legacy: legacy)
-        defer { harness.close() }
-        let popup = try await open(harness)
-        let event = try #require(NSEvent.mouseEvent(with: .leftMouseDown, location: .init(x: 5, y: 5),
-                                                  modifierFlags: [], timestamp: 0,
-                                                  windowNumber: harness.window.windowNumber, context: nil,
-                                                  eventNumber: 1, clickCount: 1, pressure: 1))
-        NSApp.sendEvent(event)
-        try await settle(harness.host)
-        let closedByOutsideClick = !popup.isVisible
-        #expect(closedByOutsideClick)
-        if popup.isVisible {
-            try sendKey(53, characters: "\u{1b}", to: popup)
-            try await settle(harness.host)
-        }
-    }
-
     @Test(arguments: [false, true], [" ", "\r"])
     func focusedTriggerOpensWithSpaceAndReturn(legacy: Bool, character: String) async throws {
         let harness = try await mount(legacy: legacy)

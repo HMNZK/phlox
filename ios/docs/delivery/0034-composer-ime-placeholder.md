@@ -45,7 +45,9 @@ dev `a2ed7ae9` に適用した状態のホスト付きテストは23件 pass / e
 
 同じ状態の PhloxKit 全体は XCTest 402件と Swift Testing 676件が pass / exit 0。既存 lint、iOS ビルド・リンク、静的解析も成功した。変換中の画像で placeholder の重複がないことを再確認した。
 
-**dev への反映は未完了。** 共通マージツールの文書保守は成功したが、必須品質ゲートの `SessionFeature` で `clickingOutsideClosesNativePopover(legacy:)` の false / true 両ケースが `closedByOutsideClick` の期待に失敗した（`ComposerSettingPopoverTests.swift:115`）。macOS 側のソースは元の dev と同一。品質ゲートは exit 1、`updated=0` で終了し、dev は `a2ed7ae9` のまま。秘密情報検査には未到達。DashboardFeature の既存スキップ1件もログに記録されている。macOS 側の追加調査・修正についてユーザーに確認中。
+初回の共通マージツールは、文書保守成功後の必須品質ゲートで失敗した。`SessionFeature` の `clickingOutsideClosesNativePopover(legacy:)` は false / true 両ケースが `closedByOutsideClick` の期待に失敗した（当時の `ComposerSettingPopoverTests.swift:115`）。macOS 側のソースは元の dev と同一。品質ゲートは exit 1、`updated=0` で終了し、その時点の dev は `a2ed7ae9` のままだった。秘密情報検査には未到達。DashboardFeature の既存スキップ1件もログに記録されている。
+
+2026-10-25、ユーザーの明示指示でこの合成クリックのテストを削除する。`release-1.14.0.md` に実クリックでは閉じ、合成クリックでは閉じなかった検証記録があり、現在のテスト本文も当時の `780fc8c3` と一致することを確認した。外側クリックで閉じる仕様は維持し、この挙動の自動回帰検査がなくなることを明示する。Esc・選択後の閉じ方・再表示などの既存テストは維持する。既存の品質ゲートを除外設定なしで再実行し、共通マージツールで dev へ統合する。
 
 修正コミット `296b3105` と未反映の文書保守候補は保全する。統合時に作成した専用シミュレーターは削除済み。以前の重複検証物はゴミ箱へ移し、今回の失敗ログとビルドはマージ阻害の調査・再開に必要なため保持する。
 

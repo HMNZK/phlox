@@ -42,7 +42,7 @@ esac
 MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPACT_COMMAND="$MACOS_DIR/scripts/compact-command.sh"
 
-DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature DashboardFeature SimulatorBridgeKit"
+DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature DashboardFeature SimulatorBridgeKit StructuredChatKit CodexAppServerKit ClaudeAgentKit ControlServer"
 
 # ── 直列実行するパッケージ ────────────────────────────────────────────────
 #

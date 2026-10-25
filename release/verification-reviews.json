@@ -1,4 +1,24 @@
 {
   "schemaVersion": 1,
-  "reviews": []
+  "reviews": [
+    {
+      "baseOID": "d4452feb33a08e43fc80a23802ad56db13bc6019",
+      "targetOID": "1657b03c4c96273257c812fb053f646922a4c06e",
+      "diffSHA256": "868dab24633a06981e6568ec6b488ca85399e09aea6e0f4549ad698b61eaf94a",
+      "reviewer": {
+        "kind": "ai",
+        "id": "Phlox:58DE043F-2E92-46F5-BDB4-A09C67825ECA"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-25T14:14:58.389890+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "独立レビューでパッケージごとの結果欠落、無関係な文書差分、必須AC縮小、実機結果の時刻順を確認し、44件と標準入口回帰が成功。旧ゲートへの差し戻しではfailures=4/errors=1で旧不具合を検出し、承認あり正例は成功した。reviewedAtは独立レビュー完了記録OWNER.mdの保存時刻。これはコードレビューのみで、実機5シナリオはnot_run、最終候補上のquality全体は別途必須。自己申告の真偽、保守的な文書入力範囲、旧90a0c801上のControlServer間欠失敗は記載済みの限界として残す。"
+    }
+  ]
 }

@@ -13,6 +13,47 @@ import DesignSystemIOS
 
 @MainActor
 struct DesignSnapshotRenderTests {
+    @Test(.serialized, arguments: [1, 4])
+    func newChatPhotoIntakeKeepsLayoutAndEditingResponsive(count: Int) async throws {
+        let suite = "PhotoIntake-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = NewChatViewModel(
+            api: NewChatSnapshotAPI(), entryProject: .init(project: ""), settingsStore: .init(defaults: defaults)
+        )
+        await model.load()
+        let controller = UIHostingController(rootView: NewChatView(
+            viewModel: model, fixedGreeting: "写真の添付", onCreated: { _, _ in }
+        ))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.windowScene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; controller.view.removeFromSuperview() }
+        controller.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+        func editor(in view: UIView) -> UITextView? {
+            if let editor = view as? UITextView { return editor }
+            return view.subviews.lazy.compactMap { editor(in: $0) }.first
+        }
+        let input = try #require(editor(in: controller.view))
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 112, height: 112)).pngData { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 112, height: 112))
+        }
+        await model.addAttachmentLoadResults(Array(repeating: .success(.init(mediaType: "image/png", data: image)), count: count))
+        try await Task.sleep(for: .milliseconds(100))
+        controller.view.layoutIfNeeded()
+        #expect(model.attachmentItems.count == count)
+        #expect(input.text == model.inputText)
+        #expect(input.selectedRange.location == model.inputCursorUTF16)
+        let text = model.inputText
+        input.insertText("続き")
+        try await Task.sleep(for: .milliseconds(100))
+        controller.view.layoutIfNeeded()
+        #expect(model.inputText == text + "続き")
+    }
+
     @Test func renderDesignSnapshots() async throws {
         let variables = ProcessInfo.processInfo.environment
         guard variables["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }

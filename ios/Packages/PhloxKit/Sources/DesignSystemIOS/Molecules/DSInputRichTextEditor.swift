@@ -76,10 +76,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
             coordinator.isApplying = false
             coordinator.lastExternalCursor = cursorUTF16
         }
-        if isFocused != view.isFirstResponder {
-            if isFocused { view.becomeFirstResponder() }
-            else { view.resignFirstResponder() }
-        }
+        coordinator.updateFocus(in: view)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView view: UITextView, context: Context) -> CGSize? {
@@ -126,6 +123,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: DSInputRichTextEditor
         let delivery = DSInputSelectionDelivery()
+        let focusDelivery = DSInputSelectionDelivery()
         var lastExternalText = ""
         var lastExternalCursor = -1
         var pendingNativeText: String?
@@ -133,6 +131,21 @@ struct DSInputRichTextEditor: UIViewRepresentable {
         private var focusGeneration = 0
 
         init(_ parent: DSInputRichTextEditor) { self.parent = parent }
+
+        @discardableResult
+        func updateFocus(in view: UITextView) -> Task<Void, Never>? {
+            focusDelivery.invalidate()
+            let focused = parent.isFocused
+            guard focused != view.isFirstResponder else { return nil }
+            // UIKitのキーボード更新をSwiftUIの画面更新へ再入させない。
+            return focusDelivery.enqueue(isCurrent: { [weak self, weak view] in
+                guard let self, let view else { return false }
+                return parent.isFocused == focused && view.window != nil && view.isFirstResponder != focused
+            }) { [weak view] in
+                if focused { view?.becomeFirstResponder() }
+                else { view?.resignFirstResponder() }
+            }
+        }
 
         func textViewDidChange(_ textView: UITextView) { publishNativeState(from: textView) }
 

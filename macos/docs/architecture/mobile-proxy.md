@@ -142,12 +142,13 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 
 | 操作 | メソッド | パス | リクエスト | 成功時 | ハンドラ |
 |---|---|---|---|---|---|
-| **list** | `GET` | `/sessions` | — | `200` + `{ "sessions":[…] }`（既存包装を維持。各要素に `projectId`/`projectName` が付与。wave-2） | `handleListSessions` |
-| **spawn** | `POST` | `/sessions` | JSON: `{ "kind", "backend"?, "workingDirectory"?, "model"?, "projectId"? }`。`backend` 省略時 `.pty`。モバイルは `"appServer"` を送る例あり（`ControlServer.swift:255`）。`model`（任意・wave-2）は spawn 後に既存 setSessionModel 経路でベストエフォート適用。`projectId`（任意・ProjectID の UUID 文字列）は所属プロジェクトの指定。`effort`/`permission`/`planMode`（任意・ADR 0216）はどれかがあると `model` と一緒に初期設定として起動時に適用 | `201` + `{ "id" }` / 形式不正の `projectId`・不正な新項目は `400` / 未知の `projectId`・初期設定の適用失敗は `422` | `ControlActionHandler.handleSpawn` |
+| **list** | `GET` | `/sessions` | — | `200` + `{ "sessions":[…] }`（既存包装を維持。各要素に `projectId`/`projectName` が付与。wave-2。未確認の正常完了がある要素には任意の `completionToken` が付く。2026-10-25） | `handleListSessions` |
+| **spawn** | `POST` | `/sessions` | JSON: `{ "kind", "backend"?, "workingDirectory"?, "model"?, "projectId"? }`。`backend` 省略時 `.pty`。モバイルは `"appServer"` を送る例あり（`ControlServer.swift:255`）。`model`（任意・wave-2）は spawn 後に既存 setSessionModel 経路でベストエフォート適用。`projectId`（任意・ProjectID の UUID 文字列）は所属プロジェクトの指定。`effort`/`permission`/`planMode`（任意・ADR 0216）はどれかがあると `model` と一緒に初期設定として起動時に適用。`usesWorktree`/`startPoint`/`resumeHistoryID`（任意・2026-10-25）は下記「Macとの統一」参照 | `201` + `{ "id" }` / 形式不正の `projectId`・不正な新項目は `400` / 未知の `projectId`・初期設定の適用失敗は `422` | `ControlActionHandler.handleSpawn` |
 | **send** | `POST` | `/send` | JSON: `{ "to", "text", "submit"?, "inReplyTo"?, "images"? }`。`to` は SessionID UUID または名前。`images` は下記参照 | `200` 他（404/409/413/425 等） | `handleSendText` |
 | **approve** | `POST` | `/approvals/{id}` | JSON: `{ "decision" }`（`ApprovalDecision` rawValue） | `200` / 未知 id は `404` | `handleRespondApproval` |
 | **messages** | `GET` | `/sessions/{id}/messages?since=<cursor>&wait=<秒>` | `since`/`wait` とも省略可（下記「差分取得」参照） | 構造化: `200` + `{ messages, cursor, snapshot? }`。非構造化/不在: `404` | `handleMessagesDelta` |
 | **interrupt** | `POST` | `/sessions/{id}/interrupt` | — | `204`（no-op 含む）/ interrupt 非対応（PTY 等）: `409` / 不在: `404` | `handleInterrupt` |
+| **completion seen** | `POST` | `/sessions/{id}/completion-seen` | JSON: `{ "completionToken" }`（空・128 バイト超は `400`。不正 id も `400`） | `204` / token 不一致: `409` / 不在: `404` / 適用失敗: `500`（2026-10-25） | `ControlActionHandler.handle`（`.markCompletionSeen`） |
 | **subagents** | `GET` | `/sessions/{id}/subagents` | — | 構造化: `200` + `{ subAgents:[…] }`（空は `[]`）。非構造化/不在: `404` | `handleSubAgents` |
 | **subagent messages** | `GET` | `/sessions/{id}/subagents/{subAgentId}/messages` | `subAgentId` は不透明文字列 | `200` + `{ subAgentId, messages }`（形状は `/messages` と同一）。不明 id/不在: `404` | `handleSubAgentMessages` |
 | **usage** | `GET` | `/sessions/{id}/usage` | — | 構造化: `200` + `{ turn:{ costUSD, contextUsedTokens, contextWindowTokens } \| null }`。非構造化/不在: `404` | `handleUsage` |
@@ -158,6 +159,8 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 | **agent settings** | `GET` | `/agents/{kind}/settings` | `{kind}` は AgentKind rawValue | `200` + `{ "availableEfforts":{<model>:[…]}, "availablePermissions":[…], "planModeAvailable" }`（新規チャットの選択肢。未知 kind: `404`。ADR 0216） | `handleAgentSettings` |
 | **session settings** | `GET` / `PATCH` | `/sessions/{id}/settings` | PATCH: JSON `{ "effort"?, "permission"?, "planMode"? }`（1 つ以上） | GET: `200` + モデル・推論の深さ・権限・Plan の現在値と選択肢。PATCH: `200` / `400` / `404` / `409` / `425` / `500`（契約 §8.4。ADR 0216） | `handleSessionSettings` / `handleUpdateSessionSettings` |
 | **projects** | `GET` | `/projects` | — | `200` + `{ "projects":[{ "id", "name" }] }`（ADR 0216） | `handleListProjects` |
+| **project start points** | `GET` | `/projects/{id}/start-points?commit=<hex>` | `commit` は省略可（4〜40 桁の16進のみ。他のクエリ・形式不正の id は `400`） | `200` + `{ "startPoints":[{ "kind", "value"?, "title", "summary"? }] }` / 未登録プロジェクト: `404`（2026-10-25） | `ControlActionHandler.handle`（`.projectStartPoints`） |
+| **project history** | `GET` | `/projects/{id}/history?kind=claudeCode\|codex` | `kind` 必須（他の値・他のクエリ・形式不正の id は `400`） | `200` + `{ "entries":[{ "id", "title", "updatedAt", "branch"?, "workingDirectory"? }] }` / 未登録プロジェクト: `404`（2026-10-25） | `ControlActionHandler.handle`（`.projectHistory`） |
 | **usage (account)** | `GET` | `/usage` | — | `200` + `{ "agents":[…] }`（wave-2） | `handleCLIUsage` |
 | **question** | `POST` | `/sessions/{id}/question` | JSON: `{ "requestId", "answers": {"<question文>": [String]} }` | `200`（受理）/ セッション or pending 質問なし: `404` / body 不正: `400`。Claude のツール使用許可の質問は `questions[].allowsSessionScope`（省略可）が true なら回答 `"AllowForSession"` で「このセッション中は許可」（ADR 0216 追記） | `handleRespondQuestion` |
 
@@ -199,6 +202,15 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
   CLIUsage]` を読み取り専用で新規露出しただけ）。既存 `GET /sessions/{id}/usage`（ターン単位）とは別エンドポイント。
 
 非自明な設計判断の詳細は [ADR 0087](../adr/0087-mobile-wave2-wire-extensions.md) を参照。
+
+### Macとの統一（2026-10-25 追加。契約正本＝[`docs/specs/mobile-api-extensions-contract.md`](../specs/mobile-api-extensions-contract.md)「2026-10-25 追加契約」）
+
+iOS の新規チャットの作業場所・起点・履歴再開と、未確認完了の端末間共有向け。要件は iOS の [session-activity-parity.md](../../../ios/docs/specs/session-activity-parity.md)。
+
+- **新規チャットの起動指定**: `ControlServer.parseSpawn` は `usesWorktree`・`startPoint`（`{ kind, value? }`、kind は `head/localBranch/remoteBranch/tag/commit`）・`resumeHistoryID` のどれかがあると `Action.spawnNewChat` を作る。`projectId` 必須・`backend:"appServer"`・`workingDirectory` なし・`startPoint` は `usesWorktree:true` のときだけ・`resumeHistoryID` は claudeCode/codex のときだけ、を満たさなければ `400`。`head` は `value` なし、それ以外は 1〜256 文字、`commit` は 4〜40 桁の16進。どれも無い従来の body は従来どおり `Action.spawn`。
+- **起動の実体**: `ControlActionHandler.handleSpawn` が `dashboard.spawnNewChat` を呼び、App 層 witness が `DashboardViewModel.spawnNewSessionFromControlAPI(…usesWorktree:worktreeStartPoint:resumeHistoryID:)` へ渡す。既存の起動頻度制限・親子判定（`SessionOriginPolicy`）をそのまま通る。再開指定は `newChatHistoryEntries` で同じプロジェクト・エージェントの候補にあるかを確かめ、無ければ `AgentSpawnError.historyNotFound`。親子判定の後にもプロジェクトの登録を確かめ直す。
+- **起点・履歴の一覧**: `DashboardViewModel.newChatStartPoints(projectID:commit:)`（`WorkingTreeService.worktreeStartPoints` と `worktreeCommit(matching:)`）と `newChatHistoryEntries` を写像する。履歴は既に開いているものを除き、ファイルパスは返さない。
+- **完了の確認**: `completionToken` は `SessionNode.completionToken`＝未確認の正常完了（`idle` または `completed(exitCode: 0)`）のときだけ `<executionID>:<completedTurnSeq>`。`POST /sessions/{id}/completion-seen` は `SessionNode.markCompletionSeen(ifCurrent:)` で一致を確かめ、runtime 投影では `SessionRuntimeSessionCommand.markCompletionSeenIfCurrent` で実行側でもう一度照合する（受付後に次の完了が来たら `409`）。
 
 ### AskUserQuestion の wire ミラー（2026-07-19 追加。設計判断＝[ADR 0103](../adr/0103-user-question-wire-mirror.md)）
 

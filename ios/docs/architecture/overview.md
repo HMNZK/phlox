@@ -25,11 +25,11 @@ last-verified: 2026-10-18
 |---|---|
 | `Features/ConnectionSettings` | QR で接続先とトークンを適用し、接続先の読み取り表示・疎通テスト・再接続を提供する。到達性は `ReachabilityMonitor`（`NWPathMonitor`＋`/sessions` healthCheck）が保持し、QR ペアリング完了・手動「再接続を試す」で `refresh()` により即再判定する（→ [ADR 0019](../adr/0019-reachability-on-demand-refresh.md)）。QR 適用後は一覧の取得成功まで接続オーバーレイを保ち、端末名・接続先・経過秒数を表示する。20 秒で未応答なら C1 の説明・確認項目・再試行・閉じるを表示する（→ [ADR 0021](../adr/0021-connecting-overlay-gated-on-session-list-load.md)） |
 | `Features/Pairing` | `QRScanScreen`、`PairingApplyViewModel`、`QRImageDecoder`。QR から読み取った host・port・token を検証して接続設定へ一括適用する |
-| `Features/Settings` | `@Observable` の `AppSettings` と `AppSettingsStoring`。`UserDefaults` 永続化の Face ID（**既定オフ** → [ADR 0017](../adr/0017-face-id-launch-gate-default-off.md)）、通知（既定オン）、外観（`AppearancePreference.system/light/dark`）と About を提供する |
-| `Features/SessionList` | 一覧画面。`SessionListProjection` が対応待ち 4 種（承認待ち・質問あり・エラー・無応答）、`GET /projects` 順のプロジェクト欄、未割当の「その他」、同じプロジェクト内の親子木、折りたたみ時の状態内訳を View 非依存で作る。古い Mac がプロジェクト一覧を返さない場合は、セッションが届いた順で欄を並べる。対応待ち行はプロジェクト欄に重ねない。行は名前と状態語だけで、未読名を semibold、実行中名に Reduce Motion 対応の 1 回の光の帯を表示する。子は既定で閉じ、開閉状態は `SessionListView` のメモリだけに保つ。`SessionListView` は一覧・スケルトン・接続判定・空・オフライン・取得エラーを表示する。3 秒ごとの一覧取得はセッションだけを更新し、引っ張って更新ではセッション・プロジェクト・使用量を並行して再取得する。到達性が未判定の間は読み込み表示を続け、判定後に必要なオフライン表示へ移る（→ [ADR 0027](../adr/0027-session-list-probe-before-offline.md)） |
+| `Features/Settings` | `@Observable` の `AppSettings` と `AppSettingsStoring`。`UserDefaults` 永続化の Face ID（**既定オフ** → [ADR 0017](../adr/0017-face-id-launch-gate-default-off.md)）、通知（既定オン）、外観（`AppearancePreference.system/light/dark`）と About を提供する。使用量の表示形式は `SettingsView` が `@AppStorage(UsageBarStyle.defaultsKey)` で直接保存する |
+| `Features/SessionList` | 一覧画面。`SessionListProjection` が対応待ち 4 種（承認待ち・質問あり・エラー・無応答）、`GET /projects` 順のプロジェクト欄、未割当の「その他」、同じプロジェクト内の親子木、折りたたみ時の状態内訳を View 非依存で作る。古い Mac がプロジェクト一覧を返さない場合は、セッションが届いた順で欄を並べる。対応待ち行はプロジェクト欄に重ねない。行は名前・共有 DesignSystem の `SessionActivityIndicator`（実行中の回転、未確認の正常完了のチェック）・状態語を表示し、未読名を semibold にする（名前に重ねていた実行中の光の帯は廃止。→ [Macとの統一仕様](../specs/session-activity-parity.md)）。子は既定で閉じ、開閉状態は `SessionListView` のメモリだけに保つ。`SessionListView` は一覧・スケルトン・接続判定・空・オフライン・取得エラーを表示する。3 秒ごとの一覧取得はセッションだけを更新し、引っ張って更新ではセッション・プロジェクト・使用量を並行して再取得する。到達性が未判定の間は読み込み表示を続け、判定後に必要なオフライン表示へ移る（→ [ADR 0027](../adr/0027-session-list-probe-before-offline.md)） |
 | `Features/Spawn` | wave-4 で廃止（ソースファイル削除、ディレクトリのみ残置）。新規セッション作成は一覧の「新規チャット」・プロジェクトの「＋」から `Features/NewChat` の専用画面へ遷移する（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)） |
-| `Features/NewChat` | 見出し・提案・モデル・設定・プロジェクト選択と初回送信を `NewChatViewModel` が保持する。`GET /agents/{kind}/models`・`GET /agents/{kind}/settings`・`GET /projects` を使い、旧 Mac ではセッション一覧からプロジェクトを組み立てる。送信時は spawn → ready → send を行い、失敗時の本文・添付回復は実セッション画面へ渡す（→ 仕様 AC-5-1〜15） |
-| `Features/Usage` | `AppRoot` が `UsageViewModel` を 1 つ生成し、環境値でセッション詳細・新規チャットと一覧へ渡す。`load()` は `GET /usage` を呼び、取得中と失敗後も前の値を保持する。`UsageRingPresentation` が残り・枠順・リセット書式・VoiceOver 文言を共有し、`UsageRingRow` が入力欄下の 44pt の行とポップオーバーを描く。使用量タブの画面は再設計で消した（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)） |
+| `Features/NewChat` | 見出し・提案・モデル・設定・プロジェクト選択と初回送信を `NewChatViewModel` が保持する。`GET /agents/{kind}/models`・`GET /agents/{kind}/settings`・`GET /projects` を使い、旧 Mac ではセッション一覧からプロジェクトを組み立てる。送信時は spawn → ready → send を行い、失敗時の本文・添付回復は実セッション画面へ渡す（→ 仕様 AC-5-1〜15）。登録済みプロジェクトを選ぶと `GET /projects/{id}/start-points` と、Claude Code・Codex では `GET /projects/{id}/history?kind=` を取得し、作業場所（既存の作業場所／新しい worktree）・worktree の開始地点・履歴からの再開を選べる。プロジェクトやエージェントを変えると選択を初期化する。旧 Mac の未対応応答はエラー文と再試行として表示する（AC-5-15 の該当範囲は [Macとの統一仕様](../specs/session-activity-parity.md) が優先） |
+| `Features/Usage` | `AppRoot` が `UsageViewModel` を 1 つ生成し、環境値でセッション詳細・新規チャットと一覧へ渡す。`load()` は `GET /usage` を呼び、取得中は前の値を保持する。取得に失敗すると値を消し、使用量行を非表示にする。`AppRoot` はアプリが前面・通常画面（`model.state == .sessions`）・ロック解除済み・online・接続処理中でない間だけ `observe()` を動かし、起動時と 60 秒ごとに取得する。条件を外れるとタスクを取り消し、取り消し後は状態を戻して再取得しない。リセット時刻を過ぎた枠は表示から除く。`UsageRingPresentation` が残り・枠順・リセット書式・VoiceOver 文言を共有し、`UsageRingRow` が入力欄下の 44pt の行とポップオーバーを描く。各枠は Mac と共有の `UsageBarStyle`（キー `phlox.usage.bottomBarStyle`、既定 `bar`）に従い、横棒（`DSMeterBar`）か数値（%）で残りを示す。使用量タブの画面は再設計で消した（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)・[Macとの統一仕様](../specs/session-activity-parity.md)） |
 | `Features/AppShell` | 下部固定タブバーの状態機械。`AppTab`（`.sessions/.settings` の 2 種。wave-4 で `.overview`（→ [ADR 0007](../adr/0007-remove-overview-tab.md)）、再設計で `.usage`（→ [ADR 0045](../adr/0045-usage-ring-under-the-input-replaces-usage-tab.md)）を削除）と `AppShellViewModel.selectTab(_:)`（現在は単純な選択更新のみ。旧・俯瞰タブ再選択トグルは削除済み） |
 
 ## アプリルートの設定反映
@@ -38,7 +38,7 @@ last-verified: 2026-10-18
 
 `AppRoot` は復元処理とロック解除が完了するまで `phlox://pair` を保留する。QR 成功時に受け取った Mac 名を接続オーバーレイへ渡し、初回は一覧の取得成功で閉じる。設定からの再接続は設定画面に留まる。QR のパース失敗・カメラ不可・画像内 QR 不在・疎通失敗は `QRScanCopy` / `PairingCopy`、初回 20 秒失敗は `ConnectFailure`、API 失敗は `PhloxError.presentation` から表示する。各表示は見出し、原因、次の操作、等幅の技術値の順で組み、HTTP 429 は `isNeutral` を引き継いで無彩色にする。
 
-`SettingsView` の区画順は接続 → 通知 → セキュリティ → 外観 → このアプリについて。セキュリティ欄は Face ID / Touch ID の端末名に合わせ、使用量用の設定欄は置かない。DotGothic16 のライセンス行と本文は「このアプリについて」に残す。
+`SettingsView` の区画順は接続 → 通知 → セキュリティ → 外観 → 使用量 → このアプリについて。セキュリティ欄は Face ID / Touch ID の端末名に合わせる。使用量欄は「横棒」「数値（%）」の切り替えだけを置き、選択を端末に保存する。DotGothic16 のライセンス行と本文は「このアプリについて」に残す。
 
 ### 外観のライブ反映
 
@@ -75,15 +75,17 @@ iOS 26 は標準のガラスタブ・`tabViewBottomAccessory`・`tabBarMinimizeB
 | `messages` | GET | `sessions/{id}/messages` |
 | `messagesDelta` | GET | `sessions/{id}/messages?since=<cursor>&wait=<ms>` |
 | `interrupt` | POST | `sessions/{id}/interrupt` |
+| `markCompletionSeen` | POST | `sessions/{id}/completion-seen`（契約「2026-10-25 追加契約」。既定実装は 501 エラー） |
 | `usage` | GET | `sessions/{id}/usage` |
 | `waitUntilReady` / `remove` | GET / DELETE | `sessions/{id}/ready` `sessions/{id}` |
 | `approvals` / `respond` | GET / POST | `approvals` `approvals/{id}` |
 | `agentSettings` / `projects` | GET | `agents/{kind}/settings` `projects`（契約 §8.2・§8.5。旧 Mac の 404 は非対応として nil） |
+| `projectStartPoints` / `projectHistory` | GET | `projects/{id}/start-points?commit=` `projects/{id}/history?kind=`（契約「2026-10-25 追加契約」。既定実装は 501 エラー） |
 | `sessionSettings` / `updateSessionSettings` / `setModel` | GET / PATCH / POST | `sessions/{id}/settings` `sessions/{id}/model`（契約 §6・§8.3〜§8.4） |
 | `agentModels(kind:)` | GET | `agents/{kind}/models`（契約 §7.3・spawn 前モデル一覧） |
 | `cliUsage()` | GET | `usage`（契約 §7.4・アカウント単位使用量） |
 
-`GET /sessions` は Mac が返す配列順を保持し、`backend`・無応答・未読・親子・状態変更時刻を `Session` に写す。状態語は共有 `SessionDisplayState.resolve` を通す。新規セッションの `effort`・`permission`・`planMode` は未指定なら body から省略する。旧 Mac で未対応の agent settings / projects は nil、設定更新の旧 Mac 応答は `PhloxError.unsupported` として呼び出し側へ返す。
+`GET /sessions` は Mac が返す配列順を保持し、`backend`・無応答・未読・完了 token（`completionToken`、旧 Mac は省略）・親子・状態変更時刻を `Session` に写す。状態語は共有 `SessionDisplayState.resolve` を通す。新規セッションの `effort`・`permission`・`planMode`・`usesWorktree`・`startPoint`・`resumeHistoryID` は未指定なら body から省略する。旧 Mac で未対応の agent settings / projects は nil、設定更新の旧 Mac 応答は `PhloxError.unsupported` として呼び出し側へ返す。
 
 **前方互換**: `messages` 系はメッセージ DTO の未知 `type` を `toDomain` が `nil` にし `compactMap` で除外する。差分ポーリングで 404/501 を受けたら `messages()` 全量取得へフォールバックする（旧サーバー互換）。
 
@@ -97,6 +99,7 @@ iOS 26 は標準のガラスタブ・`tabViewBottomAccessory`・`tabBarMinimizeB
 - **メッセージ取得**: 起動時 `messages()`、以降は `messagesDelta(since:cursor)` でカーソル前進しながら差分採用（`adoptMessagesFromDelta`＝スナップショットなら置換・差分なら追記、cursor 更新）。一時失敗では表示を消さない。
 - **送信**: `SendRequest`（text＋`[SendAttachment]`）。送信完了バナー（旧 `SendState.sent`）は廃止。
 - **停止**: `canInterrupt` が真のとき `stop()` が `interrupt` を呼ぶ。409（既に停止/完了）はボタン無効化で吸収。
+- **完了の確認**: 詳細画面が表示中・アプリが前面・別画面に覆われていない（ルーターの提示なし・接続処理中でない・セッション不在表示でない・モデルシートと名前変更が閉じている）間を閲覧中とする。閲覧中は、メッセージ取得に成功した後と各ポーリングの後に、未確認完了の `completionToken` を `POST /sessions/{id}/completion-seen` へ送り、成功したら状態を取り直す。token を返さない旧 Mac では送らない。失敗は会話の上に `completionSyncError` として表示し、次の取得で再試行する。
 - **usage**: 非実行中セッションを開いた時と running→idle の遷移時に `usage()` を取得し `turnUsage` を持つ。会話内の `turnCost` は届いた位置ごとに行を描く。最新ターンの行にだけコンテキスト使用量を併記し、そのターンに `turnCost` が無い場合は契約 §4 の `costUSD` を補う。入力・出力 token は表示しない。
 - **サブエージェントの行は押せない（U-21）**: `SessionDetailSubAgentCard` が `DSChatCodeCard` にタスク名と状態を表示する。見出しは開閉せず、「›」も詳細案内も付けない。詳細画面・一覧と詳細会話の取得・遷移用 ID は廃止した。Mac の API（契約 §2・§3）は残す。
 - **モデル選択**: `sessionSettings()` が `availableModels` を返した時だけモデルチップ（選択中モデルの表示名）を出し、タップでモデル選択シート（`ModelPickerSheet`）を開いて `setModel` を呼ぶ。Codex app-server も対象で、Mac の `listModels` と同じ候補を使う。端末セッション・モデル候補のないセッション・取得失敗時はチップを非表示にする。チップは **入力欄内（`DSInputBar` の `modelSelector` スロット）と右上メニューの2箇所**から到達できる（wave-4 で入力欄チップを復活 → [ADR 0010](../adr/0010-restore-inline-model-selector-chip.md)）。
@@ -113,7 +116,7 @@ iOS 26 は標準のガラスタブ・`tabViewBottomAccessory`・`tabBarMinimizeB
   - markdown のコードブロック用ハイライタ（`DesignSystemIOS.CodeHighlighter.tokens(for:language:)`）は据え置きで、`ChatRenderKit` の Swift トークナイザとは別実装（意図的な二重。→ ADR 0041）。
 - **ツールコールの集約行**（→ [ADR 0026](../adr/0026-ios-single-toolcall-grouped-row.md) / [ADR 0038](../adr/0038-command-group-cost-bounding.md)）: `SessionDetailToolCallGrouping`（純関数）が transcript を描画単位 `SessionDetailChatBlock`（`single` / `commandGroup`）へ畳む。**連続する `.command` は1件以上で必ず `commandGroup`**（id = グループ先頭 message の id・順序保存）になり、`.command` 以外はグループ境界かつ `single`。`commandGroup` は `SessionDetailToolCallGroupRow` が**最後のコマンド原文**の見出し 1 行（＋タイトル直後のシェブロン。器は持たない）として描画し、タップで各コマンド行を `SessionDetailCommandCard`（ツール名ラベル＋`$ <コマンド>`＋出力・枠線付き）として展開する。見出しがコマンド原文でなく `"ツール実行 ×N"` になるのは、コマンドが 1 件も無いグループのフォールバックだけ（→ [ADR 0041](../adr/0041-chat-render-rules-shared-via-chatrenderkit.md)）。展開部の行は「出力が空かつ実行中でない」ものを除外するが、**`items.count == 1` のときは除外しない**（唯一の行を消すとどのコマンドが走ったか分からなくなるため）。全件空出力かつ非実行中の**複数件**グループはカード自体を描画しない。`scrollTargetID` は個別 message の id をその所属グループの id へ解決する。**窓境界は必ずブロック境界に来るため部分ブロックは生じない**（ADR 0037 で旧・境界分割処理は削除）。macOS も ADR 0127 で1件以上の集約へ揃ったため、かつての意図的な差異は解消している。
   - 窓がブロック単位になり1グループが数千件を抱えうるため、**ヘッダと行データを型で分けてある**（ADR 0038）: `SessionDetailCommandGroupHeader`（`title` / `isRunning` / `shouldRender`・行データを保持しない）を閉状態で使い、`SessionDetailCommandGroupRowWindow.slice(...)` は `if isExpanded` の内側でだけ呼ぶ。展開時の行は末尾 `defaultLimit = 50` 件で、残りは `hiddenRowCount` として「残り N 件を表示」（`expandStep = 50`）で段階展開する。コピー用テキストも押下時にだけ生成する（`ChatMessageDeferredCopyText`。転写のコピーは行ごとのボタンではなく長押し `contextMenu` で提供する → [ADR 0042](../adr/0042-input-bar-send-reveal-and-transcript-long-press-copy.md)）。コピー可否の判定と文字列生成はどちらも `ChatMessageCopyText.commandGroupCopyablePart(for:)` 1本を通す。
-- **チャット履歴の末尾ウィンドウ描画**（→ [ADR 0022](../adr/0022-ios-transcript-tail-window.md) / [ADR 0037](../adr/0037-transcript-window-counts-blocks.md)）: 上記の per-message 折りたたみとは別に、チャット履歴全体を**末尾 N ブロックのみ描画**して初回オープンの eager 描画コストを有界化する。**N が数えるのはトップレベルに描画されるブロック数**であって message 数ではない（ADR 0037）——連続するツール実行のまとまりは中に何件入っていても1枠。`TranscriptWindow`（純粋値型・`defaultLimit = 50` / `expandStep = 50`）が totalCount のみから末尾スライスと隠れ件数を返し、`SessionDetailToolCallGrouping.visibleSlice(from:blockLimit:)` が末尾 `blockLimit` ブロックと `hiddenBlockCount` を返す。`SessionDetailTranscriptSlice`（`SessionDetailView` が `@State` で持つ窓から生成）は `visibleMessages` を**可視ブロック列から導く**（id の逆引きはしない＝ id 一意を前提にしない）。超過時のみ先頭に「以前のメッセージを表示（残り k 件）」ボタンを出し、**拡張契機はボタン押下のみ**（+50）。セッション切替で `reset()`。展開時は押下前の先頭可視ブロックをアンカーに保持（`SessionDetailTranscriptExpansionPolicy`・世代ガード付き scrollTo・末尾追従は選ばない）。macOS の非 Lazy VStack + 件数制限（ADR 0030/0051/0127）を単一文脈へ簡約移植したもので、LazyVStack は再導入しない。
+- **チャット履歴の末尾ウィンドウ描画**（→ [ADR 0022](../adr/0022-ios-transcript-tail-window.md) / [ADR 0037](../adr/0037-transcript-window-counts-blocks.md)）: 上記の per-message 折りたたみとは別に、チャット履歴全体を**末尾 N ブロックのみ描画**して初回オープンの eager 描画コストを有界化する。**N が数えるのはトップレベルに描画されるブロック数**であって message 数ではない（ADR 0037）——連続するツール実行のまとまりは中に何件入っていても1枠。`TranscriptWindow`（純粋値型・`defaultLimit = 50` / `expandStep = 50`）が totalCount のみから末尾スライスと隠れ件数を返し、`SessionDetailToolCallGrouping.visibleSlice(from:blockLimit:)` が末尾 `blockLimit` ブロックと `hiddenBlockCount` を返す。`SessionDetailTranscriptSlice`（`SessionDetailView` が `@State` で持つ窓から生成）は `visibleMessages` を**可視ブロック列から導く**（id の逆引きはしない＝ id 一意を前提にしない）。超過時のみ先頭に「以前のメッセージを表示（残り k 件）」ボタンを出す。拡張契機はこのボタンの押下と、上端からさらに 16pt 以上引いて離す操作（`SessionDetailHistoryPull`）で、どちらも 1 回につき +50。引いている間は上端中央に共有 DesignSystem の `HistoryLoadingIndicator` を出し、離す前に戻すか隠れたブロックが無ければ展開しない。セッション切替・画面の非表示・アプリの非 active 化で引き操作の状態を捨てる。セッション切替で `reset()`。展開時は押下前の先頭可視ブロックをアンカーに保持（`SessionDetailTranscriptExpansionPolicy`・世代ガード付き scrollTo・末尾追従は選ばない）。macOS の非 Lazy VStack + 件数制限（ADR 0030/0051/0127）を単一文脈へ簡約移植したもので、LazyVStack は再導入しない。
 - **初回ロード中の接続表示**（→ [ADR 0023](../adr/0023-ios-initial-load-connecting-indicator.md)）: 初回 `load()` が解決するまで `isInitialLoading` を true とし、`isInitialLoading && chatMessages 空 && outputText 空` の間だけ中央に既存 `DSConnectingIndicator` を表示する。終了保証は `load()` の `defer`。新規チャットは別の ViewModel を使うため、このセッション画面のロード表示にドラフト分岐は無い。
 - **入力欄の有効条件**（→ [ADR 0028](../adr/0028-input-bar-enabled-on-completed-and-error.md)）: `inputEnabled` が false になるのは `starting` **だけ**。`completed` / `error` で停止したセッションでも入力欄は出したままにする（送信で respawn して復帰できるため）。
 - **AskUserQuestion カードの排他**（→ [macOS ADR 0124](../../../macos/docs/adr/0124-user-question-free-text-exclusive.md)・[ADR 0024](../adr/0024-user-question-card-mirror.md)）: 選択状態は View の `@State` 辞書ではなく値型 `UserQuestionFormState`（`selections` / `freeText` / `canSubmit` / `answers` / `seed(from:)`）が持つ。自由入力欄へフォーカスが入ると `freeTextDidFocus(question:)` がその質問の選択肢を解除し、選択肢を触ると自由入力をクリアする（どちらか一方だけが回答になる状態を画面上でも保つ）。自由入力欄は `axis: .vertical` + `lineLimit(1...4)` で右端折り返し。
@@ -129,13 +132,18 @@ iOS 26 は標準のガラスタブ・`tabViewBottomAccessory`・`tabBarMinimizeB
 - 前回のエージェント・モデル・設定・プロジェクトを `NewChatSettingsStore`（Mac と同じ UserDefaults キー群）から復元する。
   モデルは `(kind, modelID)` の組で識別し、表示名を識別子にしない（→ [ADR 0030](../adr/0030-draft-model-selection-kind-and-id.md)）。
   3 エージェントのモデルシートは取得できない欄も残し「取得できません」と表示する。
-- 送信はプロジェクト必須を確認してから `POST /sessions`（model・projectId・effort・permission・planMode）→
-  `waitUntilReady` → `POST /send` を直列実行する。成功したら実セッションを開く（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)）。
+- 登録済みプロジェクトとエージェントが決まると `loadLaunchOptions()` が開始地点一覧と（Claude Code・Codex のみ）再開候補を取得する。
+  作業場所メニューで「新しい worktree」を選ぶと開始地点シート（検索・コミット ID の照会つき）を開ける。「履歴から再開」シートで
+  選んだ履歴は入力欄を無効にし、「選んだ履歴から再開」で起動する。プロジェクト・エージェントの変更や古い取得結果は世代番号で破棄する。
+- 送信はプロジェクト必須を確認してから `POST /sessions`（model・projectId・effort・permission・planMode。起点一覧を取得できた場合は
+  usesWorktree、worktree では startPoint、履歴選択時は resumeHistoryID）→ `waitUntilReady` → `POST /send` を直列実行する。
+  成功したら実セッションを開く（→ [ADR 0008](../adr/0008-spawn-screen-to-draft-compose.md)）。履歴再開は本文なしでよく、spawn 成功後に
+  そのセッションを開いて ready 待ちと初回送信を行わない。worktree を選んだまま起点一覧が無い場合は送信しない。
   作成失敗は新規チャットに本文を残す。準備待ちまたは初回送信の失敗は作成済みセッションへ移り、本文・添付・赤いエラーを
   `SessionDetailRecovery` で戻す（15 章 U-12）。
 - `SessionDetailPresentationState` は View 非依存の表示判定を持つ。状態語、入力欄・停止・使用量、起動表示、PTY 非対応、読み込み・空・取得失敗を値で決める。全状態表は単体テストで確かめる。
-- `SessionDetailViewModel` は履歴取得・ポーリング・送信・停止・設定変更を担い、表示判定を `SessionDetailPresentationState` に渡す。PTY はメッセージ・ポーリング・設定取得を行わない。
-- `DSSessionNavigationChrome` はセッション詳細の名前・状態とエージェント名・メニューをシステムナビゲーションバーへ載せる。バーの背景と配色は NavigationStack 側の `DSCampNavigationChrome` が設定する。画面ごとの toolbar 背景・色指定は戻る印の appearance を上書きするため重ねない。左上は `NavigationStackHomeBackButton` がシステム戻る印を家へ替え、端スワイプは UIKit の既定動作を保つ。右上メニューは同じ共通部品内で、iOS 26 は丸いガラス面、iOS 18 は背景なしの印だけにする（→ ADR 0048）。
+- `SessionDetailViewModel` は履歴取得・ポーリング・送信・停止・設定変更・完了の確認を担い、表示判定を `SessionDetailPresentationState` に渡す。PTY はメッセージ・ポーリング・設定取得を行わない。
+- `DSSessionNavigationChrome` はセッション詳細の名前・状態とエージェント名・メニューをシステムナビゲーションバーへ載せる。副題の左には一覧と同じ `SessionActivityIndicator` を表示状態に応じて出す。バーの背景と配色は NavigationStack 側の `DSCampNavigationChrome` が設定する。画面ごとの toolbar 背景・色指定は戻る印の appearance を上書きするため重ねない。左上は `NavigationStackHomeBackButton` がシステム戻る印を家へ替え、端スワイプは UIKit の既定動作を保つ。右上メニューは同じ共通部品内で、iOS 26 は丸いガラス面、iOS 18 は背景なしの印だけにする（→ ADR 0048）。
 - 削除確認は OS 標準アラートを使い、一覧の `parentSessionId` から子孫件数を数える。名前変更の空欄・同名は送信せず閉じる。
 - 発言・返答の `createdAt` は DTO から `ChatMessage` へ渡し、全量・差分の両取得で保持する。長押し見出しは `ChatMessageCopyText.contextMenuTitle(createdAt:timeZone:)` が端末時間帯で `M月d日 HH:mm` に整形する。時刻が無い古い Mac では見出しを付けず、常設の時刻表示はしない（契約 §8.12、ADR 0042）。
 
@@ -147,8 +155,8 @@ iOS 26 は標準のガラスタブ・`tabViewBottomAccessory`・`tabBarMinimizeB
 - `DSInputBar`: セッション画面と新規チャットで共有する 2 段の入力欄。本文は 5 行まで伸び、添付は 56pt のサムネイル・`#N`・削除操作・「画像 n/4」を表示する。下段は画像追加、モデル、思考の強さ、権限、任意のプロジェクト、送信／停止。`glassSurface(.inputField)` を使い、iOS 26 はガラス、iOS 18 は素材面と細い線で描く。モデルチップはエージェント名を省き、ロゴ・モデル名・下向き印を出す。幅判定が設定をまとめない場合、チップの文字は本文あり・実行中でも省略しない。文脈ラベル（プロジェクト名で代替する branch 表示）は欄の上に置く（→ [ADR 0012](../adr/0012-input-bar-branch-display-only.md)）。ドラッグで閉じるバーと音声入力は置かない（→ [ADR 0018](../adr/0018-input-bar-remove-drag-and-voice.md)）。
 - `DSInputBarLayout`: `Reply` / `Draft` の `cmpVals` と同じ文字幅近似で下段の表示幅を判定する。設定を「…」へまとめ、次に新規チャットのプロジェクト名を印だけにし、最後に下段を折り返す。強い権限は「…」に移さず赤いチップに残す。Dynamic Type のアクセシビリティサイズでは最初から設定をまとめる。
 - **セッション設定**: `SessionDetailViewModel.loadModelSettings()` が `GET /sessions/{id}/settings` と `GET /agents/{kind}/models` を読み、Mac 由来の選択肢と既定モデル ID を使う。モデルシートにはそのセッションのエージェントのモデルだけを並べる。モデルは `setModel`、思考の強さ・権限・Plan は `PATCH /sessions/{id}/settings` で選択時に反映し、成功後に settings を取り直す。更新中はチップにスピナーを出す。失敗時は表示値を保ち、入力欄の上に理由を出す。425 は `waitUntilReady` の後に 1 回再送し、409 は失敗として表示する。旧 Mac の 400/404 では設定チップを隠す。Plan は `planMode` で扱い、権限変更で解除する。確認が必要な権限は API 値で判定して確認ダイアログと赤い表示を使う。
-- **入力欄の上下の構成**: 入力欄の上は送信・設定変更・添付のエラー → 承認カード → 未回答の質問カード。選択肢が無い単独質問の自由入力はカードから外し、入力欄を「回答を入力」にして送信する。入力欄の下にはガラスを使わない使用量リング行を置く。使用量が無い時は行を出さず、取得失敗時は前の値を古い値として残す。ターンの使用量は最終返答の下に置く（段階 6）。
-- `SessionListView`: 大見出し「セッション」の下に、対応待ち（承認・質問・エラー・無応答）・プロジェクト別の一覧・未割当の「その他」を表示する。`SessionListProjection` が API 順の欄と行、同一プロジェクト内の親子木、閉じた欄の状態内訳、行と VoiceOver の表示情報を View 非依存で組み立てる。子の開閉状態は View のメモリにだけ保持する。行は名前と状態語だけを表示し、実行中の名前には Reduce Motion 設定に応じた 1 回の光の帯を重ねる。行表示と一覧読み込み中・空・オフライン・取得エラーは `Features/SessionList/` に置く。
+- **入力欄の上下の構成**: 入力欄の上は送信・設定変更・添付のエラー → 承認カード → 未回答の質問カード。選択肢が無い単独質問の自由入力はカードから外し、入力欄を「回答を入力」にして送信する。入力欄の下にはガラスを使わない使用量行（設定に応じて横棒または数値）を置く。使用量が無い時や取得失敗時は行を出さない。ターンの使用量は最終返答の下に置く（段階 6）。
+- `SessionListView`: 大見出し「セッション」の下に、対応待ち（承認・質問・エラー・無応答）・プロジェクト別の一覧・未割当の「その他」を表示する。`SessionListProjection` が API 順の欄と行、同一プロジェクト内の親子木、閉じた欄の状態内訳、行と VoiceOver の表示情報を View 非依存で組み立てる。子の開閉状態は View のメモリにだけ保持する。行は名前・`SessionActivityIndicator`・状態語を表示する（実行中の名前の光の帯は廃止）。行表示と一覧読み込み中・空・オフライン・取得エラーは `Features/SessionList/` に置く。
 - 追従スクロール `ChatAutoFollowPolicy`: 最下部 80pt 以内にいる時だけ新着へ自動追従（ユーザーが上へスクロール中は追従しない）。
 - `DSNavigationChrome.barColorScheme(for:)`: テーマ ID から `ColorScheme` を判定（`phloxLight` → `.light`、それ以外は `.dark` フォールバック）。`DSCampNavigationChromeModifier` が `@AppStorage` でテーマ変更を監視し、`installUIKitAppearanceIfNeeded(for:)` で `UINavigationBarAppearance`/`barStyle` を再適用する。[adr/0004](../adr/0004-ios-appearance-live-switch-via-root-remount.md) の `rootContent.id()` 再マウントとは別経路（`@AppStorage` の `onChange` で駆動）で、SwiftUI 側の `camp*` 色再評価と並行して UIKit グローバル appearance を独立に更新する。再適用は `themeID` が変化した時だけ実行される冪等な経路（`DSNavigationChromeAppearanceInstaller` が直近の `themeID` を保持し、同一テーマの再呼び出しは no-op。適用回数は `appearanceInstallationState` で観測可能。wave-5 → [ADR 0014](../adr/0014-navigation-chrome-appearance-idempotent-install.md)）。
 

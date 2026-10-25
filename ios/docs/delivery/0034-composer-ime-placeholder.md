@@ -45,6 +45,10 @@ dev `a2ed7ae9` に適用した状態のホスト付きテストは23件 pass / e
 
 同じ状態の PhloxKit 全体は XCTest 402件と Swift Testing 676件が pass / exit 0。既存 lint、iOS ビルド・リンク、静的解析も成功した。変換中の画像で placeholder の重複がないことを再確認した。
 
+**dev への反映は未完了。** 共通マージツールの文書保守は成功したが、必須品質ゲートの `SessionFeature` で `clickingOutsideClosesNativePopover(legacy:)` の false / true 両ケースが `closedByOutsideClick` の期待に失敗した（`ComposerSettingPopoverTests.swift:115`）。macOS 側のソースは元の dev と同一。品質ゲートは exit 1、`updated=0` で終了し、dev は `a2ed7ae9` のまま。秘密情報検査には未到達。DashboardFeature の既存スキップ1件もログに記録されている。macOS 側の追加調査・修正についてユーザーに確認中。
+
+修正コミット `296b3105` と未反映の文書保守候補は保全する。統合時に作成した専用シミュレーターは削除済み。以前の重複検証物はゴミ箱へ移し、今回の失敗ログとビルドはマージ阻害の調査・再開に必要なため保持する。
+
 ### 実装
 
 `DSInputBar` に表示用の `hasMarkedText` を持たせ、本文が空でも未確定文字列がある間は placeholder を表示しない。本文・カーソルの通知とは別の `DSInputSelectionDelivery` を使うため、選択範囲の同期が表示用の通知を取り消すことはない。`updateUIView` とネイティブ編集通知の両方で状態を同期し、未確定本文の保護と保存タイミングは維持する。

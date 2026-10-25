@@ -9,6 +9,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var cursorUTF16: Int
     @Binding var isFocused: Bool
+    @Binding var hasMarkedText: Bool
     let dynamicTypeSize: DynamicTypeSize
     let accessibilityLabel: String
 
@@ -38,6 +39,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
         coordinator.parent = self
         view.accessibilityLabel = accessibilityLabel
         view.tintColor = UIColor(IOSColor.accent)
+        coordinator.updateMarkedText(in: view)
 
         // IME の未確定文字列は UITextInput の所有物。属性・本文・選択を触らない。
         guard view.markedTextRange == nil else { return }
@@ -124,6 +126,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
         var parent: DSInputRichTextEditor
         let delivery = DSInputSelectionDelivery()
         let focusDelivery = DSInputSelectionDelivery()
+        let markedTextDelivery = DSInputSelectionDelivery()
         var lastExternalText = ""
         var lastExternalCursor = -1
         var pendingNativeText: String?
@@ -151,8 +154,24 @@ struct DSInputRichTextEditor: UIViewRepresentable {
 
         func textViewDidChangeSelection(_ textView: UITextView) { publishNativeState(from: textView) }
 
+        @discardableResult
+        func updateMarkedText(in view: UITextView) -> Task<Void, Never>? {
+            markedTextDelivery.invalidate()
+            let marked = view.markedTextRange != nil && !view.text.isEmpty
+            guard parent.hasMarkedText != marked else { return nil }
+            // 未確定の本文は公開せず、placeholder に必要な変換状態だけを渡す。
+            return markedTextDelivery.enqueue(isCurrent: { [weak view] in
+                guard let view else { return false }
+                return (view.markedTextRange != nil && !view.text.isEmpty) == marked
+            }) { [weak self] in
+                self?.parent.hasMarkedText = marked
+            }
+        }
+
         private func publishNativeState(from view: UITextView) {
-            guard !isApplying, view.markedTextRange == nil else { return }
+            guard !isApplying else { return }
+            updateMarkedText(in: view)
+            guard view.markedTextRange == nil else { return }
             let capturedText = view.text ?? ""
             let capturedCursor = view.selectedRange.location
             pendingNativeText = capturedText

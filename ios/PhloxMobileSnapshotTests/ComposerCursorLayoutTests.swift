@@ -3,6 +3,7 @@ import Testing
 import UIKit
 @testable import DesignSystemIOS
 import PhotosUI
+import Observation
 
 @MainActor
 extension DesignSnapshotRenderTests {
@@ -27,10 +28,11 @@ extension DesignSnapshotRenderTests {
         #expect(DSInputBar.takeSelectedPhotos(&items, isPresented: false).isEmpty)
     }
 
-    private final class Draft {
+    @Observable final class Draft {
         var text: String
         var cursor: Int
         var focused = false
+        var marked = false
 
         init(_ text: String, cursor: Int) {
             self.text = text
@@ -70,9 +72,35 @@ extension DesignSnapshotRenderTests {
         let parent = DSInputRichTextEditor(
             text: .constant(""), cursorUTF16: .constant(0),
             isFocused: Binding(get: { draft.focused }, set: { draft.focused = $0 }),
+            hasMarkedText: Binding(get: { draft.marked }, set: { draft.marked = $0 }),
             dynamicTypeSize: .large, accessibilityLabel: "入力"
         )
         return (window, parent.makeCoordinator(), editor, draft)
+    }
+
+    @Test
+    func markedTextVisibilitySurvivesSelectionInvalidationAndRejectsStaleClear() async throws {
+        let (window, coordinator, editor, draft) = try focusHarness(focused: false)
+        defer { window.isHidden = true }
+        editor.setMarkedText("へんかん", selectedRange: NSRange(location: 4, length: 0))
+        let composing = try #require(coordinator.updateMarkedText(in: editor))
+        #expect(!draft.marked, "SwiftUI の状態は同期的に変更しない")
+        coordinator.delivery.invalidate()
+        await composing.value
+        #expect(draft.marked)
+
+        editor.unmarkText()
+        let staleClear = try #require(coordinator.updateMarkedText(in: editor))
+        editor.setMarkedText("つづき", selectedRange: NSRange(location: 3, length: 0))
+        coordinator.updateMarkedText(in: editor)
+        await staleClear.value
+        #expect(draft.marked)
+
+        editor.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+        editor.unmarkText()
+        let cleared = try #require(coordinator.updateMarkedText(in: editor))
+        await cleared.value
+        #expect(!draft.marked)
     }
 
     @Test
@@ -146,6 +174,90 @@ extension DesignSnapshotRenderTests {
     private func findTextView(in view: UIView) -> UITextView? {
         if let editor = view as? UITextView { return editor }
         return view.subviews.lazy.compactMap(findTextView).first
+    }
+
+    @Test
+    func placeholderTracksMarkedTextWithoutPublishingUnconfirmedDraft() async throws {
+        let animations = UIView.areAnimationsEnabled
+        UIView.setAnimationsEnabled(false)
+        defer { UIView.setAnimationsEnabled(animations) }
+        let preferences = UserDefaults.standard
+        let previousTheme = preferences.object(forKey: ThemeStore.themeKey)
+        preferences.set(AppTheme.phlox.id, forKey: ThemeStore.themeKey)
+        defer {
+            if let previousTheme { preferences.set(previousTheme, forKey: ThemeStore.themeKey) }
+            else { preferences.removeObject(forKey: ThemeStore.themeKey) }
+        }
+        let draft = Draft("", cursor: 0)
+        let (window, controller, editor) = try host(draft)
+        defer { window.isHidden = true; controller.view.removeFromSuperview() }
+        controller.overrideUserInterfaceStyle = .dark
+        window.windowScene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.makeKeyAndVisible()
+
+        func render(placeholder: String, name: String) async throws -> Data {
+            controller.rootView = DSInputBar(
+                text: Binding(get: { draft.text }, set: { draft.text = $0 }),
+                cursorUTF16: Binding(get: { draft.cursor }, set: { draft.cursor = $0 }),
+                placeholder: placeholder, onSubmit: {}
+            )
+            try await Task.sleep(for: .milliseconds(100))
+            controller.view.layoutIfNeeded()
+            let bounds = editor.convert(editor.bounds, to: window)
+            let image = UIGraphicsImageRenderer(size: bounds.size).image { context in
+                context.cgContext.translateBy(x: -bounds.minX, y: -bounds.minY)
+                #expect(window.drawHierarchy(in: window.bounds, afterScreenUpdates: true))
+            }
+            let data = try #require(image.pngData())
+            if let output = ProcessInfo.processInfo.environment["PHLOX_SNAPSHOT_DIR"] {
+                let directory = URL(fileURLWithPath: output, isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try data.write(to: directory.appendingPathComponent("ime-\(name).png"))
+            }
+            return data
+        }
+
+        let placeholder = "やりたいことを入力"
+        let other = "別のプレースホルダー"
+        let empty = try await render(placeholder: placeholder, name: "empty")
+        let otherEmpty = try await render(placeholder: other, name: "empty-other")
+        #expect(!empty.elementsEqual(otherEmpty), "空欄では placeholder が描画される")
+
+        editor.setMarkedText("それですすめて", selectedRange: NSRange(location: 7, length: 0))
+        editor.delegate?.textViewDidChange?(editor)
+        let marked = try await render(placeholder: placeholder, name: "marked")
+        let otherMarked = try await render(placeholder: other, name: "marked-other")
+        #expect(marked.elementsEqual(otherMarked), "変換中は placeholder の文言が描画に影響しない")
+        #expect(draft.text.isEmpty)
+        #expect(editor.markedTextRange != nil)
+        #expect(editor.text == "それですすめて")
+
+        editor.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+        editor.unmarkText()
+        editor.delegate?.textViewDidChange?(editor)
+        let cancelled = try await render(placeholder: placeholder, name: "cancelled")
+        let otherCancelled = try await render(placeholder: other, name: "cancelled-other")
+        #expect(editor.text.isEmpty)
+        #expect(editor.markedTextRange == nil)
+        #expect(draft.text.isEmpty)
+        #expect(!(try #require(editor.delegate as? DSInputRichTextEditor.Coordinator)).parent.hasMarkedText)
+        #expect(!cancelled.elementsEqual(otherCancelled), "変換を取り消すと placeholder が戻る")
+
+        editor.setMarkedText("日本語", selectedRange: NSRange(location: 3, length: 0))
+        editor.unmarkText()
+        editor.delegate?.textViewDidChange?(editor)
+        let committed = try await render(placeholder: placeholder, name: "committed")
+        let otherCommitted = try await render(placeholder: other, name: "committed-other")
+        #expect(committed.elementsEqual(otherCommitted))
+        #expect(draft.text == "日本語")
+        editor.selectedRange = NSRange(location: 0, length: editor.text.utf16.count)
+        editor.insertText("")
+        editor.delegate?.textViewDidChange?(editor)
+        let deleted = try await render(placeholder: placeholder, name: "deleted")
+        let otherDeleted = try await render(placeholder: other, name: "deleted-other")
+        #expect(draft.text.isEmpty)
+        #expect(!deleted.elementsEqual(otherDeleted), "全削除後も placeholder が戻る")
     }
 
     @Test(arguments: ["m", "あ", "🙂", "a🙂日本語"])

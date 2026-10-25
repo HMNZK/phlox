@@ -289,6 +289,7 @@ public struct DSInputBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if os(iOS)
     @State private var isFocused = false
+    @State private var hasMarkedText = false
     #else
     @FocusState private var isFocused: Bool
     #endif
@@ -612,10 +613,15 @@ public struct DSInputBar: View {
 
     @ViewBuilder
     private var inputTextField: some View {
-        let usesExpandedPlaceholder = dynamicTypeSize.isAccessibilitySize && text.isEmpty
+        #if os(iOS)
+        let isEmpty = text.isEmpty && !hasMarkedText
+        #else
+        let isEmpty = text.isEmpty
+        #endif
+        let usesExpandedPlaceholder = dynamicTypeSize.isAccessibilitySize && isEmpty
         let minimumTextLineCount = usesExpandedPlaceholder ? expandedPlaceholderMinimumLineCount : 1
         ZStack(alignment: usesExpandedPlaceholder ? .topLeading : .leading) {
-            if text.isEmpty {
+            if isEmpty {
                 placeholderText
                     .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
                     .onGeometryChange(for: CGFloat.self) { proxy in
@@ -646,6 +652,7 @@ public struct DSInputBar: View {
                 text: $text,
                 cursorUTF16: $cursorUTF16,
                 isFocused: $isFocused,
+                hasMarkedText: $hasMarkedText,
                 dynamicTypeSize: dynamicTypeSize,
                 accessibilityLabel: placeholder
             )

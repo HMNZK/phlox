@@ -61,11 +61,8 @@ extension DesignSnapshotRenderTests {
         let draft = Draft("", cursor: 0)
         draft.focused = focused
         let editor = FocusSpy()
-        let controller = UIViewController()
-        controller.view.addSubview(editor)
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
-        window.rootViewController = controller
-        window.isHidden = false
+        window.addSubview(editor)
         try #require(editor.window != nil)
         editor.acquisitions = 0
         editor.resignations = 0
@@ -73,7 +70,7 @@ extension DesignSnapshotRenderTests {
             text: .constant(""), cursorUTF16: .constant(0),
             isFocused: Binding(get: { draft.focused }, set: { draft.focused = $0 }),
             hasMarkedText: Binding(get: { draft.marked }, set: { draft.marked = $0 }),
-            dynamicTypeSize: .large, accessibilityLabel: "入力"
+            dynamicTypeSize: .large, accessibilityLabel: "入力", submission: .init(), submissionRevision: 0
         )
         return (window, parent.makeCoordinator(), editor, draft)
     }
@@ -158,15 +155,18 @@ extension DesignSnapshotRenderTests {
         #expect(editor.acquisitions == 1)
     }
 
-    private func host(_ draft: Draft) throws -> (UIWindow, UIHostingController<DSInputBar>, UITextView) {
+    private func host(_ draft: Draft) async throws -> (UIWindow, UIHostingController<DSInputBar>, UITextView) {
         let text = Binding(get: { draft.text }, set: { draft.text = $0 })
         let cursor = Binding(get: { draft.cursor }, set: { draft.cursor = $0 })
         let bar = DSInputBar(text: text, cursorUTF16: cursor, onSubmit: {})
         let controller = UIHostingController(rootView: bar)
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
         window.rootViewController = controller
         window.isHidden = false
         controller.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(80))
         let editor = try #require(findTextView(in: controller.view))
         return (window, controller, editor)
     }
@@ -189,7 +189,7 @@ extension DesignSnapshotRenderTests {
             else { preferences.removeObject(forKey: ThemeStore.themeKey) }
         }
         let draft = Draft("", cursor: 0)
-        let (window, controller, editor) = try host(draft)
+        let (window, controller, editor) = try await host(draft)
         defer { window.isHidden = true; controller.view.removeFromSuperview() }
         controller.overrideUserInterfaceStyle = .dark
         window.windowScene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -261,11 +261,11 @@ extension DesignSnapshotRenderTests {
     }
 
     @Test(arguments: ["m", "あ", "🙂", "a🙂日本語"])
-    func boldMarkerAndFollowingGlyphShareCaretLayout(suffix: String) throws {
+    func boldMarkerAndFollowingGlyphShareCaretLayout(suffix: String) async throws {
         let marker = "[Image #1]"
         let draft = Draft(marker, cursor: marker.utf16.count)
-        let (window, controller, editor) = try host(draft)
-        defer { window.isHidden = true; controller.view.removeFromSuperview() }
+        let (window, controller, editor) = try await host(draft)
+        defer { window.isHidden = true; window.rootViewController = nil }
 
         let markerFont = try #require(editor.textStorage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
         #expect(markerFont.fontDescriptor.symbolicTraits.contains(.traitBold))
@@ -288,8 +288,8 @@ extension DesignSnapshotRenderTests {
     func externalTextAndSelectionDoNotReplaceMarkedText() async throws {
         let marker = "[Image #1]"
         let draft = Draft(marker, cursor: marker.utf16.count)
-        let (window, controller, editor) = try host(draft)
-        defer { window.isHidden = true; controller.view.removeFromSuperview() }
+        let (window, controller, editor) = try await host(draft)
+        defer { window.isHidden = true; window.rootViewController = nil }
 
         editor.selectedRange = NSRange(location: marker.utf16.count, length: 0)
         editor.setMarkedText("へんかん", selectedRange: NSRange(location: 4, length: 0))
@@ -311,11 +311,11 @@ extension DesignSnapshotRenderTests {
     }
 
     @Test
-    func insertionBetweenBoldMarkerAndFollowingTextKeepsSelection() throws {
+    func insertionBetweenBoldMarkerAndFollowingTextKeepsSelection() async throws {
         let marker = "[Image #1]"
         let draft = Draft(marker + "後", cursor: marker.utf16.count)
-        let (window, controller, editor) = try host(draft)
-        defer { window.isHidden = true; controller.view.removeFromSuperview() }
+        let (window, controller, editor) = try await host(draft)
+        defer { window.isHidden = true; window.rootViewController = nil }
 
         editor.selectedRange = NSRange(location: marker.utf16.count, length: 0)
         editor.insertText("🙂m")
@@ -329,8 +329,8 @@ extension DesignSnapshotRenderTests {
     @Test
     func externalCursorKeepsMiddleSelectionWithoutChangingEditorIdentity() async throws {
         let draft = Draft("前[Image #1]後", cursor: 0)
-        let (window, controller, editor) = try host(draft)
-        defer { window.isHidden = true; controller.view.removeFromSuperview() }
+        let (window, controller, editor) = try await host(draft)
+        defer { window.isHidden = true; window.rootViewController = nil }
 
         draft.cursor = "前[Image #1]".utf16.count
         controller.rootView = DSInputBar(

@@ -37,9 +37,32 @@ struct ComposerIMESubmissionTests {
         #expect(draft.submissions == [prefix + "日本語"])
         #expect(editor.markedTextRange == nil)
         #expect(draft.text.isEmpty)
-        try await settle(window)
+        let deadline = ContinuousClock.now + .seconds(2)
+        repeat { try await settle(window) }
+        while !editor.text.isEmpty && ContinuousClock.now < deadline
         #expect(draft.text.isEmpty)
         #expect(editor.text.isEmpty, "送信前の遅延通知で本文が復元されない")
+    }
+
+    @Test
+    func sendingCompositionKeepsTheEditorFocused() async throws {
+        let draft = Draft("前")
+        let (window, editor) = try host(draft)
+        defer { window.isHidden = true; window.rootViewController = nil }
+        try await settle(window)
+        try #require(editor.becomeFirstResponder())
+        try await settle(window)
+        editor.setMarkedText("日本語", selectedRange: NSRange(location: 3, length: 0))
+        editor.delegate?.textViewDidChange?(editor)
+
+        #expect(editor.text == "前日本語")
+        #expect(editor.markedTextRange != nil)
+        try #require(sendButton(in: window).accessibilityActivate())
+        #expect(draft.submissions == ["前日本語"])
+        try await settle(window)
+        #expect(draft.text.isEmpty)
+        #expect(editor.text.isEmpty)
+        #expect(editor.isFirstResponder)
     }
 
     @Test

@@ -664,7 +664,9 @@ public struct DSInputBar: View {
                 hasMarkedText: $hasMarkedText,
                 dynamicTypeSize: dynamicTypeSize,
                 accessibilityLabel: placeholder,
-                submission: editorSubmission
+                submission: editorSubmission,
+                // 本文が同じ描画周期で「空→確定→空」へ戻っても UIKit を更新する。
+                submissionRevision: editorSubmission.revision
             )
             .frame(minHeight: usesExpandedPlaceholder ? placeholderNaturalHeight : 0)
         #else

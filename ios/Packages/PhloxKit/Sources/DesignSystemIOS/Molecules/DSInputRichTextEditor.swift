@@ -13,16 +13,19 @@ struct DSInputRichTextEditor: UIViewRepresentable {
     let dynamicTypeSize: DynamicTypeSize
     let accessibilityLabel: String
     let submission: Submission
+    let submissionRevision: Int
 
     @MainActor
     @Observable
     final class Submission {
         @ObservationIgnored weak var view: UITextView?
         var composingText: String?
+        var revision = 0
 
         func commit() {
             guard let view, let coordinator = view.delegate as? Coordinator else { return }
             coordinator.commitNativeState(from: view)
+            revision &+= 1
         }
     }
 

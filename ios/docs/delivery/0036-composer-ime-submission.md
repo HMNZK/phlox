@@ -75,3 +75,8 @@ API、送信後の編集保護、添付、キーボード設定、画面デザ�
 - 共通ツールでの `dev` 反映は品質検査 exit 1 で停止した（`resume-dev-merge.log`）。`dev` は入力OID `a2ed7ae9` のまま、`updated=0`。文書検査は成功し、秘密情報検査は品質失敗のため未到達。
 - 失敗は Mac の SessionFeature の3指摘: `ComposerSettingPopoverTests.clickingOutsideClosesNativePopover` の legacy false/true（115行、閉じない）と、`ComposerSuggestionDescriptionTests.popupAnimatesOnlyTheSelectedDescription`（203行、アニメーションキーが期待1件に対し2件）。候補 `9f4a81f9` と入力 `dev` の間に macos/ のコード差分はない。Mac 側で失敗する根本原因は未確定で、追加の調査・修正範囲をユーザーへ確認した。スキップや期待値の変更で反映を通していない。
 - 品質入口の他パッケージは継続して実行された。DashboardFeature の既存 XCTest は6件中1件がスキップされたため、そこを全数成功とは記述しない。スキップ理由はこの成功要約ログでは確定できない。
+
+## 明示承認された例外
+
+- ユーザーの「無視してdevにマージして」により、上記3指摘に対応する `clickingOutsideClosesNativePopover`（2条件）と `popupAnimatesOnlyTheSelectedDescription`（1条件）を今回の品質検査だけ `SWIFT_TEST_SKIP` で除外する。リポジトリのテスト・期待値・品質設定は変更しない。
+- 他の設定済み品質検査、文書保守、秘密情報検査は共通マージツールで実施する。除外した3条件の不具合は未解決のままであり、検査成功とは扱わない。

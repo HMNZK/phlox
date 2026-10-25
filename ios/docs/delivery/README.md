@@ -63,6 +63,7 @@ last-verified: 2026-10-19
 - `delivery/0032-ios-remaining-acceptance-worklog.md` … 残存受け入れ条件と追加実行の作業ログ
 - `delivery/0033-ios-cursor-vector-probe.md` … Cursorロゴ描画の比較probe記録
 - `delivery/0033-ios-offline-accessory-worklog.md` … オフライン案内のnative tab表示検証ログ
+- `delivery/0034-composer-ime-placeholder.md` … 日本語変換中に入力欄の placeholder が未確定文字列と重なる問題の修正・検証記録（dev 統合時の macOS 合成クリックテスト削除と依存固定の経緯を含む）
 - `delivery/0034-ios-root-transition-verification.md` … Root遷移と実操作検証の作業ログ
 - `delivery/0035-ios-real-biometric-gate-probe.md` … Face ID実権限経路probe記録
 - `delivery/0036-mobile-skill-suggestions.md` … スマホ入力欄のスキル候補（取得・選択・Codex native送信）の作業記録。恒久仕様は macos/docs/specs/mobile-skill-suggestions.md

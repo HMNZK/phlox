@@ -697,3 +697,25 @@ private actor ThreadEventRecorder {
         }
     }
 }
+
+// ADR 0220: app-server が turn の途中で終わったら、stderr の最後の 1 行（止めた理由など）をエラーに添える。
+@Test func unexpectedExitDuringTurnReportsTheLastStderrLine() async throws {
+    let transport = MockTransport()
+    let client = CodexAppServerClient(transport: transport)
+    await client.start()
+    transport.receive("""
+    {"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"inProgress","items":[]}}}
+    """)
+    var events = client.events.makeAsyncIterator()
+    _ = await events.next()
+
+    transport.stderrTailValue = "INFO log line\nPhlox stopped the agent: an output line exceeded 1024 bytes without a newline.\n"
+    await transport.close()
+
+    var messages: [String] = []
+    while let event = await events.next() {
+        if case let .error(_, _, message, _) = event { messages.append(message) }
+    }
+    #expect(messages == ["Codex app-server process exited before the turn completed: Phlox stopped the agent: an output line exceeded 1024 bytes without a newline."])
+    await client.close()
+}

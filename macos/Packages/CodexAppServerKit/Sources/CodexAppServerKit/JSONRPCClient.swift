@@ -165,6 +165,10 @@ public actor JSONRPCClient {
         await transport.terminationStatus()
     }
 
+    public func transportStderrTail() async -> String? {
+        await transport.stderrTail()
+    }
+
     public func close() async {
         receiveTask?.cancel()
         await transport.close()

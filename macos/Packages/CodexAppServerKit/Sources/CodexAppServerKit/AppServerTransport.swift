@@ -7,10 +7,16 @@ public protocol AppServerTransport: Sendable {
     func close() async
     /// プロセスが自分で終了したときの終了コード（シグナル終了は 128 + シグナル番号）。動作中・未起動は nil。
     func terminationStatus() async -> Int32?
+    /// stderr の末尾。読み取らない実装は nil。
+    func stderrTail() async -> String?
 }
 
 public extension AppServerTransport {
     func terminationStatus() async -> Int32? {
+        nil
+    }
+
+    func stderrTail() async -> String? {
         nil
     }
 }

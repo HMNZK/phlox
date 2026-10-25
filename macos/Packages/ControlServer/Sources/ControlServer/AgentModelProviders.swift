@@ -404,6 +404,8 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                     let list = #"{"id":2,"method":"model/list","params":{}}"#
                     try stdin.fileHandleForWriting.write(contentsOf: Data("\(initialize)\n\(list)\n".utf8))
                     DispatchQueue.global(qos: .utility).async {
+                        // 1 回の読み取りは行の途中で切れうるので、改行までを溜めてから解釈する。
+                        var pending = Data()
                         // 読むたびに autorelease プールを空にする（ADR 0220）。
                         while autoreleasepool(invoking: { () -> Bool in
                             let data = stdout.fileHandleForReading.availableData
@@ -411,8 +413,11 @@ public struct LiveAgentModelProvider: AgentModelListProviding {
                                 gate.resume(.failure(ProviderError.commandFailed("codex app-server closed stdout before model/list response")))
                                 return false
                             }
-                            for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-                                guard let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                            pending.append(data)
+                            while let newline = pending.firstIndex(of: 0x0A) {
+                                let line = Data(pending[pending.startIndex..<newline])
+                                pending.removeSubrange(pending.startIndex...newline)
+                                guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                                       (object["id"] as? NSNumber)?.intValue == 2,
                                       let result = object["result"] as? [String: Any],
                                       let data = result["data"] as? [[String: Any]]

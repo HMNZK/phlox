@@ -244,6 +244,40 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(gate.GateError, "Stale build inputs"):
             gate.validate_physical_records(data, scenarios, gate.input_manifest(self.root, code), tools, self.root)
 
+    def test_latest_physical_failure_cannot_be_hidden_by_old_pass_placement(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        old_pass = copy.deepcopy(data["executions"][0])
+        old_pass["executedAt"] = "2026-10-24T05:00:00+02:00"
+        new_failure = copy.deepcopy(old_pass)
+        new_failure.update(result="failed", executedAt="2026-10-24T04:00:00+00:00")
+        for rows in ([new_failure, old_pass], [old_pass, new_failure]):
+            data["executions"] = rows
+            with self.subTest(order=[row["result"] for row in rows]), self.assertRaisesRegex(gate.GateError, "not passed"):
+                gate.validate_physical_records(data, scenarios, manifest, tools, self.root)
+
+    def test_latest_physical_pass_recovers_from_old_failure(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        old_failure = copy.deepcopy(data["executions"][0])
+        old_failure.update(result="failed", executedAt="2026-10-24T05:00:00+02:00")
+        new_pass = copy.deepcopy(old_failure)
+        new_pass.update(result="passed", executedAt="2026-10-24T04:00:00+00:00")
+        for rows in ([new_pass, old_failure], [old_failure, new_pass]):
+            data["executions"] = rows
+            with self.subTest(order=[row["result"] for row in rows]):
+                gate.validate_physical_records(data, scenarios, manifest, tools, self.root)
+
+    def test_conflicting_physical_results_at_same_instant_are_rejected(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        passed = copy.deepcopy(data["executions"][0])
+        failed = copy.deepcopy(passed)
+        failed.update(result="failed", executedAt="2026-10-24T05:00:00+02:00")
+        for rows in ([failed, passed], [passed, failed]):
+            data["executions"] = rows
+            with self.subTest(order=[row["result"] for row in rows]), self.assertRaisesRegex(gate.GateError, "Conflicting"):
+                gate.validate_physical_records(data, scenarios, manifest, tools, self.root)
+        data["executions"] = [passed, copy.deepcopy(passed)]
+        gate.validate_physical_records(data, scenarios, manifest, tools, self.root)
+
     def test_ascii_lf_keeps_measured_unicode_separators_inside_json_strings(self):
         raw = (FIXTURES / "swift-testing-unicode.jsonl").read_bytes()
         self.assertGreater(len(raw.decode().splitlines()), 1)

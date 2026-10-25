@@ -278,7 +278,18 @@ def validate_reviews(base, target, scenarios, root=ROOT):
     if old_catalog.returncode == 0:
         old = {s["scenarioID"]: s for s in json.loads(old_catalog.stdout)["scenarios"]}
         current = {s["scenarioID"]: s for s in scenarios}
-        reductions = [ident for ident, s in old.items() if s["required"] and (ident not in current or not current[ident]["required"] or current[ident]["method"] != s["method"])]
+        reductions = []
+        for ident, previous in old.items():
+            if not previous["required"]:
+                continue
+            scenario = current.get(ident)
+            if scenario is None or not scenario["required"] or scenario["method"] != previous["method"]:
+                reductions.append(ident)
+                continue
+            old_ids = set(previous.get("requirementIDs", [previous["requirement"].split("#", 1)[1]]))
+            new_ids = set(scenario.get("requirementIDs", [scenario["requirement"].split("#", 1)[1]]))
+            if not old_ids <= new_ids:
+                reductions.append(ident)
         for ident in reductions:
             approvals = [r.get("userApproval", {}) for r in [latest] if ident in r.get("scenarioIDs", [])]
             require(any(a.get("kind") == "human" and a.get("id") and a.get("reason") and a.get("approvedAt") for a in approvals), f"User decision required for reduced requirement: {ident}")
@@ -614,14 +625,18 @@ def validate_physical_records(data, scenarios, manifest, tools=None, root=ROOT, 
             continue
         executions = [row for row in data.get("executions", []) if row.get("scenarioID") == scenario["scenarioID"]]
         require(executions, f"Physical scenario not_run: {scenario['scenarioID']}")
-        execution = executions[-1]
+        dated = [(timestamp(row.get("executedAt")), row) for row in executions]
+        latest_at = max(when for when, _ in dated)
+        latest = [row for when, row in dated if when == latest_at]
+        require(len({canonical(row) for row in latest}) == 1, f"Conflicting physical executions at the latest time: {scenario['scenarioID']}")
+        execution = latest[0]
         require(execution.get("result") == "passed", f"Physical scenario is not passed: {scenario['scenarioID']}")
         require(execution.get("revision") == scenario["revision"] and execution.get("scenarioSHA256") == scenario_hash(scenario, root), "Stale physical scenario")
         text_field(execution, "observations")
         observer = execution.get("observer", {})
         require(observer.get("kind") == "human", "AI review is not physical observation testimony")
         text_field(observer, "id")
-        executed_at = timestamp(execution.get("executedAt"))
+        executed_at = latest_at
         pair = execution.get("pair", {})
         require(set(pair) == {"macos", "ios"}, "Actual Mac/iPhone build pair required")
         for platform, installation in pair.items():

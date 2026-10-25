@@ -192,6 +192,39 @@ class ReviewContractTests(unittest.TestCase):
         with self.assertRaisesRegex(gate.GateError, "User decision required"):
             self.validate(target)
 
+    def reduce_requirement_scope(self):
+        original = copy.deepcopy(self.catalog)
+        original["scenarios"][0].update(
+            requirementIDs=["AC-1", "AC-2"],
+            codePaths=["src/session.swift", "src/history.swift"],
+            procedure="Run a session, then pull and cancel history",
+            expected="Running ends on completion and the reading position is retained",
+        )
+        self.write_json(gate.SCENARIOS, original)
+        self.base = self.commit()
+        self.validate(self.base)
+        reduced = copy.deepcopy(original)
+        reduced["scenarios"][0]["requirementIDs"] = ["AC-1"]
+        self.write_json(gate.SCENARIOS, reduced)
+        return self.commit()
+
+    def test_reducing_required_ac_scope_requires_user_approval_even_after_ai_pass(self):
+        target = self.reduce_requirement_scope()
+        self.store_reviews(self.review(target))
+        with self.assertRaisesRegex(gate.GateError, "User decision required"):
+            self.validate(target)
+
+    def test_explicit_human_approval_allows_the_same_required_ac_scope_reduction(self):
+        target = self.reduce_requirement_scope()
+        approval = {
+            "kind": "human",
+            "id": "synthetic-fixture-user-only",
+            "reason": "Synthetic explicit approval to remove AC-2 from this required scenario",
+            "approvedAt": "2026-10-25T00:30:00+00:00",
+        }
+        self.store_reviews(self.review(target, userApproval=approval))
+        self.validate(target)
+
     def test_newer_needs_changes_overrides_old_pass_independent_of_array_order(self):
         target, passed = self.approved_change()
         rejected = self.review(target, decision="needs_changes", reviewedAt="2026-10-25T02:00:00+00:00")

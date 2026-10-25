@@ -19,6 +19,25 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "独立レビューでパッケージごとの結果欠落、無関係な文書差分、必須AC縮小、実機結果の時刻順を確認し、44件と標準入口回帰が成功。旧ゲートへの差し戻しではfailures=4/errors=1で旧不具合を検出し、承認あり正例は成功した。reviewedAtは独立レビュー完了記録OWNER.mdの保存時刻。これはコードレビューのみで、実機5シナリオはnot_run、最終候補上のquality全体は別途必須。自己申告の真偽、保守的な文書入力範囲、旧90a0c801上のControlServer間欠失敗は記載済みの限界として残す。"
+    },
+    {
+      "baseOID": "d4452feb33a08e43fc80a23802ad56db13bc6019",
+      "targetOID": "961ff68dbc73e3d53ca09ee8356449acfc72b2ab",
+      "diffSHA256": "45d1b1afd94e09cbd34a3d8937ee9dd59fb096a8b6b01abcaca21325d35c6a48",
+      "reviewer": {
+        "kind": "ai",
+        "id": "Phlox:58DE043F-2E92-46F5-BDB4-A09C67825ECA"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-25T15:52:06.001719+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "前回のゲート全体レビューに加え、ControlServerの校正差分と実走原ログを独立確認した。対象caseと全179件が成功し、12試料の解放時間1秒以上2秒未満・FD3から3・親18秒以内を確認。同期無効の隔離コピーはwarmupと対象sampleに到達後、期待不変で準備条件とENOENTを検出し、納品ソースSHAは不変。reviewedAtは独立レビュー完了記録OWNER.mdの保存時刻。これはコードレビューのみで、最終common候補のquality成功と実機成功は含まない。実機5件not_run、ADR0209未解決、UI4件の初回timeoutは未再現かつ原因未確定。準備期限と他の起動込み期限の負荷依存、自己申告の真偽、保守的な文書入力範囲は既知の限界として残す。"
     }
   ]
 }

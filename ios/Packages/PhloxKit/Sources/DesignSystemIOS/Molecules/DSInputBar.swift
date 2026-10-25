@@ -290,6 +290,7 @@ public struct DSInputBar: View {
     #if os(iOS)
     @State private var isFocused = false
     @State private var hasMarkedText = false
+    @State private var editorSubmission = DSInputRichTextEditor.Submission()
     #else
     @FocusState private var isFocused: Bool
     #endif
@@ -378,8 +379,16 @@ public struct DSInputBar: View {
         )
     }
 
+    private var actionText: String {
+        #if os(iOS)
+        editorSubmission.composingText ?? text
+        #else
+        text
+        #endif
+    }
+
     private var actionState: DSInputBarActionState {
-        Self.actionState(text: text, isLoading: isLoading, isRunning: isRunning)
+        Self.actionState(text: actionText, isLoading: isLoading, isRunning: isRunning)
     }
 
     private var layout: DSInputBarLayout {
@@ -392,7 +401,7 @@ public struct DSInputBar: View {
             effortName: showsEffortChip ? currentEffortName : nil,
             permissionName: showsPermissionChip ? currentPermissionName : nil,
             isStrongPermission: isStrongPermissionSelected,
-            hasText: !text.isEmpty,
+            hasText: !actionText.isEmpty,
             isRunning: isRunning,
             hasProject: mode == .newChat && (projectName != nil || onSelectProject != nil || onSelectProjectID != nil),
             projectName: projectName
@@ -654,7 +663,8 @@ public struct DSInputBar: View {
                 isFocused: $isFocused,
                 hasMarkedText: $hasMarkedText,
                 dynamicTypeSize: dynamicTypeSize,
-                accessibilityLabel: placeholder
+                accessibilityLabel: placeholder,
+                submission: editorSubmission
             )
             .frame(minHeight: usesExpandedPlaceholder ? placeholderNaturalHeight : 0)
         #else
@@ -1253,7 +1263,11 @@ public struct DSInputBar: View {
     }
 
     private func submit() {
-        guard actionState.sendIsEnabled else { return }
+        guard !isLoading else { return }
+        #if os(iOS)
+        editorSubmission.commit()
+        #endif
+        guard Self.canSubmit(text: text, isLoading: isLoading) else { return }
         onSubmit()
     }
 

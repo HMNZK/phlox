@@ -3,6 +3,57 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.0</title>
+            <pubDate>Sun, 25 Oct 2026 01:29:52 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li>Sessions keep running when you quit, update, or restart Phlox. When Phlox opens again, it reconnects to them, including pending approvals and questions.</li>
+  <li>The grid can arrange tiles in sidebar order, and you can restore your custom layout.</li>
+  <li>You can rename paired iPhones.</li>
+  <li>Codex asks questions with question cards, so you can answer by picking an option.</li>
+  <li>Scroll past the top of a chat and release to load earlier messages.</li>
+  <li>Chats in progress use the same model, permission, and Plan cards as new chats.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Links and openable files in chats and Markdown files are always underlined.</li>
+  <li>Child sessions appear directly under their parent in the sidebar.</li>
+  <li>Chats already open in Phlox no longer appear in history, and a deleted chat keeps its name in history.</li>
+  <li>Large skills no longer require reselection on every update, which could block sending.</li>
+  <li>Session output keeps its order after a restart.</li>
+  <li>Settings tiles no longer show the standard focus ring.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li>Phlox を終了・更新・再起動しても、セッションの処理が続きます。再び開くと実行中のセッションへ接続し、未回答の承認や質問も表示します。</li>
+  <li>グリッドをサイドバーの順に自動で並べられます。自分で並べた配置にも戻せます。</li>
+  <li>ペアリング済みの iPhone の名前を変更できます。</li>
+  <li>Codex の質問が質問カードで届き、選択肢から回答できます。</li>
+  <li>チャットの最上部からさらに引いて離すと、前の履歴を追加で表示します。</li>
+  <li>開始済みのチャットでも、新規チャットと同じモデル・権限・Plan のカードを使えます。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>チャットと Markdown ファイルのリンク・開けるファイルに常に下線を表示します。</li>
+  <li>サイドバーで子セッションを親の直下に表示します。</li>
+  <li>Phlox で開いている会話を履歴の候補に出さないようにしました。削除した会話は削除時の名前で履歴に表示します。</li>
+  <li>大きなスキルを選ぶと、更新通知のたびに選び直しが必要になり送信できなくなる問題を修正しました。</li>
+  <li>再起動後もセッションの出力の順序を保ちます。</li>
+  <li>設定のタイルに標準のフォーカス枠が出ないようにしました。</li>
+</ul>
+]]></description>
+            <sparkle:version>36</sparkle:version>
+            <sparkle:shortVersionString>1.14.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.0.zip" length="29930627" type="application/octet-stream" sparkle:edSignature="XW5AlgqjerXf9JsKw/Bgb6iYWoZl3cb6bxzZUDw9aUpBqxPGE3dNUScKipVykB1EcHrClgTqmZNxNJ3X7OVADw=="/>
+        </item>
+        <item>
             <title>1.13.0</title>
             <pubDate>Tue, 20 Oct 2026 09:52:33 GMT</pubDate>
             <description xml:lang="en"><![CDATA[

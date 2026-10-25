@@ -434,8 +434,6 @@ public actor ControlServer {
             }
             backend = parsed
         } else if role != nil, AgentKind(rawValue: payload.kind) == .claudeCode {
-            // role 付き claudeCode spawn ＝ アゴラ討論の招集。討論のリレーは appServer の
-            // transcript 観測が前提のため、明示指定が無ければチャット（appServer）で起動する。
             backend = .appServer
         } else {
             backend = .pty

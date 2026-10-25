@@ -156,7 +156,6 @@ public final class DashboardViewModel {
     private var spawnTimestamps: [SessionID: [Date]] = [:]
     private var unattributedControlAPISpawnTimestamps: [Date] = []
     private var ownedWorkspaceDirectories: [SessionID: OwnedWorkspace] = [:]
-    /// アゴラ討論の実セッション配線。UI はここから phase/participants などを読む。
     @ObservationIgnored private var spawnService: SessionSpawnService?
     /// 画面からの起動だけを 08 F2 の案内の対象にする。API・スマホからの起動のパスは出さない。
     @TaskLocal static var reportsWorktreeCreation = false
@@ -1135,7 +1134,7 @@ public final class DashboardViewModel {
         persistence.persistSessionName(id: id, name: node.titleState.name)
     }
 
-    /// アゴラ討論の役割を descriptor に永続化する（ControlActionDashboard の witness。renameSession と同型）。
+    /// spawn の役割を descriptor に永続化する（ControlActionDashboard の witness。renameSession と同型）。
     public func persistSessionRole(id: SessionID, role: String) {
         if isRuntimeProjection { enqueueProjectedAction(.persistRole(id, role)); return }
         persistence.persistSessionRole(id: id, role: role)

@@ -202,11 +202,16 @@ main照合では、(1)候補の入力manifestと記録したビルドの入力�
 
 ## 導入時の観測と未解決事項（監査基準OIDと別）
 
-以下は2026-10-25の親/実行担当からの報告で、文書担当が検査を実行した結果ではない。原ログの保存先と最終の再検査結果は実行担当の記録へ対応付ける。
+次の3項目は2026-10-25の親/実行担当からの報告で、文書担当が検査を実行した結果ではない。原ログの保存先と最終の再検査結果は実行担当の記録へ対応付ける。
 
 - `90a0c801`上のControlServer初回検査で期限超過があり、その後の診断5回は成功したが原因は未特定。再現しなくなったことを根本解決とは扱わず、未解決として残す。後続devの状態と取り違えない。
 - 最初のquality実走はmacOS19パッケージのテストコマンドがexit 0で終わった後、イベント解析で失敗した。原因はJSON文字列内のUnicode改行の`splitlines`誤認と、PTY子による同じ出力ファイルの上書き。これらは解析と子プロセスの出力引数を直す対象であり、テストの削除・skip・期待値変更で回避しない。
 - 最初の独立レビューでは、パッケージごとの結果欠落と不要な文書差分による停止などが指摘された。最新の独立判定は`verification-reviews.json`、全体検査の成否は各実行の`result.json`・終了コード・原ログで確認する。過去の指摘や単体検査の成功だけを最終候補の成功と読み替えない。
+
+2026-10-26追記：正式common候補`b197b4520acae287569cd748fa2aecc8351651bc`の初回品質検査は失敗した。以下は親のControlServer診断報告と文書担当のDashboard診断に基づく履歴で、後続候補の合格を示さない。
+
+- ControlServerは子PID公開前に期限で中断され、検査の前提が成立しなかった。親は製品期限1/3秒・12試料・親18秒を維持してテストfixtureを校正する方針を採った。この記録では校正後の正式検査の成功を主張しない。
+- DashboardFeatureの`LargeFileEditingTests`に未知のtimeoutが4件あった。原5秒条件の14件scope（元ソース復元後を含む）と、前段を含むhelper probe付きDashboardFeature全体1回では未再現で、原因は未確定。納品ソース・guard・必須assertionは変更せず、診断probeのexit 0を公式全体passに算入しない。既知issue化・skipはせず、新しい正式common候補で原条件の実走を要求する。probeは元bytes/SHAへ復元したが、managed出力のバイナリは診断版のため公式利用前に標準ビルドで更新が必要。証跡は作業worktreeの`.verification/gitflow-merge.tAbtYaFd/`配下の`quality-20261025T142346238180/macos-events/DashboardFeature-main.jsonl`、`largefile-diagnosis-20261025T151632/`、`largefile-context-20261026-anemone-01/diagnosis-summary.json`に保存した。全体品質・実機成功の証明にはしない。
 
 ## 文書保守と実装状況の区別
 

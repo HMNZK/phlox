@@ -158,38 +158,123 @@ struct AcceptanceModelProcessLifetimeTests {
                 Issue.record("所有テスト子プロセスの検査期限超過")
             } else {
                 let childLog = try String(contentsOf: log, encoding: .utf8)
+                print(childLog)
                 #expect(process.terminationStatus == 0, "\(childLog)")
             }
             return
         }
 
-        // Dispatch/Processの初回準備を観測対象から分け、短いタイマーも失効させる。
+        // cursor経路はFD解放後に返るので固定待機は不要。warmupもPID公開の準備を分離する。
         let warmup = try LifetimeFixture(script: "printf 'auto - Auto\\n'")
         defer { warmup.remove() }
-        _ = try await warmup.provider(timeout: 1).fetchModels(for: .cursor)
-        try await Task.sleep(for: .milliseconds(1200))
+        let warmupStarted = ContinuousClock.now
+        let warmupReady = OSAllocatedUnfairLock<ContinuousClock.Instant?>(initialState: nil)
+        do {
+            _ = try await warmup.provider(timeout: 1, onSpawn: { pid in
+                let setupDeadline = ContinuousClock.now + .seconds(2)
+                while ContinuousClock.now < setupDeadline {
+                    if FileManager.default.fileExists(atPath: warmup.pidFile.path) {
+                        do {
+                            if try String(contentsOf: warmup.pidFile, encoding: .utf8) == String(pid) {
+                                warmupReady.withLock { $0 = .now }
+                                return
+                            }
+                        } catch {
+                            Issue.record("warmup PID marker読み取り失敗: \(error)")
+                            return
+                        }
+                    }
+                    Thread.sleep(forTimeInterval: 0.005)
+                }
+                Issue.record("warmup PID公開の準備期限超過: elapsed=\(warmupStarted.duration(to: .now)), parentMarker=\(FileManager.default.fileExists(atPath: warmup.pidFile.path))")
+            }).fetchModels(for: .cursor)
+            let prepared = try #require(warmupReady.withLock { $0 }, "warmup PID公開の前提が成立していない")
+            print("PHLOX_LIFETIME_WARMUP preparation=\(warmupStarted.duration(to: prepared)) total=\(warmupStarted.duration(to: .now)) parentMarker=true")
+        } catch {
+            Issue.record("warmup失敗: elapsed=\(warmupStarted.duration(to: .now)), parentMarker=\(FileManager.default.fileExists(atPath: warmup.pidFile.path)), error=\(error)")
+            throw error
+        }
         let before = try openDescriptorCount()
         var fixtures: [LifetimeFixture] = []
         defer { fixtures.forEach { $0.remove() } }
-        for redirection in ["", "2>/dev/null", ">/dev/null"].flatMap({ Array(repeating: $0, count: 4) }) {
-            let fixture = try LifetimeFixture(script: "/bin/sleep 20 " + redirection + " &\n" + #"""
-            printf '%s' "$!" > "$PHLOX_LIFETIME_DESCENDANT"
-            exit 0
-            """#)
+        // ここは起動前提成立後のFD解放区間を測る。起動を含む期限は
+        // preservesLaunchFailure/timeoutReapsOwnedProcess、正常な出力回収はdrainsBothOutputsが守る。
+        // 最初だけPID公開を1.2秒遅らせ、準備を製品の1秒期限へ混ぜない校正を固定する。
+        for (index, redirection) in ["", "2>/dev/null", ">/dev/null"].flatMap({ Array(repeating: $0, count: 4) }).enumerated() {
+            let preparation = index == 0 ? "/bin/sleep 1.2\n" : ""
+            let fixture = try LifetimeFixture(script: "/bin/sh -eu -c '" + preparation + #"""
+            printf "%s" "$$" > "$PHLOX_LIFETIME_DESCENDANT.tmp"
+            /bin/mv "$PHLOX_LIFETIME_DESCENDANT.tmp" "$PHLOX_LIFETIME_DESCENDANT"
+            exec /bin/sleep 20
+            """# + "' " + redirection + " &\nexit 0")
             fixtures.append(fixture)
-            let started = ContinuousClock.now
-            do {
-                _ = try await fixture.provider(timeout: 1).fetchModels(for: .cursor)
-                Issue.record("未完了pipeを一覧取得成功扱いした")
-            } catch { #expect(error.localizedDescription == "CLI model-list request timed out") }
-            #expect(started.duration(to: .now) < .seconds(2))
-            let child = try fixture.ownedPID(at: fixture.descendantFile)
-            #expect(Darwin.kill(child, 0) == 0, "背景子が保持中のpipeで検査する")
+        }
+        let samples = fixtures
+        try #require(samples.count == 12)
+        var validSamples = 0
+        // 6件ずつ2波。全fixtureは親で保持し、両波のFD番号再利用と解放を測ってから後始末する。
+        for start in stride(from: 0, to: samples.count, by: 6) {
+            try await withThrowingTaskGroup(of: Int.self) { group in
+                for index in start..<(start + 6) {
+                    let fixture = samples[index]
+                    group.addTask {
+                        let invokedAt = ContinuousClock.now
+                        let readiness = OSAllocatedUnfairLock<(at: ContinuousClock.Instant?, failure: String?)>(initialState: (nil, nil))
+                        do {
+                            _ = try await fixture.provider(timeout: 1, onSpawn: { parentPID in
+                                // onSpawnは製品deadlineの開始前。取得を再試行せず、この1回の準備だけを待つ。
+                                let setupDeadline = ContinuousClock.now + .seconds(2)
+                                while ContinuousClock.now < setupDeadline {
+                                    if FileManager.default.fileExists(atPath: fixture.descendantFile.path) {
+                                        do {
+                                            let parent = try fixture.ownedPID()
+                                            let child = try fixture.ownedPID(at: fixture.descendantFile)
+                                            guard parent == parentPID && Darwin.kill(child, 0) == 0 else {
+                                                readiness.withLock { $0.failure = "PID markerと実在する所有プロセスが一致しない" }
+                                                return
+                                            }
+                                            readiness.withLock { $0.at = .now }
+                                        } catch {
+                                            readiness.withLock { $0.failure = "PID marker読み取り失敗: \(error)" }
+                                        }
+                                        return
+                                    }
+                                    Thread.sleep(forTimeInterval: 0.005)
+                                }
+                                readiness.withLock { $0.failure = "PID公開の準備期限超過" }
+                            }).fetchModels(for: .cursor)
+                            Issue.record("未完了pipeを一覧取得成功扱いした")
+                        } catch { #expect(error.localizedDescription == "CLI model-list request timed out") }
+                        let prepared = readiness.withLock { $0 }
+                        let started = try #require(prepared.at,
+                            "fixture準備失敗: \(prepared.failure ?? "onSpawn未到達"), elapsed=\(invokedAt.duration(to: .now)), parentMarker=\(FileManager.default.fileExists(atPath: fixture.pidFile.path)), descendantMarker=\(FileManager.default.fileExists(atPath: fixture.descendantFile.path))")
+                        let preparationTime = invokedAt.duration(to: started)
+                        let releaseTime = started.duration(to: .now)
+                        if index == 0 { #expect(preparationTime > .seconds(1)) }
+                        #expect(releaseTime >= .seconds(1))
+                        #expect(releaseTime < .seconds(2))
+                        let child = try fixture.ownedPID(at: fixture.descendantFile)
+                        let alive = Darwin.kill(child, 0) == 0
+                        #expect(alive, "背景子が保持中のpipeで検査する")
+                        print("PHLOX_LIFETIME_SAMPLE index=\(index) preparation=\(preparationTime) release=\(releaseTime) deadline=1 descendantPID=\(child) alive=\(alive)")
+                        return alive ? 1 : 0
+                    }
+                }
+                for try await valid in group {
+                    validSamples += valid
+                }
+            }
         }
         // 背景子を止める前に、呼出し側のpipeが解放済みであることを要求する。
         try await Task.sleep(for: .milliseconds(300))
+        for fixture in fixtures {
+            let child = try fixture.ownedPID(at: fixture.descendantFile)
+            try #require(Darwin.kill(child, 0) == 0, "FD比較の前に背景子が終了している")
+        }
         let after = try openDescriptorCount()
+        #expect(validSamples == 12)
         #expect(after <= before, "反復取得後にFDが残留した")
+        print("PHLOX_LIFETIME_FD valid=\(validSamples)/12 before=\(before) after=\(after)")
     }
 
     private func openDescriptorCount() throws -> Int {
@@ -198,7 +283,7 @@ struct AcceptanceModelProcessLifetimeTests {
     }
 }
 
-private struct LifetimeFixture {
+private struct LifetimeFixture: Sendable {
     let root: URL
     let executable: URL
     let pidFile: URL
@@ -216,13 +301,17 @@ private struct LifetimeFixture {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
     }
 
-    func provider(timeout: TimeInterval, kind: AgentKind = .cursor) -> LiveAgentModelProvider {
+    func provider(timeout: TimeInterval, kind: AgentKind = .cursor,
+                  onSpawn: @escaping @Sendable (pid_t) -> Void = { _ in }) -> LiveAgentModelProvider {
         let spawnedPID = self.spawnedPID
         return LiveAgentModelProvider(
             environment: ["PATH": "/usr/bin:/bin", "PHLOX_DATA_DIR": root.appendingPathComponent("data").path,
                           "PHLOX_LIFETIME_PID": pidFile.path, "PHLOX_LIFETIME_DESCENDANT": descendantFile.path],
             commands: [kind: executable.path], timeout: timeout,
-            onSpawn: { pid in spawnedPID.withLock { $0 = pid } }
+            onSpawn: { pid in
+                spawnedPID.withLock { $0 = pid }
+                onSpawn(pid)
+            }
         )
     }
 

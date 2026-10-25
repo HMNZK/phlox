@@ -45,7 +45,7 @@ last-verified: 2026-07-16
 
 capture-buildとreleaseへ同じ`--evidence-root`を明示し、記録中の相対参照はそこから解決する。既存の署名・版・ノート・appcast・stapler検査はreleaseに先行させる。catalogはビルド入力から外し、対象AC行・手順・期待結果を別に照合する。記録したtoolchainは当時の来歴で、現在のXcode/SDK更新だけで同一成果物を失効させない。ただしrootの`SECURITY.md`・`THIRD_PARTY_NOTICES.md`等は依然入力に含むため、文書だけの修正でも再確認が必要になる保守的な限界がある。
 
-現時点の全体検証・独立レビューは要修正。ControlServer初回期限超過は後の診断5回成功でも原因未特定として残し、macOS19パッケージのexit 0後にイベント解析で失敗したqualityを全体成功と扱わない。詳細と報告元の区別は[仕様の未解決記録](../specs/merge-verification-gates.md)を参照する。
+独立レビューの現在の判定は`release/verification-reviews.json`の最新記録で確認する（2026-10-25の記録はコード差分へのAIレビューのpassで、実機シナリオはnot_run）。全体検証の成否は最終候補での各実行の`result.json`・終了コード・原ログで確認し、本書では合格を主張しない。ControlServer初回期限超過は後の診断5回成功でも原因未特定として残す。macOS19パッケージのexit 0後にイベント解析で失敗した最初のqualityについては、イベント行のASCII LF区切りとPTY子プロセスへのイベント出力引数の除去をコードへ反映したが、修正後の全体成功は本書では確認していない。詳細と報告元の区別は[仕様の未解決記録](../specs/merge-verification-gates.md)を参照する。
 
 実CLI依存検査、人操作/ACK待ち、XCUITestを自動検査から一括起動しない。XCUITestは実行禁止。シミュレーターでの描画・操作を実機確認へ読み替えず、記録だけ作成して実機済みにしない。旧`release/dev-to-main-checklist.html`は7月の範囲の過去資料で、保存済みチェックは現在の合格証拠ではない。
 

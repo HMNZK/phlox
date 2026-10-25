@@ -61,3 +61,7 @@ last-verified: 2026-10-19
 - `delivery/0033-ios-offline-accessory-worklog.md` … オフライン案内のnative tab表示検証ログ
 - `delivery/0034-ios-root-transition-verification.md` … Root遷移と実操作検証の作業ログ
 - `delivery/0035-ios-real-biometric-gate-probe.md` … Face ID実権限経路probe記録
+
+## 他ディレクトリにある iOS の作業記録
+
+- [新規チャットの写真添付時の停止](../../../macos/docs/delivery/0213-mobile-photo-freeze.md) … 写真選択と入力欄フォーカスの調査・修正・実機確認の記録

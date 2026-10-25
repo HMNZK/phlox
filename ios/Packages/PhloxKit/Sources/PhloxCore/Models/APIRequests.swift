@@ -52,11 +52,13 @@ public struct SendRequest: Sendable, Equatable {
     public let sessionID: String
     public let text: String
     public let images: [SendAttachment]
+    public let skill: AgentSkillSelection?
 
-    public init(sessionID: String, text: String, images: [SendAttachment] = []) {
+    public init(sessionID: String, text: String, images: [SendAttachment] = [], skill: AgentSkillSelection? = nil) {
         self.sessionID = sessionID
         self.text = text
         self.images = images
+        self.skill = skill
     }
 }
 

@@ -2113,6 +2113,12 @@ public final class DashboardViewModel {
         inReplyTo: UUID? = nil,
         images: [ControlImageAttachment] = []
     ) async -> SendOutcome {
+        await sendMessageWithSkill(to: recipient, text: text, submit: submit, from: from,
+            inReplyTo: inReplyTo, images: images, skill: nil)
+    }
+
+    public func sendMessageWithSkill(to recipient: Recipient, text: String, submit: Bool, from: SessionID?,
+        inReplyTo: UUID?, images: [ControlImageAttachment], skill: AgentSkillSelection?) async -> SendOutcome {
         if isRuntimeProjection {
             let target: DashboardRuntimeMessageRequest.Recipient = switch recipient {
             case .id(let id): .id(id)
@@ -2121,7 +2127,7 @@ public final class DashboardViewModel {
             do {
                 guard case .sendOutcome(let outcome) = try await sendRuntimeCommand(.message(.init(
                     recipient: target, text: text, submit: submit, from: from, inReplyTo: inReplyTo,
-                    images: images.map { .init(mediaType: $0.mediaType, data: $0.data) }))) else {
+                    images: images.map { .init(mediaType: $0.mediaType, data: $0.data) }, skill: skill))) else {
                     throw DashboardRuntimeError.unexpectedReply
                 }
                 return outcome
@@ -2137,6 +2143,7 @@ public final class DashboardViewModel {
             from: from,
             inReplyTo: inReplyTo,
             images: images,
+            skill: skill,
             sessions: sessionNodes
         )
     }
@@ -2435,9 +2442,9 @@ extension DashboardViewModel {
             case .id(let id): .id(id)
             case .name(let name): .name(name)
             }
-            return .sendOutcome(await sendMessage(to: recipient, text: request.text, submit: request.submit,
+            return .sendOutcome(await sendMessageWithSkill(to: recipient, text: request.text, submit: request.submit,
                 from: request.from, inReplyTo: request.inReplyTo,
-                images: request.images.map { .init(mediaType: $0.mediaType, data: $0.data) }))
+                images: request.images.map { .init(mediaType: $0.mediaType, data: $0.data) }, skill: request.skill))
         }
         return .none
     }

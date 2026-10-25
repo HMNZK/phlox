@@ -13,15 +13,18 @@ public struct SessionDetailRecovery: Sendable {
     public let text: String
     public let attachments: [SessionDetailViewModel.SessionAttachmentItem]
     public let errorMessage: String
+    public let skill: AgentSkillSelection?
 
     public init(
         text: String,
         attachments: [SessionDetailViewModel.SessionAttachmentItem],
-        errorMessage: String
+        errorMessage: String,
+        skill: AgentSkillSelection? = nil
     ) {
         self.text = text
         self.attachments = attachments
         self.errorMessage = errorMessage
+        self.skill = skill
     }
 }
 
@@ -42,6 +45,12 @@ public final class SessionDetailViewModel {
     static let maxAttachmentTotalBytes = ImageAttachmentLimits.maxTotalInputBytes
 
     private let api: PhloxAPI
+    let skillSuggestions = MobileSkillSuggestions()
+    var skillContext: MobileSkillSuggestions.Context { .session(session.id, session.agent) }
+    var skillRequestContext: MobileSkillSuggestions.Context? {
+        SkillSuggestionQuery.detect(text: inputText, cursorUTF16: inputCursorUTF16) == nil ? nil : skillContext
+    }
+    func loadSkillSuggestions() async { await skillSuggestions.load(api: api, context: skillRequestContext) }
     public private(set) var session: Session
     public private(set) var currentStatus: SessionStatus {
         didSet { syncThinkingStartedAt(from: oldValue) }
@@ -53,7 +62,10 @@ public final class SessionDetailViewModel {
     /// `didSet` の中から自分自身へ書き戻すと、SwiftUI の `TextField` がその更新を
     /// 取り込まず、モデルと画面の本文がずれる（実機・シミュレータで確認）。
     public var inputText: String = "" {
-        didSet { if inputText != oldValue { inputRevision &+= 1 } }
+        didSet {
+            if inputText != oldValue { inputRevision &+= 1 }
+            skillSuggestions.reconcile(text: inputText, context: skillContext)
+        }
     }
     @ObservationIgnored private var inputRevision: UInt64 = 0
 
@@ -226,6 +238,9 @@ public final class SessionDetailViewModel {
             attachmentItems = recovery.attachments
             sendState = .failed(recovery.errorMessage)
             isRecoveringInitialSend = true
+            if let skill = recovery.skill {
+                skillSuggestions.select(AgentSkill(name: skill.name, description: "", path: skill.path, runtimeFingerprint: skill.runtimeFingerprint), context: skillContext)
+            }
         }
         // didSet は init では発火しないため、初期の実行中・応答待ち状態をここで記録する。
         if Self.isActivityRecapStatus(session.status) {
@@ -1113,6 +1128,7 @@ public final class SessionDetailViewModel {
         guard !text.isEmpty, sendState != .sending else { return }
 
         let backupText = inputText
+        let backupSkill = skillSuggestions.selection(text: text, context: skillContext)
         let backupRevision = inputRevision
         let backupItems = attachmentItems
         let backupModel = selectedModelPickerEntryID
@@ -1134,10 +1150,17 @@ public final class SessionDetailViewModel {
             return
         }
         do {
+            let skill = try await MobileSkillSuggestions.refreshed(backupSkill, api: api, sessionID: session.id)
+            guard inputRevision == backupRevision, inputText == backupText, attachmentItems == backupItems,
+                  selectedModelPickerEntryID == backupModel, session.id == backupSessionID else {
+                sendState = .failed("本文・添付・モデルが変更されたため、送信を中止しました")
+                return
+            }
             _ = try await api.send(SendRequest(
                 sessionID: session.id,
                 text: text,
-                images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) }
+                images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) },
+                skill: skill
             ))
             if inputRevision == backupRevision, inputText == backupText, attachmentItems == backupItems {
                 inputText = ""

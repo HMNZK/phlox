@@ -280,13 +280,21 @@ public struct NewChatView: View {
                 selectedProjectID: viewModel.selectedProjectID,
                 onSelectProjectID: { viewModel.selectProject(id: $0) },
                 focusOnAppear: focusOnAppear,
-                focusRequest: viewModel.focusRequest
+                focusRequest: viewModel.focusRequest,
+                skills: viewModel.skillSuggestions.skills,
+                skillsLoading: viewModel.skillSuggestions.isLoading,
+                skillsError: viewModel.skillSuggestions.errorMessage,
+                onSelectSkill: { viewModel.skillSuggestions.select($0, context: viewModel.skillContext) }
             ) {
                 Task { await viewModel.send(onCreated: onCreated) }
             }
             .disabled(!viewModel.canEditDraft)
             .onChange(of: viewModel.inputText) { oldValue, newValue in
                 viewModel.syncAttachmentsWithTextEdit(oldText: oldValue, newText: newValue)
+            }
+            .task(id: viewModel.skillRequestContext) { await viewModel.loadSkillSuggestions() }
+            .onChange(of: viewModel.skillContext) { _, _ in
+                viewModel.skillSuggestions.reconcile(text: viewModel.inputText, context: viewModel.skillContext)
             }
         }
     }

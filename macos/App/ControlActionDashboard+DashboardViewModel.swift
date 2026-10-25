@@ -137,6 +137,27 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         projects.map { ControlProject(id: $0.id.description, name: $0.name) }
     }
 
+    public func sessionSkills(for id: SessionID) async throws -> [AgentSkill]? {
+        guard let node = sessionNodes.first(where: { $0.id == id }) else { return nil }
+        guard let chat = node.appServer else { return [] }
+        return try await chat.mobileSkills()
+    }
+
+    public func agentSkills(kind: AgentKind, projectID: ProjectID?, workspace: String?) async -> [AgentSkill]? {
+        let directory: String
+        if let projectID {
+            guard let project = projects.first(where: { $0.id == projectID }) else { return nil }
+            directory = project.directoryPath
+        } else if let workspace, !workspace.isEmpty {
+            let matches = projects.filter { $0.name == workspace }
+            guard matches.count == 1, let project = matches.first else { return nil }
+            directory = project.directoryPath
+        } else { directory = FileManager.default.homeDirectoryForCurrentUser.path }
+        return await Task.detached {
+            ComposerSkillSuggestions.skills(agentKind: kind, workingDirectory: directory)
+        }.value
+    }
+
     public func setSessionSettings(_ settings: ControlSettingsUpdate, for id: SessionID) async -> ControlSettingsApplyOutcome {
         await controlSetSettings(settings, for: id)
     }

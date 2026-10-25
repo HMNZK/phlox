@@ -279,6 +279,10 @@ public struct DSInputBar: View {
     let onSelectProjectID: ((String) -> Void)?
     let focusOnAppear: Bool
     let focusRequest: Int
+    let skills: [AgentSkill]
+    let skillsLoading: Bool
+    let skillsError: String?
+    let onSelectSkill: ((AgentSkill) -> Void)?
     let onSubmit: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -322,6 +326,10 @@ public struct DSInputBar: View {
         onSelectProjectID: ((String) -> Void)? = nil,
         focusOnAppear: Bool = false,
         focusRequest: Int = 0,
+        skills: [AgentSkill] = [],
+        skillsLoading: Bool = false,
+        skillsError: String? = nil,
+        onSelectSkill: ((AgentSkill) -> Void)? = nil,
         onSubmit: @escaping () -> Void
     ) {
         self._text = text
@@ -349,6 +357,10 @@ public struct DSInputBar: View {
         self.onSelectProjectID = onSelectProjectID
         self.focusOnAppear = focusOnAppear
         self.focusRequest = focusRequest
+        self.skills = skills
+        self.skillsLoading = skillsLoading
+        self.skillsError = skillsError
+        self.onSelectSkill = onSelectSkill
         self.onSubmit = onSubmit
     }
 
@@ -418,6 +430,7 @@ public struct DSInputBar: View {
     public var body: some View {
         observeWidth(
             VStack(alignment: .leading, spacing: DSSpacing.chip) {
+                skillSuggestions
                 if let contextLabel, !contextLabel.isEmpty {
                     Label(contextLabel, systemImage: "arrow.triangle.branch")
                         .font(DSFont.inputBar(.caption, for: dynamicTypeSize))
@@ -483,6 +496,59 @@ public struct DSInputBar: View {
                 Button("\(pendingDangerousPermission.displayName) にする", role: .destructive) {
                     settings?.onSelectPermission(pendingDangerousPermission.value)
                     self.pendingDangerousPermission = nil
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var skillSuggestions: some View {
+        if let query = SkillSuggestionQuery.detect(text: text, cursorUTF16: cursorUTF16) {
+            if skillsLoading {
+                ProgressView("スキルを取得中")
+                    .font(DSFont.inputBar(.caption, for: dynamicTypeSize))
+                    .padding(.horizontal, DSSpacing.m)
+            } else if let skillsError {
+                errorLine(skillsError)
+            } else {
+                let matches = skills.filter(query.matches)
+                if !matches.isEmpty {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(matches) { skill in
+                                Button {
+                                    let result = query.inserting(skill, into: text, agent: model?.kind ?? .claudeCode)
+                                    text = result.text
+                                    cursorUTF16 = result.cursorUTF16
+                                    onSelectSkill?(skill)
+                                    isFocused = true
+                                } label: {
+                                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                                        Text("/" + skill.name).font(DSFont.inputBar(.textField, for: dynamicTypeSize).weight(.semibold))
+                                        if !skill.description.isEmpty {
+                                            Text(skill.description)
+                                                .font(DSFont.inputBar(.caption, for: dynamicTypeSize))
+                                                .foregroundStyle(DSColor.textSecondary)
+                                                .lineLimit(2)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .padding(.horizontal, DSSpacing.m)
+                                    .padding(.vertical, DSSpacing.xs)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("/" + skill.name)
+                                .accessibilityHint(skill.description)
+                                .accessibilityIdentifier("skill-suggestion-" + skill.name)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 200)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .glassSurface(.inputField)
+                    .padding(.horizontal, 12)
+                    .accessibilityLabel("スキル候補")
                 }
             }
         }

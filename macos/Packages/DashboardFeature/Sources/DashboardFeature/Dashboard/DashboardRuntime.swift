@@ -111,6 +111,7 @@ public struct DashboardRuntimeMessageRequest: Codable, Sendable {
     public var from: SessionID?
     public var inReplyTo: UUID?
     public var images: [Image]
+    public var skill: AgentSkillSelection? = nil
 }
 
 public typealias DashboardRuntimeCommandHandler = @MainActor (DashboardRuntimeCommand) async throws -> DashboardRuntimeReply

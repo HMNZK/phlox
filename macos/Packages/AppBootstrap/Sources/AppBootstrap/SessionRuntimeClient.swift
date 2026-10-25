@@ -15,6 +15,7 @@ public final class SessionRuntimeClient {
     private var lastAppliedSequence: UInt64 = 0
     private var latestSnapshot: SessionRuntimeReceivedSnapshot?
     private var latestReceivedSequence: UInt64 = 0
+    private var supportsControlSkills = false
     private var pendingOperationBytes = 0
     private var pendingOperationCount = 0
     private var pendingUrgentOperationBytes = 0
@@ -34,10 +35,15 @@ public final class SessionRuntimeClient {
     public func handshake() async throws {
         let response = try await read(path: "handshake")
         let handshake = try JSONDecoder().decode(SessionRuntimeHandshake.self, from: response)
+        try acceptHandshake(handshake)
+    }
+
+    func acceptHandshake(_ handshake: SessionRuntimeHandshake) throws {
         guard handshake.protocolVersion == SessionRuntimeEndpoint.protocolVersion else {
             throw SessionRuntimeConnectionError.incompatibleProtocol
         }
         guard handshake.generation == endpoint.generation else { throw SessionRuntimeConnectionError.staleGeneration }
+        supportsControlSkills = handshake.supportsControlSkills == true
     }
 
     public func snapshot() async throws -> DashboardRuntimeSnapshot {
@@ -45,6 +51,15 @@ public final class SessionRuntimeClient {
     }
 
     public func command(_ command: DashboardRuntimeCommand) async throws -> DashboardRuntimeReply {
+        if !supportsControlSkills {
+            switch command {
+            case .message(let request) where request.skill != nil:
+                throw SessionRuntimeConnectionError.incompatibleProtocol
+            case .session(_, _, .sendControlSkill):
+                throw SessionRuntimeConnectionError.incompatibleProtocol
+            default: break
+            }
+        }
         guard pendingOperationCount < 64 else { throw SessionRuntimeConnectionError.busy }
         let payload = try JSONEncoder().encode(command)
         let result = try await perform(payload, path: "command", urgent: command.isRuntimeUrgent)

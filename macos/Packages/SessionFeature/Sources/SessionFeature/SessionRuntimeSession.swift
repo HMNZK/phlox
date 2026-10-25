@@ -158,6 +158,7 @@ public struct SessionRuntimeSubAgentSnapshot: Codable, Sendable {
 
 public enum SessionRuntimeSessionCommand: Codable, Sendable {
     case send(text: String, submit: Bool, attachments: [ComposerAttachment], skill: SkillIdentity?)
+    case sendControlSkill(text: String, submit: Bool, attachments: [ComposerAttachment], skill: SkillIdentity)
     case input(Data)
     case resize(cols: UInt16, rows: UInt16)
     case interrupt

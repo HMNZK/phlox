@@ -97,6 +97,25 @@ public actor PhloxAPIClient: PhloxAPI {
         }
     }
 
+    public func agentSkills(kind: AgentKind, projectID: String?, workspace: String?) async throws -> [AgentSkill]? {
+        let query = [URLQueryItem(name: "projectID", value: projectID), URLQueryItem(name: "workspace", value: workspace)]
+            .filter { $0.value != nil }
+        return try await skills(path: "agents/\(kind.rawValue)/skills", queryItems: query)
+    }
+
+    public func sessionSkills(sessionID: String) async throws -> [AgentSkill]? {
+        try await skills(path: Self.sessionsPath(sessionID: sessionID, suffix: "skills"))
+    }
+
+    private func skills(path: String, queryItems: [URLQueryItem]? = nil) async throws -> [AgentSkill]? {
+        struct Response: Decodable { let skills: [AgentSkill] }
+        do {
+            return try await getDecoded(Response.self, path: path, queryItems: queryItems).skills
+        } catch PhloxError.notFound {
+            return nil
+        }
+    }
+
     public func projects() async throws -> [ProjectSummary]? {
         do {
             let dto = try await getDecoded(ProjectsResponseDTO.self, path: PhloxModelWireContract.projectsPath)
@@ -115,7 +134,7 @@ public actor PhloxAPIClient: PhloxAPI {
     }
 
     public func send(_ request: SendRequest) async throws -> SendResult {
-        let body = try encode(SendRequestDTO(to: request.sessionID, text: request.text, images: request.images))
+        let body = try encode(SendRequestDTO(to: request.sessionID, text: request.text, images: request.images, skill: request.skill))
         _ = try await data(method: "POST", path: "send", bodyData: body, retry: false)
         return SendResult(accepted: true, message: nil)
     }

@@ -6,6 +6,8 @@ import Foundation
 /// wire DTO・エンドポイントパス・PhloxError 正規化は PhloxNetworking 側に閉じ、戻り値は PhloxCore の
 /// 集約モデル（`Session` / `Approval`、E1-3）で表現する。
 public protocol PhloxAPI: Sendable {
+    func agentSkills(kind: AgentKind, projectID: String?, workspace: String?) async throws -> [AgentSkill]?
+    func sessionSkills(sessionID: String) async throws -> [AgentSkill]?
     /// GET /sessions
     func listSessions() async throws -> [Session]
     /// POST /sessions（新規起動）
@@ -54,6 +56,8 @@ public protocol PhloxAPI: Sendable {
 /// 既存の全 conformer（PhloxAPIClient / MockAPI / StubPhloxAPI）のコンパイルを壊さないための
 /// 暫定面で、実装が入り次第それぞれが上書きする。
 public extension PhloxAPI {
+    func agentSkills(kind: AgentKind, projectID: String?, workspace: String?) async throws -> [AgentSkill]? { nil }
+    func sessionSkills(sessionID: String) async throws -> [AgentSkill]? { nil }
     func agentModels(kind: AgentKind) async throws -> AgentModels {
         throw PhloxError.server(status: 501, message: "agentModels: 未実装")
     }

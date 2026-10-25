@@ -191,6 +191,23 @@ struct ComposerSuggestionDescriptionTests {
         #expect(view.textLayer.animationKeys()?.isEmpty != false)
     }
 
+    @Test func backingScaleChangeDoesNotAddAnImplicitContentsAnimation() async throws {
+        let view = SuggestionDescriptionScrollView(frame: NSRect(x: 0, y: 0, width: 120, height: 16))
+        view.setText(description)
+        let window = mount(view)
+        defer { window.close() }
+        window.orderFront(nil)
+        try await settle(view)
+        // 描画済みの文字レイヤーのcontentsScaleが変わると再描画され、暗黙のcontentsアニメーションが付き得る。
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        view.textLayer.contentsScale = 1
+        CATransaction.commit()
+        view.needsLayout = true
+        try await settle(view)
+        #expect(view.textLayer.animationKeys() == [SuggestionDescriptionScrollView.animationKey])
+    }
+
     @Test func popupAnimatesOnlyTheSelectedDescription() async throws {
         let controller = makeController()
         let host = NSHostingView(rootView: ComposerSuggestionPopup(controller: controller, onAccept: { _ in }))

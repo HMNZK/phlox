@@ -76,3 +76,41 @@ private struct MockLineDelimitedTransport: LineDelimitedTransport {
     for await _ in transport.receivedLines {}
     #expect(await transport.terminationStatus() == 128 + SIGTERM)
 }
+
+// 子が複数行を書いて即終了しても、両方の読み取りの EOF を待って finish するので最終行を取りこぼさない。
+@Test func processTransportDeliversFinalLineBeforeFinishAcrossRepeatedRuns() async throws {
+    for _ in 0..<20 {
+        let transport = LineDelimitedProcessTransport(
+            command: "/bin/sh",
+            arguments: ["-c", "printf '{\"id\":1}\\n{\"id\":2}\\n{\"id\":\"FINAL\"}\\n'"]
+        )
+        try transport.start()
+
+        var lines: [String] = []
+        for await line in transport.receivedLines {
+            lines.append(String(data: line, encoding: .utf8) ?? "")
+        }
+
+        #expect(lines == ["{\"id\":1}", "{\"id\":2}", "{\"id\":\"FINAL\"}"])
+    }
+}
+
+// ADR 0220: 改行の来ない行が上限を超えたら、理由を stderr 末尾に残して子を止める。
+@Test(.timeLimit(.minutes(1)))
+func processTransportStopsTheChildWhenALineExceedsTheLimit() async throws {
+    let transport = LineDelimitedProcessTransport(
+        command: "/usr/bin/perl",
+        arguments: ["-e", "$|=1; print \"ok\\n\"; print \"x\" x 2048; print STDERR \"e\" x 70000; sleep 30;"],
+        maxLineBytes: 1024
+    )
+    try transport.start()
+
+    var lines: [String] = []
+    for await line in transport.receivedLines {
+        lines.append(String(data: line, encoding: .utf8) ?? "")
+    }
+
+    #expect(lines == ["ok"])
+    #expect(await transport.terminationStatus() == 128 + SIGKILL)
+    #expect(try #require(await transport.stderrTail()).contains("exceeded 1024 bytes"))
+}

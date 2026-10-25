@@ -37,7 +37,7 @@ last-verified: 2026-08-21
 ## stderr の回収（StructuredChatKit）
 
 - `LineDelimitedTransport.stderrTail() async -> String?`（protocol extension の既定実装は nil）。
-- `LineDelimitedProcessTransport` は stderr を専用キューで**連続 drain**（未 drain だと 64KiB 超で子プロセスがブロックする）し、末尾 64KiB を保持。stdout/stderr 両リーダーを同一 `DispatchGroup` に入れ、`receivedLines` の finish 後は `stderrTail()` が完全であることを保証する。
+- `LineDelimitedProcessTransport`（Claude・Codex 共通）は stdout/stderr を `DispatchSourceRead` で届いたときだけ読み、読んだ分をすぐ解放する（ADR 0220）。stderr も読み続け（未 drain だと 64KiB 超で子プロセスがブロックする）、末尾 64KiB を保持。両ソースの cancel を同一 `DispatchGroup` で待ち、`receivedLines` の finish 後は `stderrTail()` が完全であることを保証する。1 行が 64MiB を超えたら理由を stderr 末尾に追記して子プロセスを止める。
 - result なしでプロセスが死んだ場合のエラー `Claude process ended before completing the current turn` に、stderr が非空ならその末尾を付加する。
 
 ## 中断（interrupt）の後始末

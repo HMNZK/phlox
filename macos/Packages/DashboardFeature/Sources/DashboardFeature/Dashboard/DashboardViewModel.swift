@@ -1343,7 +1343,7 @@ public final class DashboardViewModel {
         runtimeFirstMessages[id] = .init(operationID: operationID, task: task)
     }
 
-    func newChatHistoryEntries(projectID: ProjectID, agentRef: AgentRef) async throws -> [ClaudeSessionHistoryEntry] {
+    public func newChatHistoryEntries(projectID: ProjectID, agentRef: AgentRef) async throws -> [ClaudeSessionHistoryEntry] {
         if isRuntimeProjection {
             guard case .history(let entries) = try await sendRuntimeCommand(.history(projectID, agentRef)) else {
                 throw DashboardRuntimeError.unexpectedReply
@@ -1353,6 +1353,17 @@ public final class DashboardViewModel {
         guard let project = projects.first(where: { $0.id == projectID }) else { return [] }
         let directories = [project.directoryPath] + (project.worktreePaths ?? [])
         return try await loadHistoryEntries(agentRef: agentRef, workingDirectories: directories)
+    }
+
+    public func newChatStartPoints(projectID: ProjectID, commit: String? = nil) async throws -> [WorktreeStartPointItem] {
+        guard let project = projects.first(where: { $0.id == projectID }) else { throw AgentSpawnError.unknownProject }
+        let service = WorkingTreeService(repositoryRoot: URL(fileURLWithPath: project.directoryPath))
+        var points = await service.worktreeStartPoints()
+        if let commit, let point = try await service.worktreeCommit(matching: commit), !points.contains(where: { $0.point == point }) {
+            points.append(.init(point: point))
+        }
+        guard projects.contains(where: { $0.id == projectID }) else { throw AgentSpawnError.unknownProject }
+        return points
     }
 
     func availableHistoryEntries(_ entries: [ClaudeSessionHistoryEntry], agentRef: AgentRef) -> [ClaudeSessionHistoryEntry] {
@@ -1701,7 +1712,10 @@ public final class DashboardViewModel {
         backend: SessionBackend,
         workingDirectory: String?,
         projectID: ProjectID?,
-        initialSettings: CodexAppServerSessionSettings?
+        initialSettings: CodexAppServerSessionSettings?,
+        usesWorktree: Bool? = nil,
+        worktreeStartPoint: WorktreeStartPoint = .head,
+        resumeHistoryID: String? = nil
     ) async throws -> SessionID {
         try await spawnNewSessionFromControlAPI(
             ref: ref,
@@ -1710,6 +1724,9 @@ public final class DashboardViewModel {
             workingDirectory: workingDirectory,
             projectID: projectID,
             initialSettings: initialSettings,
+            usesWorktree: usesWorktree,
+            worktreeStartPoint: worktreeStartPoint,
+            resumeHistoryID: resumeHistoryID,
             afterOriginResolution: {}
         )
     }
@@ -1722,10 +1739,23 @@ public final class DashboardViewModel {
         workingDirectory: String?,
         projectID: ProjectID?,
         initialSettings: CodexAppServerSessionSettings?,
+        usesWorktree: Bool? = nil,
+        worktreeStartPoint: WorktreeStartPoint = .head,
+        resumeHistoryID: String? = nil,
         afterOriginResolution: @MainActor () async -> Void
     ) async throws -> SessionID {
         if let projectID, !projects.contains(where: { $0.id == projectID }) {
             throw AgentSpawnError.unknownProject
+        }
+        let historyEntry: ClaudeSessionHistoryEntry?
+        if let resumeHistoryID {
+            guard backend == .appServer, let projectID,
+                  ref == .builtin(.claudeCode) || ref == .builtin(.codex) else { throw AgentSpawnError.unsupportedBackend }
+            historyEntry = try await newChatHistoryEntries(projectID: projectID, agentRef: ref).first { $0.sessionID == resumeHistoryID }
+            guard historyEntry != nil else { throw AgentSpawnError.historyNotFound }
+        } else { historyEntry = nil }
+        if usesWorktree != nil || resumeHistoryID != nil || worktreeStartPoint != .head {
+            guard projectID != nil, backend == .appServer, workingDirectory == nil else { throw AgentSpawnError.unknownProject }
         }
         let requesterIsExistingSession = requester.map { sessionNode(id: $0) != nil } ?? false
         let origin = SessionOriginPolicy.origin(
@@ -1733,6 +1763,9 @@ public final class DashboardViewModel {
             requesterIsExistingSession: requesterIsExistingSession
         )
         await afterOriginResolution()
+        if let projectID, !projects.contains(where: { $0.id == projectID }) {
+            throw AgentSpawnError.unknownProject
+        }
         return try await spawnNewSessionImpl(
             ref: ref,
             projectID: projectID,
@@ -1740,7 +1773,10 @@ public final class DashboardViewModel {
             backend: backend,
             launchContext: origin.launchContext,
             workingDirectoryOverride: workingDirectory,
+            isolationOverride: usesWorktree,
+            worktreeStartPoint: worktreeStartPoint,
             initialSettings: initialSettings,
+            resumeHistoryEntry: historyEntry,
             spawnLimitSource: .controlRequester(requester)
         )
     }

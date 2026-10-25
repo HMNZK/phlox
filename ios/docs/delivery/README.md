@@ -18,6 +18,7 @@ last-verified: 2026-10-19
 - [新規チャットの写真添付時の停止](../../../macos/docs/delivery/0213-mobile-photo-freeze.md) … 写真選択と入力欄フォーカスの調査・修正・実機確認の記録
 
 ## 現在あるファイル
+- `delivery/0036-mobile-desktop-parity.md` … Macとの状態表示・使用量・新規チャット操作の統一と検証記録
 - `delivery/0001-mobile-ui-overhaul-wave2-worklog.md` … モバイル UI 刷新 wave-2（8タスク）の作業ログ
 - `delivery/0002-mobile-ui-overhaul-wave4-worklog.md` … モバイル UI 刷新 wave-4（6タスク）の作業ログ
 - `delivery/0003-mobile-ui-overhaul-wave5-worklog.md` … モバイル UI 刷新 wave-5（5タスク）の作業ログ

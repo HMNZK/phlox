@@ -184,6 +184,7 @@ public enum SessionRuntimeSessionCommand: Codable, Sendable {
     case stopSubAgent(String)
     case dismissSubAgent(String)
     case markCompletionSeen
+    case markCompletionSeenIfCurrent(String)
     case consumeSubmitBaseline
     case rename(SessionTitleState)
 }

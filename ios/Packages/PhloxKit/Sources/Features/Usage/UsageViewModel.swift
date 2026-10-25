@@ -44,7 +44,15 @@ public final class UsageViewModel {
     }
 
     var presentationAgents: [UsageRingAgent] {
-        UsageRingPresentation.agents(from: agents)
+        UsageRingPresentation.agents(from: agents.map { usage in
+            return CLIUsage(
+                kind: usage.kind,
+                state: usage.state,
+                buckets: usage.buckets.filter { $0.resetsAt.map { $0 > now() } ?? true },
+                updatedAt: usage.updatedAt,
+                dataAsOf: usage.dataAsOf
+            )
+        })
     }
 
     public var isRefreshing: Bool {
@@ -62,14 +70,30 @@ public final class UsageViewModel {
 
     public var currentDate: Date { now() }
 
+    public func observe(interval: Duration = .seconds(60)) async {
+        while !Task.isCancelled {
+            await load()
+            do { try await Task.sleep(for: interval) } catch { return }
+        }
+    }
+
     public func load() async {
         guard state != .loading else { return }
+        let previousState = state
         state = .loading
         do {
-            agents = try await api.cliUsage()
+            let latest = try await api.cliUsage()
+            try Task.checkCancellation()
+            agents = latest
             lastSuccessfulAt = now()
             state = .loaded
+        } catch is CancellationError {
+            state = previousState
         } catch {
+            if Task.isCancelled {
+                state = previousState
+                return
+            }
             agents = []
             state = .failed
         }

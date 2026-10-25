@@ -28,7 +28,7 @@ public enum WorktreeStartPoint: Hashable, Codable, Sendable {
         }
     }
 
-    func title(locale: Locale = .current, bundle: Bundle = .main) -> String {
+    public func title(locale: Locale = .current, bundle: Bundle = .main) -> String {
         switch self {
         case .head: AppLocalizedString.string("今の位置（HEAD）", locale: locale, bundle: bundle)
         case .localBranch(let name), .remoteBranch(let name), .tag(let name): name
@@ -41,9 +41,13 @@ public enum WorktreeStartPoint: Hashable, Codable, Sendable {
     }
 }
 
-struct WorktreeStartPointItem: Hashable, Sendable {
-    let point: WorktreeStartPoint
-    var summary: String? = nil
+public struct WorktreeStartPointItem: Hashable, Sendable {
+    public let point: WorktreeStartPoint
+    public var summary: String?
+    public init(point: WorktreeStartPoint, summary: String? = nil) {
+        self.point = point
+        self.summary = summary
+    }
 }
 
 struct WorktreeStartPointError: LocalizedError {

@@ -10,6 +10,9 @@ public struct SpawnRequest: Sendable, Equatable {
     public let effort: String?
     public let permission: String?
     public let planMode: Bool?
+    public let usesWorktree: Bool?
+    public let startPoint: NewChatStartPoint?
+    public let resumeHistoryID: String?
 
     public init(
         agent: AgentKind,
@@ -19,7 +22,10 @@ public struct SpawnRequest: Sendable, Equatable {
         model: String? = nil,
         effort: String? = nil,
         permission: String? = nil,
-        planMode: Bool? = nil
+        planMode: Bool? = nil,
+        usesWorktree: Bool? = nil,
+        startPoint: NewChatStartPoint? = nil,
+        resumeHistoryID: String? = nil
     ) {
         self.agent = agent
         self.workspace = workspace
@@ -29,6 +35,41 @@ public struct SpawnRequest: Sendable, Equatable {
         self.effort = effort
         self.permission = permission
         self.planMode = planMode
+        self.usesWorktree = usesWorktree
+        self.startPoint = startPoint
+        self.resumeHistoryID = resumeHistoryID
+    }
+}
+
+public struct NewChatStartPoint: Codable, Equatable, Identifiable, Sendable {
+    public enum Kind: String, Codable, Sendable { case head, localBranch, remoteBranch, tag, commit }
+    public let kind: Kind
+    public let value: String?
+    public let title: String
+    public let summary: String?
+    public var id: String { "\(kind.rawValue):\(value ?? "")" }
+
+    public init(kind: Kind, value: String? = nil, title: String, summary: String? = nil) {
+        self.kind = kind
+        self.value = value
+        self.title = title
+        self.summary = summary
+    }
+}
+
+public struct NewChatHistoryEntry: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let title: String
+    public let updatedAt: Date
+    public let branch: String?
+    public let workingDirectory: String?
+
+    public init(id: String, title: String, updatedAt: Date, branch: String? = nil, workingDirectory: String? = nil) {
+        self.id = id
+        self.title = title
+        self.updatedAt = updatedAt
+        self.branch = branch
+        self.workingDirectory = workingDirectory
     }
 }
 

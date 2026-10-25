@@ -11,6 +11,8 @@ last-verified: 2026-10-18
 
 ## 0. 読み方
 
+> 2026-10-25: 実行状態・完了表示・履歴展開・使用量の形式と更新・新規チャットの作業場所／起点／履歴再開は、承認済みの [Macとの統一仕様](session-activity-parity.md) を優先する。AC-5-15、AC-7-2、U-7 等の競合する旧決定は、この範囲で置き換える。
+
 - **見本** = `ios/docs/specs/ClaudeDesign/` の盤面（版 241・248 枚）。盤面名はファイル名から `.dc.html` を除いたもの（例 `ReplyCodex`）。外枠の盤面は親（`List`・`Draft`・`Reply`・`Chat`・`Detail`・`Dialogs`・`Pair`・`DS` など）を props で呼ぶだけなので、**文言・寸法・色の正本は親のファイル**。
 - **正本の順位**: この仕様書 ＞ 盤面の親ファイルの描画 ＞ 盤面の説明文（`*Spec`・`Revision20261017`・`Review*`）。説明文どうし・描画との食い違いは 14 章で決めた。
 - **受け入れ基準**は `AC-<章>-<番号>` で引く。「描画テストで確かめる」は `make -C ios snapshot` の画像（428×926・375×667、ライト・ダーク、Dynamic Type 最大）と盤面との見比べ。「単体テストで確かめる」は `swift test --package-path ios/Packages/PhloxKit`。

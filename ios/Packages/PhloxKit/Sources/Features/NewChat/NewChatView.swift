@@ -8,6 +8,9 @@ public struct NewChatView: View {
     @Environment(\.usageViewModel) private var usageViewModel
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var greeting: String
+    @State private var showsStartPoints = false
+    @State private var showsHistory = false
+    @State private var startPointQuery = ""
     let viewModel: NewChatViewModel
     let fixedGreeting: String?
     let focusOnAppear: Bool
@@ -53,6 +56,7 @@ public struct NewChatView: View {
                             .padding(.bottom, 8)
                     }
 
+                    if viewModel.canEditDraft { launchOptionsSection }
                     inputBar
                     if let usageViewModel, usageViewModel.shouldShowRow {
                         UsageRingRow(viewModel: usageViewModel)
@@ -88,6 +92,11 @@ public struct NewChatView: View {
             await viewModel.load()
             await usageViewModel?.load()
         }
+        .task(id: "\(viewModel.selectedProjectID ?? ""):\(viewModel.selectedAgent.rawValue)") {
+            await viewModel.loadLaunchOptions()
+        }
+        .sheet(isPresented: $showsStartPoints) { startPointsSheet }
+        .sheet(isPresented: $showsHistory) { historySheet }
         .onChange(of: fixedGreeting) { _, value in
             guard let value else { return }
             greeting = value
@@ -209,6 +218,16 @@ public struct NewChatView: View {
     private var suggestionRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DSSpacing.s) {
+                if viewModel.selectedAgent == .claudeCode || viewModel.selectedAgent == .codex {
+                    Button("履歴から再開") { showsHistory = true }
+                        .buttonStyle(DSPressFeedbackStyle())
+                        .font(DSFont.subheadline.weight(.medium))
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 44)
+                        .background(IOSColor.bg.card, in: Capsule())
+                        .disabled(viewModel.selectedProject?.projectID == nil || viewModel.isLoadingLaunchOptions)
+                        .accessibilityIdentifier("newChat.history")
+                }
                 ForEach(Array(NewChatViewModel.suggestions.enumerated()), id: \.element.id) { index, suggestion in
                     Button {
                         viewModel.appendSuggestion(index)
@@ -288,7 +307,7 @@ public struct NewChatView: View {
             ) {
                 Task { await viewModel.send(onCreated: onCreated) }
             }
-            .disabled(!viewModel.canEditDraft)
+            .disabled(!viewModel.canEditDraft || viewModel.selectedHistoryID != nil)
             .onChange(of: viewModel.inputText) { oldValue, newValue in
                 viewModel.syncAttachmentsWithTextEdit(oldText: oldValue, newText: newValue)
             }
@@ -297,6 +316,147 @@ public struct NewChatView: View {
                 viewModel.skillSuggestions.reconcile(text: viewModel.inputText, context: viewModel.skillContext)
             }
         }
+    }
+
+    private var launchOptionsSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.s) {
+            if viewModel.selectedProject?.projectID != nil {
+                Menu {
+                    Button("既存の作業場所") { viewModel.usesWorktree = false }
+                    Button("新しい worktree") { viewModel.usesWorktree = true }
+                } label: {
+                    HStack(spacing: DSSpacing.xs) {
+                        Image(systemName: "folder")
+                        Text(viewModel.usesWorktree ? "新しい worktree" : "既存の作業場所")
+                        Image(systemName: "chevron.down").font(DSFont.footnote)
+                    }
+                    .font(DSFont.subheadline)
+                    .foregroundStyle(IOSColor.text.primary)
+                    .padding(.horizontal, DSSpacing.m)
+                    .frame(minHeight: 44)
+                    .background(DSColor.fillSubtle, in: Capsule())
+                }
+                .buttonStyle(DSPressFeedbackStyle())
+                .disabled(viewModel.startPoints.isEmpty)
+                .accessibilityLabel("作業場所")
+                .accessibilityValue(viewModel.usesWorktree ? "新しい worktree" : "既存の作業場所")
+                .accessibilityIdentifier("newChat.workspace")
+                if viewModel.usesWorktree {
+                    Button { showsStartPoints = true } label: {
+                        Label(viewModel.selectedStartPoint.title, systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                            .font(DSFont.subheadline)
+                            .foregroundStyle(IOSColor.text.primary)
+                            .padding(.horizontal, DSSpacing.m)
+                            .frame(minHeight: 44)
+                            .background(DSColor.fillSubtle, in: Capsule())
+                    }
+                    .buttonStyle(DSPressFeedbackStyle())
+                    .accessibilityLabel("開始地点: \(viewModel.selectedStartPoint.title)")
+                    .accessibilityIdentifier("newChat.startPoint")
+                }
+            }
+            if let id = viewModel.selectedHistoryID,
+               let entry = viewModel.historyEntries.first(where: { $0.id == id }) {
+                Text("履歴: \(entry.title)")
+                    .font(DSFont.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                let actions = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.s))
+                    : AnyLayout(HStackLayout())
+                actions {
+                    Button("解除") { viewModel.selectHistory(nil) }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, minHeight: 44, alignment: .leading)
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+                    Button("選んだ履歴から再開") {
+                        Task { await viewModel.send(onCreated: onCreated) }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, minHeight: 44, alignment: .leading)
+                    .accessibilityIdentifier("newChat.resume")
+                }
+                .buttonStyle(DSPressFeedbackStyle())
+                .foregroundStyle(IOSColor.text.primary)
+            }
+            if viewModel.isLoadingLaunchOptions {
+                ProgressView("開始地点と履歴を取得中")
+                    .font(DSFont.footnote)
+            } else if let error = viewModel.launchOptionsError {
+                Text(error).font(DSFont.footnote).foregroundStyle(IOSColor.status.error)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("再試行") { Task { await viewModel.loadLaunchOptions() } }
+                    .frame(minHeight: 44)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DSSpacing.l)
+    }
+
+    private var startPointsSheet: some View {
+        NavigationStack {
+            List {
+                ForEach(viewModel.startPoints.filter {
+                    startPointQuery.isEmpty || $0.title.localizedCaseInsensitiveContains(startPointQuery)
+                        || ($0.value?.localizedCaseInsensitiveContains(startPointQuery) ?? false)
+                }) { point in
+                    Button {
+                        viewModel.selectStartPoint(point)
+                        showsStartPoints = false
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(point.title)
+                            if let summary = point.summary { Text(summary).font(DSFont.footnote).foregroundStyle(IOSColor.text.secondary) }
+                        }
+                        .frame(minHeight: 44, alignment: .leading)
+                    }
+                }
+                if !startPointQuery.isEmpty {
+                    Button("コミット ID を検索") {
+                        Task { await viewModel.loadLaunchOptions(commit: startPointQuery) }
+                    }
+                    .frame(minHeight: 44)
+                }
+                if let error = viewModel.launchOptionsError { Text(error).foregroundStyle(IOSColor.status.error) }
+            }
+            .searchable(text: $startPointQuery, prompt: "ブランチ・タグ・コミット ID")
+            .navigationTitle("開始地点")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { showsStartPoints = false } } }
+        }
+        .tint(IOSColor.text.primary)
+    }
+
+    private var historySheet: some View {
+        NavigationStack {
+            List {
+                ForEach(viewModel.historyEntries) { entry in
+                    Button {
+                        viewModel.selectHistory(entry)
+                        showsHistory = false
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(entry.title).foregroundStyle(IOSColor.text.primary)
+                            Text(entry.updatedAt, style: .relative).font(DSFont.footnote).foregroundStyle(IOSColor.text.secondary)
+                            if let branch = entry.branch { Text(branch).font(DSFont.footnote).foregroundStyle(IOSColor.text.secondary) }
+                        }
+                        .frame(minHeight: 44, alignment: .leading)
+                    }
+                    .accessibilityIdentifier("newChat.history.\(entry.id)")
+                }
+                if viewModel.historyEntries.isEmpty && !viewModel.isLoadingLaunchOptions {
+                    Text(viewModel.launchOptionsError ?? "履歴がありません")
+                }
+                Button("再読み込み") { Task { await viewModel.loadLaunchOptions() } }.frame(minHeight: 44)
+            }
+            .navigationTitle("履歴から再開")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { showsHistory = false } } }
+        }
+        .tint(IOSColor.text.primary)
     }
 
     private var inputTextBinding: Binding<String> {

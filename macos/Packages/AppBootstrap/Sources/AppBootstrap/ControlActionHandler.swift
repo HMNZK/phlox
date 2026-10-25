@@ -24,6 +24,7 @@ public struct ControlSessionSummary: Sendable {
     public let backend: SessionBackend
     public let isStalled: Bool
     public let hasUnseenCompletion: Bool
+    public let completionToken: String?
     public let parentSessionID: SessionID?
     public let statusEnteredAt: Date?
 
@@ -38,6 +39,7 @@ public struct ControlSessionSummary: Sendable {
         backend: SessionBackend = .appServer,
         isStalled: Bool = false,
         hasUnseenCompletion: Bool = false,
+        completionToken: String? = nil,
         parentSessionID: SessionID? = nil,
         statusEnteredAt: Date? = nil
     ) {
@@ -51,6 +53,7 @@ public struct ControlSessionSummary: Sendable {
         self.backend = backend
         self.isStalled = isStalled
         self.hasUnseenCompletion = hasUnseenCompletion
+        self.completionToken = completionToken
         self.parentSessionID = parentSessionID
         self.statusEnteredAt = statusEnteredAt
     }
@@ -89,6 +92,10 @@ public protocol ControlActionDashboard: AnyObject {
         projectID: ProjectID?,
         initialSettings: CodexAppServerSessionSettings?
     ) async throws -> SessionID
+    func spawnNewChat(ref: AgentRef, from: SessionID?, backend: SessionBackend, projectID: ProjectID,
+                      initialSettings: CodexAppServerSessionSettings?, options: ControlNewChatOptions) async throws -> SessionID
+    func projectStartPoints(projectID: ProjectID, commit: String?) async throws -> [ControlStartPointOption]
+    func projectHistory(projectID: ProjectID, kind: AgentKind) async throws -> [ControlHistoryEntry]
     func isAuthorizedToRemove(_ id: SessionID, requester: SessionID?) -> Bool
     func removeSession(_ id: SessionID) async -> Bool
     func renameSession(_ id: SessionID, to name: String)
@@ -121,6 +128,7 @@ public protocol ControlActionDashboard: AnyObject {
     ) async -> Bool
 
     func interruptSession(_ id: SessionID) async -> ControlInterruptOutcome
+    func markCompletionSeen(_ id: SessionID, completionToken: String) async throws -> Bool?
     func sessionSubAgents(for id: SessionID) -> [SubAgentControlSummary]?
     func sessionSubAgentMessages(for id: SessionID, subAgentID: String) -> [ChatItem]?
     func sessionUsage(for id: SessionID) -> ControlSessionUsage?
@@ -143,6 +151,18 @@ extension ControlActionDashboard {
         inReplyTo: UUID?, images: [ControlImageAttachment], skill: AgentSkillSelection?) async -> DashboardViewModel.SendOutcome {
         guard skill == nil else { return .rejected(reason: "skill unavailable") }
         return await sendMessage(to: recipient, text: text, submit: submit, from: from, inReplyTo: inReplyTo, images: images)
+    }
+    public func markCompletionSeen(_ id: SessionID, completionToken: String) async throws -> Bool? { nil }
+
+    public func spawnNewChat(ref: AgentRef, from: SessionID?, backend: SessionBackend, projectID: ProjectID,
+                             initialSettings: CodexAppServerSessionSettings?, options: ControlNewChatOptions) async throws -> SessionID {
+        throw AgentSpawnError.unsupportedBackend
+    }
+    public func projectStartPoints(projectID: ProjectID, commit: String?) async throws -> [ControlStartPointOption] {
+        throw AgentSpawnError.unsupportedBackend
+    }
+    public func projectHistory(projectID: ProjectID, kind: AgentKind) async throws -> [ControlHistoryEntry] {
+        throw AgentSpawnError.unsupportedBackend
     }
     public var controlLanguageCode: String { "ja" }
     public var controlProjects: [ControlProject] { [] }
@@ -215,6 +235,22 @@ public final class ControlActionHandler {
                 model: ControlSpawnContext.model,
                 initialSettings: initialSettings
             )
+        case let .spawnNewChat(ref, backend, workingDirectory, projectID, initialSettings, options):
+            return await handleSpawn(dashboard, ref: ref, requester: request.requester, backend: backend,
+                                     workingDirectory: workingDirectory, projectID: projectID,
+                                     model: ControlSpawnContext.model, initialSettings: initialSettings, options: options)
+        case let .projectStartPoints(projectID, commit):
+            guard dashboard.controlProjects.contains(where: { UUID(uuidString: $0.id) == projectID.rawValue }) else { return .status(404) }
+            do {
+                struct Result: Encodable { let startPoints: [ControlStartPointOption] }
+                return .json(200, Result(startPoints: try await dashboard.projectStartPoints(projectID: projectID, commit: commit)))
+            } catch { return mapSpawnError(error) }
+        case let .projectHistory(projectID, kind):
+            guard dashboard.controlProjects.contains(where: { UUID(uuidString: $0.id) == projectID.rawValue }) else { return .status(404) }
+            do {
+                struct Result: Encodable { let entries: [ControlHistoryEntry] }
+                return .json(200, Result(entries: try await dashboard.projectHistory(projectID: projectID, kind: kind)))
+            } catch { return mapSpawnError(error) }
         case let .remove(id):
             return await handleRemove(dashboard, id: id, requester: request.requester)
         case let .rename(id, name):
@@ -245,6 +281,15 @@ public final class ControlActionHandler {
             )
         case let .interrupt(id):
             return await handleInterrupt(dashboard, id: id)
+        case let .markCompletionSeen(id, completionToken):
+            do {
+                guard let accepted = try await dashboard.markCompletionSeen(id, completionToken: completionToken) else {
+                    return .status(404)
+                }
+                return .status(accepted ? 204 : 409)
+            } catch {
+                return .status(500)
+            }
         case let .subAgents(id):
             return handleSubAgents(dashboard, id: id)
         case let .subAgentMessages(id, subAgentID):
@@ -297,6 +342,7 @@ public final class ControlActionHandler {
                 backend: s.backend.rawValue,
                 isStalled: s.isStalled,
                 hasUnseenCompletion: s.hasUnseenCompletion,
+                completionToken: s.completionToken,
                 parentSessionId: s.parentSessionID?.rawValue.uuidString,
                 statusEnteredAt: s.statusEnteredAt.map(ControlAPITimestamp.string(from:))
             )
@@ -428,7 +474,8 @@ public final class ControlActionHandler {
         workingDirectory: String?,
         projectID: ProjectID?,
         model: String?,
-        initialSettings: CodexAppServerSessionSettings?
+        initialSettings: CodexAppServerSessionSettings?,
+        options: ControlNewChatOptions? = nil
     ) async -> ControlResponse {
         guard Self.isValidWorkingDirectory(workingDirectory) else {
             return .json(400, ErrorDTO(error: "invalid workingDirectory"))
@@ -453,14 +500,16 @@ public final class ControlActionHandler {
         }
 
         do {
-            let id = try await dashboard.spawnSession(
-                ref: ref,
-                from: requester,
-                backend: backend,
-                workingDirectory: workingDirectory,
-                projectID: projectID,
-                initialSettings: initialSettings
-            )
+            let id: SessionID
+            if let options {
+                guard let projectID, workingDirectory == nil, backend == .appServer else { return .status(400) }
+                id = try await dashboard.spawnNewChat(ref: ref, from: requester, backend: backend,
+                                                      projectID: projectID, initialSettings: initialSettings, options: options)
+            } else {
+                id = try await dashboard.spawnSession(ref: ref, from: requester, backend: backend,
+                                                      workingDirectory: workingDirectory, projectID: projectID,
+                                                      initialSettings: initialSettings)
+            }
             if initialSettings == nil {
                 // spawn 直後の適用は1回だけ試す（リトライも待機もしない）。codex は thread 未開始で
                 // .notReady になるのが通常で、その場合は wait-ready 後の POST /sessions/{id}/model を使う。

@@ -18,6 +18,8 @@ public protocol PhloxAPI: Sendable {
     func agentSettings(kind: AgentKind) async throws -> AgentSettings?
     /// GET /projects。未対応の古い Mac は nil。
     func projects() async throws -> [ProjectSummary]?
+    func projectStartPoints(projectID: String, commit: String?) async throws -> [NewChatStartPoint]
+    func projectHistory(projectID: String, kind: AgentKind) async throws -> [NewChatHistoryEntry]
     /// GET /usage（エージェント別のアカウント使用量）
     func cliUsage() async throws -> [CLIUsage]
     /// GET /sessions/{id}/ready（入力受付可能になるまで Mac 側でロングポーリング待機）。ready 値を返す。
@@ -42,6 +44,8 @@ public protocol PhloxAPI: Sendable {
 
     /// POST /sessions/{id}/interrupt（実行中ターンの停止。契約 §1）
     func interrupt(sessionID: String) async throws
+    /// 同じ実行・同じ完了だけを確認済みにする。
+    func markCompletionSeen(sessionID: String, completionToken: String) async throws
     /// GET /sessions/{id}/usage（契約 §4。ターンが無ければ nil）
     func usage(sessionID: String) async throws -> TurnUsage?
     /// GET /sessions/{id}/messages?since=…&wait=…（契約 §6。差分取得）
@@ -58,6 +62,10 @@ public protocol PhloxAPI: Sendable {
 public extension PhloxAPI {
     func agentSkills(kind: AgentKind, projectID: String?, workspace: String?) async throws -> [AgentSkill]? { nil }
     func sessionSkills(sessionID: String) async throws -> [AgentSkill]? { nil }
+    func markCompletionSeen(sessionID: String, completionToken: String) async throws {
+        throw PhloxError.server(status: 501, message: "completion acknowledgement is unavailable")
+    }
+
     func agentModels(kind: AgentKind) async throws -> AgentModels {
         throw PhloxError.server(status: 501, message: "agentModels: 未実装")
     }
@@ -69,6 +77,14 @@ public extension PhloxAPI {
     func agentSettings(kind: AgentKind) async throws -> AgentSettings? { nil }
 
     func projects() async throws -> [ProjectSummary]? { nil }
+
+    func projectStartPoints(projectID: String, commit: String? = nil) async throws -> [NewChatStartPoint] {
+        throw PhloxError.server(status: 501, message: "Macを更新すると起点を選択できます")
+    }
+
+    func projectHistory(projectID: String, kind: AgentKind) async throws -> [NewChatHistoryEntry] {
+        throw PhloxError.server(status: 501, message: "Macを更新すると履歴から再開できます")
+    }
 
     func interrupt(sessionID: String) async throws {
         throw PhloxError.server(status: 501, message: "interrupt: 未実装（task-7）")

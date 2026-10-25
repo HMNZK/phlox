@@ -45,6 +45,8 @@ enum ChatRowKind: Equatable {
 public struct SessionDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.usageViewModel) private var usageViewModel
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isVisible = false
     @State private var viewModel: SessionDetailViewModel
     @State private var distanceFromBottom: CGFloat = 0
     @State private var scrollFollowState = SessionDetailScrollFollowState()
@@ -52,6 +54,8 @@ public struct SessionDetailView: View {
     @State private var transcriptWindow = TranscriptWindow()
     @State private var pendingTranscriptScrollTarget: SessionDetailTranscriptScrollTarget?
     @State private var transcriptScrollGeneration = 0
+    @State private var historyPull = SessionDetailHistoryPull()
+    @State private var isHistoryDragging = false
     @State private var partialSelectionMessageID: String?
     @State private var isKeyboardVisible = false
     #if os(iOS)
@@ -61,15 +65,18 @@ public struct SessionDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let scrollToBottomOnAppear: Bool
+    private let completionViewingAllowed: Bool
     let onDelete: () -> Void
 
     public init(
         viewModel: SessionDetailViewModel,
         scrollToBottomOnAppear: Bool = true,
+        completionViewingAllowed: Bool = true,
         onDelete: @escaping () -> Void
     ) {
         self._viewModel = State(initialValue: viewModel)
         self.scrollToBottomOnAppear = scrollToBottomOnAppear
+        self.completionViewingAllowed = completionViewingAllowed
         self.onDelete = onDelete
     }
 
@@ -82,6 +89,10 @@ public struct SessionDetailView: View {
                     Color.clear
                 } else {
                     renameFailureBanner
+                    if let error = viewModel.completionSyncError {
+                        errorLine(error, maximumLines: nil)
+                            .padding(.horizontal, DSSpacing.l)
+                    }
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
@@ -103,6 +114,27 @@ public struct SessionDetailView: View {
                         }
                         .frame(maxHeight: .infinity)
                         .scrollDismissesKeyboard(.interactively)
+                        #if os(iOS)
+                        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                            geometry.contentOffset.y + geometry.contentInsets.top
+                        } action: { _, offset in
+                            guard isHistoryDragging else { return }
+                            historyPull.update(offset: offset, hasEarlierMessages: hasEarlierMessages)
+                        }
+                        .onScrollPhaseChange { _, phase in
+                            if isHistoryDragging, phase != .interacting, historyPull.finish() {
+                                expandEarlierMessages()
+                            }
+                            isHistoryDragging = phase == .interacting
+                        }
+                        #endif
+                        .overlay(alignment: .top) {
+                            if historyPull.isArmed {
+                                HistoryLoadingIndicator()
+                                    .padding(.top, 8)
+                                    .accessibilityIdentifier("SessionDetail.historyLoading")
+                            }
+                        }
                         .coordinateSpace(name: Self.scrollCoordinateSpace)
                         .background(IOSColor.bg.base)
                         .background(
@@ -145,6 +177,8 @@ public struct SessionDetailView: View {
                             pendingTranscriptScrollTarget = nil
                             transcriptScrollGeneration += 1
                             scrollFollowState.reset()
+                            historyPull = SessionDetailHistoryPull()
+                            isHistoryDragging = false
                         }
                         .onAppear {
                             if scrollToBottomOnAppear {
@@ -170,7 +204,8 @@ public struct SessionDetailView: View {
         .accessibilityIdentifier(AccessibilityID.sessionDetail)
         .modifier(DSSessionNavigationChrome(
             title: viewModel.displayName,
-            subtitle: navigationSubtitle
+            subtitle: navigationSubtitle,
+            displayState: presentation.displayState
         ) { sessionMenu })
         .navigationStackHomeBackButton()
         .alert("名前を変更", isPresented: $viewModel.isRenamePresented) {
@@ -214,6 +249,25 @@ public struct SessionDetailView: View {
             isKeyboardVisible = false
         }
 #endif
+        .onAppear { isVisible = true }
+        .onDisappear {
+            isVisible = false
+            historyPull = SessionDetailHistoryPull()
+            isHistoryDragging = false
+            viewModel.stopCompletionViewing()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                historyPull = SessionDetailHistoryPull()
+                isHistoryDragging = false
+            }
+        }
+        .onChange(of: isCompletionViewing) { _, isViewing in
+            if !isViewing { viewModel.stopCompletionViewing() }
+        }
+        .task(id: isCompletionViewing) {
+            await viewModel.setCompletionViewing(isCompletionViewing)
+        }
         .task(id: viewModel.session.id) {
             await viewModel.startPolling()
         }
@@ -772,14 +826,7 @@ public struct SessionDetailView: View {
 
     private func loadEarlierMessagesButton(hiddenCount: Int) -> some View {
         Button {
-            let decision = SessionDetailTranscriptExpansionPolicy.expand(
-                messages: viewModel.visibleMessages,
-                window: transcriptWindow,
-                scrollGeneration: transcriptScrollGeneration
-            )
-            transcriptWindow = decision.window
-            transcriptScrollGeneration = decision.scrollGeneration
-            pendingTranscriptScrollTarget = decision.scrollTarget
+            expandEarlierMessages()
         } label: {
             Text("以前のメッセージを表示（残り \(hiddenCount) 件）")
                 .font(DSFont.subheadline.weight(.medium))
@@ -791,6 +838,27 @@ public struct SessionDetailView: View {
         }
         .buttonStyle(DSPressFeedbackStyle())
         .accessibilityIdentifier("SessionDetail.loadEarlierMessages")
+    }
+
+    private var hasEarlierMessages: Bool {
+        SessionDetailTranscriptSlice(messages: visibleTranscriptMessages, window: transcriptWindow).hiddenCount > 0
+    }
+
+    private var isCompletionViewing: Bool {
+        isVisible && scenePhase == .active && completionViewingAllowed
+            && !viewModel.isModelSheetPresented && !viewModel.isRenamePresented
+    }
+
+    private func expandEarlierMessages() {
+        guard hasEarlierMessages else { return }
+        let decision = SessionDetailTranscriptExpansionPolicy.expand(
+            messages: visibleTranscriptMessages,
+            window: transcriptWindow,
+            scrollGeneration: transcriptScrollGeneration
+        )
+        transcriptWindow = decision.window
+        transcriptScrollGeneration = decision.scrollGeneration
+        pendingTranscriptScrollTarget = decision.scrollTarget
     }
 
     @ViewBuilder

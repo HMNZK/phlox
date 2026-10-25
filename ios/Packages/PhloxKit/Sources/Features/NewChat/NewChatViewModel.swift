@@ -173,6 +173,14 @@ public final class NewChatViewModel {
     func loadSkillSuggestions() async { await skillSuggestions.load(api: api, context: skillRequestContext) }
     public private(set) var focusRequest = 0
     public var isModelPickerPresented = false
+    public var usesWorktree = false
+    public private(set) var startPoints: [NewChatStartPoint] = []
+    public private(set) var historyEntries: [NewChatHistoryEntry] = []
+    public private(set) var selectedStartPoint = NewChatStartPoint(kind: .head, title: "今の位置（HEAD）")
+    public private(set) var selectedHistoryID: String?
+    public private(set) var launchOptionsError: String?
+    public private(set) var isLoadingLaunchOptions = false
+    private var launchOptionsGeneration = 0
 
     public var isSending: Bool { progressStage != .idle }
     public var canEditDraft: Bool { !isSending && !hasCreatedSession }
@@ -319,6 +327,7 @@ public final class NewChatViewModel {
 
     public func selectProject(id: String?) {
         guard id == nil || projects.contains(where: { $0.id == id }) else { return }
+        if selectedProjectID != id { resetLaunchOptions() }
         selectedProjectID = id
         projectValidationMessage = nil
     }
@@ -339,11 +348,68 @@ public final class NewChatViewModel {
         selectedModelID = entry.model.id
         selectedEffort = defaultEffort(for: entry.kind, modelID: entry.model.id)
         if agentChanged {
+            resetLaunchOptions()
             selectedPermission = validPermission(saved?.permission, kind: entry.kind)
                 ?? defaultPermission(for: entry.kind)
             planMode = saved?.planMode == true && (settingsByAgent[entry.kind]?.planModeAvailable ?? false)
         }
         isModelPickerPresented = false
+    }
+
+    private func resetLaunchOptions() {
+        launchOptionsGeneration &+= 1
+        startPoints = []
+        historyEntries = []
+        selectedHistoryID = nil
+        selectedStartPoint = NewChatStartPoint(kind: .head, title: "今の位置（HEAD）")
+        usesWorktree = false
+        launchOptionsError = nil
+        isLoadingLaunchOptions = false
+    }
+
+    public func loadLaunchOptions(commit: String? = nil) async {
+        guard let projectID = selectedProject?.projectID else { return }
+        launchOptionsGeneration &+= 1
+        let generation = launchOptionsGeneration
+        let kind = selectedAgent
+        isLoadingLaunchOptions = true
+        launchOptionsError = nil
+        defer { if generation == launchOptionsGeneration { isLoadingLaunchOptions = false } }
+        do {
+            let points = try await api.projectStartPoints(projectID: projectID, commit: commit)
+            guard generation == launchOptionsGeneration else { return }
+            startPoints = points
+        } catch {
+            guard generation == launchOptionsGeneration else { return }
+            launchOptionsError = "起点を取得できませんでした。Macを更新するか、再試行してください。"
+        }
+        guard generation == launchOptionsGeneration else { return }
+        if kind == .claudeCode || kind == .codex {
+            do {
+                let entries = try await api.projectHistory(projectID: projectID, kind: kind)
+                guard generation == launchOptionsGeneration else { return }
+                historyEntries = entries
+                if let selectedHistoryID, !entries.contains(where: { $0.id == selectedHistoryID }) {
+                    self.selectedHistoryID = nil
+                }
+            } catch {
+                guard generation == launchOptionsGeneration else { return }
+                launchOptionsError = "履歴を取得できませんでした。Macを更新するか、再試行してください。"
+            }
+        } else {
+            historyEntries = []
+            selectedHistoryID = nil
+        }
+    }
+
+    public func selectStartPoint(_ point: NewChatStartPoint) {
+        guard startPoints.contains(where: { $0.id == point.id }) else { return }
+        selectedStartPoint = point
+    }
+
+    public func selectHistory(_ entry: NewChatHistoryEntry?) {
+        guard entry == nil || historyEntries.contains(where: { $0.id == entry?.id }) else { return }
+        selectedHistoryID = entry?.id
     }
 
     public func selectEffort(_ value: String?) {
@@ -471,20 +537,25 @@ public final class NewChatViewModel {
             return
         }
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        let resumeHistoryID = selectedHistoryID
+        guard !text.isEmpty || resumeHistoryID != nil else { return }
+        guard !usesWorktree || !startPoints.isEmpty else {
+            launchOptionsError = "起点を取得してから、もう一度開始してください。"
+            return
+        }
         projectValidationMessage = nil
         creationErrorPresentation = nil
         attachmentError = nil
         let backupText = inputText
         let backupSkill = skillSuggestions.selection(text: text, context: skillContext)
         let backupItems = attachmentItems
-        submittedText = backupText
+        submittedText = resumeHistoryID == nil ? backupText : nil
         readyWaitSeconds = 0
         transition(to: .creating)
 
         let prepared: [PreparedImageAttachment]
         do {
-            prepared = try await ImageAttachmentPreparer.prepare(backupItems.map { $0.send.data })
+            prepared = try await ImageAttachmentPreparer.prepare(resumeHistoryID == nil ? backupItems.map { $0.send.data } : [])
         } catch {
             attachmentError = Self.attachmentFailureMessage(error)
             transition(to: .idle)
@@ -499,7 +570,10 @@ public final class NewChatViewModel {
             model: selectedModelID,
             effort: selectedEffort,
             permission: selectedPermission,
-            planMode: planMode
+            planMode: planMode,
+            usesWorktree: startPoints.isEmpty ? nil : usesWorktree,
+            startPoint: usesWorktree ? selectedStartPoint : nil,
+            resumeHistoryID: resumeHistoryID
         )
         let session: Session
         do {
@@ -527,6 +601,11 @@ public final class NewChatViewModel {
             planMode: planMode,
             projectKey: project.id
         )
+        if resumeHistoryID != nil {
+            transition(to: .idle)
+            onCreated(session, nil)
+            return
+        }
         if inputText == backupText, attachmentItems.map(\.id) == backupItems.map(\.id) {
             inputText = ""
             inputCursorUTF16 = 0

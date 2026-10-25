@@ -4210,6 +4210,18 @@ extension ChatSessionViewModel: ControllableSession {
         hasUnseenCompletion = false
     }
 
+    public func markCompletionSeen(ifCurrent token: String) async throws -> Bool {
+        guard SessionNode.appServer(self).completionToken == token else { return false }
+        if let runtimeCommandHandler {
+            guard case .bool(let accepted) = try await runtimeCommandHandler(executionID, .markCompletionSeenIfCurrent(token)) else {
+                throw SessionRuntimeProjectionError.invalidReply
+            }
+            return accepted
+        }
+        hasUnseenCompletion = false
+        return true
+    }
+
     public func sendText(_ text: String, submit: Bool) async throws {
         try await sendText(text, submit: submit, controlSkill: nil)
     }
@@ -4763,6 +4775,7 @@ extension ChatSessionViewModel {
         case .stopSubAgent(let id): stopSubAgent(displayID: id)
         case .dismissSubAgent(let id): dismissSubAgent(id)
         case .markCompletionSeen: markCompletionSeen()
+        case .markCompletionSeenIfCurrent(let token): return .bool(try await markCompletionSeen(ifCurrent: token))
         case .consumeSubmitBaseline: consumeSubmitBaseline()
         case .rename(let title): titleState = title
         case .input, .resize: throw SessionRuntimeProjectionError.unsupportedCommand

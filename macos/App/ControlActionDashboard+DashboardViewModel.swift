@@ -34,6 +34,7 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
                 backend: backend,
                 isStalled: node.isStalled,
                 hasUnseenCompletion: node.hasUnseenCompletion,
+                completionToken: node.completionToken,
                 parentSessionID: session.parentSessionID,
                 statusEnteredAt: node.statusEnteredAt
             )
@@ -62,6 +63,35 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         )
     }
 
+    public func spawnNewChat(ref: AgentRef, from: SessionID?, backend: SessionBackend, projectID: ProjectID,
+                             initialSettings: CodexAppServerSessionSettings?, options: ControlNewChatOptions) async throws -> SessionID {
+        let point: WorktreeStartPoint
+        if let supplied = options.startPoint {
+            guard let resolved = supplied.dashboardPoint else { throw AgentSpawnError.unsupportedBackend }
+            point = resolved
+        } else { point = .head }
+        return try await spawnNewSessionFromControlAPI(ref: ref, requester: from, backend: backend,
+            workingDirectory: nil, projectID: projectID, initialSettings: initialSettings,
+            usesWorktree: options.usesWorktree, worktreeStartPoint: point, resumeHistoryID: options.resumeHistoryID)
+    }
+
+    public func projectStartPoints(projectID: ProjectID, commit: String?) async throws -> [ControlStartPointOption] {
+        try await newChatStartPoints(projectID: projectID, commit: commit).map { item in
+            let point = item.point.controlPoint
+            return ControlStartPointOption(kind: point.kind, value: point.value,
+                                           title: item.point.title(), summary: item.summary)
+        }
+    }
+
+    public func projectHistory(projectID: ProjectID, kind: AgentKind) async throws -> [ControlHistoryEntry] {
+        guard kind == .claudeCode || kind == .codex else { throw AgentSpawnError.unsupportedBackend }
+        return try await newChatHistoryEntries(projectID: projectID, agentRef: .builtin(kind)).map { entry in
+            ControlHistoryEntry(id: entry.sessionID, title: entry.savedTitle ?? entry.preview,
+                                updatedAt: entry.lastModified, branch: entry.gitBranch,
+                                workingDirectory: entry.sourceWorkingDirectory)
+        }
+    }
+
     // MARK: - 承認 witness（MC-3b: Codex 構造化承認ブリッジ）
 
     /// 全 appServer セッションの保留中承認を ControlServer.ApprovalDTO に写像する。
@@ -86,6 +116,11 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
 
     public func interruptSession(_ id: SessionID) async -> ControlInterruptOutcome {
         await controlInterruptSession(id)
+    }
+
+    public func markCompletionSeen(_ id: SessionID, completionToken: String) async throws -> Bool? {
+        guard let node = sessionNode(id: id) else { return nil }
+        return try await node.markCompletionSeen(ifCurrent: completionToken)
     }
 
     public func sessionSubAgents(for id: SessionID) -> [SubAgentControlSummary]? {
@@ -170,4 +205,30 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
     // 同シグネチャ public メソッドが直接 witness する。ここに同シグネチャの
     // 転送ラッパを書くと呼び出しが自分自身へ解決され無限再帰する
     // （2026-07-12 実発生: Control send 1回でメモリ暴走→システムクラッシュ）。書かないこと。
+}
+
+private extension ControlStartPoint {
+    var dashboardPoint: WorktreeStartPoint? {
+        if kind == .head { return value == nil ? .head : nil }
+        guard let value, !value.isEmpty else { return nil }
+        switch kind {
+        case .head: return .head
+        case .localBranch: return .localBranch(value)
+        case .remoteBranch: return .remoteBranch(value)
+        case .tag: return .tag(value)
+        case .commit: return .commit(value)
+        }
+    }
+}
+
+private extension WorktreeStartPoint {
+    var controlPoint: ControlStartPoint {
+        switch self {
+        case .head: .init(kind: .head)
+        case .localBranch(let name): .init(kind: .localBranch, value: name)
+        case .remoteBranch(let name): .init(kind: .remoteBranch, value: name)
+        case .tag(let name): .init(kind: .tag, value: name)
+        case .commit(let id): .init(kind: .commit, value: id)
+        }
+    }
 }

@@ -126,9 +126,6 @@ struct AppRoot: View {
                 if phase == .active, let pushRegistrationService {
                     Task { await pushRegistrationService.retryIfNeeded() }
                 }
-                if phase == .active, let usageViewModel {
-                    Task { await usageViewModel.load() }
-                }
             }
             .onChange(of: appSettings.faceIDEnabled) { _, enabled in
                 if !enabled {
@@ -154,6 +151,17 @@ struct AppRoot: View {
                 }
                 await bootstrap()
             }
+            .task(id: shouldObserveUsage) {
+                guard shouldObserveUsage, let usageViewModel else { return }
+                await usageViewModel.observe()
+            }
+    }
+
+    private var shouldObserveUsage: Bool {
+        scenePhase == .active && model.state == .sessions
+            && model.authState == .unlocked && model.reachability == .online
+            && !model.isConnecting
+            && usageViewModel != nil
     }
 
     @ViewBuilder
@@ -393,6 +401,7 @@ struct AppRoot: View {
                     api: environment.apiClient,
                     recovery: createdSession?.id == id ? createdSessionRecovery : nil,
                     isNewSession: createdSession?.id == id,
+                    completionViewingAllowed: router.presented == nil && !model.isConnecting && !showsMissingSession,
                     attentionSessions: listVM?.lastKnownSessions ?? [],
                     onShowNextSession: { next in
                         // 詳細側の再取得が一覧の購読より先に届いても遷移先を解決できるようにする。

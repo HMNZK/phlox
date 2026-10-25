@@ -353,7 +353,6 @@ public struct SessionListView: View {
             nodes: nodes,
             depth: depth,
             expandedSessionIDs: expandedSessionIDs,
-            reduceMotion: reduceMotion,
             onToggle: toggleSession,
             onSelect: onSelectDetail
         )
@@ -365,7 +364,6 @@ public struct SessionListView: View {
             node: node,
             depth: 0,
             expandedSessionIDs: [],
-            reduceMotion: reduceMotion,
             isAttentionRow: true,
             onToggle: { _ in },
             onSelect: onSelectDetail
@@ -442,7 +440,6 @@ private struct SessionListTreeRows: View {
     let nodes: [SessionListTreeNode]
     let depth: Int
     let expandedSessionIDs: Set<String>
-    let reduceMotion: Bool
     let onToggle: (String) -> Void
     let onSelect: (String) -> Void
 
@@ -453,7 +450,6 @@ private struct SessionListTreeRows: View {
                     node: node,
                     depth: depth,
                     expandedSessionIDs: expandedSessionIDs,
-                    reduceMotion: reduceMotion,
                     showsSiblingDivider: index < nodes.count - 1,
                     onToggle: onToggle,
                     onSelect: onSelect
@@ -467,7 +463,6 @@ private struct SessionListTreeRow: View {
     let node: SessionListTreeNode
     let depth: Int
     let expandedSessionIDs: Set<String>
-    let reduceMotion: Bool
     var showsSiblingDivider = false
     var isAttentionRow = false
     let onToggle: (String) -> Void
@@ -506,7 +501,6 @@ private struct SessionListTreeRow: View {
                         nodes: node.children,
                         depth: depth + 1,
                         expandedSessionIDs: expandedSessionIDs,
-                        reduceMotion: reduceMotion,
                         onToggle: onToggle,
                         onSelect: onSelect
                     )
@@ -552,14 +546,17 @@ private struct SessionListTreeRow: View {
             onSelect(node.session.id)
         } label: {
             HStack(spacing: DSSpacing.s) {
-                SessionListRunningName(
+                SessionListName(
                     name: presentation.name,
                     suffix: node.collapsedChildCountLabel(isExpanded: isExpanded),
-                    state: presentation.state,
                     tone: presentation.nameTone,
                     isSemibold: presentation.isSemibold
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                if presentation.state.showsActivityIndicator {
+                    SessionActivityIndicator(state: presentation.state)
+                }
 
                 if let stateLabel = presentation.statusLabel {
                     let status = IOSStatusVocabulary.presentation(for: presentation.state, locale: Locale(identifier: "ja_JP"))
@@ -582,16 +579,13 @@ private struct SessionListTreeRow: View {
     }
 }
 
-private struct SessionListRunningName: View {
+private struct SessionListName: View {
     let name: String
     let suffix: String?
-    let state: SessionDisplayState
     let tone: SessionListNameTone
     let isSemibold: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var didSweep = false
 
     private var font: Font { DSFont.body.weight(isSemibold ? .semibold : .regular) }
     private var color: Color { tone == .primary ? IOSColor.text.primary : IOSColor.text.secondary }
@@ -613,32 +607,6 @@ private struct SessionListRunningName: View {
             }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .overlay {
-            if state == .running && !reduceMotion {
-                GeometryReader { geometry in
-                    LinearGradient(
-                        colors: [.clear, IOSColor.listRunningGlow.opacity(0.9), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: max(20, geometry.size.width * 0.35))
-                    .offset(x: didSweep ? geometry.size.width : -geometry.size.width)
-                    .mask {
-                        Text(name)
-                            .font(font)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .allowsHitTesting(false)
-                }
-                .onAppear {
-                    guard !didSweep else { return }
-                    withAnimation(.linear(duration: 3.2)) { didSweep = true }
-                }
-                .accessibilityHidden(true)
-            }
-        }
     }
 }
 

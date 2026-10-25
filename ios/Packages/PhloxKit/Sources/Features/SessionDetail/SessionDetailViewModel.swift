@@ -85,6 +85,9 @@ public final class SessionDetailViewModel {
     private(set) var sendErrorPresentation: ErrorPresentation?
     public private(set) var isRecoveringInitialSend = false
     public private(set) var loadError: String?
+    public private(set) var completionSyncError: String?
+    private var isCompletionViewing = false
+    private var completionAcknowledgementInFlight = false
     public private(set) var isSessionMissing = false
     public private(set) var approvals: [Approval] = []
     private(set) var approvalLoadError: String?
@@ -609,6 +612,34 @@ public final class SessionDetailViewModel {
         if currentStatus != .running {
             await fetchTurnUsageIfAvailable()
         }
+        await acknowledgeCompletionIfViewing()
+    }
+
+    public func setCompletionViewing(_ isViewing: Bool) async {
+        isCompletionViewing = isViewing
+        if isViewing { await acknowledgeCompletionIfViewing() }
+    }
+
+    public func stopCompletionViewing() {
+        isCompletionViewing = false
+    }
+
+    private func acknowledgeCompletionIfViewing() async {
+        guard isCompletionViewing, !completionAcknowledgementInFlight, didFetchMessagesSuccessfully else { return }
+        guard session.hasUnseenCompletion, let token = session.completionToken else {
+            completionSyncError = nil
+            return
+        }
+        completionAcknowledgementInFlight = true
+        defer { completionAcknowledgementInFlight = false }
+        do {
+            try await api.markCompletionSeen(sessionID: session.id, completionToken: token)
+            completionSyncError = nil
+            await refreshCurrentStatus()
+        } catch {
+            guard !Task.isCancelled else { return }
+            completionSyncError = "完了の確認をMacに反映できませんでした。接続後に再試行します。"
+        }
     }
 
     /// Codex の承認は一覧 API から取得する。Claude のツール許可は会話の質問から組み立てる。
@@ -914,6 +945,7 @@ public final class SessionDetailViewModel {
         if replyApprovalResult != nil { await loadApprovals() }
         _ = await adoptMessagesFromDelta(updateOnlyIfChanged: true)
         updateReplyApprovalResult()
+        await acknowledgeCompletionIfViewing()
     }
 
     /// モデル・設定の一覧を取得する。古い Mac や一時的な取得失敗では現在値を保つ。

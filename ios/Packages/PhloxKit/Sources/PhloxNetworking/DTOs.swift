@@ -19,12 +19,14 @@ struct SessionDTO: Decodable {
     let backend: String
     let isStalled: Bool
     let hasUnseenCompletion: Bool
+    let completionToken: String?
     let parentSessionId: String?
     let statusEnteredAt: String?
 
     private enum CodingKeys: String, CodingKey {
         case id, name, kind, status, workspace, projectId, projectName
         case backend, isStalled, hasUnseenCompletion, parentSessionId, statusEnteredAt
+        case completionToken
     }
 
     init(from decoder: Decoder) throws {
@@ -39,6 +41,7 @@ struct SessionDTO: Decodable {
         backend = try container.decodeIfPresent(String.self, forKey: .backend) ?? "appServer"
         isStalled = try container.decodeIfPresent(Bool.self, forKey: .isStalled) ?? false
         hasUnseenCompletion = try container.decodeIfPresent(Bool.self, forKey: .hasUnseenCompletion) ?? false
+        completionToken = try container.decodeIfPresent(String.self, forKey: .completionToken)
         parentSessionId = try container.decodeIfPresent(String.self, forKey: .parentSessionId)
         statusEnteredAt = try container.decodeIfPresent(String.self, forKey: .statusEnteredAt)
     }
@@ -57,6 +60,7 @@ struct SessionDTO: Decodable {
             backend: backend,
             isStalled: isStalled,
             hasUnseenCompletion: hasUnseenCompletion,
+            completionToken: completionToken,
             parentSessionId: parentSessionId,
             statusEnteredAt: parsedStatusEnteredAt(),
             updatedAt: now
@@ -258,7 +262,13 @@ struct SpawnRequestDTO: Encodable {
     let effort: String?
     let permission: String?
     let planMode: Bool?
+    var usesWorktree: Bool? = nil
+    var startPoint: NewChatStartPoint? = nil
+    var resumeHistoryID: String? = nil
 }
+
+struct ProjectStartPointsDTO: Decodable { let startPoints: [NewChatStartPoint] }
+struct ProjectHistoryDTO: Decodable { let entries: [NewChatHistoryEntry] }
 
 /// `POST /sessions`（spawn）のレスポンス。Mac は新規セッション **id のみ**返す（`{"id": …}`）。
 struct IDDTO: Decodable {

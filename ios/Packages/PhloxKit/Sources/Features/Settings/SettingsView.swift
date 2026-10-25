@@ -7,6 +7,7 @@ import UIKit
 #endif
 
 public struct SettingsView: View {
+    @AppStorage(UsageBarStyle.defaultsKey) private var usageStyle = UsageBarStyle.bar
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: SettingsViewModel
     private let connectionViewModel: ConnectionSettingsViewModel
@@ -93,6 +94,16 @@ public struct SettingsView: View {
                         .font(DSFont.footnote)
                         .foregroundStyle(DSColor.textSecondary)
                         .padding(.horizontal, DSSpacing.xs)
+                }
+
+                settingsSection("使用量") {
+                    Picker("使用量の表示", selection: $usageStyle) {
+                        Text("横棒").tag(UsageBarStyle.bar)
+                        Text("数値（%）").tag(UsageBarStyle.percent)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(minHeight: DSTouch.minSize)
+                    .accessibilityIdentifier("Settings.usageStyle")
                 }
 
                 settingsSection("このアプリについて") {

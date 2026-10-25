@@ -131,7 +131,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | 圧縮中インジケータの演出詳細（6ステージのご当地ストーリー：海→川→砂漠→火山→氷山→宇宙） | なし（自動再生） | 犬は画面固定X=40ptで世界側がスクロール、1ステージ14.2秒（走行11.0秒＋イベント2回）、装備獲得演出、5ステージ踏破後にゴール演出 | `TimelineView`が渡す日時のみを入力とする純関数で状態導出（Timer/repeatForever禁止、ADR 0010） | なし | `CompactingDogAnimation.swift:16-59` |
 | Codexサブエージェント/プランのインライン表示 (`CodexSessionSurface`) | 子スレッド行クリックで選択・展開表示、「停止」ボタン | プランタスクリスト(`TaskListCell`再利用)、子スレッド一覧（要約・ステータス）、選択中の子スレッドtranscript、エラー表示 | `subAgents.stopState(for:)`が`.available`でない間は停止ボタン無効、`threadId`変化で自動再取得(`task`/`onChange`) | Codex専用（`viewModel.agentRef == .builtin(.codex)`以外は非表示） | `CodexSessionSurface.swift:17-93` |
 
-その他の関連機能: メッセージ単位コピー（ホバー時checkmark）`ChatMessageCopyButton.swift:12-70`／コードブロックコピー`ChatCodeCard.swift:4-41`／トランスクリプトMarkdownエクスポート（推論・出力・タイムスタンプのON/OFFオプション付）`ChatTranscriptExport.swift:5-211`／コマンド連続グルーピング`ChatTranscriptGrouping.swift:3-132`／「以前のメッセージを表示」ボタン（ウィンドウ拡張）`ChatTranscriptView.swift:171-318`。
+その他の関連機能: メッセージ単位コピー（ホバー時checkmark）`ChatMessageCopyButton.swift:12-70`／コードブロックコピー`ChatCodeCard.swift:4-41`／トランスクリプトMarkdownエクスポート（推論・出力・タイムスタンプのON/OFFオプション付）`ChatTranscriptExport.swift:5-211`／コマンド連続グルーピング`ChatTranscriptGrouping.swift:3-132`／最上部からさらにスクロールして離すと以前の履歴を追加表示（ボタンなし、VoiceOver 操作「以前のメッセージを読み込む」、macOS ADR 0217）`ChatTranscriptView.swift:289-291`。
 
 共通セル部品: アバター行ラッパー`AvatarMessageRow`（`ChatMessageCellsCommon.swift:14-20`）／タイムスタンプ表示`ChatTimestampText`（`HH:mm`形式`en_US_POSIX`固定、`.distantPast`は非表示、フォントスケール・テーマに追従、`:22-44`）／折りたたみカード`DisclosureCard`（ラベル部クリックで開閉、chevron90度回転、`isToolCall`で文字色分岐、VoiceOverへ展開状態通知、`:46-132`）。
 

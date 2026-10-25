@@ -112,3 +112,5 @@ Release ビルド・実データ 4 セッションを Instruments Time Profiler 
   下限件数そのものが高コストな内容では予算で守れないため。計測した 4 セッションでは発生していないが、それ以外の内容分布は測っていない。
 - 検証: `swift test` SessionFeature / DashboardFeature とも green、AppBootstrap ビルド成功。
   file section のコピーボタンは実機で押して、クリップボードに diff 全文が入ることを確認した。
+
+> 追記（2026-10-25）: 「以前のメッセージを表示」ボタンは [ADR 0217](0217-transcript-scroll-to-load-history.md) で廃止し、最上部からさらにスクロールして離す操作に置き換えた。

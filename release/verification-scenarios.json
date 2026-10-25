@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "scenarios": [
+    {
+      "scenarioID": "fake-session-lifecycle",
+      "revision": 1,
+      "requirement": "macos/docs/specs/e2e-test-design.md#S1",
+      "codePaths": ["macos/Packages/**", "macos/scripts/**", "macos/App/**", "macos/project.yml", "release/verification-*.json"],
+      "testIDs": [
+        "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/E2EFakeAgentSmokeTests.swift::E2EFakeAgentSmokeTests",
+        "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/E2ESessionLifecycleTests.swift::E2ESessionLifecycleTests",
+        "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/E2EControlServerTests.swift::E2EControlServerTests",
+        "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/E2EPersistenceTests.swift::E2EPersistenceTests",
+        "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/RealPTYIntegrationTests.swift::E2ERealPTYTests"
+      ],
+      "procedure": "Run the 13 explicitly selected deterministic fake-agent functions through the macOS standard test entry, serially. Include send/read, hook completion, exit, process cleanup, persistence, corrupt data recovery, project placement and permission configuration.",
+      "expected": "Each required function executes and ends without failure, skip or known issue. No authenticated external agent or interactive UI test executes.",
+      "method": "automatic",
+      "required": true
+    },
+    {
+      "scenarioID": "physical-session-activity",
+      "revision": 1,
+      "requirement": "ios/docs/specs/session-activity-parity.md#AC-1",
+      "requirementIDs": ["AC-1", "AC-2", "AC-3", "AC-4"],
+      "codePaths": ["ios/App/**", "ios/Packages/PhloxKit/Sources/**", "ios/Packages/PhloxKit/Tests/**", "ios/scripts/**", "ios/Makefile", "ios/project.yml", "ios/PhloxWidget/**", "macos/Packages/AgentDomain/**", "macos/Packages/ControlServer/**", "macos/Packages/AppBootstrap/**"],
+      "testIDs": [
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/ChatActivityStateTests.swift::ChatActivityStateTests",
+        "ios/Packages/PhloxKit/Tests/FeaturesTests/CompletionParityAcceptanceTests.swift::CompletionParityAcceptanceTests"
+      ],
+      "procedure": "On the identified physical Mac/iPhone build pair, send a request and observe running then normal completion in the visible conversation, another conversation and background. Open the result to acknowledge it. Exercise stop/completion competition, disconnect and reconnect, and error recovery. Record each observation and both installed builds.",
+      "expected": "AC-1 through AC-4: actual activity is visible, completed results remain discoverable until acknowledged, stopping does not create false normal completion, and reconnect/error recovery does not leave stale running or completion state.",
+      "method": "physical-device",
+      "required": true
+    },
+    {
+      "scenarioID": "physical-history-follow",
+      "revision": 1,
+      "requirement": "ios/docs/specs/session-activity-parity.md#AC-5",
+      "requirementIDs": ["AC-5", "AC-7"],
+      "codePaths": ["ios/Packages/PhloxKit/Sources/Features/SessionDetail/**", "ios/Packages/PhloxKit/Sources/DesignSystemIOS/**", "ios/PhloxMobileSnapshotTests/**"],
+      "testIDs": ["ios/Packages/PhloxKit/Tests/FeaturesTests/HistoryPullAcceptanceTests.swift::HistoryPullAcceptanceTests"],
+      "procedure": "On the physical iPhone, pull history with a finger, release and cancel; repeat without older history and with incoming messages. Navigate the same controls using VoiceOver.",
+      "expected": "AC-5 and AC-7: only the intended history operation occurs, new messages do not displace the user's reading position, cancelled gestures leave usable controls, and VoiceOver exposes and operates the history action.",
+      "method": "physical-device",
+      "required": true
+    },
+    {
+      "scenarioID": "physical-activity-presentation",
+      "revision": 1,
+      "requirement": "ios/docs/specs/session-activity-parity.md#AC-6",
+      "codePaths": ["macos/Packages/DesignSystem/**", "ios/Packages/PhloxKit/Sources/DesignSystemIOS/**", "ios/Packages/PhloxKit/Sources/Features/SessionList/**", "ios/Packages/PhloxKit/Sources/Features/SessionDetail/**"],
+      "testIDs": ["ios/Packages/PhloxKit/Tests/DesignSystemIOSTests/DSChatActivityComponentsTests.swift::ChatActivityComponentsWhiteboxTests"],
+      "procedure": "Observe running and completed state on the physical iPhone in light/dark appearance, with Reduce Motion enabled/disabled, enlarged text and VoiceOver. Save evidence of the actual transition and announcements.",
+      "expected": "AC-6: activity indicators communicate running and completion, respect motion preferences, remain readable with enlarged text, and avoid duplicate VoiceOver announcements.",
+      "method": "physical-device",
+      "required": true
+    },
+    {
+      "scenarioID": "physical-usage-preferences-refresh",
+      "revision": 1,
+      "requirement": "ios/docs/specs/session-activity-parity.md#AC-8",
+      "requirementIDs": ["AC-8"],
+      "codePaths": ["ios/App/AppRoot.swift", "ios/Packages/PhloxKit/Sources/Features/Usage/**", "ios/Packages/PhloxKit/Sources/Features/Settings/SettingsView.swift", "ios/Packages/PhloxKit/Sources/PhloxNetworking/PhloxAPIClient.swift", "macos/Packages/DesignSystem/Sources/DesignSystem/UsageBarStyle.swift", "macos/Packages/AppBootstrap/Sources/AppBootstrap/ControlActionHandler.swift"],
+      "testIDs": ["ios/Packages/PhloxKit/Tests/FeaturesTests/UsageParityAcceptanceTests.swift::UsageParityAcceptanceTests", "ios/Packages/PhloxKit/Tests/FeaturesTests/UsageViewModelTests.swift::UsageViewModelTests"],
+      "procedure": "識別済みの実Mac/iPhoneで接続する。未設定時の横棒表示を確認し、設定で数値へ切り替え、会話・新規会話への反映とアプリ再起動後の保持を確認する。前面・接続・認証済みで起動時と60秒周期の再取得を観測し、背面・切断・ロックを個別に試して新規の定期取得停止と復帰後の再取得を確認する。手動更新、リセット時刻越え、取得失敗からの復帰、小画面・文字拡大・VoiceOverで詳細を確認する。表示と実通信の時刻を証拠へ残す。",
+      "expected": "横棒が既定で、数値表示の選択が保存・反映される。前面・接続・認証済みの間だけ定期取得し、重複取得をまとめる。期限切れ枠・取得不能値を0%として捏造せず、失敗後は古い値を隠して成功時に復帰する。詳細・残量が読み取れ、文字拡大でも欠落しない。",
+      "method": "physical-device",
+      "required": true
+    },
+    {
+      "scenarioID": "physical-newchat-worktree-resume",
+      "revision": 1,
+      "requirement": "ios/docs/specs/session-activity-parity.md#AC-9",
+      "requirementIDs": ["AC-9"],
+      "codePaths": ["ios/Packages/PhloxKit/Sources/Features/NewChat/**", "ios/Packages/PhloxKit/Sources/PhloxNetworking/**", "macos/App/ControlActionDashboard+DashboardViewModel.swift", "macos/Packages/DashboardFeature/Sources/DashboardFeature/NewChat/**", "macos/Packages/AppBootstrap/Sources/AppBootstrap/ControlActionHandler.swift", "macos/Packages/ControlServer/Sources/ControlServer/**"],
+      "testIDs": ["ios/Packages/PhloxKit/Tests/FeaturesTests/NewChatParityAcceptanceTests.swift::NewChatParityAcceptanceTests", "ios/Packages/PhloxKit/Tests/PhloxNetworkingTests/NewChatParityClientAcceptanceTests.swift::NewChatParityClientAcceptanceTests", "macos/Packages/ControlServer/Tests/ControlServerTests/NewChatParityRoutingAcceptanceTests.swift::NewChatParityRoutingAcceptanceTests", "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/SessionResumeHistoryTests.swift::SessionResumeHistoryTests"],
+      "procedure": "登録済みの専用検証プロジェクトで、実iPhoneから通常の作業場所で会話を開始する。続いて新しいworktreeを選び、ブランチ・タグ・コミットを各起点として開始し、実Mac側の作業場所とHEADを確認する。ClaudeとCodexそれぞれで既存履歴を選び、本文未入力で再開する。Macで開いている履歴が候補から除外されること、プロジェクト・エージェント変更で旧選択を持ち越さないこと、Cursorには再開を提示しないことを確認する。不正な起点の拒否も確認し、実セッションと送信イベントを記録する。",
+      "expected": "通常起動は選択プロジェクトの既存作業場所を使い、worktree起動は指定した起点から別作業場所を作る。通常の初回メッセージは1回、履歴再開時は0回で、Claude/Codexの選択した履歴を継続する。別プロジェクト・別エージェントの履歴や不正起点を受理せず、内部履歴ファイルパスを端末へ返さない。",
+      "method": "physical-device",
+      "required": true
+    }
+  ]
+}

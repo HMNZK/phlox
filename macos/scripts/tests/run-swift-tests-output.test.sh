@@ -23,6 +23,7 @@ configuration=""
 testability="absent"
 package=""
 scratch=""
+event_path=""
 mode="$command_name"
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -35,6 +36,9 @@ while [ "$#" -gt 0 ]; do
     --scratch-path)
       [ "$#" -ge 2 ] || { echo 'missing scratch path' >&2; exit 2; }
       scratch="$2"; shift 2 ;;
+    --event-stream-output-path)
+      [ "$#" -ge 2 ] || { echo 'missing event path' >&2; exit 2; }
+      event_path="$2"; shift 2 ;;
     -Xswiftc)
       [ "$#" -ge 2 ] || { echo 'missing compiler argument' >&2; exit 2; }
       if [ "$2" = "-enable-testing" ]; then testability=enabled; fi
@@ -44,6 +48,9 @@ while [ "$#" -gt 0 ]; do
     *) shift ;;
   esac
 done
+if [ -n "${FAKE_SWIFT_EVENT_CALLS:-}" ] && [ "$mode" = test ]; then
+  printf '%s\t%s\n' "$package" "$event_path" >> "$FAKE_SWIFT_EVENT_CALLS"
+fi
 if [ -n "${FAKE_SWIFT_CALLS:-}" ]; then
   printf '%s %s %s %s\n' "$mode" "$configuration" "$package" "$testability" >> "$FAKE_SWIFT_CALLS"
 fi
@@ -194,5 +201,19 @@ assert_exit "$bad_scratch_exit" 1
 assert_contains "$bad_scratch" "絶対パス"
 [ ! -s "$FAKE_SWIFT_SCRATCH_CALLS" ] || { echo 'invalid scratch reached swift' >&2; exit 1; }
 unset FAKE_SWIFT_ASSET_ROOT
+
+export FAKE_SWIFT_EVENT_CALLS="$TEMP_DIR/event-calls"
+event_root="$TEMP_DIR/event output"
+PATH="$TEMP_DIR/bin:$PATH" SWIFT_TEST_EVENT_ROOT="$event_root" "$RUNNER" AgentDomain DashboardFeature > "$TEMP_DIR/event-output"
+for expected in "Packages/AgentDomain	$event_root/AgentDomain-all.jsonl" "Packages/DashboardFeature	$event_root/DashboardFeature-main.jsonl" "Packages/DashboardFeature	$event_root/DashboardFeature-git.jsonl"; do
+  printf '%b\n' "$expected" > "$TEMP_DIR/expected-event"
+  grep -Fxq -f "$TEMP_DIR/expected-event" "$FAKE_SWIFT_EVENT_CALLS" || { echo 'missing event output route' >&2; exit 1; }
+done
+[ "$(wc -l < "$FAKE_SWIFT_EVENT_CALLS")" -eq 3 ] || { echo 'unexpected event output route' >&2; exit 1; }
+: > "$FAKE_SWIFT_EVENT_CALLS"
+PATH="$TEMP_DIR/bin:$PATH" SWIFT_TEST_EVENT_ROOT="$event_root" SWIFT_TEST_FILTER=E2EFakeAgentSmokeTests "$RUNNER" DashboardFeature > "$TEMP_DIR/event-filtered-output"
+printf 'Packages/DashboardFeature\t%s/DashboardFeature-filtered.jsonl\n' "$event_root" > "$TEMP_DIR/expected-event"
+cmp "$TEMP_DIR/expected-event" "$FAKE_SWIFT_EVENT_CALLS" || { echo 'filtered event route differs' >&2; exit 1; }
+unset FAKE_SWIFT_EVENT_CALLS
 
 echo "run-swift-tests-output.test: OK"

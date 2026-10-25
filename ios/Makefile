@@ -25,20 +25,24 @@ SIMULATOR_ID  := $(shell xcrun simctl list devices available | sed -nE 's/^[[:sp
 DESTINATION   := platform=iOS Simulator,id=$(SIMULATOR_ID)
 SNAPSHOT_SIMULATOR_ID ?= $(shell xcrun simctl list devices available | sed -nE 's/^[[:space:]]*iPhone[^()]*\(([A-F0-9-]+)\).*/\1/p' | head -1)
 SNAPSHOT_ROOT ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)/.verification/ios-redesign
+DERIVED_DATA_PATH ?=
+SWIFT_TEST_SCRATCH_ROOT ?=
+SWIFT_TEST_EVENT_ROOT ?=
+XCODEGEN ?= xcodegen
 
 .PHONY: all generate build run run-live snapshot test lint
 
 all: generate build test lint
 
 generate:
-	xcodegen generate
+	'$(XCODEGEN)' generate
 
 build: generate
 	xcodebuild build \
 	  -scheme $(SCHEME) \
 	  -destination '$(DESTINATION)' \
-	  CODE_SIGNING_ALLOWED=NO \
-	  | xcpretty || xcodebuild build -scheme $(SCHEME) -destination '$(DESTINATION)' CODE_SIGNING_ALLOWED=NO
+	  $(if $(DERIVED_DATA_PATH),-derivedDataPath '$(DERIVED_DATA_PATH)') \
+	  CODE_SIGNING_ALLOWED=NO
 
 run:
 	bash $(RUN_SCRIPT)
@@ -58,7 +62,7 @@ snapshot: generate
 	  CODE_SIGNING_ALLOWED=NO
 
 test:
-	swift test --package-path $(PACKAGE_PATH)
+	swift test --package-path $(PACKAGE_PATH) $(if $(SWIFT_TEST_SCRATCH_ROOT),--scratch-path '$(SWIFT_TEST_SCRATCH_ROOT)') $(if $(SWIFT_TEST_EVENT_ROOT),--event-stream-output-path '$(SWIFT_TEST_EVENT_ROOT)/PhloxKit.jsonl' --event-stream-version 0)
 
 lint:
 	bash $(LINT_SCRIPT)

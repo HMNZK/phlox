@@ -8,13 +8,13 @@ last-verified: 2026-10-15
 リリース前後に「ユーザーの操作を再現して**見た目が正しく表現されているか**」を、AI がスクリーンショットを目視して確認する手順。コード/ロジックの正しさは対象外（それは自動テスト → `specs/e2e-test-design.md`）。
 
 - **これで見るもの**: 実行中インジケータ・停止赤枠・グリッド・Usage バー・ツールコールカード等、**実行中しか現れない動的な状態**の表示。
-- **反復回帰はここでやらない**: 同じ確認を繰り返すなら `accessibilityIdentifier` ベースの XCUITest（`specs/e2e-test-design.md` の Layer B）へ寄せる。ビジョン検証は高コストな探索的確認に限る。
+- **反復回帰はここでやらない**: 状態・API・描画の自動検査へ寄せ、必要な操作はAX/イベント送信で確認する。XCUITestは入力ソースを追加し得るため実行しない。ビジョン検証は探索的確認に使い、[統合前検証契約](../specs/merge-verification-gates.md)に従って自動検査・画面観測・実機記録を分ける。
 - **一般技法の正本**: 非侵襲キャプチャ・AppleScript/AX 駆動の汎用手順は `~/.claude/skills/swift-testing-and-perf`（SKILL.md 共通規律＋`references/macos-ui-test-applescript.md`）。ここには **Phlox 固有の束縛だけ**を書く。
 
 ## 前提（Phlox 固有）
 
 - **Debug ビルドを使う**。データは `~/Library/Application Support/Phlox-Debug`、bundle id `com.phlox.Phlox.debug`（ADR 0034 / `guides/running-release-and-debug-together.md`）。
-- **本番 Phlox（`/Applications/Phlox.app`）が起動していると、Debug のウィンドウ復元が競合**してオフスクリーン化・極小化・AX 不可視を起こす。検証中は本番 Phlox を終了しておく。復元状態が壊れたら `defaults delete com.phlox.Phlox.debug` ＋ `rm -rf "~/Library/Saved Application State/com.phlox.Phlox.debug.savedState"` で初期化。
+- **通常アプリを終了させない**。[併存ガイド](running-release-and-debug-together.md)に従い、検証版のデータ・設定・ポート・必要なbundle IDを分ける。ウィンドウ復元の競合やAX不可視を観測したら失敗を記録し、他作業の設定や保存状態を削除せず原因を調べる。
 - **フェイクエージェント注入**: 組込みハーネスの実行ファイルの場所を、環境変数 `PHLOX_TEST_AGENT_BINARY_PATHS`（JSON。例 `{"claudeCode":"/tmp/fake-agent.sh"}`）で差し替える。`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1` を一緒に渡したときだけ有効（`AppBootstrap/BinaryPathResolver.swift` の `testBinaryOverrides`。`UITests/IsolatedPhloxApplication.swift` が同じ形で渡す）。カスタムエージェント（`PHLOX_AGENTS_JSON`・`agents.json`）は 2026-10-12 に廃止された（ADR 0185）。ウィンドウ復元と env 注入を両立するため **`open --env` を使う**（バイナリ直起動は `windows=0` を招く。skill 側に詳細）:
   ```bash
   open --env "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1" --env 'PHLOX_TEST_AGENT_BINARY_PATHS={"claudeCode":"/tmp/fake-agent.sh"}' -a "$DEBUG_APP"
@@ -81,6 +81,6 @@ Debug インスタンス終了（`osascript -e 'tell application "Phlox" to quit
 
 ## 関連
 
-- 自動テスト設計（XCUITest / fake-agent / シナリオカタログ）: `specs/e2e-test-design.md`
+- 自動テスト設計（必須fake集合・シナリオカタログ。XCUITestは運用外）: `specs/e2e-test-design.md`
 - Release/Debug 同時併用: `guides/running-release-and-debug-together.md`（ADR 0034）
 - 汎用の macOS UI テスト技法: `~/.claude/skills/swift-testing-and-perf`

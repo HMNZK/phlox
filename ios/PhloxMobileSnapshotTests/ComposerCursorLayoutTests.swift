@@ -1,18 +1,133 @@
 import SwiftUI
 import Testing
 import UIKit
-import DesignSystemIOS
+@testable import DesignSystemIOS
+import PhotosUI
 
 @MainActor
 extension DesignSnapshotRenderTests {
+    @Test
+    func selectingPhotosWhilePickerIsOpenDoesNotConsumeOrClearSelection() {
+        let item = PhotosPickerItem(itemIdentifier: "photo-one")
+        var items = [item]
+        #expect(DSInputBar.takeSelectedPhotos(&items, isPresented: true).isEmpty)
+        #expect(items == [item])
+        #expect(DSInputBar.takeSelectedPhotos(&items, isPresented: false) == [item])
+        #expect(items.isEmpty)
+        #expect(DSInputBar.takeSelectedPhotos(&items, isPresented: false).isEmpty)
+    }
+
+    @Test
+    func selectionArrivingAfterDismissalIsConsumedOnce() {
+        var items: [PhotosPickerItem] = []
+        #expect(DSInputBar.takeSelectedPhotos(&items, isPresented: false).isEmpty)
+        let item = PhotosPickerItem(itemIdentifier: "photo-one")
+        items = [item]
+        #expect(DSInputBar.takeSelectedPhotos(&items, isPresented: false) == [item])
+        #expect(DSInputBar.takeSelectedPhotos(&items, isPresented: false).isEmpty)
+    }
+
     private final class Draft {
         var text: String
         var cursor: Int
+        var focused = false
 
         init(_ text: String, cursor: Int) {
             self.text = text
             self.cursor = cursor
         }
+    }
+
+    private final class FocusSpy: UITextView {
+        var reportedFirstResponder = false
+        var acquisitions = 0
+        var resignations = 0
+        override var isFirstResponder: Bool { reportedFirstResponder }
+        override func becomeFirstResponder() -> Bool {
+            acquisitions += 1
+            reportedFirstResponder = true
+            return true
+        }
+        override func resignFirstResponder() -> Bool {
+            resignations += 1
+            reportedFirstResponder = false
+            return true
+        }
+    }
+
+    private func focusHarness(focused: Bool) throws -> (UIWindow, DSInputRichTextEditor.Coordinator, FocusSpy, Draft) {
+        let draft = Draft("", cursor: 0)
+        draft.focused = focused
+        let editor = FocusSpy()
+        let controller = UIViewController()
+        controller.view.addSubview(editor)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = controller
+        window.isHidden = false
+        try #require(editor.window != nil)
+        editor.acquisitions = 0
+        editor.resignations = 0
+        let parent = DSInputRichTextEditor(
+            text: .constant(""), cursorUTF16: .constant(0),
+            isFocused: Binding(get: { draft.focused }, set: { draft.focused = $0 }),
+            dynamicTypeSize: .large, accessibilityLabel: "入力"
+        )
+        return (window, parent.makeCoordinator(), editor, draft)
+    }
+
+    @Test
+    func nativeFocusChangesWaitUntilAfterTheViewUpdate() async throws {
+        let (window, coordinator, editor, _) = try focusHarness(focused: true)
+        defer { window.isHidden = true }
+        let pending = try #require(coordinator.updateFocus(in: editor))
+        #expect(editor.acquisitions == 0)
+        await pending.value
+        #expect(editor.acquisitions == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func staleFocusRequestDoesNotReopenKeyboard(renderedAgain: Bool) async throws {
+        let (window, coordinator, editor, draft) = try focusHarness(focused: true)
+        defer { window.isHidden = true }
+        let pending = try #require(coordinator.updateFocus(in: editor))
+        draft.focused = false
+        if renderedAgain { coordinator.updateFocus(in: editor) }
+        await pending.value
+        #expect(editor.acquisitions == 0)
+    }
+
+    @Test
+    func focusRequestDoesNotActivateDetachedEditor() async throws {
+        let (window, coordinator, editor, _) = try focusHarness(focused: true)
+        defer { window.isHidden = true }
+        let pending = try #require(coordinator.updateFocus(in: editor))
+        editor.removeFromSuperview()
+        await pending.value
+        #expect(editor.acquisitions == 0)
+    }
+
+    @Test
+    func keyboardResignationAlsoWaitsUntilAfterTheViewUpdate() async throws {
+        let (window, coordinator, editor, _) = try focusHarness(focused: false)
+        defer { window.isHidden = true }
+        editor.reportedFirstResponder = true
+        let pending = try #require(coordinator.updateFocus(in: editor))
+        #expect(editor.resignations == 0)
+        await pending.value
+        #expect(editor.resignations == 1)
+    }
+
+    @Test
+    func repeatedViewUpdatesApplyOnlyLatestFocusRequest() async throws {
+        let (window, coordinator, editor, _) = try focusHarness(focused: true)
+        defer { window.isHidden = true }
+        let first = coordinator.updateFocus(in: editor)
+        let second = coordinator.updateFocus(in: editor)
+        let latest = coordinator.updateFocus(in: editor)
+        await first?.value
+        await second?.value
+        await latest?.value
+        #expect(editor.acquisitions == 1)
     }
 
     private func host(_ draft: Draft) throws -> (UIWindow, UIHostingController<DSInputBar>, UITextView) {

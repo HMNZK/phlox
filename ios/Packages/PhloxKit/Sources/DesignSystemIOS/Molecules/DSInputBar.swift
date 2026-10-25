@@ -452,19 +452,22 @@ public struct DSInputBar: View {
             .fixedSize(horizontal: false, vertical: true)
         )
         #if os(iOS)
-            .onChange(of: selectedPhotoItems) { _, items in
-                guard onAddAttachments != nil else { return }
-                Task { await importSelectedPhotos(items) }
+            .onChange(of: selectedPhotoItems) { _, _ in
+                importPhotosAfterDismissal()
+            }
+            .onChange(of: isPhotoPickerPresented) { _, _ in
+                importPhotosAfterDismissal()
             }
             .onAppear {
                 guard focusOnAppear else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(180))
+                    guard !isPhotoPickerPresented else { return }
                     isFocused = true
                 }
             }
             .onChange(of: focusRequest) { _, _ in
-                guard focusOnAppear else { return }
+                guard focusOnAppear, !isPhotoPickerPresented else { return }
                 isFocused = true
             }
             .photosPicker(
@@ -1184,6 +1187,7 @@ public struct DSInputBar: View {
     private func openPhotoPicker() {
         #if os(iOS)
             guard onAddAttachments != nil else { return }
+            isFocused = false
             selectedPhotoItems = []
             // PhotosPicker presentation is driven by the button below.
             isPhotoPickerPresented = true
@@ -1193,8 +1197,22 @@ public struct DSInputBar: View {
     #if os(iOS)
         @State private var isPhotoPickerPresented = false
 
+        private func importPhotosAfterDismissal() {
+            guard onAddAttachments != nil else { return }
+            let items = Self.takeSelectedPhotos(&selectedPhotoItems, isPresented: isPhotoPickerPresented)
+            guard !items.isEmpty else { return }
+            Task { await importSelectedPhotos(items) }
+        }
+
+        static func takeSelectedPhotos(_ items: inout [PhotosPickerItem], isPresented: Bool) -> [PhotosPickerItem] {
+            // 表示中の選択はピッカーが所有する。通知順に関係なく、閉じた後に一度だけ取り出す。
+            guard !isPresented, !items.isEmpty else { return [] }
+            let selected = items
+            items = []
+            return selected
+        }
+
         private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
-            defer { selectedPhotoItems = [] }
             guard let onAddAttachments else { return }
             var imported: [Result<SendAttachment, Error>] = []
             for item in items {

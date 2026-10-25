@@ -425,13 +425,18 @@ public struct SessionDetailView: View {
                 },
                 model: inputModel,
                 onSelectModel: { viewModel.beginModelSelection() },
-                settings: inputBarSettings
+                settings: inputBarSettings,
+                skills: viewModel.skillSuggestions.skills,
+                skillsLoading: viewModel.skillSuggestions.isLoading,
+                skillsError: viewModel.skillSuggestions.errorMessage,
+                onSelectSkill: { viewModel.skillSuggestions.select($0, context: viewModel.skillContext) }
             ) {
                 submitInput()
             }
             .onChange(of: viewModel.inputText) { oldValue, newValue in
                 viewModel.syncAttachmentsWithTextEdit(oldText: oldValue, newText: newValue)
             }
+            .task(id: viewModel.skillRequestContext) { await viewModel.loadSkillSuggestions() }
         }
     }
 

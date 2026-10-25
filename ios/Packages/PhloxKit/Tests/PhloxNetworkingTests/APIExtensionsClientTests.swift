@@ -4,6 +4,32 @@ import PhloxCore
 
 /// task-7 白箱テスト（実装役が追加可）。受け入れテストの補完。
 final class APIExtensionsClientTests: XCTestCase {
+    func testSkillEndpointsAndLegacy404() async throws {
+        NetStubURLProtocol.outcomes = [.status(200, Data(#"{"skills":[{"name":"poteto-mode","description":"説明","path":"/skills/poteto/SKILL.md","runtimeFingerprint":"f1"}]}"#.utf8), [:])]
+        let skills = try await makeClient().agentSkills(kind: .codex, projectID: "a&b", workspace: "日本語 repo")
+        XCTAssertEqual(skills?.first?.name, "poteto-mode")
+        let url = try XCTUnwrap(NetStubURLProtocol.lastRequest?.url)
+        XCTAssertEqual(url.path, "/agents/codex/skills")
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        XCTAssertEqual(query?.first(where: { $0.name == "projectID" })?.value, "a&b")
+        XCTAssertEqual(query?.first(where: { $0.name == "workspace" })?.value, "日本語 repo")
+        NetStubURLProtocol.outcomes = [.status(404, Data(), [:])]
+        let unsupported = try await makeClient().sessionSkills(sessionID: "s/1")
+        XCTAssertNil(unsupported)
+        XCTAssertEqual(percentEncodedPath(of: NetStubURLProtocol.lastRequest), "/sessions/s%2F1/skills")
+    }
+
+    func testSkillSendWireAndOmission() throws {
+        let skill = AgentSkillSelection(name: "poteto-mode", path: "/skills/poteto/SKILL.md", runtimeFingerprint: "f1")
+        let data = try JSONEncoder().encode(SendRequestDTO(to: "s1", text: "$poteto-mode", skill: skill))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let value = try XCTUnwrap(json["skill"] as? [String: String])
+        XCTAssertEqual(value["runtimeFingerprint"], "f1")
+        XCTAssertEqual(value["path"], skill.path)
+        let plain = try JSONEncoder().encode(SendRequestDTO(to: "s1", text: "hello"))
+        let plainJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: plain) as? [String: Any])
+        XCTAssertNil(plainJSON["skill"])
+    }
     private let config = ConnectionConfig(host: "100.64.0.1", port: 8765)
 
     override func setUp() {

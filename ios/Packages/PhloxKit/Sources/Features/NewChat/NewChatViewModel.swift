@@ -159,8 +159,18 @@ public final class NewChatViewModel {
     public private(set) var submittedText: String?
     public private(set) var readyWaitSeconds = 0
     public private(set) var attachmentItems: [SessionDetailViewModel.SessionAttachmentItem] = []
-    public var inputText = ""
+    public var inputText = "" {
+        didSet { skillSuggestions.reconcile(text: inputText, context: skillContext) }
+    }
     public var inputCursorUTF16 = 0
+    let skillSuggestions = MobileSkillSuggestions()
+    var skillContext: MobileSkillSuggestions.Context {
+        .agent(selectedAgent, projectID: selectedProject?.projectID, workspace: selectedProject?.name)
+    }
+    var skillRequestContext: MobileSkillSuggestions.Context? {
+        SkillSuggestionQuery.detect(text: inputText, cursorUTF16: inputCursorUTF16) == nil ? nil : skillContext
+    }
+    func loadSkillSuggestions() async { await skillSuggestions.load(api: api, context: skillRequestContext) }
     public private(set) var focusRequest = 0
     public var isModelPickerPresented = false
 
@@ -466,6 +476,7 @@ public final class NewChatViewModel {
         creationErrorPresentation = nil
         attachmentError = nil
         let backupText = inputText
+        let backupSkill = skillSuggestions.selection(text: text, context: skillContext)
         let backupItems = attachmentItems
         submittedText = backupText
         readyWaitSeconds = 0
@@ -536,33 +547,35 @@ public final class NewChatViewModel {
         } catch {
             timer.cancel()
             transition(to: .idle)
-            onCreated(session, recovery(text: backupText, attachments: backupItems))
+            onCreated(session, recovery(text: backupText, attachments: backupItems, skill: backupSkill))
             return
         }
         timer.cancel()
         guard isReady else {
             transition(to: .idle)
-            onCreated(session, recovery(text: backupText, attachments: backupItems))
+            onCreated(session, recovery(text: backupText, attachments: backupItems, skill: backupSkill))
             return
         }
 
         transition(to: .sending)
         do {
+            let skill = try await MobileSkillSuggestions.refreshed(backupSkill, api: api, sessionID: session.id)
             let result = try await api.send(SendRequest(
                 sessionID: session.id,
                 text: text,
-                images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) }
+                images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) },
+                skill: skill
             ))
             guard result.accepted else {
                 transition(to: .idle)
-                onCreated(session, recovery(text: backupText, attachments: backupItems))
+                onCreated(session, recovery(text: backupText, attachments: backupItems, skill: backupSkill))
                 return
             }
             transition(to: .idle)
             onCreated(session, nil)
         } catch {
             transition(to: .idle)
-            onCreated(session, recovery(text: backupText, attachments: backupItems))
+            onCreated(session, recovery(text: backupText, attachments: backupItems, skill: backupSkill))
         }
     }
 
@@ -588,12 +601,14 @@ public final class NewChatViewModel {
 
     private func recovery(
         text: String,
-        attachments: [SessionDetailViewModel.SessionAttachmentItem]
+        attachments: [SessionDetailViewModel.SessionAttachmentItem],
+        skill: AgentSkillSelection?
     ) -> SessionDetailRecovery {
         SessionDetailRecovery(
             text: text,
             attachments: attachments,
-            errorMessage: "送信に失敗しました · Mac に接続できません"
+            errorMessage: "送信に失敗しました · Mac に接続できません",
+            skill: skill
         )
     }
 

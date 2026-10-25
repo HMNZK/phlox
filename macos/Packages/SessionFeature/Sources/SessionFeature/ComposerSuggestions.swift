@@ -509,6 +509,18 @@ final class ComposerSuggestionController {
     }
 }
 
+public enum ComposerSkillSuggestions {
+    public static func skills(
+        agentKind: AgentKind,
+        workingDirectory: String,
+        availableCommands: [String]? = nil,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [AgentSkill] {
+        ComposerSuggestionSources.skills(agentKind: agentKind, workingDirectory: workingDirectory,
+            availableCommands: availableCommands, homeDirectory: homeDirectory)
+    }
+}
+
 enum ComposerSuggestionSources {
     private static let excludedDirectoryNames: Set<String> = [".git", ".build", "node_modules", "DerivedData"]
     private static let cache = ComposerSuggestionSourceCache(ttl: 5)
@@ -529,6 +541,17 @@ enum ComposerSuggestionSources {
         let name: String
         let subtitle: String
         let path: String
+    }
+
+    static func skills(agentKind: AgentKind, workingDirectory: String, availableCommands: [String]?, homeDirectory: URL) -> [AgentSkill] {
+        let workspace = URL(fileURLWithPath: normalizedWorkingDirectory(workingDirectory))
+        let commands = availableCommands.map { Set($0.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "/")) }) }
+        var seen = Set<String>()
+        return locatedSkills(for: agentKind, home: homeDirectory, workspace: workspace)
+            .filter { skill in
+                (commands?.contains(skill.name) ?? true) && seen.insert(skill.name + "\u{0}" + skill.path).inserted
+            }
+            .map { AgentSkill(name: $0.name, description: $0.subtitle, path: $0.path) }
     }
 
     static let builtinSlashCommands: [SuggestionCandidate] = [

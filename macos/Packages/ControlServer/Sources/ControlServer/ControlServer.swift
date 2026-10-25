@@ -252,6 +252,7 @@ public actor ControlServer {
 
         default:
             if request.method == "GET" {
+                if let skills = parseAgentSkills(path: request.path, query: request.query) { return skills }
                 if let agentModelsResult = parseAgentModels(path: request.path, hasQuery: request.hasQuery) {
                     return agentModelsResult
                 }
@@ -306,6 +307,7 @@ public actor ControlServer {
             let submit: Bool?
             let inReplyTo: String?
             let images: [ImageWire]?
+            let skill: AgentSkillSelection?
         }
 
         guard let payload = try? JSONDecoder().decode(SendBody.self, from: body) else {
@@ -352,6 +354,13 @@ public actor ControlServer {
             }
         }
 
+        if let skill = payload.skill {
+            guard !skill.name.isEmpty, !skill.path.isEmpty,
+                  !skill.name.contains(where: { $0.isWhitespace || $0.isNewline }),
+                  !skill.path.contains("\u{0}") else { return .failure(.status(400)) }
+            return .success(.sendTextWithSkill(to: recipient, text: payload.text,
+                submit: payload.submit ?? true, inReplyTo: inReplyTo, images: images, skill: skill))
+        }
         return .success(.sendText(
             to: recipient,
             text: payload.text,
@@ -522,6 +531,9 @@ public actor ControlServer {
         }
 
         switch components[3] {
+        case "skills":
+            guard query.isEmpty else { return .failure(.status(404)) }
+            return .success(.sessionSkills(id: sessionID))
         case "output":
             return parseOutput(sessionID: sessionID, query: query)
         case "messages":
@@ -537,6 +549,19 @@ public actor ControlServer {
         default:
             return .failure(.status(404))
         }
+    }
+
+    private func parseAgentSkills(path: String, query: [String: String]) -> RouteResult? {
+        let parts = path.split(separator: "/")
+        guard parts.count == 3, parts[0] == "agents", parts[2] == "skills" else { return nil }
+        guard let kind = AgentKind(rawValue: String(parts[1])),
+              query.keys.allSatisfy({ $0 == "projectID" || $0 == "workspace" }) else { return .failure(.status(404)) }
+        let projectID: ProjectID?
+        if let raw = query["projectID"] {
+            guard let uuid = UUID(uuidString: raw) else { return .failure(.status(400)) }
+            projectID = ProjectID(rawValue: uuid)
+        } else { projectID = nil }
+        return .success(.agentSkills(kind: kind, projectID: projectID, workspace: query["workspace"]))
     }
 
     private func parseAgentModels(path: String, hasQuery: Bool) -> RouteResult? {

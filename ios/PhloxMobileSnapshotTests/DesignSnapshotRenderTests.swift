@@ -2663,7 +2663,7 @@ struct DesignSnapshotRenderTests {
         try #require(observer.isStable, "Expanded ListMany geometry did not remain stable for a disclosure-duration interval")
     }
 
-    private func windowImage<Content: View>(
+    func windowImage<Content: View>(
         _ content: Content,
         size: CGSize,
         safeArea: UIEdgeInsets,
@@ -2830,14 +2830,14 @@ struct DesignSnapshotRenderTests {
         }
     }
 
-    private func waitForSnapshotAccessibilityElement(in window: UIWindow, identifier: String) async throws -> NSObject {
+    func waitForSnapshotAccessibilityElement(in window: UIWindow, identifier: String? = nil, label: String? = nil) async throws -> NSObject {
         let deadline = ContinuousClock.now + .seconds(3)
         repeat {
-            if let element = snapshotAccessibilityElement(in: window, identifier: identifier) { return element }
+            if let element = snapshotAccessibilityElement(in: window, identifier: identifier, label: label) { return element }
             try await Task.sleep(for: .milliseconds(50))
         } while ContinuousClock.now < deadline
         snapshotAccessibilityDiagnostics(window)
-        return try #require(snapshotAccessibilityElement(in: window, identifier: identifier), "AX element did not appear: \(identifier)")
+        return try #require(snapshotAccessibilityElement(in: window, identifier: identifier, label: label), "AX element did not appear: \(identifier ?? label ?? "nil")")
     }
 
     private func snapshotAccessibilityDiagnostics(_ window: UIWindow) {

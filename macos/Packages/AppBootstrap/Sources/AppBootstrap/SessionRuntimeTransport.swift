@@ -73,6 +73,7 @@ struct SessionRuntimeOperation: Codable, Sendable {
 struct SessionRuntimeHandshake: Codable, Sendable {
     let protocolVersion: Int
     let generation: UUID
+    var supportsControlSkills: Bool? = nil
 }
 
 struct SessionRuntimeSnapshotEnvelope: Codable, Sendable {
@@ -335,7 +336,7 @@ public actor SessionRuntimeTransport {
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
                 pendingReads += 1
                 readAdmitted = true
-                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation))
+                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation, supportsControlSkills: true))
             case .snapshot:
                 maximumResponseBytes = Self.maximumSnapshotBytes
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }

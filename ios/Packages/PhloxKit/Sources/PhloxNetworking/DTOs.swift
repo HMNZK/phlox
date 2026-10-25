@@ -274,10 +274,12 @@ struct SendRequestDTO: Encodable {
     let to: String
     let text: String
     private let images: [SendAttachmentDTO]?
+    let skill: AgentSkillSelection?
 
-    init(to: String, text: String, images: [SendAttachment] = []) {
+    init(to: String, text: String, images: [SendAttachment] = [], skill: AgentSkillSelection? = nil) {
         self.to = to
         self.text = text
+        self.skill = skill
         self.images = images.isEmpty ? nil : images.map { SendAttachmentDTO(mediaType: $0.mediaType, data: $0.data) }
     }
 
@@ -286,10 +288,11 @@ struct SendRequestDTO: Encodable {
         try container.encode(to, forKey: .to)
         try container.encode(text, forKey: .text)
         try container.encodeIfPresent(images, forKey: .images)
+        try container.encodeIfPresent(skill, forKey: .skill)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case to, text, images
+        case to, text, images, skill
     }
 }
 

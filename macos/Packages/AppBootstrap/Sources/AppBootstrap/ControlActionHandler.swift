@@ -130,9 +130,20 @@ public protocol ControlActionDashboard: AnyObject {
     var controlProjects: [ControlProject] { get }
     func setSessionSettings(_ settings: ControlSettingsUpdate, for id: SessionID) async -> ControlSettingsApplyOutcome
     var controlCLIUsages: [AgentKind: CLIUsage] { get }
+    func sessionSkills(for id: SessionID) async throws -> [AgentSkill]?
+    func agentSkills(kind: AgentKind, projectID: ProjectID?, workspace: String?) async -> [AgentSkill]?
+    func sendMessageWithSkill(to recipient: Recipient, text: String, submit: Bool, from: SessionID?,
+        inReplyTo: UUID?, images: [ControlImageAttachment], skill: AgentSkillSelection?) async -> DashboardViewModel.SendOutcome
 }
 
 extension ControlActionDashboard {
+    public func sessionSkills(for id: SessionID) async throws -> [AgentSkill]? { nil }
+    public func agentSkills(kind: AgentKind, projectID: ProjectID?, workspace: String?) async -> [AgentSkill]? { nil }
+    public func sendMessageWithSkill(to recipient: Recipient, text: String, submit: Bool, from: SessionID?,
+        inReplyTo: UUID?, images: [ControlImageAttachment], skill: AgentSkillSelection?) async -> DashboardViewModel.SendOutcome {
+        guard skill == nil else { return .rejected(reason: "skill unavailable") }
+        return await sendMessage(to: recipient, text: text, submit: submit, from: from, inReplyTo: inReplyTo, images: images)
+    }
     public var controlLanguageCode: String { "ja" }
     public var controlProjects: [ControlProject] { [] }
     public func setSessionSettings(_ settings: ControlSettingsUpdate, for id: SessionID) async -> ControlSettingsApplyOutcome { .notFound }
@@ -172,6 +183,17 @@ public final class ControlActionHandler {
         switch request.action {
         case .listSessions:
             return handleListSessions(dashboard)
+        case let .sessionSkills(id):
+            do {
+                guard let skills = try await dashboard.sessionSkills(for: id) else { return .status(404) }
+                return .json(200, SkillsDTO(skills: skills))
+            } catch { return .json(503, ErrorDTO(error: "skill list unavailable")) }
+        case let .agentSkills(kind, projectID, workspace):
+            guard let skills = await dashboard.agentSkills(kind: kind, projectID: projectID, workspace: workspace) else { return .status(404) }
+            return .json(200, SkillsDTO(skills: skills))
+        case let .sendTextWithSkill(to, text, submit, inReplyTo, images, skill):
+            return await handleSendText(dashboard, to: to, text: text, submit: submit,
+                requester: request.requester, inReplyTo: inReplyTo, images: images, skill: skill)
         case let .sendText(to, text, submit, inReplyTo, images):
             return await handleSendText(
                 dashboard,
@@ -368,15 +390,17 @@ public final class ControlActionHandler {
         submit: Bool,
         requester: SessionID?,
         inReplyTo: UUID?,
-        images: [ControlImageAttachment]
+        images: [ControlImageAttachment],
+        skill: AgentSkillSelection? = nil
     ) async -> ControlResponse {
-        let outcome = await dashboard.sendMessage(
+        let outcome = await dashboard.sendMessageWithSkill(
             to: to,
             text: text,
             submit: submit,
             from: requester,
             inReplyTo: inReplyTo,
-            images: images
+            images: images,
+            skill: skill
         )
         return mapSendOutcome(outcome)
     }
@@ -1143,3 +1167,4 @@ private struct TurnUsageWireDTO: Encodable {
 }
 
 private struct ProjectsDTO: Encodable { let projects: [ControlProject] }
+private struct SkillsDTO: Encodable { let skills: [AgentSkill] }

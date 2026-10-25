@@ -23,6 +23,9 @@ public struct ControlRequest: Sendable {
     public enum Action: Sendable {
         case listSessions
         case sendText(to: Recipient, text: String, submit: Bool, inReplyTo: UUID?, images: [ControlImageAttachment])
+        case sendTextWithSkill(to: Recipient, text: String, submit: Bool, inReplyTo: UUID?, images: [ControlImageAttachment], skill: AgentSkillSelection)
+        case sessionSkills(id: SessionID)
+        case agentSkills(kind: AgentKind, projectID: ProjectID?, workspace: String?)
         case spawn(ref: AgentRef, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?)
         case remove(id: SessionID)
         case rename(id: SessionID, name: String)

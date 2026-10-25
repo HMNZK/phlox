@@ -44,3 +44,4 @@ last-verified: 2026-08-01
 | [bottom-panel-shell-files-git.md](bottom-panel-shell-files-git.md) | active | 下部パネル（プロジェクトごとのターミナル）・既定のシェルの設定・ツリーでのファイルの作成/名前変更/削除・右サイドバーの Git タブの要件（2026-10-14 依頼。モック待ち） |
 | `codex-full-access-and-user-input.md` | active | Codex のフルアクセスとユーザー質問の要件（FR/NFR・受け入れ基準・用語。決定は ADR 0154〜0157） |
 | `codex-question-tools.md` | active | Codexの質問ツール必須指示、同期・非同期の選択、質問カードの回答・寿命・互換性 |
+| `independent-session-runtime.md` | active | セッションの実行を画面プロセスから独立させる常駐実行の要件・受入検証・制限 |

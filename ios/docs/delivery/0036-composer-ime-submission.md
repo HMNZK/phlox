@@ -80,3 +80,5 @@ API、送信後の編集保護、添付、キーボード設定、画面デザ�
 
 - ユーザーの「無視してdevにマージして」により、上記3指摘に対応する `clickingOutsideClosesNativePopover`（2条件）と `popupAnimatesOnlyTheSelectedDescription`（1条件）を今回の品質検査だけ `SWIFT_TEST_SKIP` で除外する。リポジトリのテスト・期待値・品質設定は変更しない。
 - 他の設定済み品質検査、文書保守、秘密情報検査は共通マージツールで実施する。除外した3条件の不具合は未解決のままであり、検査成功とは扱わない。
+- 除外後の品質検査は exit 0 だったが、DashboardFeature の `Package.resolved` が実行時に自動更新され、候補を変更しない検査に失敗して反映は停止した。SessionFeature・AppBootstrap が既に固定している `swift-argument-parser` 1.8.2 にDashboardFeatureも揃え、自動生成された originHash を含めて保存する。依存の要求範囲やテスト設定は変更しない。
+- 保存した固定ファイルは検査が生成したものと同一で、`--force-resolved-versions` による解決も成功した。検証時の `--skip-update` は廃止予定との警告が出たが、この一時コマンドのみで使用し、ビルド設定には追加していない。

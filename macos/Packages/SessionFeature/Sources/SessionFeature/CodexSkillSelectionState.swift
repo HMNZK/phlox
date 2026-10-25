@@ -188,8 +188,9 @@ public final class CodexSkillSelectionState {
 
     func makeRuntimeSnapshot() -> SessionRuntimeSkillSnapshot {
         if runtimeRefresh == nil, runtimeFingerprintGeneration != generation {
+            var cache: [String: String?] = [:]
             runtimeFingerprints = Dictionary(skills.compactMap { skill in
-                CodexSkillFingerprint.read(skillPath: skill.path).map { (skill.path, $0) }
+                CodexSkillFingerprint.read(skillPath: skill.path, cache: &cache).map { (skill.path, $0) }
             }, uniquingKeysWith: { first, _ in first })
             runtimeFingerprintGeneration = generation
         }

@@ -61,3 +61,4 @@ last-verified: 2026-10-19
 - `delivery/0033-ios-offline-accessory-worklog.md` … オフライン案内のnative tab表示検証ログ
 - `delivery/0034-ios-root-transition-verification.md` … Root遷移と実操作検証の作業ログ
 - `delivery/0035-ios-real-biometric-gate-probe.md` … Face ID実権限経路probe記録
+- `delivery/0036-mobile-skill-suggestions.md` … スマホ入力欄のスキル候補（取得・選択・Codex native送信）の作業記録。恒久仕様は macos/docs/specs/mobile-skill-suggestions.md

@@ -138,7 +138,7 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
 
     /// データが届いたときだけ読み、EOF で cancel して onEnd を呼ぶ。読み取りごとに処理を終えるので、
     /// 読んだバッファはその場で解放される（`availableData` の無限ループは autorelease プールに溜め続けた。ADR 0220）。
-    /// fd は閉じない（閉じるのは finish() だけ）。
+    /// fd は閉じない（閉じるのは finish() だけ）。cancel 完了まで handle を掴み、先に解放されて fd が閉じるのを防ぐ。
     private static func makeReadSource(
         _ handle: FileHandle,
         queue: DispatchQueue,
@@ -158,7 +158,7 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
                 source.cancel()
             }
         }
-        source.setCancelHandler(handler: onEnd)
+        source.setCancelHandler { withExtendedLifetime(handle) { onEnd() } }
         source.resume()
         return source
     }
@@ -239,7 +239,8 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
 
     private func appendStderr(_ data: Data) {
         lock.withLock {
-            guard !isFinished else { return }
+            // 上限超えで止めた後は追記しない（止めた理由を末尾から押し出さない）。
+            guard !isFinished, !lineLimitExceeded else { return }
             appendStderrTail(data)
         }
     }

@@ -13,7 +13,7 @@
 ## 決定
 
 1. **長命のトランスポートは `DispatchSourceRead` で読む。** データが届いたときだけ `read(2)` で読み、イベントごとに処理を終える。待機中にスレッドを占有せず、Foundation の autorelease を経由しない。fd を閉じるのは従来どおり `finish()` だけにする。PTY 側（`PTYManager`）と同じ形。
-2. **1 行の長さに上限を置く（既定 64MiB）。** 改行が来ないまま上限を超えたら、理由を stderr の末尾に追記して子プロセスを止める。既存の「プロセスが終了した」エラーの経路で理由が表示される。Claude Agent SDK（Python）も同様の上限（既定 1MiB）を持つ。正常な出力が引っかからないよう大きめにした。
+2. **1 行の長さに上限を置く（既定 64MiB）。** 改行が来ないまま上限を超えたら、理由を stderr の末尾に追記して子プロセスを止め、以後の出力は捨てる。Claude は既存の「プロセスが終了した」エラーに stderr の末尾を付けるので理由が表示される。Codex は stderr を表示しないため、既存の「app-server が終了した」エラーだけになる。Claude Agent SDK（Python）も同様の上限（既定 1MiB）を持つ。正常な出力が引っかからないよう大きめにした。
 3. **Codex 専用の `ProcessTransport` を削除し、`LineDelimitedProcessTransport` に一本化する。** `AppServerTransport` への準拠は CodexAppServerKit 側の拡張で与える。
 4. **stderr の末尾保持は `removeSubrange` で先頭を詰める。**
 5. **短命の読み取り（`OneShotProcessRunner`、Codex のモデル一覧取得）は、1 回の読み取りごとに `autoreleasepool` で包むだけにする。** プロセスの終了で読み取りも終わるため、読み方そのものは変えない。
@@ -26,4 +26,4 @@
 ## 影響
 
 - 上限を超える 1 行（巨大なツール結果など）を受け取ったセッションは、エラーで止まる。
-- Codex の stderr は捨てずに末尾 64KiB を保持するようになる（Claude と同じ）。
+- Codex の stderr は捨てずに末尾 64KiB を保持するようになる（Claude と同じ）。ただし Codex 側はまだ表示に使っていない。

@@ -100,7 +100,7 @@ private struct MockLineDelimitedTransport: LineDelimitedTransport {
 func processTransportStopsTheChildWhenALineExceedsTheLimit() async throws {
     let transport = LineDelimitedProcessTransport(
         command: "/usr/bin/perl",
-        arguments: ["-e", "$|=1; print \"ok\\n\"; print \"x\" x 2048; sleep 30;"],
+        arguments: ["-e", "$|=1; print \"ok\\n\"; print \"x\" x 2048; print STDERR \"e\" x 70000; sleep 30;"],
         maxLineBytes: 1024
     )
     try transport.start()

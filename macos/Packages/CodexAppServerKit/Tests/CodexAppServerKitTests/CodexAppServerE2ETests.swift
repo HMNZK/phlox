@@ -1,9 +1,16 @@
 import Foundation
 import Testing
 @testable import CodexAppServerKit
+import StructuredChatKit
 
 private func codexE2EEnabled() -> Bool {
     ProcessInfo.processInfo.environment["PHLOX_CODEX_E2E"] == "1"
+}
+
+private func startCodexAppServer(workingDirectory: URL) throws -> LineDelimitedProcessTransport {
+    let transport = LineDelimitedProcessTransport(command: "codex", arguments: ["app-server"], workingDirectory: workingDirectory)
+    try transport.start()
+    return transport
 }
 
 @Suite("Codex app-server E2E")
@@ -15,7 +22,7 @@ struct CodexAppServerE2ETests {
         try FileManager.default.createDirectory(at: workdir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workdir) }
 
-        let transport = try ProcessTransport.codexAppServer(workingDirectory: workdir)
+        let transport = try startCodexAppServer(workingDirectory: workdir)
         let client = CodexAppServerClient(transport: transport)
         await client.start()
         defer { Task { await client.close() } }
@@ -58,7 +65,7 @@ struct CodexAppServerE2ETests {
         try FileManager.default.createDirectory(at: workdir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workdir) }
 
-        let transport = try ProcessTransport.codexAppServer(workingDirectory: workdir)
+        let transport = try startCodexAppServer(workingDirectory: workdir)
         let client = CodexAppServerClient(transport: transport)
         await client.start()
         defer { Task { await client.close() } }
@@ -85,7 +92,7 @@ struct CodexAppServerE2ETests {
         try FileManager.default.createDirectory(at: workdir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workdir) }
 
-        let transport = try ProcessTransport.codexAppServer(workingDirectory: workdir)
+        let transport = try startCodexAppServer(workingDirectory: workdir)
         let client = CodexAppServerClient(transport: transport)
         await client.start()
         defer { Task { await client.close() } }

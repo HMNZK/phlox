@@ -138,6 +138,24 @@
         "physical-activity-presentation"
       ],
       "reason": "独立した内容レビューで対象コード差分と3シナリオのAC本文・手順・期待結果・参照テストを確認した。DSPlatformTabViewは26.1以降でtabViewBottomAccessory(isEnabled:)を常設し、26.0は同modifier内の表示だけを切り替える。DSPlatformTabContentもsafeAreaInsetを常設し、対応待ち・オフライン切替で画面本体の状態を保持する。physical-session-activityのAC-1〜4に関わる状態解決・完了token確認・中断競合・通信処理は変更せず、再購読の誘発を除くため既存の送信・前面/背面・再接続観察の手順と期待結果は維持できる。physical-history-followのAC-5/7に関わる履歴展開・アンカー・追従・VoiceOver入口は変更せず、表示切替でそれらの画面状態を失わない修正なので既存の指操作・取消・新着・VoiceOver手順は維持する。physical-activity-presentationのAC-6に関わる寸法・配色・描画段階・Reduce Motion・読み上げは変更せず、アクセサリの装飾値も引き継ぐためライト/ダーク・文字拡大・動きの設定の観察条件は維持する。3件のrevision・必須性・要件範囲は縮小せず更新不要と判断した。追加のTabAccessoryIdentityTestsは取得taskのUUID履歴と編集値を検査し、旧版ログでは2ケース18issues、修正版ログでは同2ケース成功を確認した。これは実機シナリオの成功記録ではなく内容レビューのみ。手動確認記録もiOS26.2と検証用APIに限定される。未確認は実機3シナリオ、iOS18/26.0の実行、26.0で空バーが残らないこと、履歴の実指操作とVoiceOver、活動表示の全条件、最終統合候補の共通quality全体。"
+    },
+    {
+      "baseOID": "f1d5abd44dbf5c22cce61987e4ccccce8616e31b",
+      "targetOID": "7bc3d2a84b0fe22b920ff3609844973496c8c1fa",
+      "diffSHA256": "e0d58b2cb709572de1c3f86960a24c3351d0e273f7cd8465ddd331b1bf5e67f5",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-subagent:/root/push_merge_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T14:47:28+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh"
+      ],
+      "reason": "対象差分と影響3シナリオのAC本文・手順・期待結果を独立確認した。fake-session-lifecycleの決定論的な送受信・完了・終了・永続化条件は不変。physical-session-activityの実行状態・完了確認・中断競合・復帰の観察条件も不変で、今回は通知登録更新とAPNs応答鮮度を修正する。physical-usage-preferences-refreshはAppRootが対応範囲に含まれるが、使用量の取得条件・周期・設定保存・表示処理は変更しない。3件ともprocedure・expected・revisionの更新不要。標準入口をcompact-testとmanaged-build経由で独立実行し、APNsClientの10テストが成功した。修正前ログではsandbox/productionとalert/liveactivityの4条件がcachePolicy期待で失敗することも確認した。これはコードとシナリオ内容のレビューであり、統合候補全体の実機成功を証明しない。"
     }
   ]
 }

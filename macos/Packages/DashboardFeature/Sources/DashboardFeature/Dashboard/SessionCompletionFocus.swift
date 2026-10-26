@@ -59,9 +59,10 @@ struct SessionCompletionFocusEvents: View {
             .accessibilityHidden(true)
     }
 
-    /// 画面に表示中のセッション。単一表示では選択中の会話、グリッドでは並んでいるタイル。
+    /// 画面に表示中のセッション。単一表示では出ている会話、グリッドでは並んでいるタイル。
     private var displayedSessionIDs: [SessionID] {
-        router.viewMode == .grid ? viewModel.gridTileOrder() : router.focusedSessionID.map { [$0] } ?? []
+        if router.viewMode == .grid { return viewModel.gridTileOrder() }
+        return router.displayedChatSessionID { viewModel.sessionNode(id: $0)?.projectID }.map { [$0] } ?? []
     }
 
     private func acknowledge() {

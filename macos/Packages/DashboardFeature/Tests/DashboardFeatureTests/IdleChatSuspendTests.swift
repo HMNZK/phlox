@@ -181,3 +181,38 @@ func idleSuspendedExitRoundTripsAndOldSnapshotsDecode() throws {
     #expect(try JSONDecoder().decode(ChatProcessExit.self, from: JSONEncoder().encode(suspended)) == suspended)
     #expect(try JSONDecoder().decode(ChatProcessExit.self, from: Data(#"{"exitCode":3}"#.utf8)) == ChatProcessExit(exitCode: 3))
 }
+
+// 単一表示で出ている会話を「表示中」とする。プロジェクトに入っていない会話も含め、ファイル等のタブは含めない。
+@Test @MainActor
+func displayedChatIncludesUnassignedChatsButNotOtherTabs() {
+    let router = AppRouter()
+    let unassigned = SessionID()
+    router.selectedSession = unassigned
+    #expect(router.displayedChatSessionID { _ in nil } == unassigned)
+
+    let project = ProjectID()
+    let chat = SessionID()
+    router.selectTab(.chat(chat), in: project)
+    #expect(router.displayedChatSessionID { _ in project } == chat)
+    router.tabs.updateLayout(for: project) { $0.open(.file("/tmp/a.swift")) }
+    #expect(router.displayedChatSessionID { _ in project } == nil)
+}
+
+// 画面（常駐側の写し）から休止した会話を再開すると、写しが同じ会話として新しい状態を受け取る。
+@Test @MainActor
+func resumingFromTheScreenKeepsTheProjectionInSync() async throws {
+    let spawnClient = CountingResumeStructuredClient()
+    let resumeClient = CountingResumeStructuredClient()
+    let (owned, sessionID, _) = try await makeIdleDashboard([spawnClient, resumeClient])
+    let idle = try chat(owned, sessionID)
+    try await waitUntil { idle.canSuspendForIdle }
+    await owned.suspendIdleChatSessions(now: Date().addingTimeInterval(dayAndAMinute))
+    let screen = try DashboardViewModel(projection: owned.makeRuntimeSnapshot()) { try await owned.performRuntimeCommand($0) }
+    #expect(try chat(screen, sessionID).processExit?.suspendedForIdle == true)
+
+    await screen.resumeEndedChatSession(sessionID)
+    try screen.applyRuntimeSnapshot(owned.makeRuntimeSnapshot())
+
+    #expect(try chat(screen, sessionID).processExit == nil)
+    #expect(screen.runtimeCommandError == nil)
+}

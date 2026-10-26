@@ -1667,7 +1667,8 @@ public final class DashboardViewModel {
             workingDirectory: plan.workingDirectory ?? resolvedWorkingDirectory ?? "",
             name: latestTitle.name,
             projectID: resolvedProjectID,
-            startedAt: Date(),
+            // 動いている会話と同じ値にする。画面側は再開後の会話をこの値で同じ会話と照合する。
+            startedAt: sessionNode(id: sessionID)?.startedAt ?? Date(),
             command: plan.command,
             args: plan.args,
             env: plan.env,

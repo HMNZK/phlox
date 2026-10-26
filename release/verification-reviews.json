@@ -156,6 +156,23 @@
         "physical-usage-preferences-refresh"
       ],
       "reason": "対象差分と影響3シナリオのAC本文・手順・期待結果を独立確認した。fake-session-lifecycleの決定論的な送受信・完了・終了・永続化条件は不変。physical-session-activityの実行状態・完了確認・中断競合・復帰の観察条件も不変で、今回は通知登録更新とAPNs応答鮮度を修正する。physical-usage-preferences-refreshはAppRootが対応範囲に含まれるが、使用量の取得条件・周期・設定保存・表示処理は変更しない。3件ともprocedure・expected・revisionの更新不要。標準入口をcompact-testとmanaged-build経由で独立実行し、APNsClientの10テストが成功した。修正前ログではsandbox/productionとalert/liveactivityの4条件がcachePolicy期待で失敗することも確認した。これはコードとシナリオ内容のレビューであり、統合候補全体の実機成功を証明しない。"
+    },
+    {
+      "baseOID": "e08838f51fee41289e3ed60d90b5e36a1778cc5c",
+      "targetOID": "fb4a0f835446f718cefa32a5b9cb252ae9d20cd4",
+      "diffSHA256": "607f2bb043bc4f44d74f38dc2acb1763abb01db91ddeafc7229a21553a2198de",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-subagent:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T16:00:16Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "固定差分と全呼出元を独立に確認した。既存の単一polling Task内でGETと表示callbackのURLError.timedOutだけを待機後に再試行し、成功時に待機を戻す。取消し・置換・致命的応答の既存終了経路と認証・互換性・世代検証を維持し、command/performは変更せずPOST再送を追加しない。再試行状態はTask内の1値で、逐次要求と最大8秒の待機により要求やTaskを蓄積しない。追加10関数12ケースを読み、修正前の回復4関数失敗と修正後AppBootstrap226テスト成功をログで確認した。fake-session-lifecycleとphysical-session-activityの要件・必須範囲・手順・期待結果・方式は不変で版更新は不要。レビューは内容判定であり、修正後実GUI、全体品質入口、長期間の反復、8秒上限到達の実測、実Mac/iPhoneの実行は未確認。初回timeout原因は未特定。文書の9行表記は実差分の8行へ訂正を依頼した。"
     }
   ]
 }

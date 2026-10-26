@@ -60,6 +60,8 @@ func idleChatIsSuspendedWithoutAttentionAndResumesTheSameConversation() async th
     #expect(resumed !== idle)
     #expect(resumed.processExit == nil)
     #expect(resumeClient.resumes == [sessionID.rawValue.uuidString.lowercased()])
+    #expect(!idle.hasUnseenCompletion)
+    #expect(dashboard.unseenCompletionCount == 0)
 }
 
 @Test @MainActor
@@ -72,10 +74,29 @@ func chatIsNotSuspendedWithin24HoursOrWhileShownOnScreen() async throws {
     await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(DashboardViewModel.idleSuspendAfter - 60))
     #expect(idle.processExit == nil)
 
-    // 画面に表示された時刻から数え直す（表示の直後なので、出力から 24 時間たっていても止めない）。
-    dashboard.noteSessionsViewed([sessionID])
-    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(DashboardViewModel.idleSuspendAfter - 60))
+    // 画面に表示された時刻から数え直す（出力から 24 時間たっていても、表示から 24 時間たつまでは止めない）。
+    dashboard.lastViewedAt[sessionID] = Date().addingTimeInterval(3600)
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(dayAndAMinute))
     #expect(idle.processExit == nil)
+    #expect(client.closes == 0)
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(3600 + dayAndAMinute))
+    #expect(idle.processExit?.suspendedForIdle == true)
+}
+
+@Test @MainActor
+func chatWaitingForAnAnswerIsNotSuspended() async throws {
+    let client = CountingResumeStructuredClient()
+    let (dashboard, sessionID, _) = try await makeIdleDashboard([client])
+    let waiting = try chat(dashboard, sessionID)
+    try await waitUntil { waiting.canSuspendForIdle }
+    client.yield(.turnStarted)
+    try await waitUntil { waiting.showsProcessingIndicator }
+    client.yield(.userQuestionRequested(requestId: "q1", questions: [ChatUserQuestion(question: "どちら?", header: "選択", options: [], multiSelect: false)]))
+    try await waitUntil { SessionNode.appServer(waiting).tabDisplayState == .question }
+
+    await dashboard.suspendIdleChatSessions(now: Date().addingTimeInterval(dayAndAMinute))
+
+    #expect(waiting.processExit == nil)
     #expect(client.closes == 0)
 }
 
@@ -87,6 +108,22 @@ func sessionsViewedFromTheScreenReachTheRuntimeWithoutError() async throws {
     let screen = try DashboardViewModel(projection: owned.makeRuntimeSnapshot()) { try await owned.performRuntimeCommand($0) }
     screen.noteSessionsViewed([sessionID])
     try await waitUntil { owned.lastViewedAt[sessionID] != nil }
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(screen.runtimeCommandError == nil)
+}
+
+// 更新前の常駐側は知らせを解読できずに断る。利用者の操作ではないので警告を出さない。
+@Test @MainActor
+func sessionsViewedRejectedByAnOlderRuntimeRaisesNoAlert() async throws {
+    let client = CountingResumeStructuredClient()
+    let (owned, sessionID, _) = try await makeIdleDashboard([client])
+    var rejected = 0
+    let screen = try DashboardViewModel(projection: owned.makeRuntimeSnapshot()) { command in
+        if case .sessionsViewed = command { rejected += 1; throw URLError(.badServerResponse) }
+        return try await owned.performRuntimeCommand(command)
+    }
+    screen.noteSessionsViewed([sessionID])
+    try await waitUntil { rejected == 1 }
     try await Task.sleep(for: .milliseconds(50))
     #expect(screen.runtimeCommandError == nil)
 }

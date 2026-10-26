@@ -10,7 +10,7 @@ extension DashboardViewModel {
     /// 画面に表示中のセッションを使われたものとして記録する。画面は表示が変わったときと 5 分ごとに呼ぶ。
     public func noteSessionsViewed(_ ids: [SessionID]) {
         guard !ids.isEmpty else { return }
-        if isRuntimeProjection { enqueueProjectedAction(.sessionsViewed(ids)); return }
+        if isRuntimeProjection { sendRuntimeReport(.sessionsViewed(ids)); return }
         let now = Date()
         for id in ids { lastViewedAt[id] = now }
     }

@@ -444,7 +444,8 @@ public final class DashboardViewModel {
               resumingChatSessionIDs.insert(id).inserted else { return }
         lastViewedAt[id] = Date()
         defer { resumingChatSessionIDs.remove(id) }
-        await ended.terminate()
+        // 休止したものはプロセスを止め済み。terminate で完了扱いにすると対応待ちの印が付く。
+        if ended.processExit?.suspendedForIdle != true { await ended.terminate() }
         guard let resumed = await sessionRestoreCoordinator.resumeChatSession(id: id) else {
             ended.markRestoreFailed("chat restore failed: missing session record")
             return
@@ -2531,7 +2532,7 @@ extension DashboardViewModel {
                 case (.session, .session), (.spawn, .sessionID), (.launchNewChat, .acceptedSession),
                      (.restartNewChat, .sessionID), (.addProject, .projectID), (.removeSession, .bool),
                      (.history, .history), (.message, .sendOutcome): break
-                case (.resumeChat, .none), (.sessionsViewed, .none), (.renameProject, .none), (.renameSession, .none),
+                case (.resumeChat, .none), (.renameProject, .none), (.renameSession, .none),
                      (.reorderSession, .none), (.moveSession, .none), (.changeWorkspace, .none),
                      (.removeProject, .none), (.persistRole, .none), (.clearWorkspaceCleanupWarning, .none),
                      (.takeDiscardedSessionCountNotice, .none), (.usage, .none): break
@@ -2548,9 +2549,15 @@ extension DashboardViewModel {
         return request
     }
 
-    func enqueueProjectedAction(_ command: DashboardRuntimeCommand) {
+    private func enqueueProjectedAction(_ command: DashboardRuntimeCommand) {
         do { _ = try beginRuntimeCommand(command) }
         catch { runtimeCommandError = error.localizedDescription }
+    }
+
+    /// 利用者の操作ではない報告を常駐側へ送る。失敗は知らせない（更新前の常駐側は解読できずに断る）。
+    func sendRuntimeReport(_ command: DashboardRuntimeCommand) {
+        guard let runtimeCommandHandler else { return }
+        Task { _ = try? await runtimeCommandHandler(command) }
     }
 
     private func performProjectedAction(_ command: DashboardRuntimeCommand) async {

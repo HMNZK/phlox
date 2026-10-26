@@ -182,20 +182,33 @@ func idleSuspendedExitRoundTripsAndOldSnapshotsDecode() throws {
     #expect(try JSONDecoder().decode(ChatProcessExit.self, from: Data(#"{"exitCode":3}"#.utf8)) == ChatProcessExit(exitCode: 3))
 }
 
-// 単一表示で出ている会話を「表示中」とする。プロジェクトに入っていない会話も含め、ファイル等のタブは含めない。
+// 単一表示で出ている会話を「表示中」とする。プロジェクトに入っていない会話と左右の両側を含め、ファイル等のタブと新規チャット画面は含めない。
 @Test @MainActor
-func displayedChatIncludesUnassignedChatsButNotOtherTabs() {
+func displayedChatsAreTheChatsActuallyOnScreen() {
     let router = AppRouter()
     let unassigned = SessionID()
     router.selectedSession = unassigned
-    #expect(router.displayedChatSessionID { _ in nil } == unassigned)
+    #expect(router.displayedChatSessionIDs { _ in nil } == [unassigned])
 
+    // プロジェクトを選ばずにプロジェクト内の会話を選んだときは、その会話のプロジェクトの配置で判断する。
     let project = ProjectID()
-    let chat = SessionID()
-    router.selectTab(.chat(chat), in: project)
-    #expect(router.displayedChatSessionID { _ in project } == chat)
+    let a = SessionID()
+    let b = SessionID()
+    router.tabs.updateLayout(for: project) { $0.select(.chat(a)) }
+    router.selectedSession = a
+    #expect(router.selectedProjectID == nil)
+    #expect(router.displayedChatSessionIDs { _ in project } == [a])
+
+    router.selectTab(.chat(a), in: project)
+    router.splitRight(.chat(b), in: project, chats: [.chat(a), .chat(b)])
+    router.selectTab(.chat(a), in: project)
+    #expect(router.displayedChatSessionIDs { _ in project } == [a, b])
+
     router.tabs.updateLayout(for: project) { $0.open(.file("/tmp/a.swift")) }
-    #expect(router.displayedChatSessionID { _ in project } == nil)
+    #expect(router.displayedChatSessionIDs { _ in project } == [b])
+
+    router.showNewChat(projectID: project)
+    #expect(router.displayedChatSessionIDs { _ in project } == [])
 }
 
 // 画面（常駐側の写し）から休止した会話を再開すると、写しが同じ会話として新しい状態を受け取る。

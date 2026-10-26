@@ -62,7 +62,7 @@ struct SessionCompletionFocusEvents: View {
     /// 画面に表示中のセッション。単一表示では出ている会話、グリッドでは並んでいるタイル。
     private var displayedSessionIDs: [SessionID] {
         if router.viewMode == .grid { return viewModel.gridTileOrder() }
-        return router.displayedChatSessionID { viewModel.sessionNode(id: $0)?.projectID }.map { [$0] } ?? []
+        return router.displayedChatSessionIDs { viewModel.sessionNode(id: $0)?.projectID }
     }
 
     private func acknowledge() {

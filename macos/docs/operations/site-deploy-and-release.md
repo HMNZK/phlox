@@ -71,9 +71,9 @@ XCODEGEN=1 APP_NAME=Phlox SCHEME=Phlox PROJECT=Phlox.xcodeproj \
   bash ~/.claude/skills/swift-release/scripts/sign_and_notarize.sh
 ```
 
-- 生成物: `macos/build/Phlox.dmg`（人間向け・Release 添付用）／ `macos/build/Phlox.zip`（Sparkle 用。配布時に `Phlox-<version>.zip` へリネーム）。
+- 生成物: `macos/build/Phlox.dmg`（人間向け・Release 添付用）／ `macos/build/Phlox.zip`（app公証提出用でstaple前。Sparkle配布に流用しない）。Sparkle配布用の最終ZIPは、上記「統合前検証と実機記録」のとおりstaple済みappから`ditto`で新しく作る。release照合はZIP名`Phlox-<version>.zip`とfeedの配布URLの一致を要求する。
 - styled DMG の背景・レイアウト資産は `macos/release-assets/dmg/`（`dmg-background.png` と `DS_Store` テンプレート）。`.DS_Store` はボリューム名 `Phlox`・背景ファイル名・アイコン名（`Phlox.app` / `Applications`）に紐づくため、これらを変える場合はテンプレートを作り直す（詳細は同ディレクトリ `README.md`）。
-- Sparkle 用 zip の EdDSA 署名は `sign_update`（初回は keychain のアクセス許可ダイアログで「常に許可」が必要）。
+- Sparkle 用 zip の EdDSA 署名は、staple後に作った最終ZIPへ `sign_update` で行う（初回は keychain のアクセス許可ダイアログで「常に許可」が必要）。
 
 ### シミュレーターの許可リストと XPC 署名を確認する
 

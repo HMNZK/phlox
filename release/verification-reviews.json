@@ -173,6 +173,22 @@
         "physical-session-activity"
       ],
       "reason": "固定差分と全呼出元を独立に確認した。既存の単一polling Task内でGETと表示callbackのURLError.timedOutだけを待機後に再試行し、成功時に待機を戻す。取消し・置換・致命的応答の既存終了経路と認証・互換性・世代検証を維持し、command/performは変更せずPOST再送を追加しない。再試行状態はTask内の1値で、逐次要求と最大8秒の待機により要求やTaskを蓄積しない。追加10関数12ケースを読み、修正前の回復4関数失敗と修正後AppBootstrap226テスト成功をログで確認した。fake-session-lifecycleとphysical-session-activityの要件・必須範囲・手順・期待結果・方式は不変で版更新は不要。レビューは内容判定であり、修正後実GUI、全体品質入口、長期間の反復、8秒上限到達の実測、実Mac/iPhoneの実行は未確認。初回timeout原因は未特定。文書の9行表記は実差分の8行へ訂正を依頼した。"
+    },
+    {
+      "baseOID": "e08838f51fee41289e3ed60d90b5e36a1778cc5c",
+      "targetOID": "81aa3c0196d5017f480e96607a2e85c17673547c",
+      "diffSHA256": "cae6dd6b065fd4c459d12eac5267c79013f2398e934a05e61e8cbf560f7f89b4",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "reviewedAt": "2026-10-26T16:38:24Z",
+      "decision": "pass",
+      "reason": "ゲート修正差分を8次元で独立レビューし、関連56テストが成功。appcast変更のレビュー維持、完全なテストIDによるskip判定、新規DMG/ZIP来歴、実ZIP署名とapp内容一致、正常・異常経路のmount解除を確認した。既存シナリオの手順・期待結果・revisionの変更は不要。実機成功を示す判定ではない。"
     }
   ]
 }

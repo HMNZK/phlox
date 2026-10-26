@@ -223,7 +223,8 @@ struct AcceptanceModelProcessLifetimeTests {
                         do {
                             _ = try await fixture.provider(timeout: 1, onSpawn: { parentPID in
                                 // onSpawnは製品deadlineの開始前。取得を再試行せず、この1回の準備だけを待つ。
-                                let setupDeadline = ContinuousClock.now + .seconds(2)
+                                // index 0は1.2秒の遅延に6並列起動の準備（負荷時0.3〜0.9秒を実測）が重なるため、測定と無関係な上限を広く取る。
+                                let setupDeadline = ContinuousClock.now + .seconds(10)
                                 while ContinuousClock.now < setupDeadline {
                                     if FileManager.default.fileExists(atPath: fixture.descendantFile.path) {
                                         do {

@@ -123,7 +123,10 @@ struct AppRoot: View {
                 ) {
                     model.authState = .locked
                 }
-                if phase == .active, let pushRegistrationService {
+                if phase == .active, let pushRegistrationService,
+                   NotificationRegistrationPolicy.shouldRegister(notificationsEnabled: appSettings.notificationsEnabled) {
+                    // Macへの登録に成功していてもAPNs側では失効し得るため、復帰時に登録を更新する。
+                    UIApplication.shared.registerForRemoteNotifications()
                     Task { await pushRegistrationService.retryIfNeeded() }
                 }
             }

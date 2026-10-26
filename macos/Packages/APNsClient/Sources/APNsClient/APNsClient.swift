@@ -206,7 +206,7 @@ public struct APNsSender: Sendable {
         }
 
         let token = try await signer.providerToken()
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.httpMethod = "POST"
         request.httpBody = payload
         request.setValue("bearer \(token)", forHTTPHeaderField: "authorization")

@@ -104,6 +104,22 @@
         "fake-session-lifecycle"
       ],
       "reason": "初回レビュー(needs_changes)の指摘3点の修正を確認した。(1)表示の知らせはsendRuntimeReportで送りっぱなしにしruntimeCommandErrorに触れず返答許可リストからも外れ、更新前の常駐側が断っても警告が出ない。(2)休止からの再開はterminateを呼ばずhasUnseenCompletionを立てない。(3)表示で数え直すテストは表示+1時間の境界前後を検証する形になった。IdleChatSuspend 8件が絞り込み実行で成功。fake-session-lifecycle(S1)はPTYの手順・fake13関数を対象とし、休止は.appServerのみ・10分周期の見回りはE2E関数の実行時間内に来ず・terminateの分割で終了手順と最終statusは不変のため、手順・期待結果・要件の意味は不変で版は維持。physical-session-activity(AC-1〜4)にも影響なし。既知の限界: 休止途中に再開した場合の旧プロセス終了・保存との短い重なり、外部送信受付中・圧縮中・復元中の個別テストなし。未検証: 実機、24時間の実経過、ゲート全体とfake必須13関数、旧常駐側と新画面の実組合せ。"
+    },
+    {
+      "baseOID": "520d6c680b5cf0ff764c34a49dfe63b7fc96f5cb",
+      "targetOID": "ddb20a9a7990021ded5e9e4cce89983536c55e1c",
+      "diffSHA256": "1532cca6e65a244a885af98c4116aab4c773310f8d10fa286f926dad307627dd",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a7ecf86f002eb7f22"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T06:40:51.500006+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "表示中の判定は単一表示の実画面（SessionTabsContainerのprojectID = selectedProjectID ?? node.projectID、DashboardDetailView）と一致し、左右に分けた表示では両側の会話を返す。startedAtを保存するのはDashboardViewModelの1か所のみでPTY・チャット起動とも同経路、SessionPersistenceCoordinatorは既存値を引き継ぎ、復元・再開はdescriptor.startedAtを使うため他にずれる経路はない。SessionIDはUUIDのため同id・同startedAtで別会話を誤受理する余地は増えない。IdleChatSuspend 10件が手元で成功、テストはプロジェクト外・プロジェクト未選択時の所属判定・左右分割・ファイルタブ差し替え・新規チャット画面を確認。fake-session-lifecycleの手順・期待結果・要件の意味は不変。未検証: fake E2Eシナリオの実行、修正を外した再開テストの失敗と実アプリE2Eは実装者報告のみ。"
     }
   ]
 }

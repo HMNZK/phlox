@@ -33,26 +33,31 @@ where Tabs.TabValue == Selection {
     @ViewBuilder
     public var body: some View {
 #if os(iOS)
-        if #available(iOS 26, *) {
-            if accessoryEnabled {
-                iOS26Tabs
-                    .tabViewBottomAccessory {
-                        accessory
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .glassSurface(.waitingBar)
-                    }
-                    .tabBarMinimizeBehavior(.onScrollDown)
-            } else {
-                iOS26Tabs
-                    .tabBarMinimizeBehavior(.onScrollDown)
-            }
+        if #available(iOS 26.1, *) {
+            iOS26Tabs
+                .tabViewBottomAccessory(isEnabled: accessoryEnabled) {
+                    nativeAccessory
+                }
+                .tabBarMinimizeBehavior(.onScrollDown)
+        } else if #available(iOS 26, *) {
+            iOS26Tabs
+                .tabViewBottomAccessory {
+                    if accessoryEnabled { nativeAccessory }
+                }
+                .tabBarMinimizeBehavior(.onScrollDown)
         } else {
             iOS18Tabs
         }
 #else
         iOS18Tabs
 #endif
+    }
+
+    private var nativeAccessory: some View {
+        accessory
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .glassSurface(.waitingBar)
     }
 
     private var iOS26Tabs: some View {
@@ -99,28 +104,24 @@ public struct DSPlatformTabContent<Content: View, Accessory: View>: View {
     @ViewBuilder
     public var body: some View {
 #if os(iOS)
-        if #available(iOS 26, *), usesNativeAccessory {
-            content
-        } else {
-            contentWithAccessory
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            if insertsAccessory {
+                accessory
+                    .glassSurface(.waitingBar)
+                    .padding(.horizontal, accessoryHorizontalPadding)
+                    .padding(.vertical, 8)
+            }
         }
 #else
         content
 #endif
     }
 
-    @ViewBuilder
-    private var contentWithAccessory: some View {
-        if accessoryEnabled {
-            content.safeAreaInset(edge: .bottom, spacing: 0) {
-                accessory
-                    .glassSurface(.waitingBar)
-                    .padding(.horizontal, accessoryHorizontalPadding)
-                    .padding(.vertical, 8)
-            }
-        } else {
-            content
-        }
+    private var insertsAccessory: Bool {
+#if os(iOS)
+        if #available(iOS 26, *) { return accessoryEnabled && !usesNativeAccessory }
+#endif
+        return accessoryEnabled
     }
 
     private var accessoryHorizontalPadding: CGFloat {

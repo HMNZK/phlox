@@ -38,6 +38,22 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "前回のゲート全体レビューに加え、ControlServerの校正差分と実走原ログを独立確認した。対象caseと全179件が成功し、12試料の解放時間1秒以上2秒未満・FD3から3・親18秒以内を確認。同期無効の隔離コピーはwarmupと対象sampleに到達後、期待不変で準備条件とENOENTを検出し、納品ソースSHAは不変。reviewedAtは独立レビュー完了記録OWNER.mdの保存時刻。これはコードレビューのみで、最終common候補のquality成功と実機成功は含まない。実機5件not_run、ADR0209未解決、UI4件の初回timeoutは未再現かつ原因未確定。準備期限と他の起動込み期限の負荷依存、自己申告の真偽、保守的な文書入力範囲は既知の限界として残す。"
+    },
+    {
+      "baseOID": "d656b4fa20937cb0b853b1429762cadc2b4ecc8b",
+      "targetOID": "6aec3d627a2350ec42ae2d248417729f1dbe60db",
+      "diffSHA256": "a0b8437426df4a5c1c5a0ba8fba60fdf317f0990c52d08d5eeb05e2433d917d1",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a5a099f53e5cec595"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T03:45:05.142774+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "修正はtextLayerの暗黙contentsアニメーションだけを無効化し、スクロール用transformアニメーションとlayout()のdisableActionsは変えないため、根本原因への対処で症状隠しではない。回帰テストは修正行を除いたコピーで実行してanimationKeysが[contents, descriptionScroll]となり失敗することを確認し、修正ありでComposerSuggestion絞り込み13件が成功。fake-session-lifecycle(S1)はspawn→ready→送受信→echoの状態機械とfake-agent13関数の直列実行が手順・期待結果で、本差分はComposer候補説明の文字レイヤー描画アニメーションのみを変えるため手順・期待結果・要件の意味は不変、シナリオ文面の更新は不要（codePathsがmacos/Packages/**に広く一致しただけ）。未検証: ゲート全体、E2E、実機・実画面、Retina/非Retina混在ディスプレイ。"
     }
   ]
 }

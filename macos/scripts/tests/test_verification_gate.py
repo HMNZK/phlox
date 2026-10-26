@@ -121,6 +121,15 @@ class GateTests(unittest.TestCase):
                 with self.assertRaises(gate.GateError):
                     gate.check_regular_events([path])
 
+    def test_top_level_function_success_does_not_require_a_suite_path(self):
+        ident = "CursorAgentKitTests.cursorTurnStartOmitsModelAndModeWhenUnset()"
+        path = self.root / "top-level.jsonl"
+        rows = [{"version": 0, "kind": "event", "payload": {"kind": kind, **extra}} for kind, extra in (
+            ("runStarted", {}), ("testStarted", {"testID": ident + "/CursorAgentKitTests.swift:1:6"}),
+            ("testEnded", {"testID": ident + "/CursorAgentKitTests.swift:1:6", "messages": [{"symbol": "pass"}]}), ("runEnded", {}))]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+        self.assertEqual(gate.check_regular_events([path])["passedIDs"], [ident])
+
     def test_zero_tests_and_unknown_text_summary_are_not_success(self):
         for text in ("✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.\n", "Build complete!\n"):
             log = self.root / "zero.log"
@@ -552,6 +561,13 @@ class GateTests(unittest.TestCase):
             write(changed)
             with self.subTest(changed=changed), self.assertRaises(gate.GateError):
                 gate.distribution_signature(feed, build, archive)
+
+    def test_appcast_rejects_dtd_external_entities_and_entity_expansion(self):
+        feed = self.root / "appcast.xml"
+        for declaration in ('<!DOCTYPE rss SYSTEM "file:///unread-external-file">', '<!DOCTYPE rss [<!ENTITY external SYSTEM "file:///unread-external-file">]>', '<!DOCTYPE rss [<!ENTITY value "expanded"><!ENTITY repeated "&value;&value;">]>'):
+            feed.write_text(declaration + '<rss><channel/></rss>')
+            with self.subTest(declaration=declaration), self.assertRaisesRegex(gate.GateError, "DTD/entity"):
+                gate.read_appcast(feed)
 
     def test_cryptokit_verifies_real_ed25519_and_rejects_modified_content_and_key(self):
         # RFC 8032 test 1: public key and signature for an empty message; no private key.

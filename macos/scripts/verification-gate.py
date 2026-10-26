@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+import xml.parsers.expat as expat
 import zipfile
 
 
@@ -419,7 +420,7 @@ def check_regular_events(paths):
             kind = event["kind"]
             started |= kind == "runStarted"
             ended |= kind == "runEnded"
-            if kind == "testEnded" and "/" in ident:
+            if kind == "testEnded" and ident.endswith(")"):
                 if any(message.get("symbol") == "pass" for message in event.get("messages", [])):
                     local_passed.add(ident)
             if kind == "testSkipped":
@@ -761,9 +762,25 @@ def compare_zip_app(path, app):
     require(seen == set(expected), f"ZIP app is missing DMG app content: {sorted(set(expected) - seen)[:10]}")
 
 
+def read_appcast(feed):
+    parser, tree = expat.ParserCreate(namespace_separator="}"), ET.TreeBuilder()
+    def name(value):
+        return "{" + value if "}" in value else value
+    def reject_declaration(*args):
+        raise GateError("Appcast DTD/entity declarations are forbidden")
+    parser.StartDoctypeDeclHandler = reject_declaration
+    parser.EntityDeclHandler = reject_declaration
+    parser.ExternalEntityRefHandler = reject_declaration
+    parser.StartElementHandler = lambda tag, attrs: tree.start(name(tag), {name(key): value for key, value in attrs.items()})
+    parser.EndElementHandler = lambda tag: tree.end(name(tag))
+    parser.CharacterDataHandler = tree.data
+    parser.Parse(Path(feed).read_bytes(), True)
+    return tree.close()
+
+
 def distribution_signature(feed, build, sparkle_zip):
     ns = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
-    items = [item for item in ET.parse(feed).getroot().findall("./channel/item")
+    items = [item for item in read_appcast(feed).findall("./channel/item")
              if item.findtext(ns + "version") == build["buildNumber"]
              and item.findtext(ns + "shortVersionString") == build["version"]]
     require(len(items) == 1, "Appcast must identify exactly one distribution build")
@@ -875,7 +892,7 @@ def main():
         args.command.pop(0)
     try:
         {"quality": quality, "_quality-worker": quality_worker, "capture-build": capture_build, "release": release, "review-input": review_input}[args.mode](args)
-    except (GateError, OSError, ValueError, KeyError, TypeError, ET.ParseError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
+    except (GateError, OSError, ValueError, KeyError, TypeError, ET.ParseError, expat.ExpatError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         print(f"verification-gate: inspection failed or incomplete: {error}", file=sys.stderr)
         return 1
     return 0

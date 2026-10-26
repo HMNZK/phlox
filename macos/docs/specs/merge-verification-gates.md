@@ -149,7 +149,7 @@ Macの`capture-build`はDMGに加え、同じビルド・署名工程で新し�
 
 `site/appcast.xml`はアプリのコンパイル入力からだけ分け、独立レビューの差分対象には残す。生成ZIPの署名をfeedへ記入しても元のビルド来歴は維持できるが、feed変更は新しい内容レビューを要求する。
 
-main照合は`release --dmg ... --zip ...`へ実配布物を明示する。両方が記録した実体・SHA-256と一致すること、feedの版/build・配布URL・ZIPサイズが一致すること、DMG内の署名済みappとZIP内appの全ファイル内容・symlink・実行属性が一致することを確認する。DMG内appの`SUPublicEDKey`で実ZIPのEd25519署名を検証する。秘密鍵やKeychainの別の鍵を検証の根拠にしない。
+main照合は`release --dmg ... --zip ...`へ実配布物を明示する。両方が記録した実体・SHA-256と一致すること、feedの版/build・配布URL・ZIPサイズが一致すること、DMG内の署名済みappとZIP内appの全ファイル内容・symlink・実行属性が一致することを確認する。DMG内appの`SUPublicEDKey`で実ZIPのEd25519署名を検証する。feedのXMLはDTD・実体宣言・外部実体を拒否する。秘密鍵やKeychainの別の鍵を検証の根拠にしない。
 
 DMGは作業専用パスへ読み取り専用でマウントし、終了時に必ず解除する。ZIPは安全なパスと内容を検査してから専用領域へ展開する。AppleDouble形式のファイル属性情報は対象実体へ対応付け、展開後のapp内容とcodesignも再確認する。既存の公証・stapler確認と実機要件を維持する。
 

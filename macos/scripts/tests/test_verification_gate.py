@@ -31,6 +31,16 @@ class GateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(dir=base)
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.managed_builder = gate.managed
+
+    def managed_test_command(self, key, command):
+        # The quality worker already owns the project's managed-build lock.
+        if os.environ.get("MANAGED_BUILD_DIR"):
+            output = Path(os.environ["MANAGED_BUILD_DIR"]) / "gate-unit" / key
+            output.mkdir(parents=True, exist_ok=True)
+            return [str(Path.home() / ".agents/scripts/compact-test"), "--full", key,
+                    *(argument.replace("{build_dir}", str(output)) for argument in command)]
+        return self.managed_builder(key, command)
 
     def event_file(self, name, transform):
         rows = [json.loads(line) for line in (FIXTURES / name).read_text().splitlines()]
@@ -576,7 +586,7 @@ class GateTests(unittest.TestCase):
         message = self.root / "message.zip"
         message.touch()
         def verify(key, sig):
-            command = gate.managed("signature-unit-tests", ["xcrun", "swift", "-module-cache-path", "{build_dir}/module-cache", str(SCRIPT.with_name("verify-sparkle-signature.swift")), str(message), base64.b64encode(sig).decode(), base64.b64encode(key).decode()])
+            command = self.managed_test_command("signature-unit-tests", ["xcrun", "swift", "-module-cache-path", "{build_dir}/module-cache", str(SCRIPT.with_name("verify-sparkle-signature.swift")), str(message), base64.b64encode(sig).decode(), base64.b64encode(key).decode()])
             return subprocess.run(command, capture_output=True, text=True)
         result = verify(public, signature)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -588,7 +598,7 @@ class GateTests(unittest.TestCase):
 
     def test_native_distribution_path_verifies_signature_app_and_detaches_after_failure(self):
         output = self.root / "native-fixture"
-        command = gate.managed("native-distribution-unit", ["xcrun", "swift", "-module-cache-path", "{build_dir}/module-cache", str(FIXTURES / "distribution-app.swift"), "{build_dir}", str(output)])
+        command = self.managed_test_command("native-distribution-unit", ["xcrun", "swift", "-module-cache-path", "{build_dir}/module-cache", str(FIXTURES / "distribution-app.swift"), "{build_dir}", str(output)])
         made = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(made.returncode, 0, made.stdout + made.stderr)
         self.git_repo()
@@ -604,7 +614,7 @@ class GateTests(unittest.TestCase):
         def write(signature):
             feed.write_text(f'<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><sparkle:version>2</sparkle:version><sparkle:shortVersionString>1</sparkle:shortVersionString><enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.zip" length="{archive.stat().st_size}" type="application/octet-stream" sparkle:edSignature="{signature}"/></item></channel></rss>')
         write(signature)
-        with patch.object(gate, "ROOT", self.root):
+        with patch.object(gate, "ROOT", self.root), patch.object(gate, "managed", side_effect=self.managed_test_command):
             gate.validate_distribution(dmg, archive, build, self.root)
             write(base64.b64encode(bytes(64)).decode())
             with self.assertRaisesRegex(gate.GateError, "Stage failed"):

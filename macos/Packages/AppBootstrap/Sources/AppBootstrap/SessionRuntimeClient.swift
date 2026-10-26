@@ -90,6 +90,7 @@ public final class SessionRuntimeClient {
     ) {
         disconnect()
         pollingTask = Task { [weak self] in
+            var recoveryDelay = Duration.seconds(1)
             do {
                 while !Task.isCancelled {
                     guard let self else { return }
@@ -97,8 +98,15 @@ public final class SessionRuntimeClient {
                         let envelope = try await self.fetchSnapshot()
                         try Task.checkCancellation()
                         try await self.apply(envelope, using: onSnapshot)
+                        recoveryDelay = .seconds(1)
                     } catch SessionRuntimeConnectionError.busy {
                         try await Task.sleep(for: interval)
+                        continue
+                    } catch let error as URLError where error.code == .timedOut {
+                        try Task.checkCancellation()
+                        onFailure(error)
+                        try await Task.sleep(for: recoveryDelay)
+                        recoveryDelay = min(recoveryDelay * 2, .seconds(8))
                         continue
                     }
                     try await Task.sleep(for: interval)

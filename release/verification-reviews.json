@@ -88,6 +88,22 @@
         "physical-session-activity"
       ],
       "reason": "変更はテストの準備待ち上限を2秒から10秒に広げた1行のみ。製品の期限はAgentModelProviders.swiftでonSpawn(pid)が返った後にDispatchTime.now()+timeoutで開始するため、準備待ちを延ばしても製品の期限超過を隠さない。測定側の判定（index 0の準備1秒超、解放1秒以上2秒未満、子生存、FD数）は不変。2秒は961ff68dで導入されたが校正根拠の記載はなく、同コミットの準備と期限計測を分ける意図に沿う。10秒でも1波の失敗打ち切りは約11秒で親の18秒以内。該当シナリオfake-session-lifecycle・physical-session-activityのtestIDsに本テストは含まれず、手順・期待結果・要件の意味は不変。AcceptanceModelProcessLifetime 7件成功。未検証: 負荷下での再現、原ログでindex 0が3.01秒かかった理由の断定。"
+    },
+    {
+      "baseOID": "d656b4fa20937cb0b853b1429762cadc2b4ecc8b",
+      "targetOID": "fb9b4acb51b20652ced6e81f04850ad257238bec",
+      "diffSHA256": "b63437342496bc7f17b309fd817b95763e5040fb3a6f0c7074d6e6cc316c6990",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a5ce8b81533c89d2e"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T05:10:41.607835+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "初回レビュー(needs_changes)の指摘3点の修正を確認した。(1)表示の知らせはsendRuntimeReportで送りっぱなしにしruntimeCommandErrorに触れず返答許可リストからも外れ、更新前の常駐側が断っても警告が出ない。(2)休止からの再開はterminateを呼ばずhasUnseenCompletionを立てない。(3)表示で数え直すテストは表示+1時間の境界前後を検証する形になった。IdleChatSuspend 8件が絞り込み実行で成功。fake-session-lifecycle(S1)はPTYの手順・fake13関数を対象とし、休止は.appServerのみ・10分周期の見回りはE2E関数の実行時間内に来ず・terminateの分割で終了手順と最終statusは不変のため、手順・期待結果・要件の意味は不変で版は維持。physical-session-activity(AC-1〜4)にも影響なし。既知の限界: 休止途中に再開した場合の旧プロセス終了・保存との短い重なり、外部送信受付中・圧縮中・復元中の個別テストなし。未検証: 実機、24時間の実経過、ゲート全体とfake必須13関数、旧常駐側と新画面の実組合せ。"
     }
   ]
 }

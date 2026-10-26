@@ -54,6 +54,23 @@
         "fake-session-lifecycle"
       ],
       "reason": "修正はtextLayerの暗黙contentsアニメーションだけを無効化し、スクロール用transformアニメーションとlayout()のdisableActionsは変えないため、根本原因への対処で症状隠しではない。回帰テストは修正行を除いたコピーで実行してanimationKeysが[contents, descriptionScroll]となり失敗することを確認し、修正ありでComposerSuggestion絞り込み13件が成功。fake-session-lifecycle(S1)はspawn→ready→送受信→echoの状態機械とfake-agent13関数の直列実行が手順・期待結果で、本差分はComposer候補説明の文字レイヤー描画アニメーションのみを変えるため手順・期待結果・要件の意味は不変、シナリオ文面の更新は不要（codePathsがmacos/Packages/**に広く一致しただけ）。未検証: ゲート全体、E2E、実機・実画面、Retina/非Retina混在ディスプレイ。"
+    },
+    {
+      "baseOID": "d656b4fa20937cb0b853b1429762cadc2b4ecc8b",
+      "targetOID": "aec846bf49dd7b89ec213d174bd3f75beac70d9a",
+      "diffSHA256": "077f03214146632197b1976e58f1d11e922b92375871171f003413260aba81fc",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a001d5aa7586abcf0"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T04:02:24.703860+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "ShutdownDeadlineは停止受付時にCleanupGuardで一度だけ10秒のasyncAfterを張り、MainActor外のキューで同じ終了コードのexitを呼ぶ。2回目のarmは無視され最初の終了コードを保持、通常停止が先に終わればexit(exitCode)が先に勝ち期限は何もしない。lease解放は元々exit(exitCode)任せで本差分は経路に手を入れていない。AppBootstrap 216件成功。fake-session-lifecycleはfakeエージェントのspawn・送受信・終了・永続化の決定論テストで独立ランタイムのSIGTERM停止を扱わず、physical-session-activityは実機の稼働中表示・完了通知・再接続(AC-1〜4)で停止期限と無関係、codePathsの広い一致による該当のみでシナリオ本文の更新は不要。未検証: 実機でのSIGTERM停止、SessionRuntimeHostの配線のテスト（単体テストはShutdownDeadlineのみ）、ゲート全体。"
     }
   ]
 }

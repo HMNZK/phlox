@@ -33,7 +33,7 @@ last-verified: 2026-07-16
 
 ## 統合前検証と実機記録
 
-必須条件と記録の正本は [merge-verification-gates.md](../specs/merge-verification-gates.md)。入口は`macos/scripts/verification-gate.py`の`quality`（自動検査）・`capture-build --evidence-root <証拠基準> ... -- <ビルドコマンド>`（実ビルドの記録）・`release --dmg <既存staplerと同じDMG> --evidence-root <証拠基準> [--record <JSON>]`（main前照合）・読み取り専用の`review-input --base <比較元> [--target <対象、既定HEAD>]`（レビュー材料）。対応表・独立レビュー・実機結果はそれぞれ`release/verification-scenarios.json`・`release/verification-reviews.json`・`release/verification-records.json`に置き、`schemaVersion`を持たせる。実機結果の初期集合は空で、passedは作らない。同書の監査基準OIDは過去の静的確認であり、引数の静的照合は実装・全体検証成功を示さない。修正中コードとの照合状況は同書の状態欄を参照する。
+必須条件と記録の正本は [merge-verification-gates.md](../specs/merge-verification-gates.md)。入口は`macos/scripts/verification-gate.py`の`quality`（自動検査）・`capture-build --evidence-root <証拠基準> ... -- <ビルドコマンド>`（実ビルドの記録）・`release --dmg <既存staplerと同じDMG> --zip <同じ工程の配布ZIP> --evidence-root <証拠基準> [--record <JSON>]`（main前照合）・読み取り専用の`review-input --base <比較元> [--target <対象、既定HEAD>]`（レビュー材料）。対応表・独立レビュー・実機結果はそれぞれ`release/verification-scenarios.json`・`release/verification-reviews.json`・`release/verification-records.json`に置き、`schemaVersion`を持たせる。実機結果の初期集合は空で、passedは作らない。同書の監査基準OIDは過去の静的確認であり、引数の静的照合は実装・全体検証成功を示さない。修正中コードとの照合状況は同書の状態欄を参照する。
 
 1. 要件・対象コード・テスト・実機シナリオの対応を確認し、変更差分とシナリオ本文を別担当が独立レビューする。明示`decision`を保存し、対象差分の最新判定が`pass`の場合だけ受理する。`review-input`で材料を得てもレビュー済みにはならない。AIレビューも可能だが、人の承認・実機観測の証言としては記録しない。必須項目を削除・対象外化する判断や要件変更はユーザーへ戻す。
 2. dev/verify/main反映前は、文書保守後の同じ隔離候補でmacOS全19パッケージを標準入口へ明示し、iOS lint/単体/build、指定13関数のfake E2Eを実行する。新パッケージ漏れ・親環境による対象/並行性の変更も検出する。0件、必須skip、未設定、環境不足は合格にしない。通常の対象外opt-in skipと指定ADR 0209のknown issueは成功件数と分け、未知known issueとfake必須13のskip/known issueは非0。個別ID・生ログ・結果JSONは`$GITFLOW_VERIFICATION_DIR`のcandidate外へ保存する。
@@ -43,7 +43,9 @@ last-verified: 2026-07-16
 
 共通`gitflow-merge.sh`自体は変更しない。既存の品質・署名・配布物確認を残したプロジェクト入口を接続し、ローカルGit設定は実装検証後に親担当が設定する。ローカル設定の存在をサーバー側の保護や必須チェックの設定済みと取り違えない。
 
-capture-buildとreleaseへ同じ`--evidence-root`を明示し、記録中の相対参照はそこから解決する。既存の署名・版・ノート・appcast・stapler検査はreleaseに先行させる。catalogはビルド入力から外し、対象AC行・手順・期待結果を別に照合する。記録したtoolchainは当時の来歴で、現在のXcode/SDK更新だけで同一成果物を失効させない。ただしrootの`SECURITY.md`・`THIRD_PARTY_NOTICES.md`等は依然入力に含むため、文書だけの修正でも再確認が必要になる保守的な限界がある。
+capture-buildとreleaseへ同じ`--evidence-root`を明示し、記録中の相対参照はそこから解決する。Macのcapture-buildには、同じ工程で新しく生成する実配布ZIPも`--zip`で渡す。main用releaseにも同じZIPを`--zip`で指定し、DMGとZIPの来歴、app内容、feedの版/build/URL/サイズと実ZIPの署名を照合する。署名検証はDMG内appの公開鍵を使う。appcastはビルド入力からだけ分け、変更の独立レビューを維持する。既存の署名・版・ノート・appcast・stapler検査はreleaseに先行させる。catalogはビルド入力から外し、対象AC行・手順・期待結果を別に照合する。記録したtoolchainは当時の来歴で、現在のXcode/SDK更新だけで同一成果物を失効させない。ただしrootの`SECURITY.md`・`THIRD_PARTY_NOTICES.md`等は依然入力に含むため、文書だけの修正でも再確認が必要になる保守的な限界がある。
+
+最終ZIPは、appの公証チケットをstapleした後の、DMGへ格納したものと同じappから作る。共通`sign_and_notarize.sh`がapp公証提出用に作るZIPはstaple前なので、そのまま配布しない。`capture-build`へ渡す実コマンド内で、共通工程の完了後に`ditto -c -k --keepParent <staple済app> <最終配布ZIP>`を実行してから来歴を採取する。その最終ZIPをSparkleで署名してfeedへ記入する。保存済み1.14.0配布物ではstapleが追加した`Contents/CodeResources`がZIPに不足することを2026-10-27に確認したため、旧ZIPをこの検査の成功例にしない。
 
 独立レビューの現在の判定は`release/verification-reviews.json`の最新記録で確認する（2026-10-25の記録はコード差分へのAIレビューのpassで、実機シナリオはnot_run）。全体検証の成否は最終候補での各実行の`result.json`・終了コード・原ログで確認し、本書では合格を主張しない。ControlServer初回期限超過は後の診断5回成功でも原因未特定として残す。macOS19パッケージのexit 0後にイベント解析で失敗した最初のqualityについては、イベント行のASCII LF区切りとPTY子プロセスへのイベント出力引数の除去をコードへ反映したが、修正後の全体成功は本書では確認していない。詳細と報告元の区別は[仕様の未解決記録](../specs/merge-verification-gates.md)を参照する。
 

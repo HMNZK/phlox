@@ -43,7 +43,7 @@ status: active
 
 - `macos/scripts/verification-gate.py quality`から既存スクリプト・Makefileの品質検査を呼ぶ。コマンドを別実装で再構成して品質を落とさない。必要な出力先指定と失敗を正しく返す修正は実装担当の範囲。
 - 共通`~/.agents/scripts/gitflow-merge.sh`が文書保守後の隔離候補で呼ぶ`gitflow.verifyCommand`へ接続する。`GITFLOW_MERGE_CANDIDATE`と実際のHEADが一致することを確認し、開始・終了時に候補とビルド入力の不変性を確認する。手元の古いgreenは代用不可。
-- `gitflow.releaseCommand`には既存の署名・版・ノート・appcast・stapler確認を先行して残し、`macos/scripts/verification-gate.py release --dmg <同じ実DMG> --evidence-root <証拠基準ディレクトリ> [--record <記録JSON>]`によるmain用の実機記録照合を追加する。releaseサブコマンド自身が既存署名検査を代行するわけではない。ローカルGit設定の接続は、実装・検証後に親担当が行う。共通ツールを変更せず、別のmerge操作へ迂回しない。
+- `gitflow.releaseCommand`には既存の署名・版・ノート・appcast・stapler確認を先行して残し、`macos/scripts/verification-gate.py release --dmg <同じ実DMG> --zip <同じ工程の配布ZIP> --evidence-root <証拠基準ディレクトリ> [--record <記録JSON>]`によるmain用の実機記録照合を追加する。releaseサブコマンド自身が既存署名検査を代行するわけではない。ローカルGit設定の接続は、実装・検証後に親担当が行う。共通ツールを変更せず、別のmerge操作へ迂回しない。
 - devとverifyへの統合は実機未実施でも自動検査が合格すれば進められる。verifyで検証するビルドを固定し、実機結果を保存する。mainへの統合は自動検査と必要な実機記録の両方を要求する。
 - docs保守でシナリオ内容が変われば古い実機結果は使えない。更新前の検査を通したことを理由に最終候補の検査を省かない。
 
@@ -74,6 +74,7 @@ macOS必須集合は`APNsClient`, `AgentConfigKit`, `AgentDomain`, `AppBootstrap
 開始OIDで上記は13関数。`E2ERealPTYTests`の対象は`/bin/sh`で完結する決定論的テストで、実claude/codex/cursorのテストではない。テスト名の存在確認だけでなく、テストランナーの個別結果から必須IDの実行・成功を照合する。追加/削除/改名時は対応表と集合をレビューして更新し、実行結果に合わせて黙って集合を縮めない。未知の出力形式、0件、欠落、skip、known issueによる必須項目の未達、失敗は非0。
 
 通常検査内の既存の任意opt-inテストは未実行ならskipとして保存し、成功件数に加えない。任意検査のskipだけを理由に通常検査を失敗させず、別段階のfake E2E必須集合は省略を許さない。通常検査の実失敗・未知の必須範囲縮小は許可しない。
+許容するskipは完全なテストIDで列挙する。通常段階で後回しにするfake E2Eと、既存の任意検査だけを区別して許容し、未知のSwift Testing/XCTestのskipは拒否する。suiteのskipも無条件では許容しない。
 
 通常検査で既存許容するknown issueは、`GitHistoryWorkflowTests.GTWRegression_改名前の名前を再利用しても利用順を混同しない`のADR 0209「旧名を再利用したブランチの利用順を区別できない」だけ。根拠は開始OIDの`macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/GitHistoryWorkflowTests.swift:111`。観測した場合はID付きで未解決として別記し、成功件数へ加えない。未知のknown issueは非0。fake必須13関数はknown issueもskipも不可。
 
@@ -137,9 +138,20 @@ capture-buildには`--platform macos|ios`、`--artifact`、`--settings`、`--out
 
 capture-buildとreleaseの両方に証拠の明示基準`--evidence-root`を渡す。来歴・成果物・設定・端末/インストール証拠などの記録中の相対参照は、この基準から解決し、消えるcandidateや実行時cwd、記録JSONの置き場所を暗黙の基準にしない。基準は、継続保管する成果物と有効な外部設定を含む共通の親（例: 統合元リポジトリのルート）にする。capture時も同じ基準に沿って相対参照を記録し、別worktreeで照合しても同じ証拠を指すようにする。記録中の絶対パス・`..`・symlink等による基準外参照は許さない。実際の引数・保存形式の確定形は末尾のコード照合で記録する。
 
-capture-buildのartifact/settings/output/external-inputとreleaseのdmgは、この基準内のパスを指定する。`--record`は照合する追跡JSONの選択で、既定は候補内の`release/verification-records.json`。記録JSON自体の選択と、その中にある証拠参照の基準を混同しない。releaseは最終統合候補の`GITFLOW_MERGE_CANDIDATE`と比較元`GITFLOW_MERGE_TO`を要求する。
+capture-buildのartifact/zip/settings/output/external-inputとreleaseのdmg/zipは、この基準内のパスを指定する。`--record`は照合する追跡JSONの選択で、既定は候補内の`release/verification-records.json`。記録JSON自体の選択と、その中にある証拠参照の基準を混同しない。releaseは最終統合候補の`GITFLOW_MERGE_CANDIDATE`と比較元`GITFLOW_MERGE_TO`を要求する。
 
 実機確認後は、固定したverifyから**記録だけの作業ブランチ**を切り、記録JSON・その参照を含む文書だけを保存する。共通マージツールを通してverifyへ戻し、同じ自動検査を実行する。新しいdevの製品変更を混ぜずにverify→mainへ進める。sourceOIDは実際にビルドした旧OIDを維持し、記録追加後のOIDとは入力比較で対応付ける。以後コードを変更した場合は該当ビルドの実機結果を再利用しない。
+
+#### 配布ZIPとDMGの対応
+
+Macの`capture-build`はDMGに加え、同じビルド・署名工程で新しく生成したSparkle ZIPを`--zip`で指定し、`sparkleZIP`へ相対パスとSHA-256を記録する。既存ZIPを新しいビルドとして登録せず、実ビルド後の新規成果物だけを採取する。
+最終ZIPはappのstaple後に、DMGと同じappから生成する。公証提出用のstaple前ZIPを配布物へ流用しない。
+
+`site/appcast.xml`はアプリのコンパイル入力からだけ分け、独立レビューの差分対象には残す。生成ZIPの署名をfeedへ記入しても元のビルド来歴は維持できるが、feed変更は新しい内容レビューを要求する。
+
+main照合は`release --dmg ... --zip ...`へ実配布物を明示する。両方が記録した実体・SHA-256と一致すること、feedの版/build・配布URL・ZIPサイズが一致すること、DMG内の署名済みappとZIP内appの全ファイル内容・symlink・実行属性が一致することを確認する。DMG内appの`SUPublicEDKey`で実ZIPのEd25519署名を検証する。秘密鍵やKeychainの別の鍵を検証の根拠にしない。
+
+DMGは作業専用パスへ読み取り専用でマウントし、終了時に必ず解除する。ZIPは安全なパスと内容を検査してから専用領域へ展開する。AppleDouble形式のファイル属性情報は対象実体へ対応付け、展開後のapp内容とcodesignも再確認する。既存の公証・stapler確認と実機要件を維持する。
 
 ### 5. 文書保守後の正当な再利用
 
@@ -223,7 +235,7 @@ main照合では、(1)候補の入力manifestと記録したビルドの入力�
 |---|---|
 | `macos/scripts/verification-gate.py quality` | 文書保守後の候補で必須の自動検査を実行するプロジェクト入口。`gitflow.verifyCommand`の接続先 |
 | `macos/scripts/verification-gate.py capture-build --evidence-root <基準> ... -- <ビルドコマンド>` | 実機に入れるビルドの実入力・ソース・成果物を対応付ける。settingsは呼び出し側の実測資料。実機合格は作らない |
-| `macos/scripts/verification-gate.py release --dmg <既存staplerと同じDMG> --evidence-root <基準> [--record <JSON>]` | main反映前の独立レビュー・実機記録・再利用条件の照合。既存署名/版検査は親の接続先で先行実行する |
+| `macos/scripts/verification-gate.py release --dmg <既存staplerと同じDMG> --zip <同じ工程の配布ZIP> --evidence-root <基準> [--record <JSON>]` | main反映前の独立レビュー・実機記録・再利用条件の照合。既存署名/版検査は親の接続先で先行実行する |
 | `macos/scripts/verification-gate.py review-input --base <比較元> [--target <対象、既定HEAD>]` | 正規化差分とハッシュを標準出力に得る。レビュー判定を作らず、作業ツリーも書き換えない |
 | `release/verification-scenarios.json` | 要件/対象コード/テスト/実機シナリオ対応。`schemaVersion`付き |
 | `release/verification-reviews.json` | 差分に結び付いた独立レビュー。担当種別は`ai`/`human`を明記する |

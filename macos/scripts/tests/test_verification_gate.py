@@ -1,5 +1,6 @@
 """Gate regressions using measured Swift Testing events and isolated Git fixtures."""
 import copy
+import base64
 import importlib.util
 import json
 import os
@@ -8,6 +9,8 @@ import subprocess
 import tempfile
 import unittest
 import shutil
+import stat
+import zipfile
 from unittest.mock import patch
 from types import SimpleNamespace
 from contextlib import redirect_stdout, ExitStack
@@ -82,10 +85,41 @@ class GateTests(unittest.TestCase):
 
     def test_optional_skip_does_not_make_an_ordinary_run_fail(self):
         def skip(rows):
-            return rows + [{"version": 0, "kind": "event", "payload": {"kind": "testSkipped", "testID": "OptionalTests.Suite/optIn()/file.swift:1:1"}}]
+            return rows + [{"version": 0, "kind": "event", "payload": {"kind": "testSkipped", "testID": "CodexAppServerKitTests.CodexAppServerE2ETests/threadStartWithExplicitSources()/file.swift:1:1"}}]
         result = gate.check_regular_events([self.event_file("swift-testing-regular.jsonl", skip)])
-        self.assertEqual(result["skippedIDs"], ["OptionalTests.Suite/optIn()"])
+        self.assertEqual(result["skippedIDs"], ["CodexAppServerKitTests.CodexAppServerE2ETests/threadStartWithExplicitSources()"])
         self.assertTrue(result["passedIDs"])
+
+    def test_unknown_mandatory_or_suite_skip_is_rejected(self):
+        for ident in ("APNsClientTests.APNsSenderTests/sendUsesProductionHost()", "OptionalTests.Suite/optIn()", "APNsClientTests.APNsSenderTests", ""):
+            def skip(rows):
+                return rows + [{"version": 0, "kind": "event", "payload": {"kind": "testSkipped", "testID": ident}}]
+            with self.subTest(ident=ident), self.assertRaises(gate.GateError):
+                gate.check_regular_events([self.event_file("swift-testing-regular.jsonl", skip)])
+
+    def test_xctest_skip_requires_explicit_optional_classification(self):
+        log = self.root / "xctest.log"
+        summary = "✔ Test run with 1 test in 1 suite passed after 0.001 seconds.\n"
+        allowed = "Test Case '-[DashboardFeatureTests.MarkdownScrollPerformanceTests testScrollFrames]' skipped (0.001 seconds).\n"
+        log.write_text(allowed + summary)
+        self.assertEqual(gate.check_test_log(log)["skipped"], [allowed.strip()])
+        for ident in ("-[APNsClientTests.APNsSenderTests testSend]", "-[OtherTests.MarkdownScrollPerformanceTests testScrollFrames]"):
+            log.write_text(f"Test Case '{ident}' skipped (0.001 seconds).\n" + summary)
+            with self.subTest(ident=ident), self.assertRaises(gate.GateError):
+                gate.check_test_log(log)
+
+    def test_nested_optional_function_does_not_allow_skipping_its_mandatory_sibling(self):
+        prefix = "DashboardFeatureTests.ThemeRenderingTests/CodeSyntaxPerformanceTests/"
+        for name, optional in (("measureEditorInputAndHighlightCompletion", True), ("oversizedAndLongLineDocumentsRemainPlain", False)):
+            ident = prefix + name + "()"
+            def skip(rows):
+                return rows + [{"version": 0, "kind": "event", "payload": {"kind": "testSkipped", "testID": ident + "/CodeSyntaxPerformanceTests.swift:20:6"}}]
+            path = self.event_file("swift-testing-regular.jsonl", skip)
+            if optional:
+                self.assertIn(ident, gate.check_regular_events([path])["skippedIDs"])
+            else:
+                with self.assertRaises(gate.GateError):
+                    gate.check_regular_events([path])
 
     def test_zero_tests_and_unknown_text_summary_are_not_success(self):
         for text in ("✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.\n", "Build complete!\n"):
@@ -97,6 +131,20 @@ class GateTests(unittest.TestCase):
     def git_repo(self):
         subprocess.run(["git", "init", "--quiet", str(self.root)], check=True)
         return self.root
+
+    def test_appcast_signature_update_preserves_build_inputs_but_requires_review(self):
+        self.git_repo()
+        (self.root / "app.swift").write_text("let release = 1\n")
+        (self.root / "site").mkdir()
+        feed = self.root / "site/appcast.xml"
+        feed.write_text("<rss><channel/></rss>\n")
+        source = self.tree_commit()
+        before = gate.input_manifest(self.root)
+        feed.write_text('<rss><channel><item signature="generated-after-build"/></channel></rss>\n')
+        target = self.tree_commit()
+        self.assertNotEqual(gate.diff_hash(source, target, self.root), gate.diff_hash(source, source, self.root))
+        self.assertEqual(gate.input_manifest(self.root, source), gate.input_manifest(self.root, target))
+        self.assertEqual(before, gate.input_manifest(self.root))
 
     def tree_commit(self):
         subprocess.run(["git", "add", "."], cwd=self.root, check=True)
@@ -202,6 +250,8 @@ class GateTests(unittest.TestCase):
             settings = [{"buildSettings": {"PRODUCT_BUNDLE_IDENTIFIER": "fixture." + platform, "MARKETING_VERSION": "1", "CURRENT_PROJECT_VERSION": "2", "PLATFORM_NAME": "macosx" if platform == "macos" else "iphoneos", "CODE_SIGNING_ALLOWED": "YES", "CODE_SIGN_IDENTITY": "Fixture only"}}]
             settings_file = file(platform + "-settings.json", json.dumps(settings).encode())
             provenance = {"schemaVersion": 1, "sourceOID": source, "platform": platform, "startedAt": "2026-10-24T01:00:00+00:00", "finishedAt": "2026-10-24T02:00:00+00:00", "inputManifest": manifest, "toolchain": {"xcode": "Fixture Xcode", "sdk": "Fixture SDK"}, "settingsSHA256": gate.digest(gate.canonical(settings)), "settingsPath": settings_file["path"], "externalInputs": [settings_file], "bundleID": "fixture." + platform, "version": "1", "buildNumber": "2", "artifact": artifact}
+            if platform == "macos":
+                provenance["sparkleZIP"] = file("Phlox-1.zip", b"SYNTHETIC ZIP, NOT A DISTRIBUTION")
             provenance_file = file(platform + "-provenance.json", json.dumps(provenance).encode())
             data["builds"].append({"buildID": platform, "provenance": provenance_file})
             data["devices"].append({"deviceID": platform, "platform": platform, "physical": True, "model": "fixture", "osVersion": "1", "osBuild": "fixture", "identityEvidence": evidence})
@@ -357,19 +407,22 @@ class GateTests(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, {key: value for key, value in os.environ.items() if not key.startswith("GITFLOW_")}, clear=True))
         self.physical_fixture()
         self.saved_git = gate.git
-        args = SimpleNamespace(evidence_root=str(self.root), artifact="fixture-output/captured.bin", output="fixture-output/captured.json", settings="fixture-output/macos-settings.json", external_input=[], platform="macos", bundle_id="fixture.macos", version="1", build_number="2", command=["fixture-builder", "--output", "{build_dir}"])
+        args = SimpleNamespace(evidence_root=str(self.root), artifact="fixture-output/captured.bin", zip="fixture-output/captured.zip", output="fixture-output/captured.json", settings="fixture-output/macos-settings.json", external_input=[], platform="macos", bundle_id="fixture.macos", version="1", build_number="2", command=["fixture-builder", "--output", "{build_dir}"])
         commands = []
         def build(command, log):
             commands.append(command)
             (self.root / args.artifact).write_bytes(b"SYNTHETIC CAPTURED ARTIFACT")
+            (self.root / args.zip).write_bytes(b"SYNTHETIC CAPTURED ZIP")
         with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "toolchain", return_value={"xcode": "Historical Xcode", "sdk": "Historical SDK"}), patch.object(gate, "run_stage", side_effect=build), redirect_stdout(io.StringIO()):
             gate.capture_build(args)
         record = json.loads((self.root / args.output).read_text())
         self.assertEqual(record["sourceOID"], self.saved_git("rev-parse", "HEAD", root=self.root))
         self.assertEqual(record["artifact"]["sha256"], gate.digest((self.root / args.artifact).read_bytes()))
+        self.assertEqual(record["sparkleZIP"]["sha256"], gate.digest((self.root / args.zip).read_bytes()))
         self.assertNotIn(str(self.root), json.dumps(record))
         self.assertIn("managed-build.py", " ".join(commands[0]))
         (self.root / args.artifact).unlink()
+        (self.root / args.zip).unlink()
         (self.root / args.output).unlink()
         def mutate(command, log):
             build(command, log)
@@ -384,9 +437,16 @@ class GateTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         self.saved_git = gate.git
         head = self.saved_git("rev-parse", "HEAD", root=self.root)
-        args = SimpleNamespace(record=str(path), evidence_root=str(self.root), dmg="fixture-output/macos.bin")
-        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "toolchain", side_effect=AssertionError("Current SDK must not invalidate a historical artifact")), patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
+        args = SimpleNamespace(record=str(path), evidence_root=str(self.root), dmg="fixture-output/macos.bin", zip="fixture-output/Phlox-1.zip")
+        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution") as packaging, patch.object(gate, "toolchain", side_effect=AssertionError("Current SDK must not invalidate a historical artifact")), patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
             gate.release(args)
+            self.assertEqual(packaging.call_count, 1)
+            copied_zip = self.root / "fixture-output/other.zip"
+            copied_zip.write_bytes((self.root / args.zip).read_bytes())
+            args.zip = copied_zip.relative_to(self.root).as_posix()
+            with self.assertRaisesRegex(gate.GateError, "ZIP differs"):
+                gate.release(args)
+            args.zip = "fixture-output/Phlox-1.zip"
             duplicate = self.root / "fixture-output/copy.bin"
             duplicate.write_bytes((self.root / args.dmg).read_bytes())
             args.dmg = duplicate.relative_to(self.root).as_posix()
@@ -394,6 +454,152 @@ class GateTests(unittest.TestCase):
                 gate.release(args)
         with self.assertRaises(gate.GateError):
             gate.verify_file({"path": "/not-a-relative-proof", "sha256": "0" * 64}, self.root)
+
+    def distribution_app(self):
+        app = self.root / "Phlox.app"
+        (app / "Contents/MacOS").mkdir(parents=True)
+        executable = app / "Contents/MacOS/Phlox"
+        executable.write_bytes(b"SYNTHETIC EXECUTABLE")
+        executable.chmod(0o755)
+        (app / "Contents/link").symlink_to("MacOS/Phlox")
+        (app / "Contents/Info.plist").write_bytes(b"SYNTHETIC METADATA")
+        return app
+
+    def distribution_zip(self, app, transform=lambda entries: entries):
+        entries = []
+        for relative, (kind, size, sha, executable) in gate.app_contents(app).items():
+            path = app / relative
+            info = zipfile.ZipInfo(app.name + "/" + relative)
+            info.external_attr = ((stat.S_IFLNK | 0o777) if kind == "symlink" else (stat.S_IFREG | 0o644 | executable)) << 16
+            entries.append((info, os.fsencode(os.readlink(path)) if kind == "symlink" else path.read_bytes()))
+        path = self.root / "Phlox-1.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for info, content in transform(entries):
+                archive.writestr(info, content)
+        return path
+
+    def test_zip_must_match_every_app_file_symlink_and_executable_permission(self):
+        app = self.distribution_app()
+        gate.compare_zip_app(self.distribution_zip(app), app)
+        def changed_content(entries):
+            return [(info, b"X" + data[1:] if info.filename.endswith("MacOS/Phlox") else data) for info, data in entries]
+        def changed_mode(entries):
+            for info, data in entries:
+                if info.filename.endswith("MacOS/Phlox"):
+                    info.external_attr = (stat.S_IFREG | 0o644) << 16
+            return entries
+        def changed_link(entries):
+            return [(info, b"MacOS/Other" if info.filename.endswith("/link") else data) for info, data in entries]
+        for transform in (lambda entries: entries[:-1], changed_content, changed_mode, changed_link):
+            with self.subTest(transform=transform), self.assertRaises(gate.GateError):
+                gate.compare_zip_app(self.distribution_zip(app, transform), app)
+        for name in ("../escape", "/absolute", "Phlox.app/../escape", "Phlox.app/Contents/extra", "Other.app/file", "Phlox.app\\escape"):
+            def extra(entries):
+                info = zipfile.ZipInfo(name)
+                info.external_attr = (stat.S_IFREG | 0o644) << 16
+                return entries + [(info, b"extra")]
+            with self.subTest(name=name), self.assertRaises(gate.GateError):
+                gate.compare_zip_app(self.distribution_zip(app, extra), app)
+        (app / "Contents/external").symlink_to(self.root)
+        with self.assertRaisesRegex(gate.GateError, "External app symlink"):
+            gate.app_contents(app)
+
+    def test_zip_appledouble_requires_a_real_target_and_valid_metadata_header(self):
+        app = self.distribution_app()
+        for prefix in ("", "__MACOSX/"):
+            def metadata(entries):
+                info = zipfile.ZipInfo(prefix + "Phlox.app/Contents/MacOS/._Phlox")
+                info.external_attr = (stat.S_IFREG | 0o644) << 16
+                return entries + [(info, bytes.fromhex("0005160700020000"))]
+            gate.compare_zip_app(self.distribution_zip(app, metadata), app)
+        for name, mode, data in (
+            ("Phlox.app/Contents/._missing", stat.S_IFREG | 0o644, bytes.fromhex("0005160700020000")),
+            ("Phlox.app/Contents/MacOS/._Phlox", stat.S_IFREG | 0o644, b"not metadata"),
+            ("__MACOSX/Phlox.app/Contents/MacOS/._Phlox", stat.S_IFLNK | 0o777, b"/outside"),
+            ("Phlox.app/Contents/MacOS/", stat.S_IFLNK | 0o777, b"/outside"),
+            ("__MACOSX/Phlox.app/Contents/extra", stat.S_IFREG | 0o644, b"extra"),
+        ):
+            def invalid(entries):
+                info = zipfile.ZipInfo(name)
+                info.external_attr = mode << 16
+                return entries + [(info, data)]
+            with self.subTest(name=name), self.assertRaises(gate.GateError):
+                gate.compare_zip_app(self.distribution_zip(app, invalid), app)
+
+    def test_mac_provenance_requires_the_original_zip_hash(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        proof = data["builds"][0]["provenance"]
+        path = self.root / proof["path"]
+        record = json.loads(path.read_text())
+        for invalid in (None, {"path": "fixture-output/Phlox-1.zip", "sha256": "0" * 64}):
+            changed = {**record, "sparkleZIP": invalid}
+            path.write_text(json.dumps(changed))
+            proof["sha256"] = gate.digest(path.read_bytes())
+            with self.subTest(invalid=invalid), self.assertRaises(gate.GateError):
+                gate.validate_physical_records(data, scenarios, manifest, tools, self.root)
+
+    def test_appcast_requires_unique_matching_build_url_length_and_signature(self):
+        archive = self.root / "Phlox-1.zip"
+        archive.write_bytes(b"SYNTHETIC ZIP")
+        feed = self.root / "appcast.xml"
+        build = {"version": "1", "buildNumber": "2"}
+        item = '<item><sparkle:version>2</sparkle:version><sparkle:shortVersionString>1</sparkle:shortVersionString><enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.zip" length="13" type="application/octet-stream" sparkle:edSignature="public-test-signature"/></item>'
+        def write(items):
+            feed.write_text('<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel>' + items + '</channel></rss>')
+        write(item)
+        self.assertEqual(gate.distribution_signature(feed, build, archive), "public-test-signature")
+        for changed in (item + item, item.replace(">2<", ">3<"), item.replace(">1<", ">0<"), item.replace("length=\"13\"", "length=\"12\""), item.replace("phlox-dist", "other"), item.replace("application/octet-stream", "text/plain"), item.replace('sparkle:edSignature="public-test-signature"', "")):
+            write(changed)
+            with self.subTest(changed=changed), self.assertRaises(gate.GateError):
+                gate.distribution_signature(feed, build, archive)
+
+    def test_cryptokit_verifies_real_ed25519_and_rejects_modified_content_and_key(self):
+        # RFC 8032 test 1: public key and signature for an empty message; no private key.
+        public = bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
+        signature = bytes.fromhex("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b")
+        message = self.root / "message.zip"
+        message.touch()
+        def verify(key, sig):
+            command = gate.managed("signature-unit-tests", ["xcrun", "swift", "-module-cache-path", "{build_dir}/module-cache", str(SCRIPT.with_name("verify-sparkle-signature.swift")), str(message), base64.b64encode(sig).decode(), base64.b64encode(key).decode()])
+            return subprocess.run(command, capture_output=True, text=True)
+        result = verify(public, signature)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        message.write_bytes(b"changed")
+        self.assertNotEqual(verify(public, signature).returncode, 0)
+        message.write_bytes(b"")
+        self.assertNotEqual(verify(bytes(32), signature).returncode, 0)
+        self.assertNotEqual(verify(public, signature[:-1]).returncode, 0)
+
+    def test_native_distribution_path_verifies_signature_app_and_detaches_after_failure(self):
+        output = self.root / "native-fixture"
+        command = gate.managed("native-distribution-unit", ["xcrun", "swift", "-module-cache-path", "{build_dir}/module-cache", str(FIXTURES / "distribution-app.swift"), "{build_dir}", str(output)])
+        made = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(made.returncode, 0, made.stdout + made.stderr)
+        self.git_repo()
+        scripts = self.root / "macos/scripts"
+        scripts.mkdir(parents=True)
+        shutil.copy2(SCRIPT.with_name("verify-sparkle-signature.swift"), scripts)
+        dmg, archive = output / "Phlox.dmg", output / "Phlox-1.zip"
+        build = {"bundleID": "test.phlox.distribution", "version": "1", "buildNumber": "2", "artifact": {"sha256": gate.file_sha256(dmg)}, "sparkleZIP": {"sha256": gate.file_sha256(archive)}}
+        signature = json.loads((output / "signature.json").read_text())["signature"]
+        site = self.root / "site"
+        site.mkdir()
+        feed = site / "appcast.xml"
+        def write(signature):
+            feed.write_text(f'<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><sparkle:version>2</sparkle:version><sparkle:shortVersionString>1</sparkle:shortVersionString><enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.zip" length="{archive.stat().st_size}" type="application/octet-stream" sparkle:edSignature="{signature}"/></item></channel></rss>')
+        write(signature)
+        with patch.object(gate, "ROOT", self.root):
+            gate.validate_distribution(dmg, archive, build, self.root)
+            write(base64.b64encode(bytes(64)).decode())
+            with self.assertRaisesRegex(gate.GateError, "Stage failed"):
+                gate.validate_distribution(dmg, archive, build, self.root)
+            write(signature)
+            wrong_identity = {**build, "bundleID": "test.wrong"}
+            with self.assertRaisesRegex(gate.GateError, "identity/version"):
+                gate.validate_distribution(dmg, archive, wrong_identity, self.root)
+        inspections = list((self.root / "distribution-checks").glob("inspection-*"))
+        self.assertEqual(len(inspections), 3)
+        self.assertTrue(all(not os.path.ismount(path / "volume") for path in inspections))
 
     def test_quality_evidence_survives_candidate_deletion(self):
         candidate = self.root / "candidate"

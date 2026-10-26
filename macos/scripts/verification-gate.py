@@ -7,10 +7,15 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
+import xml.etree.ElementTree as ET
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +35,19 @@ FAKE_TESTS = {
     "E2EPersistenceTests": ["s2_restartRestoresSessionNamesAndProjectPlacement", "s2_corruptSessionsJSONStartsWithEmptyState", "s6_projectPlacementSurvivesRestart", "s9a_bypassTogglesClaudeHooksSettingsFileSelectionAndContent"],
     "E2ERealPTYTests": ["realPTY_deterministic_inputEchoThenSilenceReachesIdleCompletion"],
 }
+OPTIONAL_SKIPS = {
+    "ClaudeAgentKitTests.ClaudeUsageLiveTests",
+    "ClaudeAgentKitTests.ClaudeUsageLiveTests/conversationDeliversUsageWithoutGetUsage()",
+    "ClaudeAgentKitTests.ClaudeUsageLiveTests/dedicatedThreeCyclesWithoutConversation()",
+    "CodexAppServerKitTests.CodexAppServerE2ETests/initializeThreadTurnReadAndResume()",
+    "CodexAppServerKitTests.CodexAppServerE2ETests/threadStartWithExplicitSources()",
+    "CodexAppServerKitTests.CodexAppServerE2ETests/updateThreadSettingsEmitsNotification()",
+    "DashboardFeatureTests.LargeFilePerformanceTests/longLineKeepsPreparedGlyphsAfterChanges(change:)",
+    "DashboardFeatureTests.LargeFilePerformanceTests/measureDocumentAndSwiftUIUpdates()",
+    "DashboardFeatureTests.RealClaudeReadinessE2ETests/realClaude_inputAcceptedAfterSessionStartHook()",
+    "DashboardFeatureTests.ThemeRenderingTests/CodeSyntaxPerformanceTests/measureEditorInputAndHighlightCompletion()",
+} | {f"DashboardFeatureTests.{suite}/{name}()" for suite, names in FAKE_TESTS.items() for name in names}
+OPTIONAL_XCTEST_SKIP = "-[DashboardFeatureTests.MarkdownScrollPerformanceTests testScrollFrames]"
 
 
 class GateError(Exception):
@@ -107,7 +125,7 @@ def input_manifest(root=ROOT, oid=None):
             info, name = row.split(b"\t", 1)
             mode, kind, blob = info.decode().split()
             path = os.fsdecode(name)
-            if excluded_input(path):
+            if excluded_input(path) or path == "site/appcast.xml":
                 continue
             require(kind == "blob", f"Unresolved build input: {path}")
             data = subprocess.check_output(["git", "cat-file", "blob", blob], cwd=root)
@@ -118,7 +136,7 @@ def input_manifest(root=ROOT, oid=None):
             if not name:
                 continue
             path = os.fsdecode(name)
-            if excluded_input(path):
+            if excluded_input(path) or path == "site/appcast.xml":
                 continue
             require(not Path(path).name.startswith(".env"), f"Forbidden build input: {path}")
             file = root / path
@@ -340,6 +358,9 @@ def check_test_log(log):
     counts = [int(value) for value in re.findall(r"^[✔✘] Test run with (\d+) tests?\b", data, re.M)]
     require(counts and all(count > 0 for count in counts), f"Zero tests or unknown result format: {log}")
     require(not re.search(r"^✘ Test run .* failed after", data, re.M), f"Failed test: {log}")
+    for line in data.splitlines():
+        if re.match(r"^Test Case .* skipped", line):
+            require(line.startswith(f"Test Case '{OPTIONAL_XCTEST_SKIP}' skipped ("), f"Unclassified XCTest skip: {line}")
     return {"reportedTestCounts": counts, "skipped": [line for line in data.splitlines() if re.match(r"^➜ Test .* skipped\.|^Test Case .* skipped", line)],
             "knownIssues": [line for line in data.splitlines() if re.search(r"known issue|known issues", line, re.I)]}
 
@@ -394,7 +415,7 @@ def check_regular_events(paths):
             if item["kind"] != "event":
                 continue
             event = item["payload"]
-            ident = "/".join(event.get("testID", "").split("/")[:2])
+            ident = re.sub(r"/[^/]+\.swift:\d+:\d+$", "", event.get("testID", ""))
             kind = event["kind"]
             started |= kind == "runStarted"
             ended |= kind == "runEnded"
@@ -402,6 +423,7 @@ def check_regular_events(paths):
                 if any(message.get("symbol") == "pass" for message in event.get("messages", [])):
                     local_passed.add(ident)
             if kind == "testSkipped":
+                require(ident in OPTIONAL_SKIPS, f"Unclassified ordinary test skip: {ident}")
                 skipped.append(ident)
             if kind == "issueRecorded":
                 require(ident == KNOWN_ISSUE and event.get("issue", {}).get("isKnown") is True, f"Unknown/unresolved test issue: {ident}")
@@ -557,6 +579,10 @@ def capture_build(args):
     started = now()
     artifact = evidence_path(args.artifact, evidence_root)
     require(not artifact.exists(), "Artifact must be newly produced by this build")
+    require(bool(args.zip) == (args.platform == "macos"), "Mac builds require --zip; iOS builds must omit it")
+    sparkle_zip = evidence_path(args.zip, evidence_root) if args.zip else None
+    if sparkle_zip:
+        require(sparkle_zip != artifact and not sparkle_zip.exists(), "ZIP must be a separate, newly produced artifact")
     out = evidence_path(args.output, evidence_root)
     require(not out.exists(), "Build record must be new")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -565,6 +591,9 @@ def capture_build(args):
     require(not git("status", "--porcelain", "--untracked-files=all"), "Build changed its source tree")
     require(artifact.is_file(), "Missing build artifact")
     record = {"schemaVersion": 1, "sourceOID": source, "platform": args.platform, "startedAt": started, "finishedAt": now(), "inputManifest": before, "toolchain": tools, "settingsSHA256": settings_hash, "settingsPath": evidence_path(args.settings, evidence_root).relative_to(evidence_root).as_posix(), "externalInputs": external, "bundleID": args.bundle_id, "version": args.version, "buildNumber": args.build_number, "artifact": file_reference(artifact, evidence_root)}
+    if sparkle_zip:
+        require(sparkle_zip.is_file(), "Missing distribution ZIP")
+        record["sparkleZIP"] = file_reference(sparkle_zip, evidence_root)
     write_json(out, record)
     print(f"Build provenance captured; installation and physical scenarios not verified: {out}")
 
@@ -606,11 +635,15 @@ def validate_physical_records(data, scenarios, manifest, tools=None, root=ROOT, 
         require(validate_build_settings(settings, record["platform"], record["bundleID"], record["version"], record["buildNumber"]) == record.get("settingsSHA256"), "Effective build settings changed")
         artifact = record.get("artifact")
         artifact_path = verify_file(artifact, evidence_root)
+        identity = [artifact["sha256"]]
+        if record["platform"] == "macos":
+            require(verify_file(record.get("sparkleZIP"), evidence_root) != artifact_path, "DMG and ZIP must be separate artifacts")
+            identity.append(record["sparkleZIP"]["sha256"])
         if record["platform"] == "macos" and (dmg_sha256 is None or artifact["sha256"] == dmg_sha256) and (dmg_path is None or artifact_path.samefile(dmg_path)):
             matching_mac_builds.add(ident)
         key = tuple(text_field(record, key) for key in ("platform", "bundleID", "version", "buildNumber"))
-        require(key not in identities or identities[key] == artifact["sha256"], "Build number reused for different artifacts")
-        identities[key] = artifact["sha256"]
+        require(key not in identities or identities[key] == identity, "Build number reused for different artifacts")
+        identities[key] = identity
         builds[ident] = record
     for device in data.get("devices", []):
         ident = text_field(device, "deviceID")
@@ -655,6 +688,137 @@ def validate_physical_records(data, scenarios, manifest, tools=None, root=ROOT, 
         for evidence in execution["evidence"]:
             verify_file(evidence, evidence_root)
     require(matching_mac_builds, "No recorded physical Mac build matches the validated DMG")
+    return [builds[ident] for ident in sorted(matching_mac_builds)]
+
+
+def file_sha256(path):
+    with Path(path).open("rb") as stream:
+        return stream_sha256(stream)
+
+
+def stream_sha256(stream):
+    value = hashlib.sha256()
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        value.update(chunk)
+    return value.hexdigest()
+
+
+def app_contents(app):
+    contents = {}
+    for directory, dirs, files in os.walk(app, followlinks=False):
+        for name in dirs + files:
+            path = Path(directory) / name
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                require(path.resolve(strict=True).is_relative_to(app.resolve()), f"External app symlink: {path}")
+                data = os.fsencode(os.readlink(path))
+                value = ("symlink", len(data), digest(data), mode & 0o111)
+            elif stat.S_ISREG(mode):
+                value = ("file", path.stat().st_size, file_sha256(path), mode & 0o111)
+            else:
+                require(stat.S_ISDIR(mode), f"Unsupported app entry: {path}")
+                continue
+            contents[path.relative_to(app).as_posix()] = value
+    require(contents, "Empty distribution app")
+    return contents
+
+
+def compare_zip_app(path, app):
+    expected, seen, names = app_contents(app), set(), set()
+    with zipfile.ZipFile(path) as archive:
+        for entry in archive.infolist():
+            name = entry.filename
+            parts = name.rstrip("/").split("/")
+            require(name not in names and all(part not in ("", ".", "..") for part in parts) and "\\" not in name and "\0" not in name, f"Unsafe/duplicate ZIP path: {name}")
+            names.add(name)
+            require(parts[0] in (app.name, "__MACOSX"), f"Unexpected ZIP root: {name}")
+            mode = entry.external_attr >> 16
+            if entry.is_dir():
+                require(stat.S_ISDIR(mode), f"Unsupported ZIP directory: {name}")
+                if parts[0] != "__MACOSX":
+                    directory = app.joinpath(*parts[1:])
+                    require(directory.is_dir() and not directory.is_symlink(), f"Unexpected ZIP directory: {name}")
+                continue
+            if parts[0] == "__MACOSX":
+                parts = parts[1:]
+                require(parts and parts[0] == app.name, f"Unexpected ZIP metadata root: {name}")
+            relative = "/".join(parts[1:])
+            if parts[-1].startswith("._") and relative not in expected:
+                target = app.joinpath(*parts[1:-1], parts[-1][2:])
+                require(stat.S_ISREG(mode) and (target.exists() or target.is_symlink()) and target.resolve(strict=True).is_relative_to(app.resolve()), f"Unmatched ZIP metadata: {name}")
+                with archive.open(entry) as stream:
+                    require(stream.read(8) == bytes.fromhex("0005160700020000"), f"Invalid AppleDouble metadata: {name}")
+                continue
+            require(not name.startswith("__MACOSX/"), f"Unexpected ZIP metadata: {name}")
+            require(relative in expected, f"ZIP app has extra content: {name}")
+            kind = "symlink" if stat.S_ISLNK(mode) else "file"
+            require(stat.S_ISLNK(mode) or stat.S_ISREG(mode), f"Unsupported ZIP entry: {name}")
+            wanted = expected[relative]
+            require((kind, entry.file_size, mode & 0o111) == (wanted[0], wanted[1], wanted[3]), f"ZIP/DMG app metadata mismatch: {name}")
+            with archive.open(entry) as stream:
+                require(stream_sha256(stream) == wanted[2], f"ZIP/DMG app content mismatch: {name}")
+            seen.add(relative)
+    require(seen == set(expected), f"ZIP app is missing DMG app content: {sorted(set(expected) - seen)[:10]}")
+
+
+def distribution_signature(feed, build, sparkle_zip):
+    ns = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
+    items = [item for item in ET.parse(feed).getroot().findall("./channel/item")
+             if item.findtext(ns + "version") == build["buildNumber"]
+             and item.findtext(ns + "shortVersionString") == build["version"]]
+    require(len(items) == 1, "Appcast must identify exactly one distribution build")
+    enclosures = items[0].findall("enclosure")
+    require(len(enclosures) == 1, "Appcast requires one full distribution enclosure")
+    enclosure = enclosures[0]
+    expected_url = f"https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-{build['version']}.zip"
+    require(sparkle_zip.name == f"Phlox-{build['version']}.zip" and enclosure.get("url") == expected_url, "Appcast distribution URL/version mismatch")
+    require(enclosure.get("length") == str(sparkle_zip.stat().st_size) and enclosure.get("type") == "application/octet-stream", "Appcast ZIP size/type mismatch")
+    return text_field(enclosure.attrib, ns + "edSignature")
+
+
+def validate_distribution(dmg, sparkle_zip, build, evidence_root):
+    parent = evidence_root / "distribution-checks"
+    parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix="inspection-", dir=parent))
+    write_json(work / "owner.json", {"purpose": "read-only distribution verification", "session": session_name(), "pid": os.getpid(), "executable": sys.executable, "createdAt": now()})
+    mount = work / "volume"
+    mount.mkdir()
+    try:
+        copies = []
+        for source, reference in ((dmg, build["artifact"]), (sparkle_zip, build["sparkleZIP"])):
+            copy = work / source.name
+            shutil.copyfile(source, copy)
+            copy.chmod(0o400)
+            require(file_sha256(copy) == reference["sha256"], "Distribution changed before inspection")
+            copies.append(copy)
+        subprocess.run(["hdiutil", "attach", "-readonly", "-nobrowse", "-mountpoint", str(mount), "-plist", str(copies[0])], check=True, stdout=subprocess.PIPE)
+        require(os.path.ismount(mount), "DMG did not mount at the inspection path")
+        apps = list(mount.glob("*.app"))
+        require(len(apps) == 1 and apps[0].is_dir() and not apps[0].is_symlink(), "DMG must contain exactly one real app")
+        app = apps[0]
+        subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+        info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+        require(all(info.get(key) == build[field] for key, field in (("CFBundleIdentifier", "bundleID"), ("CFBundleShortVersionString", "version"), ("CFBundleVersion", "buildNumber"))), "DMG app identity/version mismatch")
+        compare_zip_app(copies[1], app)
+        signature = distribution_signature(ROOT / "site/appcast.xml", build, copies[1])
+        run_stage(managed("release-signature", ["xcrun", "swift", "-module-cache-path", "{build_dir}/module-cache", str(ROOT / "macos/scripts/verify-sparkle-signature.swift"), str(copies[1]), signature, text_field(info, "SUPublicEDKey")]), work / "signature.log")
+        expanded = work / "expanded"
+        subprocess.run(["ditto", "-x", "-k", str(copies[1]), str(expanded)], check=True)
+        require(app_contents(expanded / app.name) == app_contents(app), "Extracted ZIP/DMG app mismatch")
+        subprocess.run(["codesign", "--verify", "--deep", "--strict", str(expanded / app.name)], check=True)
+        require(file_sha256(dmg) == build["artifact"]["sha256"] and file_sha256(sparkle_zip) == build["sparkleZIP"]["sha256"], "Distribution changed during inspection")
+    finally:
+        if os.path.ismount(mount):
+            subprocess.run(["hdiutil", "detach", str(mount)], check=True)
+    # Keep the small owner/log record; the large inspection copies are disposable.
+    for copy in work.iterdir():
+        if copy.name in (dmg.name, sparkle_zip.name) and copy.is_file():
+            copy.unlink()
+    if any(path.name.startswith(".env") for path in expanded.rglob("*")):
+        print(f"Inspection app retained because it contains a protected .env path: {expanded}")
+    else:
+        shutil.rmtree(expanded)
+    mount.rmdir()
 
 
 def release(args):
@@ -668,7 +832,11 @@ def release(args):
     evidence_root = Path(args.evidence_root).resolve(strict=True)
     dmg = evidence_path(args.dmg, evidence_root)
     dmg_hash = digest(dmg.read_bytes())
-    validate_physical_records(data, scenarios, before, root=ROOT, evidence_root=evidence_root, dmg_sha256=dmg_hash, dmg_path=dmg)
+    builds = validate_physical_records(data, scenarios, before, root=ROOT, evidence_root=evidence_root, dmg_sha256=dmg_hash, dmg_path=dmg)
+    sparkle_zip = evidence_path(args.zip, evidence_root)
+    for build in builds:
+        require(verify_file(build["sparkleZIP"], evidence_root).samefile(sparkle_zip), "Distribution ZIP differs from recorded build")
+        validate_distribution(dmg, sparkle_zip, build, evidence_root)
     require(candidate() == head and input_manifest(ROOT) == before, "Release inputs changed during verification")
     print("Physical release evidence matched. Existing version/notes/appcast/stapler checks must precede this command.")
 
@@ -692,10 +860,12 @@ def main():
     physical = sub.add_parser("release")
     physical.add_argument("--record", default=RECORDS)
     physical.add_argument("--dmg", required=True, help="Exactly the DMG path passed to the preceding stapler validation")
+    physical.add_argument("--zip", required=True, help="The distribution ZIP captured with the physical Mac build")
     physical.add_argument("--evidence-root", required=True)
     capture = sub.add_parser("capture-build")
     capture.add_argument("--platform", required=True, choices=["macos", "ios"])
     capture.add_argument("--evidence-root", required=True)
+    capture.add_argument("--zip", help="New distribution ZIP, required only for macos")
     for name in ("artifact", "settings", "output", "bundle-id", "version", "build-number"):
         capture.add_argument("--" + name, required=True)
     capture.add_argument("--external-input", action="append", default=[])
@@ -705,7 +875,7 @@ def main():
         args.command.pop(0)
     try:
         {"quality": quality, "_quality-worker": quality_worker, "capture-build": capture_build, "release": release, "review-input": review_input}[args.mode](args)
-    except (GateError, OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+    except (GateError, OSError, ValueError, KeyError, TypeError, ET.ParseError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         print(f"verification-gate: inspection failed or incomplete: {error}", file=sys.stderr)
         return 1
     return 0

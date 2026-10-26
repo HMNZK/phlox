@@ -71,6 +71,23 @@
         "physical-session-activity"
       ],
       "reason": "ShutdownDeadlineは停止受付時にCleanupGuardで一度だけ10秒のasyncAfterを張り、MainActor外のキューで同じ終了コードのexitを呼ぶ。2回目のarmは無視され最初の終了コードを保持、通常停止が先に終わればexit(exitCode)が先に勝ち期限は何もしない。lease解放は元々exit(exitCode)任せで本差分は経路に手を入れていない。AppBootstrap 216件成功。fake-session-lifecycleはfakeエージェントのspawn・送受信・終了・永続化の決定論テストで独立ランタイムのSIGTERM停止を扱わず、physical-session-activityは実機の稼働中表示・完了通知・再接続(AC-1〜4)で停止期限と無関係、codePathsの広い一致による該当のみでシナリオ本文の更新は不要。未検証: 実機でのSIGTERM停止、SessionRuntimeHostの配線のテスト（単体テストはShutdownDeadlineのみ）、ゲート全体。"
+    },
+    {
+      "baseOID": "8ea7127e2ede794541f522bd1573bfeab755c586",
+      "targetOID": "2f2912f372f868927ba3dde668a3bffe17d98475",
+      "diffSHA256": "7d3c780944b6e0024f7af6d094f9a98fd3fa39dfb536480d6246953c5a41afda",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:ab531e71ba238fb16"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T04:53:21.443756+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "変更はテストの準備待ち上限を2秒から10秒に広げた1行のみ。製品の期限はAgentModelProviders.swiftでonSpawn(pid)が返った後にDispatchTime.now()+timeoutで開始するため、準備待ちを延ばしても製品の期限超過を隠さない。測定側の判定（index 0の準備1秒超、解放1秒以上2秒未満、子生存、FD数）は不変。2秒は961ff68dで導入されたが校正根拠の記載はなく、同コミットの準備と期限計測を分ける意図に沿う。10秒でも1波の失敗打ち切りは約11秒で親の18秒以内。該当シナリオfake-session-lifecycle・physical-session-activityのtestIDsに本テストは含まれず、手順・期待結果・要件の意味は不変。AcceptanceModelProcessLifetime 7件成功。未検証: 負荷下での再現、原ログでindex 0が3.01秒かかった理由の断定。"
     }
   ]
 }

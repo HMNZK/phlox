@@ -189,6 +189,22 @@
       "reviewedAt": "2026-10-26T16:38:24Z",
       "decision": "pass",
       "reason": "ゲート修正差分を8次元で独立レビューし、関連56テストが成功。appcast変更のレビュー維持、完全なテストIDによるskip判定、新規DMG/ZIP来歴、実ZIP署名とapp内容一致、正常・異常経路のmount解除を確認した。既存シナリオの手順・期待結果・revisionの変更は不要。実機成功を示す判定ではない。"
+    },
+    {
+      "baseOID": "ef03981bca43d7042bc8d876de9ac58399a31385",
+      "targetOID": "bc1762a4d267caf1b19c2d3a901bf7a230903dbe",
+      "diffSHA256": "941c24f8c1f4a5d1a922483dfbef8a8f22a10148568d7a809f176d3c920ef119",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "reviewedAt": "2026-10-26T16:48:36Z",
+      "decision": "pass",
+      "reason": "前回確認したゲート修正を維持し、親managed contextでは親所有出力へcompiler/cacheを明示して二重ロックを避ける。検査内容・assert・実署名・app比較を変更していない。関連2テストを親managed contextで独立実走し成功、3mount解除を確認。シナリオの手順・期待結果・revisionの変更は不要。"
     }
   ]
 }

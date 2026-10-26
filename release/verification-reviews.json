@@ -205,6 +205,27 @@
       "reviewedAt": "2026-10-26T16:48:36Z",
       "decision": "pass",
       "reason": "前回確認したゲート修正を維持し、親managed contextでは親所有出力へcompiler/cacheを明示して二重ロックを避ける。検査内容・assert・実署名・app比較を変更していない。関連2テストを親managed contextで独立実走し成功、3mount解除を確認。シナリオの手順・期待結果・revisionの変更は不要。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "608fcb0d135516951e707a690e1e8c7c0024945c",
+      "diffSHA256": "275c99ccfcf06a2e777aba2307691112cce051d52fdc6c8c06fbd7b2b6d02f46",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "reviewedAt": "2026-10-26T16:52:58Z",
+      "decision": "pass",
+      "reason": "固定コミット間の全体差分と影響6シナリオを独立レビューした。前回の配信フィード循環と必須skip受理は解消済み。追加の読取タイムアウト復帰は既存のエラー回復要件に対応し、取消し・致命的エラー・送信非再送を維持する。既存の手順・期待結果・revision 1を維持できる。PhotosPicker表示中のACK抑止は実機確認事項として残す。実機5項目はnot_runであり、本判定は実機合格や進行中の全体品質ゲート成功を意味しない。"
     }
   ]
 }

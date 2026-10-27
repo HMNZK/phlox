@@ -441,6 +441,17 @@
       "reviewedAt": "2026-10-27T10:45:02Z",
       "scenarioIDs": ["fake-session-lifecycle"],
       "reason": "準備差分と英日リリースノートの一致を独立確認し、必須13シナリオを固定候補で実行して成功IDを照合した。build 42の配布物・appcast署名とサイズの照合、全体品質検査、実機5項目は未実施。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "1b78f66a9f08c1166d1b268267ac12c85f6d882f",
+      "diffSHA256": "44fd54770007a26538d6c43a100357386bba6c1184004f94bd60da068180ff03",
+      "reviewer": {"kind": "ai", "id": "codex:/root/release_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T11:05:51Z",
+      "scenarioIDs": ["fake-session-lifecycle", "physical-session-activity", "physical-history-follow", "physical-activity-presentation", "physical-usage-preferences-refresh", "physical-newchat-worktree-resume"],
+      "reason": "正規化対象135ファイルについて既存の4件の独立レビューとの対応を確認した。固定候補106bd7c8のfake 13件と、最終候補1b78f66aの品質・セキュリティ検査結果を確認した。実機5項目は未実施で、この判定には含まない。"
     }
   ]
 }

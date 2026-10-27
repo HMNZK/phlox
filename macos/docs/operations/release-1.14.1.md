@@ -1,10 +1,10 @@
-# Phlox 1.14.1（build 41）配布準備
+# Phlox 1.14.1（build 42）配布準備
 
 ## 状態
 
-準備中。前の修正はDevへ統合済みで、verify・mainは未統合。後続の通信テストの接続失敗入力を修正し、最終候補はMac41/iPhone11を新規生成する。Mac40の署名・公証・stapleと実ZIP署名/DMG内容一致、iPhone10の再archive/export・署名検査・実機への上書き更新と起動は成功したが、テストを含む入力manifestが変わるため修正後のmain候補へ流用しない。実機5シナリオ・公開・push・通常Macアプリの差し替えは未実施。
+準備中。非同期質問の表示修正と後続の実行状態改善を含め、Mac42/iPhone12を新規生成する。Mac41/iPhone11はこれらの変更前の入力で生成されたため採用しない。verify・mainへの統合、必須実機5シナリオ、公開、pushは未実施。
 既に配布した1.14.0 / build 36を別バイナリへ再利用せず、新しい版とbuildで実機確認用の候補を作る。
-iPhoneの表示版1.0を維持し、次の最終候補は1.0/build11。現在の端末はOS照会で実1.0/build10を確認した。既存buildの確認を最終候補の実機合格へ流用しない。
+iPhoneの表示版1.0を維持し、次の候補は1.0/build12。既存buildの確認を最終候補の実機合格へ流用しない。
 
 ユーザーはbuild9とbuild10の更新後に既存の会話一覧が見えるとそれぞれ報告した。これは基本的な画面/接続の観測であり、最終候補の必須5シナリオの合格ではない。外出中は所有を照合したiPhone10のexportとcodesignだけを停止し、中断記録を保存した。帰宅後の再署名は確認待ちにならず成功した。本体/Widgetの実版と署名、有効な端末profileを照合し、アンインストールせず9から10へ更新した。最初の起動は端末ロックで拒否されたが、ユーザーの解除後に起動とプロセス照会が成功した。build10の一覧表示の人間による観測は同ビルドのインストール記録へ保存した。
 
@@ -30,7 +30,7 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 
 ## 配布物と来歴
 
-旧記録は統合元リポジトリの`.verification/release-1.14.1/`、`.verification/release-1.14.1-build39/`、`.verification/release-1.14.1-build40/`へ保持する。次の最終候補は`.verification/release-1.14.1-build41/`へ保存する。正式recordsとappcastの40/10への実測済み参照は新しい実配布物の生成・照合後に更新する。現在のソース入力とは一致しないため、旧参照のままでrelease検査が成功する状態ではない。
+旧記録は統合元リポジトリの`.verification/release-1.14.1/`、`.verification/release-1.14.1-build39/`、`.verification/release-1.14.1-build40/`、`.verification/release-1.14.1-build41/`へ保持する。次の候補は`.verification/release-1.14.1-build42/`へ保存する。正式recordsとappcastの旧参照は新しい実配布物の生成・照合後に更新する。現在のソース入力とは一致しないため、旧参照のままでrelease検査が成功する状態ではない。
 MacはDMGと最終ZIPを同じ`capture-build`工程で新規生成し、同じ実体をrelease照合へ渡す。
 旧実ビルド記録はMacが`macos-build.json`、iPhoneが`ios-build-retry1.json`。元のsourceOIDはそれぞれ`2f5198fc644ab01eec4b0aa9788a2c2ff931987a`と`23602f0a71a43e13eeff27436e3971fcd0094724`。これらの元記録を変更せず保持する。
 

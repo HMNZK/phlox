@@ -2,7 +2,7 @@
 
 ## 状態
 
-準備中。非同期質問の表示修正と後続の実行状態改善を含め、Mac42/iPhone12を新規生成する。Mac41/iPhone11はこれらの変更前の入力で生成されたため採用しない。verify・mainへの統合、必須実機5シナリオ、公開、pushは未実施。
+準備中。非同期質問の表示修正と後続の実行状態改善を含むdevをverifyへ統合し、Mac42/iPhone12を生成した。Mac41/iPhone11はこれらの変更前の入力で生成されたため採用しない。mainへの統合、必須実機5シナリオ、公開、pushは未実施。
 既に配布した1.14.0 / build 36を別バイナリへ再利用せず、新しい版とbuildで実機確認用の候補を作る。
 iPhoneの表示版1.0を維持し、次の候補は1.0/build12。既存buildの確認を最終候補の実機合格へ流用しない。
 
@@ -33,7 +33,7 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 ## 配布物と来歴
 
 旧記録は統合元リポジトリの`.verification/release-1.14.1/`、`.verification/release-1.14.1-build39/`、`.verification/release-1.14.1-build40/`、`.verification/release-1.14.1-build41/`へ保持する。次の候補は`.verification/release-1.14.1-build42/`へ保存する。正式recordsとappcastの旧参照は新しい実配布物の生成・照合後に更新する。現在のソース入力とは一致しないため、旧参照のままでrelease検査が成功する状態ではない。
-MacはDMGと最終ZIPを同じ`capture-build`工程で新規生成し、同じ実体をrelease照合へ渡す。
+Mac42はDMGと最終ZIPを同じ`capture-build`工程で生成し、署名・公証・stapleとZIP署名を確認した。iPhone12も署名済みIPAを生成し、既存アプリを更新した。両者の来歴はbuild42の`final-verify/`に保存した。Mac検証版への切り替えと5シナリオの実機確認は未完了。
 旧実ビルド記録はMacが`macos-build.json`、iPhoneが`ios-build-retry1.json`。元のsourceOIDはそれぞれ`2f5198fc644ab01eec4b0aa9788a2c2ff931987a`と`23602f0a71a43e13eeff27436e3971fcd0094724`。これらの元記録を変更せず保持する。
 
 Mac39/iPhone9はともにsourceOID`6937d01316263f2b4db84ef79eac9e76e88160af`で、当時の入力manifestは一致する。build39用rootの`macos-build.json`/`ios-build.json`に元来歴を保持する。テスト修正で保守的な入力manifestが変わるため、この組合せは最終採用から外した。iPhone9の実インストール・起動記録は共通証拠基準の`release-evidence/1.14.1/ios-1.0-9/install-20261027/`。必須実機シナリオのpassedは作っていない。

@@ -4,7 +4,7 @@
         <title>Phlox</title>
         <item>
             <title>1.14.1</title>
-            <pubDate>Tue, 27 Oct 2026 05:42:46 GMT</pubDate>
+            <pubDate>Tue, 27 Oct 2026 12:11:36 GMT</pubDate>
             <description xml:lang="en"><![CDATA[
 <h3>Improved</h3>
 <ul>
@@ -35,13 +35,13 @@
   <li>iPhoneの対応待ちバーの変化で会話画面が作り直される問題を修正しました。</li>
 </ul>
 ]]></description>
-            <sparkle:version>40</sparkle:version>
+            <sparkle:version>42</sparkle:version>
             <sparkle:shortVersionString>1.14.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
             <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
-            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.1.zip" length="30169999" type="application/octet-stream" sparkle:edSignature="oXBYN54vp05quFUvYA3Osqax0lBBodR5qHzeYk1KvgAqArpY8YQtyFgzPRv34IUvFQbOl0KVqdkk6V4FE7hkAA=="/>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.1.zip" length="30183199" type="application/octet-stream" sparkle:edSignature="A3InST1yqymB/sEjkJA3A8wqPbLOeFbm74/1FU2Bt38KjFi3ifTnp7RgmnAQ2jL/aII6ZxIgTnQM8IENJmRRAQ=="/>
         </item>
         <item>
             <title>1.14.0</title>

@@ -339,6 +339,22 @@
         "fake-session-lifecycle"
       ],
       "reason": "独立コードレビューで correctness の指摘はなかった。初回の対象19件は通過したが、ビルド中のソース変更で実行全体は失敗した。候補固定後の再実行は管理ビルドのロックが使用中のため開始できず、対象19件と fake-session-lifecycle の13件は未検証。"
+    },
+    {
+      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
+      "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
+      "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T07:09:01Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "対象差分を独立レビューし、質問の実行中・終了後・回答・拒否・復元と状態表示を確認した。固定候補で対象19件と fake-session-lifecycle の必須13件が通過し、13件のイベントを確認した。実機の検証はこの判定に含まない。"
     }
   ]
 }

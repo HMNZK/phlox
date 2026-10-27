@@ -22,6 +22,7 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 - 修正後は標準入口でMobileProxyの67件が成功した。既存のSendable警告2件（非Sendableのclient参照と可変request参照の並列capture）は残る。これは限定したパッケージ検査で、後続の共通quality全体や実機検証の合格ではない。
 - 製品コード・テストとシナリオの独立レビューはpass。Mac40の配布メタデータは`edaafbf9ec219a331275da23cc621cea07e87021`まで、今回の接続失敗テスト修正は`5467c93116f4c8ffa2482980e73382a403c89892`までを対象とする。正規化差分SHAに対応するDev向け1シナリオとmain向け6シナリオのpassを`release/verification-reviews.json`へ記録した。以降の配布メタデータは生成後に照合し、実機合格とは区別する。
 - build 42の準備差分（`04b8684eea99bb6a5c649d2e24eafa92b2239e95`から`106bd7c86c17a26f3e32cc922fd6f8f7734a11d5`）は、独立レビューで英日リリースノートとの一致と必須13シナリオの固定候補での成功がpassとなり、`release/verification-reviews.json`へ記録した。build 42の配布物・appcast署名とサイズの照合、全体品質検査、実機5項目は未実施。
+- その後、`8df067c863fb5a5d4b0cc5c68fac0584affd4840`から`1b78f66a9f08c1166d1b268267ac12c85f6d882f`の正規化差分（135ファイル）は、既存の独立レビュー4件との対応、固定候補`106bd7c8`のfake 13件、最終候補`1b78f66a`の品質・セキュリティ検査結果の確認を経て、独立レビューでpassとなり、6シナリオ分を`release/verification-reviews.json`へ記録した。実機5項目は未実施で、この判定には含まない。
 - 必須実機5シナリオはnot_run。正本は`release/verification-scenarios.json`、実施結果は`release/verification-records.json`。人間の観測なしにpassedを作らない。PhotosPicker表示中の完了確認の扱いも確認事項として残す。
 - 初回の回答読取timeoutの発生原因は未特定。Devの自動復帰修正は、timeout後の表示更新の停止を対象にしている。
 - 旧1.14.0のZIPにはstaple後の`Contents/CodeResources`が不足していた。本候補ではstaple済appから最終ZIPを生成し、DMG内appとの一致と、DMGの公開鍵による実ZIP署名の検証を行う。

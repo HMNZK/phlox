@@ -430,6 +430,17 @@
         "physical-session-activity"
       ],
       "reason": "Solが変更とシナリオの対応、既存契約、復号の並行性・順序・キャンセル・混雑のテスト、検証用POST再試行を独立に確認した。シナリオの手順・期待結果の変更は不要。これは部分改善のシナリオレビューであり、実ユーザーの長時間停止の解消や実機・品質ゲート全体の合格を意味しない。"
+    },
+    {
+      "baseOID": "04b8684eea99bb6a5c649d2e24eafa92b2239e95",
+      "targetOID": "106bd7c86c17a26f3e32cc922fd6f8f7734a11d5",
+      "diffSHA256": "33711f458b5609da7e5dae42b366e396fa9dea7e4d5266e1ce7bcaec41fa50aa",
+      "reviewer": {"kind": "ai", "id": "codex:/root/release_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T10:45:02Z",
+      "scenarioIDs": ["fake-session-lifecycle"],
+      "reason": "準備差分と英日リリースノートの一致を独立確認し、必須13シナリオを固定候補で実行して成功IDを照合した。build 42の配布物・appcast署名とサイズの照合、全体品質検査、実機5項目は未実施。"
     }
   ]
 }

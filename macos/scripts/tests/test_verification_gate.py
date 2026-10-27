@@ -507,7 +507,9 @@ class GateTests(unittest.TestCase):
         def build(command, log):
             (self.root / args.artifact).write_bytes(self.ios_artifact(widget_changes={"CFBundleShortVersionString": "1.0"}))
         self.saved_git = gate.git
-        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), \
+        fixture_oid = self.saved_git("rev-parse", "HEAD", root=self.root)
+        with patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": fixture_oid}), \
+                patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), \
                 patch.object(gate, "toolchain", return_value={"xcode": "Fixture Xcode", "sdk": "Fixture SDK"}), \
                 patch.object(gate, "run_stage", side_effect=build), redirect_stdout(io.StringIO()), \
                 self.assertRaisesRegex(gate.GateError, "iOS bundle identity"):

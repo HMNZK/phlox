@@ -1,10 +1,10 @@
-# Phlox 1.14.1（build 39）配布準備
+# Phlox 1.14.1（build 40）配布準備
 
 ## 状態
 
-準備中。main・verifyへは未統合。旧候補Mac38/iPhone8は不採用。版番号の生成・実ファイル検査を直してMac39/iPhone9を生成した。iPhoneは1.0/build9への更新インストールとOSによる起動・プロセス照会が成功した。実機5シナリオ・公開・push・通常Macアプリの差し替えは未実施。
+準備中。main・verifyへは未統合。版番号を直したMac39/iPhone9の生成と、iPhone1.0/build9の更新・起動は成功した。その後の共通qualityでテスト用Git候補IDの隔離不足を検出し、Dev未反映で停止した。隔離を直した最終入力でqualityを先に実行し、Mac40/iPhone10を生成する。実機5シナリオ・公開・push・通常Macアプリの差し替えは未実施。
 既に配布した1.14.0 / build 36を別バイナリへ再利用せず、新しい版とbuildで実機確認用の候補を作る。
-iPhoneに既に入っている表示版1.0を維持し、設定と実Info.plistと記録を1.0 / build 9にそろえる。既存のbuild 7の確認を新候補へ流用しない。
+iPhoneの表示版1.0を維持し、最終候補は1.0/build10にする。現在の実機は1.0/build9。既存buildの確認を最終候補の実機合格へ流用しない。
 
 最初のbuild 37はビルド・署名・公証・stapleまで完了したが、producerがコンパイル用コピーをビルド前後に照合していなかったため採用しない。実際の改変は観測していない。コピーの改変を受け入れる独立否定テストが失敗し、入力照合の不足を確認した。生成project・Info.plist・lockを含むコピー全体を固定し、独立否定テストの成功後にbuild 38を新規生成した。build 37の実機合格記録は作らない。
 
@@ -25,11 +25,11 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 
 ## 配布物と来歴
 
-旧記録は統合元リポジトリの`.verification/release-1.14.1/`へ保持する。新配布物・設定・外部入力・来歴は`.verification/release-1.14.1-build39/`へ保存する。
+旧記録は統合元リポジトリの`.verification/release-1.14.1/`と`.verification/release-1.14.1-build39/`へ保持する。最終候補は`.verification/release-1.14.1-build40/`へ保存する。
 MacはDMGと最終ZIPを同じ`capture-build`工程で新規生成し、同じ実体をrelease照合へ渡す。
 旧実ビルド記録はMacが`macos-build.json`、iPhoneが`ios-build-retry1.json`。元のsourceOIDはそれぞれ`2f5198fc644ab01eec4b0aa9788a2c2ff931987a`と`23602f0a71a43e13eeff27436e3971fcd0094724`。これらの元記録を変更せず保持する。
 
-新候補のMac/iPhoneはともにsourceOID`6937d01316263f2b4db84ef79eac9e76e88160af`、入力manifestが一致する。新rootの`macos-build.json`/`ios-build.json`が来歴で、`release/verification-records.json`に実測後の参照を追加した。iPhoneの実インストール・起動記録は共通証拠基準の`release-evidence/1.14.1/ios-1.0-9/install-20261027/`。実画面/接続についてはユーザーの観測待ちで、必須実機シナリオのpassedは作っていない。
+Mac39/iPhone9はともにsourceOID`6937d01316263f2b4db84ef79eac9e76e88160af`で、当時の入力manifestは一致する。build39用rootの`macos-build.json`/`ios-build.json`に元来歴を保持する。テスト修正で保守的な入力manifestが変わるため、この組合せは最終採用から外した。iPhone9の実インストール・起動記録は共通証拠基準の`release-evidence/1.14.1/ios-1.0-9/install-20261027/`。必須実機シナリオのpassedは作っていない。
 
 ## リリースノート
 

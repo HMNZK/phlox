@@ -8,10 +8,17 @@ public enum QRImageDecoder {
         let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         do {
             try handler.perform([request])
-            guard let observations = request.results else { return nil }
-            return observations.first(where: { $0.symbology == .qr })?.payloadStringValue
         } catch {
-            return nil
+            let error = error as NSError
+            guard error.domain == VNErrorDomain, error.code == VNErrorCode.internalError.rawValue,
+                  request.revision != VNDetectBarcodesRequestRevision1 else { return nil }
+            request.revision = VNDetectBarcodesRequestRevision1
+            do {
+                try handler.perform([request])
+            } catch {
+                return nil
+            }
         }
+        return request.results?.first(where: { $0.symbology == .qr })?.payloadStringValue
     }
 }

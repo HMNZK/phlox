@@ -70,7 +70,7 @@ extension DesignSnapshotRenderTests {
             text: .constant(""), cursorUTF16: .constant(0),
             isFocused: Binding(get: { draft.focused }, set: { draft.focused = $0 }),
             hasMarkedText: Binding(get: { draft.marked }, set: { draft.marked = $0 }),
-            dynamicTypeSize: .large, accessibilityLabel: "入力", submission: .init(), submissionRevision: 0
+            dynamicTypeSize: .large, minimumHeight: 0, accessibilityLabel: "入力", submission: .init(), submissionRevision: 0
         )
         return (window, parent.makeCoordinator(), editor, draft)
     }

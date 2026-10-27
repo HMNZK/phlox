@@ -11,7 +11,7 @@ final class SessionListViewTests: XCTestCase {
         XCTAssertEqual(DSNavigationChrome.accentTint, IOSColor.accent)
     }
 
-    func testNavigationChromeInstallsUIKitAppearanceWithoutCrashing() {
+    @MainActor func testNavigationChromeInstallsUIKitAppearanceWithoutCrashing() {
         DSNavigationChrome.installUIKitAppearanceIfNeeded()
     }
 }

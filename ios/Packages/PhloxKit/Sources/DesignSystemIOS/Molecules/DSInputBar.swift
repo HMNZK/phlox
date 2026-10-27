@@ -663,6 +663,7 @@ public struct DSInputBar: View {
                 isFocused: $isFocused,
                 hasMarkedText: $hasMarkedText,
                 dynamicTypeSize: dynamicTypeSize,
+                minimumHeight: usesExpandedPlaceholder ? placeholderNaturalHeight : 0,
                 accessibilityLabel: placeholder,
                 submission: editorSubmission,
                 // 本文が同じ描画周期で「空→確定→空」へ戻っても UIKit を更新する。

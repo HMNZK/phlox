@@ -285,6 +285,44 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "既存の全体レビューと6937までの表示版・配布検査修正レビューが製品差分を包含する。以降は配布メタデータ3ファイルのみで、新feed・両ビルド来歴・成果物・外部入力・設定・入力manifest・実IPA表示版の整合を確認した。実iPhoneの更新後1.0/9、起動と後続プロセスの記録を確認したが、実画面は未観測。6シナリオの手順・期待結果・revision変更は不要。executionsは空、必須実機5件はnot_runであり、mainリリースゲートの合格を意味しない。"
+    },
+    {
+      "baseOID": "3f2efbbfe8b7b622c92a65a7df1da4c130a954d1",
+      "targetOID": "1746cf71365f6a5d8aae5f89a21d9c598e3588b2",
+      "diffSHA256": "176b77e22c3511c8f36c701082a6256895e5d6ae0bdf193264f7def6d3e2f550",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:30:53Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "既存レビューの差分包摂を確認し、追加4ファイルを独立確認した。capture負例の候補OIDをsynthetic GitのHEADへ局所的に隔離し、製品guardと失敗期待値を維持している。外側候補OIDとMANAGED_BUILD_DIRがある環境で対象1件が成功し、環境復元も確認した。版番号更新とstale build選定解除は妥当。シナリオの手順・期待結果・revision変更は不要。新配布物と実機結果は本判定に含まない。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "1746cf71365f6a5d8aae5f89a21d9c598e3588b2",
+      "diffSHA256": "167f3cf9835de2074b6e6793b4a3ecb4d6395a943a435f4a6ddf0a6f0c7354ea",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:30:53Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の全体レビューと今回の4ファイルレビューがmainとの差分を包含する。前回targetから今回比較元までの追加はレビュー記録のみ。テスト環境の候補OID隔離を独立1件で検証し、製品guard・既存assertの弱化がないことを確認した。Mac版番号更新、旧build選定解除、実端末identity保持とexecutions空も確認した。6シナリオの手順・期待結果・revision変更は不要。新候補の配布物・feed最終照合と必須実機5件は未完であり、mainリリースゲートの合格を意味しない。"
     }
   ]
 }

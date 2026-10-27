@@ -38,7 +38,7 @@ GUI は `DesktopCompositionRoot` が組み立て、別プロセスの `SessionRu
 | `design-system.md` | Phlox デザインシステム（macOS 本体・`Packages/DesignSystem`） |
 | `mobile-proxy.md` | モバイル連携（Tailscale→MobileProxy→ControlServer、トークン・API・バインド方針） |
 | `mobile-device-pairing.md` | 端末別モバイルトークンと Keychain 保護（`PairedDevice`・DPK/ファイルベースの選択・起動シーケンス・発行/失効） |
-| `team-timeline-view.md` | チームビュー (Beta)（旧アゴラ・グループチャット）の構造 |
+| `team-timeline-view.md` | **archived**（機能削除 → delivery/0037-ui-redesign-worklog.md）。旧 チームビュー (Beta)（旧アゴラ・グループチャット）の構造 |
 | `session-pane-layout.md` | グリッドビューの分割ツリーレイアウト（モデル/幾何/操作/描画制約/永続ツリーと実効ツリー） |
 | `session-grid-layout.md` | **superseded** → session-pane-layout.md（旧 固定 N×N・セル結合） |
 | `terminal-editor-panels.md` | ターミナルパネル・エディタパネルの現行構成（`UserTerminalController`・`WorkingTreeService`・`EditorPanelViewModel`・ドロワー統合・終了時の後始末） |

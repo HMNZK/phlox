@@ -26,6 +26,13 @@ private enum FirstMessageSkillError: LocalizedError {
 /// エージェントのプロセスが自分で終了したこと（04 B3）。終了コードが取れない transport では nil。
 public struct ChatProcessExit: Codable, Equatable, Sendable {
     public let exitCode: Int32?
+    /// 24 時間使われず Phlox が止めた（ADR 0221）。nil は自分で終了した。
+    public var suspendedForIdle: Bool?
+
+    public init(exitCode: Int32?, suspendedForIdle: Bool? = nil) {
+        self.exitCode = exitCode
+        self.suspendedForIdle = suspendedForIdle
+    }
 }
 
 @MainActor
@@ -1115,11 +1122,43 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    public enum ControlSkillError: Error {
+        case unavailable
+        case reselectionRequired
+    }
+
+    public func mobileSkills() async throws -> [AgentSkill] {
+        guard agentRef == .builtin(.codex) else {
+            return ComposerSkillSuggestions.skills(agentKind: agentRef.builtinKind,
+                workingDirectory: workingDirectory ?? "", availableCommands: availableSlashCommands)
+        }
+        guard let state = codexSkillSelectionState else { return [] }
+        await state.refresh()
+        let snapshot = state.makeRuntimeSnapshot()
+        guard !snapshot.isStale, !snapshot.isLoading, snapshot.errorMessage == nil else { throw ControlSkillError.unavailable }
+        return snapshot.skills.filter { $0.enabled }.compactMap { skill in
+            guard let fingerprint = snapshot.fingerprints[skill.path] else { return nil }
+            return AgentSkill(name: skill.name, description: skill.description, path: skill.path, runtimeFingerprint: fingerprint)
+        }
+    }
+
+    public func sendTextWithControlSkill(_ text: String, submit: Bool,
+        images: [(mediaType: String, data: Data)], skill: AgentSkillSelection) async throws {
+        guard agentRef == .builtin(.codex), let state = codexSkillSelectionState,
+              text.split(whereSeparator: \.isWhitespace).contains(where: { $0 == "$\(skill.name)" })
+        else { throw ControlSkillError.reselectionRequired }
+        let identity = SkillIdentity(name: skill.name, path: skill.path, runtimeFingerprint: skill.runtimeFingerprint)
+        guard state.nativeInputs(for: text, skill: identity) != nil else { throw ControlSkillError.reselectionRequired }
+        if images.isEmpty { try await sendText(text, submit: submit, controlSkill: identity) }
+        else { try await sendTextWithControlImages(text, submit: submit, images: images, skill: identity) }
+    }
+
     /// Control API から画像付きで送信する。turnStart 失敗時は添付を残さない。
     public func sendTextWithControlImages(
         _ text: String,
         submit: Bool,
-        images: [(mediaType: String, data: Data)]
+        images: [(mediaType: String, data: Data)],
+        skill: SkillIdentity? = nil
     ) async throws {
         guard !isPreparingImageSend else { throw ControlImageSendError.imageSendInProgress }
         guard images.isEmpty || acceptsImageAttachments else {
@@ -1132,7 +1171,7 @@ public final class ChatSessionViewModel: Identifiable {
         }
 
         do {
-            try await sendText(text, submit: submit)
+            try await sendText(text, submit: submit, controlSkill: skill)
         } catch {
             if agentRef != .builtin(.codex) {
                 attachmentStore.clear()
@@ -4178,22 +4217,43 @@ extension ChatSessionViewModel: ControllableSession {
         hasUnseenCompletion = false
     }
 
+    public func markCompletionSeen(ifCurrent token: String) async throws -> Bool {
+        guard SessionNode.appServer(self).completionToken == token else { return false }
+        if let runtimeCommandHandler {
+            guard case .bool(let accepted) = try await runtimeCommandHandler(executionID, .markCompletionSeenIfCurrent(token)) else {
+                throw SessionRuntimeProjectionError.invalidReply
+            }
+            return accepted
+        }
+        hasUnseenCompletion = false
+        return true
+    }
+
     public func sendText(_ text: String, submit: Bool) async throws {
+        try await sendText(text, submit: submit, controlSkill: nil)
+    }
+
+    private func sendText(_ text: String, submit: Bool, controlSkill: SkillIdentity?) async throws {
         if let runtimeCommandHandler {
             guard !runtimeSendInFlight, inFlightText == nil else { throw ControlImageSendError.imageSendInProgress }
             runtimeSendInFlight = true
             let expectedExecutionID = executionID
             let sentAttachments = composerAttachments
-            let skill = codexSkillSelectionState?.runtimeSelectionIdentity
+            let command: SessionRuntimeSessionCommand
+            if let controlSkill {
+                command = .sendControlSkill(text: text, submit: submit, attachments: sentAttachments, skill: controlSkill)
+            } else {
+                command = .send(text: text, submit: submit, attachments: sentAttachments, skill: codexSkillSelectionState?.runtimeSelectionIdentity)
+            }
             inFlightText = text
             defer { inFlightText = nil; runtimeSendInFlight = false }
             do {
                 guard case .accepted = try await runtimeCommandHandler(expectedExecutionID,
-                    .send(text: text, submit: submit, attachments: sentAttachments, skill: skill))
+                    command)
                 else { throw SessionRuntimeProjectionError.invalidReply }
                 if executionID == expectedExecutionID {
                     if submit, composerAttachments == sentAttachments { attachmentStore.clear() }
-                    if submit { codexSkillSelectionState?.clearSelection() }
+                    if submit, controlSkill == nil { codexSkillSelectionState?.clearSelection() }
                 }
             } catch {
                 runtimeConnectionError = error.localizedDescription
@@ -4221,8 +4281,12 @@ extension ChatSessionViewModel: ControllableSession {
                 clientInput = input
             }
             let nativeSkillInputs: [UserInput]?
-            if agentRef == .builtin(.codex), codexSkillSelectionState?.selectedSkill != nil {
-                nativeSkillInputs = codexSkillSelectionState?.nativeInputs(for: clientInput)
+            if agentRef == .builtin(.codex), controlSkill != nil || codexSkillSelectionState?.selectedSkill != nil {
+                if let controlSkill {
+                    nativeSkillInputs = codexSkillSelectionState?.nativeInputs(for: clientInput, skill: controlSkill)
+                } else {
+                    nativeSkillInputs = codexSkillSelectionState?.nativeInputs(for: clientInput)
+                }
                 guard nativeSkillInputs != nil else {
                     restoreDraftAfterRejectedSend(input)
                     reportError(
@@ -4359,7 +4423,7 @@ extension ChatSessionViewModel: ControllableSession {
             guard launchFailure == nil, processExit == nil else { throw CancellationError() }
             // 単一適用: 送信成功後にクリアする。throw 時は予約を残し、再送で二重付与しない。
             pendingReplayContext = nil
-            codexSkillSelectionState?.clearSelection()
+            if controlSkill == nil { codexSkillSelectionState?.clearSelection() }
             cacheSentAttachments(sentAttachments, forUserMessageID: item.id)
             if case .error = status {} else { attachmentStore.clear() }
         } else {
@@ -4482,6 +4546,48 @@ extension ChatSessionViewModel: ControllableSession {
 
     public func terminate() async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.terminate); return }
+        await stopProcess()
+        status = .completed(exitCode: 0)
+    }
+
+    /// 最後に使われた時刻（出力・状態の変化・ターン完了のうち新しいもの）。ADR 0221。
+    public var lastActivityAt: Date {
+        [startedAt, lastOutputAt, statusEnteredAt, lastTurnCompletedAt].compactMap { $0 }.max() ?? startedAt
+    }
+
+    /// 止めてもやり取りを失わない状態か（ADR 0221）。Cursor はターンごとにプロセスが終わるので対象外。
+    public var canSuspendForIdle: Bool {
+        guard agentRef == .builtin(.claudeCode) || agentRef == .builtin(.codex),
+              resumeConversationHandler != nil,
+              processExit == nil, launchFailure == nil, !isTerminating,
+              restoreState == .restored || restoreState == .notRestored,
+              !showsProcessingIndicator, !isCompacting,
+              pendingApprovals.isEmpty, inFlightText == nil, pendingFirstMessage == nil,
+              sendFailure == nil, runtimeDraftRecovery == nil,
+              // 受け付け済みでまだ始まっていない送信（Control API・スマホ）を消さない。
+              !runtimeSendInFlight, runtimeAcceptedSendTask == nil, firstTurnInput == nil,
+              activeInterruptTask == nil, !isPreparingImageSend, !isApplyingSpawnAgentPermission
+        else { return false }
+        switch status {
+        case .idle, .completed: return true
+        case .starting, .running, .awaitingApproval, .awaitingUserQuestion, .error: return false
+        }
+    }
+
+    /// 使われていないチャットのエージェントプロセスを止める（ADR 0221）。会話と表示は残し、
+    /// 「この会話から再開」で開き直す。対応待ちにはしない（status を変えない）。止めたら true。
+    @discardableResult
+    public func suspendForIdle() async -> Bool {
+        guard !isRuntimeProjection, canSuspendForIdle else { return false }
+        // 先に立てる（下の await の間に届いたイベントや送信を受け付けないように）。
+        processExit = ChatProcessExit(exitCode: nil, suspendedForIdle: true)
+        // イベントの受信を先に止めてから会話を保存する（保存の待ち時間に届いたイベントで状態が動かないように）。
+        await stopProcess()
+        await flushTranscriptNow()
+        return true
+    }
+
+    private func stopProcess() async {
         isTerminating = true
         cancelRuntimeAcceptedSend()
         flushPendingStreamDeltasBarrier()
@@ -4506,7 +4612,6 @@ extension ChatSessionViewModel: ControllableSession {
         localOriginalUserTextByID.removeAll()
         releaseNativeSkillInputDirectories()
         await client.close()
-        status = .completed(exitCode: 0)
     }
 }
 extension ChatSessionViewModel {
@@ -4681,6 +4786,8 @@ extension ChatSessionViewModel {
         switch command {
         case .send(let text, let submit, let attachments, let skill):
             return .accepted(try acceptRuntimeSend(text: text, submit: submit, attachments: attachments, skill: skill))
+        case .sendControlSkill(let text, let submit, let attachments, let skill):
+            return .accepted(try acceptRuntimeSend(text: text, submit: submit, attachments: attachments, skill: nil, controlSkill: skill))
         case .interrupt: await turnInterrupt()
         case .terminate: await terminate()
         case .approval(let id, let decision):
@@ -4716,6 +4823,7 @@ extension ChatSessionViewModel {
         case .stopSubAgent(let id): stopSubAgent(displayID: id)
         case .dismissSubAgent(let id): dismissSubAgent(id)
         case .markCompletionSeen: markCompletionSeen()
+        case .markCompletionSeenIfCurrent(let token): return .bool(try await markCompletionSeen(ifCurrent: token))
         case .consumeSubmitBaseline: consumeSubmitBaseline()
         case .rename(let title): titleState = title
         case .input, .resize: throw SessionRuntimeProjectionError.unsupportedCommand
@@ -4724,7 +4832,7 @@ extension ChatSessionViewModel {
     }
 
     public func acceptRuntimeSend(text: String, submit: Bool, attachments: [ComposerAttachment],
-                                  skill: SkillIdentity?) throws -> UUID {
+                                  skill: SkillIdentity?, controlSkill: SkillIdentity? = nil) throws -> UUID {
         guard !isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
         guard !runtimeSendInFlight, runtimeAcceptedSendTask == nil, inFlightText == nil,
               pendingFirstMessage == nil, firstTurnInput == nil, activeInterruptTask == nil,
@@ -4739,7 +4847,10 @@ extension ChatSessionViewModel {
               attachments.reduce(0, { $0 + $1.data.count }) <= ComposerAttachmentStore.maxTotalRawBytes
         else { throw SendRejected.totalSizeExceeded }
         guard attachments.isEmpty || acceptsImageAttachments else { throw SendRejected.imagesUnsupported }
-        if let skill {
+        if let controlSkill {
+            guard codexSkillSelectionState?.nativeInputs(for: text, skill: controlSkill) != nil
+            else { throw SendRejected.skillReselectionRequired }
+        } else if let skill {
             guard let state = codexSkillSelectionState,
                   let expected = skill.runtimeFingerprint,
                   CodexSkillFingerprint.read(skillPath: skill.path) == expected,
@@ -4766,7 +4877,7 @@ extension ChatSessionViewModel {
                 }
             }
             guard !Task.isCancelled, self.executionID == expectedExecutionID else { return }
-            do { try await self.sendText(text, submit: submit) }
+            do { try await self.sendText(text, submit: submit, controlSkill: controlSkill) }
             catch {
                 guard !Task.isCancelled, self.executionID == expectedExecutionID,
                       self.runtimeAcceptedSendID == receipt, !self.isTerminating else { return }

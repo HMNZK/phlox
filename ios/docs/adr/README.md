@@ -16,7 +16,7 @@ iOS コンパニオンアプリ固有の決定の **理由** を残す。追記�
 |---|---|---|
 | 0043 | [Liquid Glass を採り、iOS 18 は同じ配置を不透明に描く](0043-liquid-glass-with-ios18-opaque-fallback.md) | accepted |
 | 0044 | [端末画面と出力カードをやめ、会話の形で読めないセッションは「表示できません」の 1 文にする](0044-remove-terminal-screen-and-unsupported-sessions.md) | accepted |
-| 0045 | [使用量タブをやめ、入力欄の下の残りのリングで見せる](0045-usage-ring-under-the-input-replaces-usage-tab.md) | accepted |
+| 0045 | [使用量タブをやめ、入力欄の下の残りのリングで見せる](0045-usage-ring-under-the-input-replaces-usage-tab.md) | accepted（リング表示・設定区画を置かない点・取得の時機は [Macとの統一仕様](../specs/session-activity-parity.md) で置換） |
 | 0046 | [色・ロゴ・状態・一覧・新規チャット・入力欄・承認を Mac に揃える](0046-align-ios-with-mac.md) | accepted |
 | 0047 | [UI の確認を XCUITest から描画テストに移し、UI テストのターゲットを消す](0047-replace-xcuitest-with-render-tests.md) | accepted |
 | 0048 | [左上のホームはシステムの戻るボタンの印を家に替えて作り、端スワイプは UIKit のまま使う](0048-home-button-is-the-system-back-button-with-a-house.md) | accepted |

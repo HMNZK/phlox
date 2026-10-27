@@ -134,20 +134,24 @@ public struct OneShotProcessRunner: OneShotProcessRunning {
             outputReaderQueue.async {
                 defer { readGroup.leave() }
                 let handle = output.fileHandleForReading
-                while true {
+                // 読むたびに autorelease プールを空にする（ADR 0220）。
+                while autoreleasepool(invoking: {
                     let data = handle.availableData
-                    guard !data.isEmpty else { return }
+                    guard !data.isEmpty else { return false }
                     outputCollector.append(data)
-                }
+                    return true
+                }) {}
             }
             errorReaderQueue.async {
                 defer { readGroup.leave() }
                 let handle = standardErrorPipe.fileHandleForReading
-                while true {
+                // 読むたびに autorelease プールを空にする（ADR 0220）。
+                while autoreleasepool(invoking: {
                     let data = handle.availableData
-                    guard !data.isEmpty else { return }
+                    guard !data.isEmpty else { return false }
                     errorCollector.append(data)
-                }
+                    return true
+                }) {}
             }
             }
         } onCancel: {

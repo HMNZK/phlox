@@ -16,5 +16,6 @@ last-verified: 2026-07-16
 ## 現在あるファイル（固定名の入口ファイルは未作成。以下が現行の入口）
 
 - [`site-deploy-and-release.md`](site-deploy-and-release.md) — phlox.cc サイト配信（GitHub Actions Pages）と macOS アプリ配布（DMG ダウンロード・Sparkle 自動更新）の運用手順
+- [`統合前検証契約`](../specs/merge-verification-gates.md) — dev/verify/main反映前の検査と、mainで必要な実機記録・シナリオ鮮度の判定。入口の実装・検証状況も同書を参照
 - `release-<版>.md`（例: [`release-1.14.0.md`](release-1.14.0.md)） — 各版のリリース記録（検証結果・配布物・公開後の確認）。手順の正本は `site-deploy-and-release.md`
 - [`mobile-per-device-token-migration.md`](mobile-per-device-token-migration.md) — 端末別モバイルトークン移行（既存端末の再ペアリング）と Data Protection Keychain の署名要件

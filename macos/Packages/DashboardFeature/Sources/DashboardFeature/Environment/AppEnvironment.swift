@@ -246,7 +246,7 @@ public struct AppEnvironment: Sendable {
         { agentRef, command, workingDirectory, environment, handler in
             switch agentRef {
             case .builtin(.codex):
-                let transport = ProcessTransport(
+                let transport = LineDelimitedProcessTransport(
                     command: command,
                     arguments: Self.codexAppServerProcessArguments(),
                     environment: environment,

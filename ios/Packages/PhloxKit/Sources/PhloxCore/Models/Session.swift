@@ -21,6 +21,7 @@ public struct Session: Identifiable, Sendable, Equatable {
     public let backend: String
     public let isStalled: Bool
     public let hasUnseenCompletion: Bool
+    public let completionToken: String?
     public let parentSessionId: String?
     public let statusEnteredAt: Date?
     public let updatedAt: Date
@@ -42,6 +43,7 @@ public struct Session: Identifiable, Sendable, Equatable {
         backend: String = "appServer",
         isStalled: Bool = false,
         hasUnseenCompletion: Bool = false,
+        completionToken: String? = nil,
         parentSessionId: String? = nil,
         statusEnteredAt: Date? = nil,
         updatedAt: Date
@@ -57,6 +59,7 @@ public struct Session: Identifiable, Sendable, Equatable {
         self.backend = backend
         self.isStalled = isStalled
         self.hasUnseenCompletion = hasUnseenCompletion
+        self.completionToken = completionToken
         self.parentSessionId = parentSessionId
         self.statusEnteredAt = statusEnteredAt
         self.updatedAt = updatedAt
@@ -75,6 +78,7 @@ public struct Session: Identifiable, Sendable, Equatable {
         backend: String = "appServer",
         isStalled: Bool = false,
         hasUnseenCompletion: Bool = false,
+        completionToken: String? = nil,
         parentSessionId: String? = nil,
         statusEnteredAt: Date? = nil,
         updatedAt: Date
@@ -91,6 +95,7 @@ public struct Session: Identifiable, Sendable, Equatable {
             backend: backend,
             isStalled: isStalled,
             hasUnseenCompletion: hasUnseenCompletion,
+            completionToken: completionToken,
             parentSessionId: parentSessionId,
             statusEnteredAt: statusEnteredAt,
             updatedAt: updatedAt

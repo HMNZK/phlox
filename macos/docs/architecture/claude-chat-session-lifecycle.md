@@ -37,7 +37,7 @@ last-verified: 2026-08-21
 ## stderr の回収（StructuredChatKit）
 
 - `LineDelimitedTransport.stderrTail() async -> String?`（protocol extension の既定実装は nil）。
-- `LineDelimitedProcessTransport` は stderr を専用キューで**連続 drain**（未 drain だと 64KiB 超で子プロセスがブロックする）し、末尾 64KiB を保持。stdout/stderr 両リーダーを同一 `DispatchGroup` に入れ、`receivedLines` の finish 後は `stderrTail()` が完全であることを保証する。
+- `LineDelimitedProcessTransport`（Claude・Codex 共通）は stdout/stderr を `DispatchSourceRead` で届いたときだけ読み、読んだ分をすぐ解放する（ADR 0220）。stderr も読み続け（未 drain だと 64KiB 超で子プロセスがブロックする）、末尾 64KiB を保持。両ソースの cancel を同一 `DispatchGroup` で待ち、`receivedLines` の finish 後は `stderrTail()` が完全であることを保証する。1 行が 64MiB を超えたら理由を stderr 末尾に追記して子プロセスを止める。
 - result なしでプロセスが死んだ場合のエラー `Claude process ended before completing the current turn` に、stderr が非空ならその末尾を付加する。
 
 ## 中断（interrupt）の後始末
@@ -52,6 +52,10 @@ last-verified: 2026-08-21
 - `allowedTools` に含まれる通常ツールと `bypassPermissions` の要求は質問カードを出さず `behavior: "allow"` + 元の `pending.input` を返す。それ以外は Allow だけを allow とし、Deny・未知ラベル・空回答は deny にする。`AskUserQuestion` は従来どおり回答を `updatedInput.answers` へ射影する。
 - `close()` / respawn / `interrupt()` は保留要求を `.expired` へ失効し、旧 transport へ deny を送る。CLI プロセスが既に終了した `handleStreamEnded` では deny を送らず、死因エラーへのノイズを避ける。世代ガード（`pending.generation == spawnGeneration`）により旧世代の応答が新 transport へ流れることはない。
 - `interrupt()` の deny 対象スナップショットは `isResponding`（allow 送信 suspend 中）の質問を除外する。除外しないと同一 `request_id` へ allow/deny の二重 `control_response` が届きうる不整合があったため（2026-07-19 修正）。
+
+## 使われていないチャットの休止
+
+24 時間使われていない Claude・Codex のチャットは、常駐側の見回り（10 分ごと）が `ChatSessionViewModel.suspendForIdle()` でエージェントのプロセスだけを止める。`processExit`（`suspendedForIdle: true`）を先に立てて送信・承認を止め、イベントの受信を止めてから会話を保存する。status は変えないので対応待ちにはならない。再開は「この会話から再開」（`resumeEndedChatSession`）で、起動時の復元と同じ経路を通る。条件と理由は [ADR 0221](../adr/0221-suspend-idle-chat-agent-processes.md)。
 
 ## バックグラウンドタスクイベント
 

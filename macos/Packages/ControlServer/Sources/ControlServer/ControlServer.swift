@@ -163,13 +163,14 @@ public actor ControlServer {
         let spawnModel = pendingSpawnModel
         pendingSpawnModel = nil
         let controlResponse: ControlResponse
-        if case .spawn = action {
+        switch action {
+        case .spawn, .spawnNewChat:
             controlResponse = await ControlSpawnContext.$role.withValue(spawnRole) {
                 await ControlSpawnContext.$model.withValue(spawnModel) {
                     await handler(controlRequest)
                 }
             }
-        } else {
+        default:
             controlResponse = await handler(controlRequest)
         }
         if controlResponse.statusCode >= 400 {
@@ -252,12 +253,19 @@ public actor ControlServer {
 
         default:
             if request.method == "GET" {
+                if let skills = parseAgentSkills(path: request.path, query: request.query) { return skills }
+                if let projectResult = parseProjectOptions(path: request.path, query: request.query) {
+                    return projectResult
+                }
                 if let agentModelsResult = parseAgentModels(path: request.path, hasQuery: request.hasQuery) {
                     return agentModelsResult
                 }
                 return routeSessionGET(path: request.path, query: request.query)
             }
             if request.method == "POST" {
+                if let completionResult = parseCompletionSeen(path: request.path, hasQuery: request.hasQuery, body: request.body) {
+                    return completionResult
+                }
                 if let modelResult = parseModelChange(
                     path: request.path,
                     hasQuery: request.hasQuery,
@@ -306,6 +314,7 @@ public actor ControlServer {
             let submit: Bool?
             let inReplyTo: String?
             let images: [ImageWire]?
+            let skill: AgentSkillSelection?
         }
 
         guard let payload = try? JSONDecoder().decode(SendBody.self, from: body) else {
@@ -352,6 +361,13 @@ public actor ControlServer {
             }
         }
 
+        if let skill = payload.skill {
+            guard !skill.name.isEmpty, !skill.path.isEmpty,
+                  !skill.name.contains(where: { $0.isWhitespace || $0.isNewline }),
+                  !skill.path.contains("\u{0}") else { return .failure(.status(400)) }
+            return .success(.sendTextWithSkill(to: recipient, text: payload.text,
+                submit: payload.submit ?? true, inReplyTo: inReplyTo, images: images, skill: skill))
+        }
         return .success(.sendText(
             to: recipient,
             text: payload.text,
@@ -377,6 +393,9 @@ public actor ControlServer {
             let projectId: String?
             let role: String?
             let model: String?
+            let usesWorktree: Bool?
+            let startPoint: ControlStartPoint?
+            let resumeHistoryID: String?
         }
 
         guard let payload = try? JSONDecoder().decode(SpawnBody.self, from: body),
@@ -415,8 +434,6 @@ public actor ControlServer {
             }
             backend = parsed
         } else if role != nil, AgentKind(rawValue: payload.kind) == .claudeCode {
-            // role 付き claudeCode spawn ＝ アゴラ討論の招集。討論のリレーは appServer の
-            // transcript 観測が前提のため、明示指定が無ければチャット（appServer）で起動する。
             backend = .appServer
         } else {
             backend = .pty
@@ -437,21 +454,66 @@ public actor ControlServer {
         }
 
         if let kind = AgentKind(rawValue: payload.kind) {
+            let options = ControlNewChatOptions(usesWorktree: payload.usesWorktree,
+                                               startPoint: payload.startPoint, resumeHistoryID: payload.resumeHistoryID)
+            let hasOptions = payload.usesWorktree != nil || payload.startPoint != nil || payload.resumeHistoryID != nil
+            if hasOptions {
+                guard projectID != nil, backend == .appServer, payload.workingDirectory == nil,
+                      payload.startPoint == nil || payload.usesWorktree == true,
+                      payload.resumeHistoryID == nil || kind == .claudeCode || kind == .codex else {
+                    return .failure(.json(400, ErrorDTO(error: "invalid new chat options")))
+                }
+                if let point = payload.startPoint {
+                    let value = point.value ?? ""
+                    guard point.kind == .head ? point.value == nil : (!value.isEmpty && value.count <= 256 && !Self.containsRejectedControlCharacters(value)),
+                          point.kind != .commit || Self.isCommitID(value) else {
+                        return .failure(.json(400, ErrorDTO(error: "invalid startPoint")))
+                    }
+                }
+                if let historyID = payload.resumeHistoryID {
+                    guard !historyID.isEmpty, historyID.count <= 256, !Self.containsRejectedControlCharacters(historyID) else {
+                        return .failure(.json(400, ErrorDTO(error: "invalid resumeHistoryID")))
+                    }
+                }
+            }
             pendingSpawnRole = role
             pendingSpawnModel = Self.normalizedSpawnModel(payload.model, for: kind)
+            let initialSettings = settings.isEmpty ? nil : CodexAppServerSessionSettings(
+                selectedModel: pendingSpawnModel ?? AgentModelCatalog.defaultModel(for: kind),
+                selectedEffort: settings.effort, selectedPermissionProfile: settings.permission ?? nil,
+                isPlanMode: settings.planMode)
+            if hasOptions {
+                return .success(.spawnNewChat(ref: .builtin(kind), backend: backend, workingDirectory: nil,
+                                              projectID: projectID, initialSettings: initialSettings, options: options))
+            }
             return .success(.spawn(ref: .builtin(kind), backend: backend, workingDirectory: payload.workingDirectory, projectID: projectID,
-                initialSettings: settings.isEmpty ? nil : CodexAppServerSessionSettings(
-                    selectedModel: pendingSpawnModel ?? AgentModelCatalog.defaultModel(for: kind),
-                    selectedEffort: settings.effort,
-                    selectedPermissionProfile: settings.permission ?? nil,
-                    isPlanMode: settings.planMode
-                )))
+                                   initialSettings: initialSettings))
         }
 
         return .failure(.json(400, ErrorDTO(error: "unknown agent kind: \(payload.kind)")))
     }
 
     private static let maxSpawnRoleLength = 64
+
+    private func parseProjectOptions(path: String, query: [String: String]) -> RouteResult? {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 4, parts[1] == "projects", ["start-points", "history"].contains(String(parts[3])) else { return nil }
+        guard let id = UUID(uuidString: String(parts[2])) else { return .failure(.status(400)) }
+        let projectID = ProjectID(rawValue: id)
+        if parts[3] == "start-points" {
+            guard query.keys.allSatisfy({ $0 == "commit" }), query["commit"].map(Self.isCommitID) ?? true else {
+                return .failure(.status(400))
+            }
+            return .success(.projectStartPoints(projectID: projectID, commit: query["commit"]))
+        }
+        guard query.count == 1, let rawKind = query["kind"], let kind = AgentKind(rawValue: rawKind),
+              kind == .claudeCode || kind == .codex else { return .failure(.status(400)) }
+        return .success(.projectHistory(projectID: projectID, kind: kind))
+    }
+
+    private static func isCommitID(_ value: String) -> Bool {
+        (4...40).contains(value.count) && value.utf8.allSatisfy { (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }
+    }
     private static let maxSpawnModelLength = 128
 
     private static func normalizedSpawnModel(_ model: String?, for kind: AgentKind) -> String? {
@@ -522,6 +584,9 @@ public actor ControlServer {
         }
 
         switch components[3] {
+        case "skills":
+            guard query.isEmpty else { return .failure(.status(404)) }
+            return .success(.sessionSkills(id: sessionID))
         case "output":
             return parseOutput(sessionID: sessionID, query: query)
         case "messages":
@@ -537,6 +602,19 @@ public actor ControlServer {
         default:
             return .failure(.status(404))
         }
+    }
+
+    private func parseAgentSkills(path: String, query: [String: String]) -> RouteResult? {
+        let parts = path.split(separator: "/")
+        guard parts.count == 3, parts[0] == "agents", parts[2] == "skills" else { return nil }
+        guard let kind = AgentKind(rawValue: String(parts[1])),
+              query.keys.allSatisfy({ $0 == "projectID" || $0 == "workspace" }) else { return .failure(.status(404)) }
+        let projectID: ProjectID?
+        if let raw = query["projectID"] {
+            guard let uuid = UUID(uuidString: raw) else { return .failure(.status(400)) }
+            projectID = ProjectID(rawValue: uuid)
+        } else { projectID = nil }
+        return .success(.agentSkills(kind: kind, projectID: projectID, workspace: query["workspace"]))
     }
 
     private func parseAgentModels(path: String, hasQuery: Bool) -> RouteResult? {
@@ -584,6 +662,20 @@ public actor ControlServer {
             return .failure(.status(400))
         }
         return .success(.setModel(id: sessionID, model: model))
+    }
+
+    private func parseCompletionSeen(path: String, hasQuery: Bool, body: Data) -> RouteResult? {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.count == 4, components[0] == "", components[1] == "sessions",
+              components[3] == "completion-seen" else { return nil }
+        guard !hasQuery else { return .failure(.status(404)) }
+        struct Body: Decodable { let completionToken: String }
+        guard let id = parseSessionID(from: components[2]),
+              let decoded = try? JSONDecoder().decode(Body.self, from: body),
+              !decoded.completionToken.isEmpty, decoded.completionToken.utf8.count <= 128 else {
+            return .failure(.status(400))
+        }
+        return .success(.markCompletionSeen(id: id, completionToken: decoded.completionToken))
     }
 
     private func parseInterrupt(path: String, hasQuery: Bool) -> RouteResult? {

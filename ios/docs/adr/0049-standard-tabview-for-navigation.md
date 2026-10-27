@@ -19,6 +19,7 @@ ADR 0006 は、俯瞰タブの押し直しを検出するため独自の `Button
 3. iOS 18 では標準 `TabView` を維持し、対応待ち表示を `safeAreaInset` でタブバー直上へ置く。U-14 により新規チャットだけは一覧画面の大見出し右に 44pt のボタンを置く。
 4. 対応待ち件数と先頭の選択は View に依存しない `SessionNavigationState` が行い、バッジ・バー・VoiceOver の文言は同じ状態から作る。読み込み中・空・取得失敗・接続判定中は対応待ちバーを出さず、到達不可では最後に得たバッジ件数を残してオフライン表示へ置き換える。
 5. 詳細・compose への push 中は `.toolbar(.hidden, for: .tabBar)` でタブを隠し、対応待ち表示も隠す。タブの選択 Binding が同じ値で呼ばれれば、AppRoot が一覧タブのルート復帰と先頭スクロール、設定タブのルート復帰を行う。
+6. 対応待ちバーの表示切替では、`TabView` とタブ内の画面を同じ構造で保持する。画面本体を `if accessoryEnabled` で切り替えると一覧の `.task` が再開し、取得開始の `.loading` でバーが消え、画面の再生成と再取得が循環する。バーの表示だけを切り替え、一覧の購読・入力・ナビゲーションの状態を維持する。
 
 ## 根拠と確認範囲
 
@@ -26,6 +27,7 @@ ADR 0006 は、俯瞰タブの押し直しを検出するため独自の `Button
 - UIKit の `UITabBarControllerDelegate` は、すでに選択中の画面が選び直された場合も `didSelect` を呼ぶと Apple が記載している。ただし SwiftUI `TabView` がその操作で selection Binding の setter を呼ぶ保証は、確認した公開 SwiftUI 文書にはない。XCUITest と操作の合成を使っていないため、同じタブの押し直しからルート復帰・先頭スクロールへ至る実操作は未確認である。
 - iOS 26 の縮小表示はスクロール開始時に OS が行う。描画テストは通常の静止描画であり、スクロールを合成しないため、縮小状態を作れるかは画像で確認できない。
 - それ以外の配置・文字・余白は、iOS 26 / iOS 18 の描画画像と `Shell`・`Shell18`・`ShellOffline` の見本を見比べて記録する（作業記録 0023）。
+- 決定 6 の実装では、`DSPlatformTabView` が iOS 26.1 以降は `tabViewBottomAccessory(isEnabled:)` を常に付けて表示の有無だけを渡し、iOS 26.0 は同じ modifier の中身だけを条件で切り替える。`DSPlatformTabContent` は `safeAreaInset` を常に付け、中身だけを切り替える。`TabAccessoryIdentityTests`（`ios/PhloxMobileSnapshotTests/`）が、バーの表示切替を繰り返しても一覧側の `.task` が再開せず入力中の状態が残ることを、標準タブ経由と `safeAreaInset` 経由の 2 通りで検査する。検証レビュー記録（`release/verification-reviews.json`、2026-10-26）時点で、iOS 18 と iOS 26.0 での実行、iOS 26.0 でバー非表示時に空のアクセサリ枠が残らないこと、実機での確認は未確認である。
 
 ## 結果
 

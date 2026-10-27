@@ -13,7 +13,12 @@ last-verified: 2026-10-19
 
 **命名**: 小文字 kebab-case・ASCII・`.md`（索引のみ `README.md`）。順序ありは `NNNN-kebab.md`。
 
+## 他ディレクトリにある iOS の作業記録
+
+- [新規チャットの写真添付時の停止](../../../macos/docs/delivery/0213-mobile-photo-freeze.md) … 写真選択と入力欄フォーカスの調査・修正・実機確認の記録
+
 ## 現在あるファイル
+- `delivery/0036-mobile-desktop-parity.md` … Macとの状態表示・使用量・新規チャット操作の統一と検証記録
 - `delivery/0001-mobile-ui-overhaul-wave2-worklog.md` … モバイル UI 刷新 wave-2（8タスク）の作業ログ
 - `delivery/0002-mobile-ui-overhaul-wave4-worklog.md` … モバイル UI 刷新 wave-4（6タスク）の作業ログ
 - `delivery/0003-mobile-ui-overhaul-wave5-worklog.md` … モバイル UI 刷新 wave-5（5タスク）の作業ログ
@@ -59,5 +64,8 @@ last-verified: 2026-10-19
 - `delivery/0032-ios-remaining-acceptance-worklog.md` … 残存受け入れ条件と追加実行の作業ログ
 - `delivery/0033-ios-cursor-vector-probe.md` … Cursorロゴ描画の比較probe記録
 - `delivery/0033-ios-offline-accessory-worklog.md` … オフライン案内のnative tab表示検証ログ
+- `delivery/0034-composer-ime-placeholder.md` … 日本語変換中に入力欄の placeholder が未確定文字列と重なる問題の修正・検証記録（dev 統合時の macOS 合成クリックテスト削除と依存固定の経緯を含む）
 - `delivery/0034-ios-root-transition-verification.md` … Root遷移と実操作検証の作業ログ
 - `delivery/0035-ios-real-biometric-gate-probe.md` … Face ID実権限経路probe記録
+- `delivery/0036-composer-ime-submission.md` … 日本語変換中の本文を含めて送信する入力欄修正の問題定義と検証記録
+- `delivery/0036-mobile-skill-suggestions.md` … スマホ入力欄のスキル候補（取得・選択・Codex native送信）の作業記録。恒久仕様は macos/docs/specs/mobile-skill-suggestions.md

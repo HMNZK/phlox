@@ -11,6 +11,55 @@ public struct ControlImageAttachment: Equatable, Sendable {
     }
 }
 
+public struct ControlStartPoint: Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Sendable { case head, localBranch, remoteBranch, tag, commit }
+    public let kind: Kind
+    public let value: String?
+    public init(kind: Kind, value: String? = nil) { self.kind = kind; self.value = value }
+}
+
+public struct ControlNewChatOptions: Equatable, Sendable {
+    public let usesWorktree: Bool?
+    public let startPoint: ControlStartPoint?
+    public let resumeHistoryID: String?
+    public init(usesWorktree: Bool? = nil, startPoint: ControlStartPoint? = nil, resumeHistoryID: String? = nil) {
+        self.usesWorktree = usesWorktree
+        self.startPoint = startPoint
+        self.resumeHistoryID = resumeHistoryID
+    }
+}
+
+public struct ControlStartPointOption: Encodable, Sendable {
+    public let kind: ControlStartPoint.Kind
+    public let value: String?
+    public let title: String
+    public let summary: String?
+    public init(kind: ControlStartPoint.Kind, value: String?, title: String, summary: String?) {
+        self.kind = kind; self.value = value; self.title = title; self.summary = summary
+    }
+}
+
+public struct ControlHistoryEntry: Encodable, Sendable {
+    public let id: String
+    public let title: String
+    public let updatedAt: Date
+    public let branch: String?
+    public let workingDirectory: String?
+    public init(id: String, title: String, updatedAt: Date, branch: String?, workingDirectory: String?) {
+        self.id = id; self.title = title; self.updatedAt = updatedAt; self.branch = branch; self.workingDirectory = workingDirectory
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, title, updatedAt, branch, workingDirectory }
+    public func encode(to encoder: any Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(title, forKey: .title)
+        try values.encode(ISO8601DateFormatter().string(from: updatedAt), forKey: .updatedAt)
+        try values.encodeIfPresent(branch, forKey: .branch)
+        try values.encodeIfPresent(workingDirectory, forKey: .workingDirectory)
+    }
+}
+
 public struct ControlRequest: Sendable {
     public let requester: SessionID?
     public let action: Action
@@ -23,7 +72,13 @@ public struct ControlRequest: Sendable {
     public enum Action: Sendable {
         case listSessions
         case sendText(to: Recipient, text: String, submit: Bool, inReplyTo: UUID?, images: [ControlImageAttachment])
+        case sendTextWithSkill(to: Recipient, text: String, submit: Bool, inReplyTo: UUID?, images: [ControlImageAttachment], skill: AgentSkillSelection)
+        case sessionSkills(id: SessionID)
+        case agentSkills(kind: AgentKind, projectID: ProjectID?, workspace: String?)
         case spawn(ref: AgentRef, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?)
+        case spawnNewChat(ref: AgentRef, backend: SessionBackend, workingDirectory: String?, projectID: ProjectID?, initialSettings: CodexAppServerSessionSettings?, options: ControlNewChatOptions)
+        case projectStartPoints(projectID: ProjectID, commit: String?)
+        case projectHistory(projectID: ProjectID, kind: AgentKind)
         case remove(id: SessionID)
         case rename(id: SessionID, name: String)
         case output(id: SessionID, mode: OutputMode, format: OutputFormat)
@@ -37,6 +92,7 @@ public struct ControlRequest: Sendable {
         case respondQuestion(id: SessionID, requestId: String, answers: [String: [String]])
         case registerDeviceToken(registration: DeviceTokenRegistration)
         case interrupt(id: SessionID)
+        case markCompletionSeen(id: SessionID, completionToken: String)
         case subAgents(id: SessionID)
         case subAgentMessages(id: SessionID, subAgentID: String)
         case usage(id: SessionID)
@@ -63,6 +119,7 @@ public struct ControlSessionListItem: Encodable, Equatable, Sendable {
     public let backend: String
     public let isStalled: Bool
     public let hasUnseenCompletion: Bool
+    public let completionToken: String?
     public let parentSessionId: String?
     public let statusEnteredAt: String?
 
@@ -77,6 +134,7 @@ public struct ControlSessionListItem: Encodable, Equatable, Sendable {
         backend: String = "appServer",
         isStalled: Bool = false,
         hasUnseenCompletion: Bool = false,
+        completionToken: String? = nil,
         parentSessionId: String? = nil,
         statusEnteredAt: String? = nil
     ) {
@@ -90,6 +148,7 @@ public struct ControlSessionListItem: Encodable, Equatable, Sendable {
         self.backend = backend
         self.isStalled = isStalled
         self.hasUnseenCompletion = hasUnseenCompletion
+        self.completionToken = completionToken
         self.parentSessionId = parentSessionId
         self.statusEnteredAt = statusEnteredAt
     }

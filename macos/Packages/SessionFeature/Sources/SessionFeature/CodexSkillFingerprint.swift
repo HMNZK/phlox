@@ -4,6 +4,12 @@ import Foundation
 /// 更新通知だけではなく、参照するファイル一式が同じかを確認する。
 enum CodexSkillFingerprint {
     static func read(skillPath: String) -> String? {
+        var cache: [String: String?] = [:]
+        return read(skillPath: skillPath, cache: &cache)
+    }
+
+    /// 同じプラグインのスキルは同じフォルダ全体を指紋にするので、`cache` でフォルダごとに 1 回だけ読む。
+    static func read(skillPath: String, cache: inout [String: String?]) -> String? {
         let skill = URL(fileURLWithPath: skillPath)
         var root = skill.deletingLastPathComponent()
         var candidate = root
@@ -17,9 +23,16 @@ enum CodexSkillFingerprint {
             }
             candidate.deleteLastPathComponent()
         }
+        guard FileManager.default.fileExists(atPath: skill.path) else { return nil }
+        if let cached = cache[root.path] { return cached }
+        let value = fingerprint(root: root)
+        cache[root.path] = value
+        return value
+    }
+
+    private static func fingerprint(root: URL) -> String? {
         var enumerationFailed = false
-        guard FileManager.default.fileExists(atPath: skill.path),
-              (try? root.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == false,
+        guard (try? root.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == false,
               let enumerator = FileManager.default.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey],
@@ -52,7 +65,8 @@ enum CodexSkillFingerprint {
                         hash.update(data: Data(String(size).utf8))
                         hash.update(data: Data([0]))
                         var bytesRead: UInt64 = 0
-                        while let chunk = try handle.read(upToCount: 65_536), !chunk.isEmpty {
+                        // 読んだかたまりを 1 回ごとに解放する（多数のファイルを続けて読むと溜まる）。
+                        while let chunk = try autoreleasepool(invoking: { try handle.read(upToCount: 65_536) }), !chunk.isEmpty {
                             bytesRead += UInt64(chunk.count)
                             if bytesRead > size { break }
                             hash.update(data: chunk)

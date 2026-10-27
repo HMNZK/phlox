@@ -6,6 +6,46 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
+@Test @MainActor
+func asyncQuestion_isAttentionWhileExecutionContinues() throws {
+    let questionTime = Date(timeIntervalSince1970: 100)
+    let origin = try #require(CodexAsyncQuestionID(threadID: "thread", turnID: "turn", itemID: "item"))
+    var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+        agentRef: .builtin(.codex), workingDirectory: nil)
+    snapshot.status = .running
+    snapshot.statusEnteredAt = .distantPast
+    snapshot.isStalled = true
+    snapshot.stalledSince = Date(timeIntervalSince1970: 200)
+    snapshot.transcript = [.userQuestion(id: "question", requestId: origin.requestID,
+        questions: [ChatUserQuestion(question: "選択", header: "", options: [], multiSelect: false)],
+        answers: nil, state: .pending, timestamp: questionTime)]
+    let vm = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+    let node = SessionNode.appServer(vm)
+
+    #expect(node.tabDisplayState == .question)
+    #expect(node.activityDisplayState == .running)
+    #expect(node.statusEnteredAt == questionTime)
+    #expect(vm.showsProcessingIndicator)
+    #expect(SessionDisplayStatus.resolve(rawStatus: vm.status, isProcessing: vm.isProcessing) == .running)
+    let entries = AttentionQueue.ordered([(id: node.id, state: node.tabDisplayState, since: node.statusEnteredAt)])
+    #expect(entries.count == 1)
+    #expect(entries.first?.kind == .question)
+
+    snapshot.status = .awaitingApproval(prompt: "許可")
+    try vm.applyRuntimeSnapshot(snapshot)
+    #expect(node.tabDisplayState == .approval)
+    snapshot.status = .error(message: "失敗")
+    try vm.applyRuntimeSnapshot(snapshot)
+    #expect(node.tabDisplayState == .error)
+
+    snapshot.status = .idle
+    snapshot.isStalled = false
+    try vm.applyRuntimeSnapshot(snapshot)
+    #expect(node.tabDisplayState == .question)
+    #expect(node.activityDisplayState == .question)
+    #expect(!vm.showsProcessingIndicator)
+}
+
 // 04 B5・01 E1: 30 分反応がないチャット型は、タブとサイドバーで「無応答」になる。
 
 private final class StallFakeClient: StructuredAgentClient, @unchecked Sendable {

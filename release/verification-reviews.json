@@ -1,0 +1,457 @@
+{
+  "schemaVersion": 1,
+  "reviews": [
+    {
+      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
+      "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
+      "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "needs_changes",
+      "reviewedAt": "2026-10-27T07:02:58Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "独立コードレビューで correctness の指摘はなかった。初回の対象19件は通過したが、ビルド中のソース変更で実行全体は失敗した。候補固定後の再実行は管理ビルドのロックが使用中のため開始できず、対象19件と fake-session-lifecycle の13件は未検証。"
+    },
+    {
+      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
+      "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
+      "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T07:09:01Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "対象差分を独立レビューし、質問の実行中・終了後・回答・拒否・復元と状態表示を確認した。固定候補で対象19件と fake-session-lifecycle の必須13件が通過し、13件のイベントを確認した。実機の検証はこの判定に含まない。"
+    },
+    {
+      "baseOID": "d4452feb33a08e43fc80a23802ad56db13bc6019",
+      "targetOID": "1657b03c4c96273257c812fb053f646922a4c06e",
+      "diffSHA256": "868dab24633a06981e6568ec6b488ca85399e09aea6e0f4549ad698b61eaf94a",
+      "reviewer": {
+        "kind": "ai",
+        "id": "Phlox:58DE043F-2E92-46F5-BDB4-A09C67825ECA"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-25T14:14:58.389890+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "独立レビューでパッケージごとの結果欠落、無関係な文書差分、必須AC縮小、実機結果の時刻順を確認し、44件と標準入口回帰が成功。旧ゲートへの差し戻しではfailures=4/errors=1で旧不具合を検出し、承認あり正例は成功した。reviewedAtは独立レビュー完了記録OWNER.mdの保存時刻。これはコードレビューのみで、実機5シナリオはnot_run、最終候補上のquality全体は別途必須。自己申告の真偽、保守的な文書入力範囲、旧90a0c801上のControlServer間欠失敗は記載済みの限界として残す。"
+    },
+    {
+      "baseOID": "d4452feb33a08e43fc80a23802ad56db13bc6019",
+      "targetOID": "961ff68dbc73e3d53ca09ee8356449acfc72b2ab",
+      "diffSHA256": "45d1b1afd94e09cbd34a3d8937ee9dd59fb096a8b6b01abcaca21325d35c6a48",
+      "reviewer": {
+        "kind": "ai",
+        "id": "Phlox:58DE043F-2E92-46F5-BDB4-A09C67825ECA"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-25T15:52:06.001719+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "前回のゲート全体レビューに加え、ControlServerの校正差分と実走原ログを独立確認した。対象caseと全179件が成功し、12試料の解放時間1秒以上2秒未満・FD3から3・親18秒以内を確認。同期無効の隔離コピーはwarmupと対象sampleに到達後、期待不変で準備条件とENOENTを検出し、納品ソースSHAは不変。reviewedAtは独立レビュー完了記録OWNER.mdの保存時刻。これはコードレビューのみで、最終common候補のquality成功と実機成功は含まない。実機5件not_run、ADR0209未解決、UI4件の初回timeoutは未再現かつ原因未確定。準備期限と他の起動込み期限の負荷依存、自己申告の真偽、保守的な文書入力範囲は既知の限界として残す。"
+    },
+    {
+      "baseOID": "d656b4fa20937cb0b853b1429762cadc2b4ecc8b",
+      "targetOID": "6aec3d627a2350ec42ae2d248417729f1dbe60db",
+      "diffSHA256": "a0b8437426df4a5c1c5a0ba8fba60fdf317f0990c52d08d5eeb05e2433d917d1",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a5a099f53e5cec595"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T03:45:05.142774+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "修正はtextLayerの暗黙contentsアニメーションだけを無効化し、スクロール用transformアニメーションとlayout()のdisableActionsは変えないため、根本原因への対処で症状隠しではない。回帰テストは修正行を除いたコピーで実行してanimationKeysが[contents, descriptionScroll]となり失敗することを確認し、修正ありでComposerSuggestion絞り込み13件が成功。fake-session-lifecycle(S1)はspawn→ready→送受信→echoの状態機械とfake-agent13関数の直列実行が手順・期待結果で、本差分はComposer候補説明の文字レイヤー描画アニメーションのみを変えるため手順・期待結果・要件の意味は不変、シナリオ文面の更新は不要（codePathsがmacos/Packages/**に広く一致しただけ）。未検証: ゲート全体、E2E、実機・実画面、Retina/非Retina混在ディスプレイ。"
+    },
+    {
+      "baseOID": "d656b4fa20937cb0b853b1429762cadc2b4ecc8b",
+      "targetOID": "aec846bf49dd7b89ec213d174bd3f75beac70d9a",
+      "diffSHA256": "077f03214146632197b1976e58f1d11e922b92375871171f003413260aba81fc",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a001d5aa7586abcf0"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T04:02:24.703860+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "ShutdownDeadlineは停止受付時にCleanupGuardで一度だけ10秒のasyncAfterを張り、MainActor外のキューで同じ終了コードのexitを呼ぶ。2回目のarmは無視され最初の終了コードを保持、通常停止が先に終わればexit(exitCode)が先に勝ち期限は何もしない。lease解放は元々exit(exitCode)任せで本差分は経路に手を入れていない。AppBootstrap 216件成功。fake-session-lifecycleはfakeエージェントのspawn・送受信・終了・永続化の決定論テストで独立ランタイムのSIGTERM停止を扱わず、physical-session-activityは実機の稼働中表示・完了通知・再接続(AC-1〜4)で停止期限と無関係、codePathsの広い一致による該当のみでシナリオ本文の更新は不要。未検証: 実機でのSIGTERM停止、SessionRuntimeHostの配線のテスト（単体テストはShutdownDeadlineのみ）、ゲート全体。"
+    },
+    {
+      "baseOID": "8ea7127e2ede794541f522bd1573bfeab755c586",
+      "targetOID": "2f2912f372f868927ba3dde668a3bffe17d98475",
+      "diffSHA256": "7d3c780944b6e0024f7af6d094f9a98fd3fa39dfb536480d6246953c5a41afda",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:ab531e71ba238fb16"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T04:53:21.443756+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "変更はテストの準備待ち上限を2秒から10秒に広げた1行のみ。製品の期限はAgentModelProviders.swiftでonSpawn(pid)が返った後にDispatchTime.now()+timeoutで開始するため、準備待ちを延ばしても製品の期限超過を隠さない。測定側の判定（index 0の準備1秒超、解放1秒以上2秒未満、子生存、FD数）は不変。2秒は961ff68dで導入されたが校正根拠の記載はなく、同コミットの準備と期限計測を分ける意図に沿う。10秒でも1波の失敗打ち切りは約11秒で親の18秒以内。該当シナリオfake-session-lifecycle・physical-session-activityのtestIDsに本テストは含まれず、手順・期待結果・要件の意味は不変。AcceptanceModelProcessLifetime 7件成功。未検証: 負荷下での再現、原ログでindex 0が3.01秒かかった理由の断定。"
+    },
+    {
+      "baseOID": "d656b4fa20937cb0b853b1429762cadc2b4ecc8b",
+      "targetOID": "fb9b4acb51b20652ced6e81f04850ad257238bec",
+      "diffSHA256": "b63437342496bc7f17b309fd817b95763e5040fb3a6f0c7074d6e6cc316c6990",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a5ce8b81533c89d2e"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T05:10:41.607835+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "初回レビュー(needs_changes)の指摘3点の修正を確認した。(1)表示の知らせはsendRuntimeReportで送りっぱなしにしruntimeCommandErrorに触れず返答許可リストからも外れ、更新前の常駐側が断っても警告が出ない。(2)休止からの再開はterminateを呼ばずhasUnseenCompletionを立てない。(3)表示で数え直すテストは表示+1時間の境界前後を検証する形になった。IdleChatSuspend 8件が絞り込み実行で成功。fake-session-lifecycle(S1)はPTYの手順・fake13関数を対象とし、休止は.appServerのみ・10分周期の見回りはE2E関数の実行時間内に来ず・terminateの分割で終了手順と最終statusは不変のため、手順・期待結果・要件の意味は不変で版は維持。physical-session-activity(AC-1〜4)にも影響なし。既知の限界: 休止途中に再開した場合の旧プロセス終了・保存との短い重なり、外部送信受付中・圧縮中・復元中の個別テストなし。未検証: 実機、24時間の実経過、ゲート全体とfake必須13関数、旧常駐側と新画面の実組合せ。"
+    },
+    {
+      "baseOID": "520d6c680b5cf0ff764c34a49dfe63b7fc96f5cb",
+      "targetOID": "ddb20a9a7990021ded5e9e4cce89983536c55e1c",
+      "diffSHA256": "1532cca6e65a244a885af98c4116aab4c773310f8d10fa286f926dad307627dd",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code-subagent:reviewer:a7ecf86f002eb7f22"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T06:40:51.500006+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "表示中の判定は単一表示の実画面（SessionTabsContainerのprojectID = selectedProjectID ?? node.projectID、DashboardDetailView）と一致し、左右に分けた表示では両側の会話を返す。startedAtを保存するのはDashboardViewModelの1か所のみでPTY・チャット起動とも同経路、SessionPersistenceCoordinatorは既存値を引き継ぎ、復元・再開はdescriptor.startedAtを使うため他にずれる経路はない。SessionIDはUUIDのため同id・同startedAtで別会話を誤受理する余地は増えない。IdleChatSuspend 10件が手元で成功、テストはプロジェクト外・プロジェクト未選択時の所属判定・左右分割・ファイルタブ差し替え・新規チャット画面を確認。fake-session-lifecycleの手順・期待結果・要件の意味は不変。未検証: fake E2Eシナリオの実行、修正を外した再開テストの失敗と実アプリE2Eは実装者報告のみ。"
+    },
+    {
+      "baseOID": "7eb283d2f40707177b66f03078abddbc80bd3230",
+      "targetOID": "596e4b9900f62fd17ecee100ebbef2f08aacdfaa",
+      "diffSHA256": "f7e4186ba93b3f760d75800d7b36d51ce4fe17029b282fd4053602c769167c01",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-subagent:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T13:50:39+00:00",
+      "scenarioIDs": [
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation"
+      ],
+      "reason": "独立した内容レビューで対象コード差分と3シナリオのAC本文・手順・期待結果・参照テストを確認した。DSPlatformTabViewは26.1以降でtabViewBottomAccessory(isEnabled:)を常設し、26.0は同modifier内の表示だけを切り替える。DSPlatformTabContentもsafeAreaInsetを常設し、対応待ち・オフライン切替で画面本体の状態を保持する。physical-session-activityのAC-1〜4に関わる状態解決・完了token確認・中断競合・通信処理は変更せず、再購読の誘発を除くため既存の送信・前面/背面・再接続観察の手順と期待結果は維持できる。physical-history-followのAC-5/7に関わる履歴展開・アンカー・追従・VoiceOver入口は変更せず、表示切替でそれらの画面状態を失わない修正なので既存の指操作・取消・新着・VoiceOver手順は維持する。physical-activity-presentationのAC-6に関わる寸法・配色・描画段階・Reduce Motion・読み上げは変更せず、アクセサリの装飾値も引き継ぐためライト/ダーク・文字拡大・動きの設定の観察条件は維持する。3件のrevision・必須性・要件範囲は縮小せず更新不要と判断した。追加のTabAccessoryIdentityTestsは取得taskのUUID履歴と編集値を検査し、旧版ログでは2ケース18issues、修正版ログでは同2ケース成功を確認した。これは実機シナリオの成功記録ではなく内容レビューのみ。手動確認記録もiOS26.2と検証用APIに限定される。未確認は実機3シナリオ、iOS18/26.0の実行、26.0で空バーが残らないこと、履歴の実指操作とVoiceOver、活動表示の全条件、最終統合候補の共通quality全体。"
+    },
+    {
+      "baseOID": "f1d5abd44dbf5c22cce61987e4ccccce8616e31b",
+      "targetOID": "7bc3d2a84b0fe22b920ff3609844973496c8c1fa",
+      "diffSHA256": "e0d58b2cb709572de1c3f86960a24c3351d0e273f7cd8465ddd331b1bf5e67f5",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-subagent:/root/push_merge_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T14:47:28+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh"
+      ],
+      "reason": "対象差分と影響3シナリオのAC本文・手順・期待結果を独立確認した。fake-session-lifecycleの決定論的な送受信・完了・終了・永続化条件は不変。physical-session-activityの実行状態・完了確認・中断競合・復帰の観察条件も不変で、今回は通知登録更新とAPNs応答鮮度を修正する。physical-usage-preferences-refreshはAppRootが対応範囲に含まれるが、使用量の取得条件・周期・設定保存・表示処理は変更しない。3件ともprocedure・expected・revisionの更新不要。標準入口をcompact-testとmanaged-build経由で独立実行し、APNsClientの10テストが成功した。修正前ログではsandbox/productionとalert/liveactivityの4条件がcachePolicy期待で失敗することも確認した。これはコードとシナリオ内容のレビューであり、統合候補全体の実機成功を証明しない。"
+    },
+    {
+      "baseOID": "e08838f51fee41289e3ed60d90b5e36a1778cc5c",
+      "targetOID": "fb4a0f835446f718cefa32a5b9cb252ae9d20cd4",
+      "diffSHA256": "607f2bb043bc4f44d74f38dc2acb1763abb01db91ddeafc7229a21553a2198de",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-subagent:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-26T16:00:16Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "固定差分と全呼出元を独立に確認した。既存の単一polling Task内でGETと表示callbackのURLError.timedOutだけを待機後に再試行し、成功時に待機を戻す。取消し・置換・致命的応答の既存終了経路と認証・互換性・世代検証を維持し、command/performは変更せずPOST再送を追加しない。再試行状態はTask内の1値で、逐次要求と最大8秒の待機により要求やTaskを蓄積しない。追加10関数12ケースを読み、修正前の回復4関数失敗と修正後AppBootstrap226テスト成功をログで確認した。fake-session-lifecycleとphysical-session-activityの要件・必須範囲・手順・期待結果・方式は不変で版更新は不要。レビューは内容判定であり、修正後実GUI、全体品質入口、長期間の反復、8秒上限到達の実測、実Mac/iPhoneの実行は未確認。初回timeout原因は未特定。文書の9行表記は実差分の8行へ訂正を依頼した。"
+    },
+    {
+      "baseOID": "e08838f51fee41289e3ed60d90b5e36a1778cc5c",
+      "targetOID": "81aa3c0196d5017f480e96607a2e85c17673547c",
+      "diffSHA256": "cae6dd6b065fd4c459d12eac5267c79013f2398e934a05e61e8cbf560f7f89b4",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "reviewedAt": "2026-10-26T16:38:24Z",
+      "decision": "pass",
+      "reason": "ゲート修正差分を8次元で独立レビューし、関連56テストが成功。appcast変更のレビュー維持、完全なテストIDによるskip判定、新規DMG/ZIP来歴、実ZIP署名とapp内容一致、正常・異常経路のmount解除を確認した。既存シナリオの手順・期待結果・revisionの変更は不要。実機成功を示す判定ではない。"
+    },
+    {
+      "baseOID": "ef03981bca43d7042bc8d876de9ac58399a31385",
+      "targetOID": "bc1762a4d267caf1b19c2d3a901bf7a230903dbe",
+      "diffSHA256": "941c24f8c1f4a5d1a922483dfbef8a8f22a10148568d7a809f176d3c920ef119",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "reviewedAt": "2026-10-26T16:48:36Z",
+      "decision": "pass",
+      "reason": "前回確認したゲート修正を維持し、親managed contextでは親所有出力へcompiler/cacheを明示して二重ロックを避ける。検査内容・assert・実署名・app比較を変更していない。関連2テストを親managed contextで独立実走し成功、3mount解除を確認。シナリオの手順・期待結果・revisionの変更は不要。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "608fcb0d135516951e707a690e1e8c7c0024945c",
+      "diffSHA256": "275c99ccfcf06a2e777aba2307691112cce051d52fdc6c8c06fbd7b2b6d02f46",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "reviewedAt": "2026-10-26T16:52:58Z",
+      "decision": "pass",
+      "reason": "固定コミット間の全体差分と影響6シナリオを独立レビューした。前回の配信フィード循環と必須skip受理は解消済み。追加の読取タイムアウト復帰は既存のエラー回復要件に対応し、取消し・致命的エラー・送信非再送を維持する。既存の手順・期待結果・revision 1を維持できる。PhotosPicker表示中のACK抑止は実機確認事項として残す。実機5項目はnot_runであり、本判定は実機合格や進行中の全体品質ゲート成功を意味しない。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "4183fb946b3986a0696b7fd912f0fdbbcb555e82",
+      "diffSHA256": "731eb69180a5408ae34c74c0bba5d4886c888229c80c8689c5ab699faead016b",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T03:51:45Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "前回の全体レビュー後に製品コード・テストの変更がないことを固定OID間diffで確認し、今回の版/build/feed・英日notes・実ビルド来歴を独立照合した。正規化122変更と指定hashが一致し、6必須シナリオの手順・期待結果・revision 1の変更は不要。来歴・成果物・外部入力・設定・現在およびビルド時manifestの検査4件は成功。端末・実機実行記録は空で、必須実機5件はnot_run。PhotosPicker表示中のACK懸念は実機確認事項として残す。本判定はコード・シナリオレビューであり、実機合格やmain統合・公開許可を意味しない。"
+    },
+    {
+      "baseOID": "3f2efbbfe8b7b622c92a65a7df1da4c130a954d1",
+      "targetOID": "59060c304d6f0a976f307a249c312970e3ff51f1",
+      "diffSHA256": "2ab0c1dfd8653960b4091233e575a860bff04e40d9ade46263680f4d14881017",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:23:11Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "既存レビュー済み6937以降はreleasebook・来歴参照・feedだけで、製品コードとテストは不変。Mac39/iOS9の来歴・成果物・外部入力・設定・現在の入力manifestを照合し、実IPA1.0/9とfeed39の版・URL・ZIPサイズを確認した。端末更新・起動記録も照合済み。影響2シナリオの手順・期待結果・revision変更は不要。実画面と必須実機5シナリオは未確認。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "59060c304d6f0a976f307a249c312970e3ff51f1",
+      "diffSHA256": "d3fa09ef05984823bb9c0bf2385eadfeefc3a670b8831ff9493f8d46a2b7a0b8",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:23:11Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の全体レビューと6937までの表示版・配布検査修正レビューが製品差分を包含する。以降は配布メタデータ3ファイルのみで、新feed・両ビルド来歴・成果物・外部入力・設定・入力manifest・実IPA表示版の整合を確認した。実iPhoneの更新後1.0/9、起動と後続プロセスの記録を確認したが、実画面は未観測。6シナリオの手順・期待結果・revision変更は不要。executionsは空、必須実機5件はnot_runであり、mainリリースゲートの合格を意味しない。"
+    },
+    {
+      "baseOID": "3f2efbbfe8b7b622c92a65a7df1da4c130a954d1",
+      "targetOID": "1746cf71365f6a5d8aae5f89a21d9c598e3588b2",
+      "diffSHA256": "176b77e22c3511c8f36c701082a6256895e5d6ae0bdf193264f7def6d3e2f550",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:30:53Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "既存レビューの差分包摂を確認し、追加4ファイルを独立確認した。capture負例の候補OIDをsynthetic GitのHEADへ局所的に隔離し、製品guardと失敗期待値を維持している。外側候補OIDとMANAGED_BUILD_DIRがある環境で対象1件が成功し、環境復元も確認した。版番号更新とstale build選定解除は妥当。シナリオの手順・期待結果・revision変更は不要。新配布物と実機結果は本判定に含まない。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "1746cf71365f6a5d8aae5f89a21d9c598e3588b2",
+      "diffSHA256": "167f3cf9835de2074b6e6793b4a3ecb4d6395a943a435f4a6ddf0a6f0c7354ea",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:30:53Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の全体レビューと今回の4ファイルレビューがmainとの差分を包含する。前回targetから今回比較元までの追加はレビュー記録のみ。テスト環境の候補OID隔離を独立1件で検証し、製品guard・既存assertの弱化がないことを確認した。Mac版番号更新、旧build選定解除、実端末identity保持とexecutions空も確認した。6シナリオの手順・期待結果・revision変更は不要。新候補の配布物・feed最終照合と必須実機5件は未完であり、mainリリースゲートの合格を意味しない。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "edaafbf9ec219a331275da23cc621cea07e87021",
+      "diffSHA256": "b8b26abe3f9540ea640397118ef54a98a7a7cf754fd3b8f0df0791f3b6348ddb",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T05:53:50Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の全体レビューが製品・テスト差分を包含し、9978以降は配布文書・records・feedの3ファイルだけであることを確認した。Mac40の来歴・成果物・外部入力・設定・現在のmanifestが共通品質検査のsourceOIDと入力SHAに一致し、feedの版/build/実ZIP URL/サイズも一致する。6シナリオの手順・期待結果・revision変更は不要。正式recordsはMac40のみ、実端末identity1件、executions空。iOS10は中断され正式来歴がなく、ユーザーの既存会話一覧の観測を必須実機5件の合格へ読み替えていない。本判定はコード・シナリオ・メタデータのレビューであり、mainリリースゲートの合格ではない。"
+    },
+    {
+      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
+      "targetOID": "5467c93116f4c8ffa2482980e73382a403c89892",
+      "diffSHA256": "1654821cb71d4a43bee4e4061cb905992b29c553640ce8d4797c72e9c6fb346d",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T07:14:18Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "正規化3変更を確認した。接続先0もslot取得後の同じ製品接続失敗経路を通り、500ms・EOF・3接続・stop時の解放検査を維持する。直前の独立正例1件は成功し、callback欠落の否定実験1回はセマフォ未解放のSIGTRAPで失敗した。元の正式検査失敗の原因は断定していない。シナリオの本文・手順・期待結果・revision変更は不要。文書保守候補の1行修正でも正規化hashは同一。共通quality全体・実機・mainリリースの合格は本判定に含まない。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "5467c93116f4c8ffa2482980e73382a403c89892",
+      "diffSHA256": "8a3f389c4dd8ea45976919aed508ab582f04330e92574fd1304c2ec2cce5c650",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T07:14:18Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "正規化126変更を新規に全件再調査した判定ではない。既存の全体・配布検査修正・EDAまでのメタデータのpass記録と、今回独立確認した4ファイルが差分を包含することを確認した。EDAからEF8の間はレビュー記録のみで、未確認の製品変更はない。接続失敗テストの検出力は正例とcallback欠落の否定実験で確認済み。iPhone10の実版・来歴・署名結果・一覧表示観測を確認し、40/10を新入力へ流用せず41/11を生成する記述も妥当。6シナリオの本文・手順・期待結果・revision変更は不要。executionsは空で、必須実機5件および現在のmainゲートの成功は主張しない。"
+    },
+    {
+      "baseOID": "b0f88f0ec6a0cdd02a1a87a2d46e261b56843a6f",
+      "targetOID": "539722c3af45b30178eb8b14db313dc41cdcee38",
+      "diffSHA256": "ae4dd8f759e8d6b46a21bee70c4f4ac0daad25d5b519a224ce57611bb6bc3cdf",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review_sol"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T09:25:57Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "Solが変更とシナリオの対応、既存契約、復号の並行性・順序・キャンセル・混雑のテスト、検証用POST再試行を独立に確認した。シナリオの手順・期待結果の変更は不要。これは部分改善のシナリオレビューであり、実ユーザーの長時間停止の解消や実機・品質ゲート全体の合格を意味しない。"
+    },
+    {
+      "baseOID": "04b8684eea99bb6a5c649d2e24eafa92b2239e95",
+      "targetOID": "106bd7c86c17a26f3e32cc922fd6f8f7734a11d5",
+      "diffSHA256": "33711f458b5609da7e5dae42b366e396fa9dea7e4d5266e1ce7bcaec41fa50aa",
+      "reviewer": {"kind": "ai", "id": "codex:/root/release_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T10:45:02Z",
+      "scenarioIDs": ["fake-session-lifecycle"],
+      "reason": "準備差分と英日リリースノートの一致を独立確認し、必須13シナリオを固定候補で実行して成功IDを照合した。build 42の配布物・appcast署名とサイズの照合、全体品質検査、実機5項目は未実施。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "1b78f66a9f08c1166d1b268267ac12c85f6d882f",
+      "diffSHA256": "44fd54770007a26538d6c43a100357386bba6c1184004f94bd60da068180ff03",
+      "reviewer": {"kind": "ai", "id": "codex:/root/release_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T11:05:51Z",
+      "scenarioIDs": ["fake-session-lifecycle", "physical-session-activity", "physical-history-follow", "physical-activity-presentation", "physical-usage-preferences-refresh", "physical-newchat-worktree-resume"],
+      "reason": "正規化対象135ファイルについて既存の4件の独立レビューとの対応を確認した。固定候補106bd7c8のfake 13件と、最終候補1b78f66aの品質・セキュリティ検査結果を確認した。実機5項目は未実施で、この判定には含まない。"
+    }
+  ]
+}

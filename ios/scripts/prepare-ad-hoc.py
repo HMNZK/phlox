@@ -83,7 +83,7 @@ def verify_signatures(app, team):
             raise ValueError(f"Ad Hoc署名・チーム・登録端末を確認できません: {bundle.name}")
 
 
-def verify_build_number(app, build_number):
+def verify_build_number(app, build_number, app_version):
     widgets = list((app / "PlugIns").glob("*.appex"))
     if len(widgets) != 1:
         raise ValueError("ビルド番号検査対象のWidgetが1個必要です")
@@ -92,6 +92,8 @@ def verify_build_number(app, build_number):
             info = plistlib.load(file)
         if info.get("CFBundleVersion") != str(build_number):
             raise ValueError(f"ビルド番号が指定の{build_number}と異なります: {bundle.name}")
+        if info.get("CFBundleShortVersionString") != app_version:
+            raise ValueError(f"表示版が指定の{app_version}と異なります: {bundle.name}")
 
 
 def main():
@@ -99,14 +101,16 @@ def main():
     parser.add_argument("--team-id", required=True)
     parser.add_argument("--base-url", required=True, help="https://host.tailnet.ts.net/phlox-ios/")
     parser.add_argument("--build-number", required=True, type=int)
+    parser.add_argument("--app-version", required=True, help="アプリ本体とWidgetで照合する表示版")
     parser.add_argument("--output", required=True, type=Path, help="存在しない出力ディレクトリ")
     parser.add_argument("--allow-provisioning-updates", action="store_true",
                         help="本人が許可した場合のみ: XcodeによるApple側の署名資材更新を許可")
     args = parser.parse_args()
     try:
         url = base_url(args.base_url)
-        if not re.fullmatch(r"[A-Z0-9]{10}", args.team_id) or args.build_number <= 1:
-            raise ValueError("Team IDは10桁の英数字、build numberは2以上を指定してください")
+        if (not re.fullmatch(r"[A-Z0-9]{10}", args.team_id) or args.build_number <= 1
+                or not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", args.app_version)):
+            raise ValueError("Team IDは10桁の英数字、build numberは2以上、表示版は数値をドットで区切って指定してください")
         for command in ("xcodegen", "xcodebuild", "codesign", "security", "ditto"):
             if not shutil.which(command):
                 raise ValueError(f"必要なコマンドがありません: {command}")
@@ -124,12 +128,12 @@ def main():
                  "-scheme", "PhloxMobile", "-configuration", "Release",
                  "-destination", "generic/platform=iOS", "-archivePath", str(archive),
                  "-derivedDataPath", str(output / "build"), f"DEVELOPMENT_TEAM={args.team_id}",
-                 f"CURRENT_PROJECT_VERSION={args.build_number}", "CODE_SIGN_STYLE=Automatic", *provisioning],
+                 f"CURRENT_PROJECT_VERSION={args.build_number}", f"MARKETING_VERSION={args.app_version}", "CODE_SIGN_STYLE=Automatic", *provisioning],
                 stdout=log, stderr=subprocess.STDOUT)
         archive_apps = list((archive / "Products/Applications").glob("*.app"))
         if len(archive_apps) != 1:
             raise ValueError("archiveにアプリが1個必要です")
-        verify_build_number(archive_apps[0], args.build_number)
+        verify_build_number(archive_apps[0], args.build_number, args.app_version)
         options = output / "ExportOptions.plist"
         with options.open("wb") as file:
             plistlib.dump({"method": "release-testing", "teamID": args.team_id,
@@ -147,7 +151,7 @@ def main():
         apps = list((inspection / "Payload").glob("*.app"))
         if len(apps) != 1:
             raise ValueError("署名検査対象のアプリが1個必要です")
-        verify_build_number(apps[0], args.build_number)
+        verify_build_number(apps[0], args.build_number, args.app_version)
         verify_signatures(apps[0], args.team_id)
         public = output / "public"
         public.mkdir()

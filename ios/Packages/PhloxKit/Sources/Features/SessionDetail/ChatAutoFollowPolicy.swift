@@ -13,3 +13,16 @@ public enum ChatAutoFollowPolicy {
         distanceFromBottom <= followThreshold
     }
 }
+
+struct SessionDetailHistoryPull {
+    private(set) var isArmed = false
+
+    mutating func update(offset: CGFloat, hasEarlierMessages: Bool) {
+        isArmed = hasEarlierMessages && offset <= -16
+    }
+
+    mutating func finish() -> Bool {
+        defer { isArmed = false }
+        return isArmed
+    }
+}

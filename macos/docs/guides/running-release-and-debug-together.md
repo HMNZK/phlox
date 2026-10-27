@@ -34,15 +34,15 @@ last-verified: 2026-07-06
    xcodegen generate
    ```
 
-2. **Debug 版をビルド**。**稼働中の Debug 版があるなら、その出力先とは別の `derivedDataPath`** に出す（同じ出力先へビルドすると稼働中アプリのバイナリを上書きして落とす）:
+2. **Debug 版をビルド**。エージェントは`managed-build`の手順を使い、worktreeの`.verification/<一意の作業名>/`へ出す。以下の`coexist`は作業名の例。**稼働中の Debug 版があるなら、その出力先とは別の `derivedDataPath`** に出す（同じ出力先へビルドすると稼働中アプリのバイナリを上書きして落とす）:
    ```bash
    xcodebuild -project Phlox.xcodeproj -scheme Phlox \
-     -configuration Debug -derivedDataPath /tmp/PhloxBuildCoexist build
+     -configuration Debug -derivedDataPath "$PWD/../.verification/coexist/build" build
    ```
 
 3. **Debug 版を起動**。Release 版が動いていても、そのまま `open` で独立起動できる（bundle id が別なので `-n` は不要だが、確実に新プロセスを起こすなら付けてよい）:
    ```bash
-   open /tmp/PhloxBuildCoexist/Build/Products/Debug/Phlox.app
+   open "$PWD/../.verification/coexist/build/Build/Products/Debug/Phlox.app"
    ```
    - 起動時の Keychain 許可ダイアログを避けたいだけの検証なら、`open --env PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1 <app>`（インメモリのトークン store に切替わり Keychain に触れない）。
    - Dock・メニューバー・About では **「Phlox (Debug)」** と表示され、Release 版（「Phlox」）と見分けられる。

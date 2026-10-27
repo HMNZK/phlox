@@ -539,6 +539,18 @@ public final class SessionViewModel: Identifiable {
         hasUnseenCompletion = false
     }
 
+    public func markCompletionSeen(ifCurrent token: String) async throws -> Bool {
+        guard SessionNode.pty(self).completionToken == token else { return false }
+        if let runtimeCommandHandler {
+            guard case .bool(let accepted) = try await runtimeCommandHandler(executionID, .markCompletionSeenIfCurrent(token)) else {
+                throw SessionRuntimeProjectionError.invalidReply
+            }
+            return accepted
+        }
+        hasUnseenCompletion = false
+        return true
+    }
+
     /// M6a で実装。ユーザー入力を PTY の stdin に書き込む。
     public func sendInput(_ data: Data) async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.input(data)); return }
@@ -1058,6 +1070,7 @@ extension SessionViewModel: ControllableSession {
         case .interrupt: await sendInput(Data([0x1b]))
         case .terminate: await terminate()
         case .markCompletionSeen: markCompletionSeen()
+        case .markCompletionSeenIfCurrent(let token): return .bool(try await markCompletionSeen(ifCurrent: token))
         case .consumeSubmitBaseline: consumeSubmitBaseline()
         case .rename(let title): titleState = title
         default: throw SessionRuntimeProjectionError.unsupportedCommand

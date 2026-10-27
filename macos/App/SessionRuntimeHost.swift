@@ -20,6 +20,14 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
     private var startupTask: Task<Void, Never>?
     private var stopping = false
     private var desktopTransport: SessionRuntimeTransport?
+    /// 停止処理全体の上限。PTY 終了（cleanupTimeout 5秒）と transcript flush（3秒）が収まる余裕を持たせる。
+    nonisolated private static let shutdownTimeout: Duration = .seconds(10)
+    /// 停止処理が戻らなくても exit に到達させる。MainActor に依存しないキューで発火する。
+    nonisolated private let shutdownDeadline = ShutdownDeadline(
+        timeout: SessionRuntimeHost.shutdownTimeout,
+        queue: DispatchQueue(label: "com.phlox.session-runtime.shutdown-deadline"),
+        exit: { exit($0) }
+    )
 
     private init(lease: SessionRuntimeLease) {
         self.lease = lease
@@ -41,6 +49,8 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
                 signals: [SIGTERM, SIGINT],
                 queue: DispatchQueue(label: "com.phlox.session-runtime.signals")
             ) { [weak host] in
+                // MainActor が詰まっていても期限だけは先に張る（requestShutdown 内でも張るが 2 回目は無視される）。
+                host?.shutdownDeadline.arm(exitCode: 0)
                 Task { @MainActor in host?.requestShutdown(exitCode: 0) }
             }
             host.startupTask = Task { await host.start() }
@@ -142,6 +152,7 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
     private func requestShutdown(exitCode: Int32) {
         guard !stopping else { return }
         stopping = true
+        shutdownDeadline.arm(exitCode: exitCode)
         if discovery.state != .failed { discovery.state = .stopping }
         publishDiscovery()
         Task {

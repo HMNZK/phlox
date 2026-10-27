@@ -62,7 +62,10 @@ public actor PhloxAPIClient: PhloxAPI {
                 projectId: request.projectID,
                 effort: request.effort,
                 permission: request.permission,
-                planMode: request.planMode
+                planMode: request.planMode,
+                usesWorktree: request.usesWorktree,
+                startPoint: request.startPoint,
+                resumeHistoryID: request.resumeHistoryID
             )
         )
         // Mac は新規セッション id のみ返す（{id}）。name はサーバー採番で、一覧ポーリングが反映する。
@@ -97,6 +100,25 @@ public actor PhloxAPIClient: PhloxAPI {
         }
     }
 
+    public func agentSkills(kind: AgentKind, projectID: String?, workspace: String?) async throws -> [AgentSkill]? {
+        let query = [URLQueryItem(name: "projectID", value: projectID), URLQueryItem(name: "workspace", value: workspace)]
+            .filter { $0.value != nil }
+        return try await skills(path: "agents/\(kind.rawValue)/skills", queryItems: query)
+    }
+
+    public func sessionSkills(sessionID: String) async throws -> [AgentSkill]? {
+        try await skills(path: Self.sessionsPath(sessionID: sessionID, suffix: "skills"))
+    }
+
+    private func skills(path: String, queryItems: [URLQueryItem]? = nil) async throws -> [AgentSkill]? {
+        struct Response: Decodable { let skills: [AgentSkill] }
+        do {
+            return try await getDecoded(Response.self, path: path, queryItems: queryItems).skills
+        } catch PhloxError.notFound {
+            return nil
+        }
+    }
+
     public func projects() async throws -> [ProjectSummary]? {
         do {
             let dto = try await getDecoded(ProjectsResponseDTO.self, path: PhloxModelWireContract.projectsPath)
@@ -114,8 +136,20 @@ public actor PhloxAPIClient: PhloxAPI {
         return response.agents
     }
 
+    public func projectStartPoints(projectID: String, commit: String? = nil) async throws -> [NewChatStartPoint] {
+        let query = commit.map { [URLQueryItem(name: "commit", value: $0)] } ?? []
+        return try await getDecoded(ProjectStartPointsDTO.self, path: "projects/\(projectID)/start-points", queryItems: query.isEmpty ? nil : query).startPoints
+    }
+
+    public func projectHistory(projectID: String, kind: AgentKind) async throws -> [NewChatHistoryEntry] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try await getDecoded(ProjectHistoryDTO.self, path: "projects/\(projectID)/history",
+                                    queryItems: [URLQueryItem(name: "kind", value: kind.rawValue)], decoder: decoder).entries
+    }
+
     public func send(_ request: SendRequest) async throws -> SendResult {
-        let body = try encode(SendRequestDTO(to: request.sessionID, text: request.text, images: request.images))
+        let body = try encode(SendRequestDTO(to: request.sessionID, text: request.text, images: request.images, skill: request.skill))
         _ = try await data(method: "POST", path: "send", bodyData: body, retry: false)
         return SendResult(accepted: true, message: nil)
     }
@@ -127,6 +161,12 @@ public actor PhloxAPIClient: PhloxAPI {
             bodyData: nil,
             retry: false
         )
+    }
+
+    public func markCompletionSeen(sessionID: String, completionToken: String) async throws {
+        struct Body: Encodable { let completionToken: String }
+        _ = try await data(method: "POST", path: Self.sessionsPath(sessionID: sessionID, suffix: "completion-seen"),
+                           bodyData: try encode(Body(completionToken: completionToken)), retry: false)
     }
 
     public func usage(sessionID: String) async throws -> TurnUsage? {

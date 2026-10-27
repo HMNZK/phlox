@@ -11,7 +11,7 @@ struct ChatProcessEndedStrip: View {
     var body: some View {
         let _ = themeID
         HStack(spacing: 10) {
-            Text(Self.message(exitCode: exit.exitCode))
+            Text(Self.message(exit))
                 .font(DSFont.dense)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -29,8 +29,11 @@ struct ChatProcessEndedStrip: View {
         .padding(.bottom, DSSpacing.m)
     }
 
-    static func message(exitCode: Int32?) -> LocalizedStringKey {
-        if let exitCode {
+    static func message(_ exit: ChatProcessExit) -> LocalizedStringKey {
+        if exit.suspendedForIdle == true {
+            return "24 時間操作がなかったため休止しました。会話は保存されています。"
+        }
+        if let exitCode = exit.exitCode {
             return "セッションは終了しました（exit \(Int(exitCode))）。会話は保存されています。"
         }
         return "セッションは終了しました。会話は保存されています。"

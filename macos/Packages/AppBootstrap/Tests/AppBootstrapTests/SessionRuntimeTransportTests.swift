@@ -1,11 +1,157 @@
 import Foundation
 import Darwin
 import AgentDomain
-import DashboardFeature
+@testable import DashboardFeature
 import Testing
 @testable import AppBootstrap
 
 @Suite struct SessionRuntimeTransportTests {
+    @Test @MainActor func acceptedCommandWaitsForSaturatedSnapshotQueue() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let handled = AsyncStream<Void>.makeStream()
+        var snapshots = 0
+        let transport = try SessionRuntimeTransport(
+            generation: generation, storeURL: fixture.url,
+            snapshot: {
+                snapshots += 1
+                return .init(projects: [], sessions: [], availableAgentKinds: [])
+            },
+            command: { _ in handled.continuation.yield(); return .none }
+        )
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let endpoint = try SessionRuntimeEndpoint(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url))
+        let gate = SaturatedSnapshotDecodeGate()
+        defer { gate.release() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { gate.release() }
+        let client = SessionRuntimeClient(endpoint: endpoint, snapshotDecoder: gate.decode)
+        client.onCommandSnapshot = { _ in }
+        var entered = gate.started.stream.makeAsyncIterator()
+        let first = Task { try await client.snapshot() }
+        let second = Task { try await client.snapshot() }
+        _ = await entered.next()
+        _ = await entered.next()
+
+        let queued = AsyncStream<Void>.makeStream()
+        var queuedEvents = queued.stream.makeAsyncIterator()
+        var waiting: [Task<DashboardRuntimeSnapshot, Error>] = []
+        for _ in 0..<8 {
+            waiting.append(Task { queued.continuation.yield(); return try await client.snapshot() })
+            _ = await queuedEvents.next()
+        }
+        let sending = Task { try await client.command(.session(SessionID(), UUID(), .interrupt)) }
+        var handledEvents = handled.stream.makeAsyncIterator()
+        _ = await handledEvents.next()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(snapshots == 2)
+        gate.release()
+        _ = try await first.value
+        _ = try await second.value
+        for task in waiting { _ = try await task.value }
+        _ = try await sending.value
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
+    @Test @MainActor func delayedSnapshotDecodeDoesNotBlockNewerSnapshotAndCancellation() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        var snapshots = 0
+        let transport = try SessionRuntimeTransport(
+            generation: generation, storeURL: fixture.url,
+            snapshot: {
+                snapshots += 1
+                return .init(projects: [], sessions: [], availableAgentKinds: snapshots == 1 ? [.codex] : [.claudeCode])
+            },
+            command: { _ in .none }
+        )
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let endpoint = try SessionRuntimeEndpoint(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url))
+        let gate = SnapshotDecodeGate()
+        defer { gate.releaseAll() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { gate.releaseAll() }
+        let client = SessionRuntimeClient(endpoint: endpoint, snapshotDecoder: gate.decode)
+        var events = gate.started.stream.makeAsyncIterator()
+
+        let first = Task { try await client.snapshot() }
+        #expect(await events.next() == 1)
+        let newer = try await client.snapshot()
+        #expect(newer.availableAgentKinds == [.claudeCode])
+        gate.first.signal()
+        let retried = try await first.value
+        #expect(retried.availableAgentKinds == [.claudeCode])
+
+        let cancelled = Task { try await client.snapshot() }
+        #expect(await events.next() == 4)
+        cancelled.cancel()
+        gate.fourth.signal()
+        await #expect(throws: CancellationError.self) { _ = try await cancelled.value }
+        await #expect(throws: SnapshotDecodeGate.Failure.self) { _ = try await client.snapshot() }
+        #expect(try await client.snapshot().availableAgentKinds == [.claudeCode])
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
+    @Test @MainActor func controlSkillsRequireAdvertisedOwnerSupportWithoutBreakingOldCommands() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let selection = AgentSkillSelection(name: "review", path: "/skills/review/SKILL.md", runtimeFingerprint: "hash")
+        var handled = 0
+        var receivedSkills: [AgentSkillSelection?] = []
+        let transport = try SessionRuntimeTransport(generation: generation, storeURL: fixture.url,
+            snapshot: { .init(projects: [], sessions: [], availableAgentKinds: []) },
+            command: { command in
+                handled += 1
+                switch command {
+                case .message(let request):
+                    receivedSkills.append(request.skill)
+                case .session(_, _, .sendControlSkill(_, _, _, let skill)):
+                    #expect(skill.name == selection.name && skill.path == selection.path && skill.runtimeFingerprint == selection.runtimeFingerprint)
+                default: Issue.record("unexpected command")
+                }
+                return .none
+            })
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let endpoint = try SessionRuntimeEndpoint(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url))
+        let client = SessionRuntimeClient(endpoint: endpoint)
+        let message = DashboardRuntimeCommand.message(.init(recipient: .id(SessionID()), text: "$review inspect",
+            submit: true, from: nil, inReplyTo: nil, images: [], skill: selection))
+        let session = DashboardRuntimeCommand.session(SessionID(), UUID(), .sendControlSkill(text: "$review inspect", submit: true,
+            attachments: [], skill: .init(name: selection.name, path: selection.path, runtimeFingerprint: selection.runtimeFingerprint)))
+        try await client.handshake()
+        _ = try await client.command(message)
+        _ = try await client.command(session)
+        #expect(handled == 2)
+        #expect(receivedSkills == [selection])
+        let legacy = try JSONDecoder().decode(SessionRuntimeHandshake.self,
+            from: Data("{\"protocolVersion\":1,\"generation\":\"\(generation)\"}".utf8))
+        try client.acceptHandshake(legacy)
+        for command in [message, session] {
+            await #expect(throws: SessionRuntimeConnectionError.incompatibleProtocol) {
+                _ = try await client.command(command)
+            }
+        }
+        #expect(handled == 2)
+        _ = try await client.command(.message(.init(recipient: .id(SessionID()), text: "ordinary",
+            submit: true, from: nil, inReplyTo: nil, images: [])))
+        #expect(handled == 3)
+        #expect(receivedSkills == [selection, nil])
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
     @Test func fullNormalPendingByteBudgetPreservesUrgentExecutionAndDeduplication() async throws {
         let generation = UUID()
         let ledger = SessionRuntimeCommandLedger(generation: generation, maximumBytes: 32 * 1024)
@@ -447,6 +593,51 @@ private actor RuntimeHeldCommands {
     func release() { continuation?.resume(); continuation = nil }
 }
 
+private final class SaturatedSnapshotDecodeGate: @unchecked Sendable {
+    let started = AsyncStream<Void>.makeStream()
+    let semaphore = DispatchSemaphore(value: 0)
+
+    func decode(_ data: Data) throws -> SessionRuntimeSnapshotEnvelope {
+        let snapshot = try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: data)
+        if snapshot.sequence <= 2 {
+            started.continuation.yield()
+            semaphore.wait()
+        }
+        return snapshot
+    }
+
+    func release() {
+        semaphore.signal()
+        semaphore.signal()
+    }
+}
+
+private final class SnapshotDecodeGate: @unchecked Sendable {
+    enum Failure: Error { case invalid }
+    let started = AsyncStream<UInt64>.makeStream()
+    let first = DispatchSemaphore(value: 0)
+    let fourth = DispatchSemaphore(value: 0)
+
+    func decode(_ data: Data) throws -> SessionRuntimeSnapshotEnvelope {
+        let snapshot = try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: data)
+        if snapshot.sequence == 1 {
+            started.continuation.yield(snapshot.sequence)
+            first.wait()
+        } else if snapshot.sequence == 4 {
+            started.continuation.yield(snapshot.sequence)
+            fourth.wait()
+        } else if snapshot.sequence == 5 {
+            throw Failure.invalid
+        }
+        return snapshot
+    }
+
+    func releaseAll() {
+        first.signal()
+        fourth.signal()
+    }
+}
+
 private struct RuntimeTransportFixture {
     let url: URL
     init() throws {
@@ -454,7 +645,7 @@ private struct RuntimeTransportFixture {
         for _ in 0..<6 { root.deleteLastPathComponent() }
         url = root.appendingPathComponent(".verification/runtime-desktop-transport/\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        try Data("SessionRuntimeTransportTests専用。今回のテストで生成。終了時に削除。\n".utf8).write(to: url.appendingPathComponent("ownership.txt"))
+        try Data("SessionRuntimeTransportTests専用。PID: \(ProcessInfo.processInfo.processIdentifier)、実行: \(ProcessInfo.processInfo.arguments.first ?? "test-runner")。出力: \(url.path)。終了時に削除。\n".utf8).write(to: url.appendingPathComponent("ownership.txt"))
     }
     func remove() {
         do { try FileManager.default.removeItem(at: url) }

@@ -88,9 +88,7 @@ private actor RoleHandlerStub {
         #expect(await stub.callCount == 0)
     }
 
-    // MARK: - role 付き spawn の backend 既定（フェーズ4 統合検証のリグレッション。
-    // 討論招集の participant は appServer transcript の観測が前提のため、
-    // role 付き claudeCode spawn は明示指定が無ければ appServer で起動する）
+    // MARK: - role 付き claudeCode spawn は backend 省略時に appServer で起動する
 
     @Test func 役割付きclaudeCodeのspawnはbackend省略時にappServerで起動する() async throws {
         let stub = RoleHandlerStub()

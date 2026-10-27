@@ -64,6 +64,8 @@ final class SuggestionDescriptionScrollView: NSView {
         textLayer.alignmentMode = .left
         textLayer.isWrapped = false
         textLayer.truncationMode = .none
+        // contentsScaleが変わると再描画され、描画時のcontents更新に暗黙のクロスフェードが付く。レイアウト側のdisableActionsでは止められない。
+        textLayer.actions = ["contents": NSNull()]
         layer?.addSublayer(textLayer)
         setAccessibilityElement(false)
     }

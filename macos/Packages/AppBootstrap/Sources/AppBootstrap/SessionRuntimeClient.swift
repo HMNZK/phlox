@@ -15,29 +15,41 @@ public final class SessionRuntimeClient {
     private var lastAppliedSequence: UInt64 = 0
     private var latestSnapshot: SessionRuntimeReceivedSnapshot?
     private var latestReceivedSequence: UInt64 = 0
+    private var supportsControlSkills = false
     private var pendingOperationBytes = 0
     private var pendingOperationCount = 0
     private var pendingUrgentOperationBytes = 0
     private var pendingUrgentOperationCount = 0
+    private let snapshotDecoder: @Sendable (Data) throws -> SessionRuntimeSnapshotEnvelope
     private enum RequestLane: Hashable {
-        case read, command, urgent
-        var maximumActive: Int { switch self { case .read: 2; case .command: 3; case .urgent: 1 } }
-        var maximumQueued: Int { switch self { case .read: 8; case .command: 20; case .urgent: 4 } }
+        case read, snapshot, command, urgent
+        var maximumActive: Int { switch self { case .read, .snapshot: 2; case .command: 3; case .urgent: 1 } }
+        var maximumQueued: Int { switch self { case .read, .snapshot: 8; case .command: 20; case .urgent: 4 } }
     }
     private var activeRequests: [RequestLane: Int] = [:]
     private var requestWaiters: [(id: UUID, lane: RequestLane, continuation: CheckedContinuation<Void, Error>)] = []
 
-    public init(endpoint: SessionRuntimeEndpoint) {
+    public convenience init(endpoint: SessionRuntimeEndpoint) {
+        self.init(endpoint: endpoint) { try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: $0) }
+    }
+
+    init(endpoint: SessionRuntimeEndpoint, snapshotDecoder: @escaping @Sendable (Data) throws -> SessionRuntimeSnapshotEnvelope) {
         self.endpoint = endpoint
+        self.snapshotDecoder = snapshotDecoder
     }
 
     public func handshake() async throws {
         let response = try await read(path: "handshake")
         let handshake = try JSONDecoder().decode(SessionRuntimeHandshake.self, from: response)
+        try acceptHandshake(handshake)
+    }
+
+    func acceptHandshake(_ handshake: SessionRuntimeHandshake) throws {
         guard handshake.protocolVersion == SessionRuntimeEndpoint.protocolVersion else {
             throw SessionRuntimeConnectionError.incompatibleProtocol
         }
         guard handshake.generation == endpoint.generation else { throw SessionRuntimeConnectionError.staleGeneration }
+        supportsControlSkills = handshake.supportsControlSkills == true
     }
 
     public func snapshot() async throws -> DashboardRuntimeSnapshot {
@@ -45,6 +57,15 @@ public final class SessionRuntimeClient {
     }
 
     public func command(_ command: DashboardRuntimeCommand) async throws -> DashboardRuntimeReply {
+        if !supportsControlSkills {
+            switch command {
+            case .message(let request) where request.skill != nil:
+                throw SessionRuntimeConnectionError.incompatibleProtocol
+            case .session(_, _, .sendControlSkill):
+                throw SessionRuntimeConnectionError.incompatibleProtocol
+            default: break
+            }
+        }
         guard pendingOperationCount < 64 else { throw SessionRuntimeConnectionError.busy }
         let payload = try JSONEncoder().encode(command)
         let result = try await perform(payload, path: "command", urgent: command.isRuntimeUrgent)
@@ -75,6 +96,7 @@ public final class SessionRuntimeClient {
     ) {
         disconnect()
         pollingTask = Task { [weak self] in
+            var recoveryDelay = Duration.seconds(1)
             do {
                 while !Task.isCancelled {
                     guard let self else { return }
@@ -82,8 +104,15 @@ public final class SessionRuntimeClient {
                         let envelope = try await self.fetchSnapshot()
                         try Task.checkCancellation()
                         try await self.apply(envelope, using: onSnapshot)
+                        recoveryDelay = .seconds(1)
                     } catch SessionRuntimeConnectionError.busy {
                         try await Task.sleep(for: interval)
+                        continue
+                    } catch let error as URLError where error.code == .timedOut {
+                        try Task.checkCancellation()
+                        onFailure(error)
+                        try await Task.sleep(for: recoveryDelay)
+                        recoveryDelay = min(recoveryDelay * 2, .seconds(8))
                         continue
                     }
                     try await Task.sleep(for: interval)
@@ -105,7 +134,8 @@ public final class SessionRuntimeClient {
         for _ in 0..<3 {
             if let latestSnapshot, !latestSnapshot.isFresh() { self.latestSnapshot = nil }
             let startedAt = ContinuousClock.now
-            let envelope = try await JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: read(path: "snapshot"))
+            let envelope = try await readSnapshot()
+            try Task.checkCancellation()
             let received = SessionRuntimeReceivedSnapshot(envelope: envelope, startedAt: startedAt)
             guard received.isFresh(), envelope.sequence >= latestReceivedSequence else { continue }
             latestReceivedSequence = envelope.sequence
@@ -113,6 +143,33 @@ public final class SessionRuntimeClient {
             return envelope
         }
         throw SessionRuntimeConnectionError.runtimeUnavailable("新しい画面状態を期限内に取得できません。")
+    }
+
+    private func readSnapshot() async throws -> SessionRuntimeSnapshotEnvelope {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while true {
+            do {
+                try await acquireRequest(lane: .snapshot)
+                break
+            } catch SessionRuntimeConnectionError.busy {
+                guard ContinuousClock.now < deadline else { throw SessionRuntimeConnectionError.busy }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        defer { releaseRequest(lane: .snapshot) }
+        let data = try await read(path: "snapshot")
+        let snapshotDecoder = snapshotDecoder
+        let task = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let snapshot = try snapshotDecoder(data)
+            try Task.checkCancellation()
+            return snapshot
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
     private func apply(_ envelope: SessionRuntimeSnapshotEnvelope, using handler: @MainActor (DashboardRuntimeSnapshot) async throws -> Void) async throws {

@@ -1,5 +1,5 @@
 ---
-status: active
+status: archived
 last-verified: 2026-07-11
 extends: 0072
 ---
@@ -8,6 +8,8 @@ extends: 0072
 
 > **このファイルの役割**: n:n エージェント討論の発言制御方式として、ファシリテーター指名制・挙手制を退け「完全自由発言」を選んだ決定・機械的ガードの設計・v1 で受容したトレードオフ。
 > **書かないもの**: 現行のコンポーネント構造・型（→ `architecture/team-timeline-view.md`）、エンジンのイベント/コマンド仕様（→ コード内 doc と `AcceptanceAgoraEngineTests`）。
+
+> **〔2026-10-25 追記〕この機能（チームビュー・アゴラ討論）は 2026-09-24 に削除済み**（記録: `../delivery/0037-ui-redesign-worklog.md` の「P1' チームビュー・Agora 討論・討論設定の削除」）。本文は当時の記録として残す。
 
 ## 文脈
 

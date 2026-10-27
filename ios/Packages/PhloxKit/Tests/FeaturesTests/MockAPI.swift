@@ -3,6 +3,10 @@ import PhloxCore
 
 /// Features の ViewModel テスト用に設定可能な PhloxAPI モック（actor で Sendable）。
 actor MockAPI: PhloxAPI {
+    var skillsOutcome: Result<[AgentSkill]?, PhloxError> = .success(nil)
+    func setSkillsOutcome(_ outcome: Result<[AgentSkill]?, PhloxError>) { skillsOutcome = outcome }
+    func agentSkills(kind: AgentKind, projectID: String?, workspace: String?) async throws -> [AgentSkill]? { try skillsOutcome.get() }
+    func sessionSkills(sessionID: String) async throws -> [AgentSkill]? { try skillsOutcome.get() }
     var sessions: [Session]
     var listSessionsError: PhloxError?
     let approvalsList: [Approval]

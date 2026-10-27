@@ -75,6 +75,29 @@ struct APNsProviderTokenTests {
 
 @Suite("APNs sender")
 struct APNsSenderTests {
+    @Test("push delivery ignores cached APNs responses", arguments: [APNsEnvironment.sandbox, .production], [APNsPushType.alert, .liveactivity])
+    func sendIgnoresCachedResponses(environment: APNsEnvironment, pushType: APNsPushType) async throws {
+        let http = FakeAPNsHTTP(responses: [
+            .init(statusCode: 200, body: Data()),
+        ])
+        let sender = APNsSender(
+            configuration: .test(environment: environment),
+            signer: try makeSigner(environment: environment),
+            http: http
+        )
+
+        _ = try await sender.send(
+            deviceToken: "abcdef0123456789",
+            topic: "com.example.PhloxMobile",
+            collapseID: "session-1:session_completed",
+            payload: Data("{}".utf8),
+            pushType: pushType
+        )
+
+        let request = try #require(await http.requests.first)
+        #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+    }
+
     @Test("send posts to sandbox with required headers and unchanged body")
     func sendUsesSandboxHostHeadersAndBody() async throws {
         let payload = Data(#"{"aps":{"alert":{"title":"t","body":"b"}}}"#.utf8)

@@ -35,8 +35,8 @@ Content-Type: application/json
 - `liveactivity-push-to-start` はアプリ全体の push-to-start token、`liveactivity-update` は Activity ごとの update token。後者は `activityId` と `sessionId` を必須とする。
 
 - **応答**: 成功 = HTTP **200**（body は最小 JSON。iOS はステータスコードだけを成否判定に使うこと）。**401** = Bearer 不正/欠落。**400** = body 不正（JSON でない・必須キー欠落・deviceToken が hex でない）。
-- **冪等 upsert**: 同じ deviceToken の再登録は上書きで常に 200。iOS は「アプリ起動のたび」「APNs からトークン変更を受けたとき」に再登録してよい（すべきである）。
-- **environment**: その deviceToken が APNs の sandbox / production どちらで発行されたか（Debug ビルド = sandbox、TestFlight/App Store = production）。Mac 側はこれで送信先 APNs ホストを切り替える。
+- **冪等 upsert**: 同じ deviceToken の再登録は上書きで常に 200。iOS は通知が有効な起動時と前面復帰時にAPNsへの登録を取り直し、受け取ったトークンを同じ値でもMacへ再送する。Macへの登録成功だけではAPNs側の有効性を保証しない。
+- **environment**: その deviceToken が APNs の sandbox / production どちらで発行されたか。iOSは署名の`aps-environment`を使い、ビルド構成だけでは判定しない。Mac側はこれで送信先APNsホストを切り替える。
 - 登録解除 API は v1 には無い。Mac 側は APNs の `410 Unregistered` 応答で失効トークンを自動削除する。
 
 ## 契約2: push ペイロード（Mac 側が送る・iOS 側が受ける）
@@ -96,7 +96,7 @@ APNs ヘッダは `apns-push-type: liveactivity`、`apns-topic: <bundleId>.push-
 ## iOS 側（Phlox-mobile）への実装依頼
 
 1. **通知権限とリモート通知登録**: `UNUserNotificationCenter` の権限要求＋`registerForRemoteNotifications`。
-2. **デバイストークンの登録送信**: `didRegisterForRemoteNotificationsWithDeviceToken` で hex 化し、契約1の `POST /device-tokens` へ送信（起動時・トークン変更時に再送。失敗時は次回起動/復帰時に再試行でよい）。environment はビルド構成から判定。
+2. **デバイストークンの登録送信**: `didRegisterForRemoteNotificationsWithDeviceToken` で hex 化し、契約1の `POST /device-tokens` へ送信する。通知が有効な起動時と前面復帰時には`registerForRemoteNotifications()`を呼び、同一トークンも再送する。Macへの送信失敗は既存の復帰時再試行を維持する。environmentは埋め込みプロビジョニングプロファイルの`aps-environment`から判定する。
 3. **受信処理**: 通知タップで該当セッション（`phlox.sessionId`）の画面へ遷移し、pull API で再同期。フォアグラウンド受信時はアプリ内で更新（バナー表示は任意）。
 4. **再同期の独立性**: push に依存しない復帰時 pull 再同期を維持（契約2の配信保証なし前提）。
 5. **Apple Developer 情報の共有（Mac 側設定に必要）**: 次の4点を Mac 側へ提供すること——**APNs Auth Key（.p8）・Key ID・Team ID・bundle ID**。Mac 側はこれを設定して送信する（本 run では注入可能な設定として実装し、供給後に有効化）。

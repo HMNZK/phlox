@@ -17,6 +17,8 @@ last-verified: 2026-08-01
 
 | ファイル | status | 内容 |
 |---|---|---|
+| [merge-verification-gates.md](merge-verification-gates.md) | active | dev/verify/main反映前の自動検査、実機記録とビルド入力の照合、シナリオ差分の独立レビュー契約 |
+| [mobile-skill-suggestions.md](mobile-skill-suggestions.md) | active | スマホのスキル候補取得・選択・Codex native送信と互換性 |
 | [ui-feature-inventory.md](ui-feature-inventory.md) | active | macOS アプリの UI 機能の画面別一覧（View を含む 97 ファイルを網羅）（UI 再構築・モック作成の入力。根拠は現行コードの file:line） |
 | [embedded-ios-simulator.md](embedded-ios-simulator.md) | completed | iOS シミュレーターをウィンドウ内の子タブに表示・操作する設計書（実装済み。現行構成は architecture/embedded-ios-simulator.md。方式調査・非公開部品の隔離・許可リスト・テスト計画） |
 | [file-explorer-and-markdown-editing.md](file-explorer-and-markdown-editing.md) | completed | 右サイドバーのファイルツリー・マークダウンのブロック編集・HTML 表示の設計書（実装済み。現行構成は architecture/file-explorer-and-markdown-editing.md。FR/NFR・設計・互換性・テスト計画） |
@@ -25,7 +27,7 @@ last-verified: 2026-08-01
 | `amazon-q-integration.md` | superseded | Amazon Q Developer CLI 統合仕様。ベンダー撤退により撤去済み（2026-06-11） |
 | `custom-agents-json.md` | superseded | ユーザー定義 CLI（JSON）対応。2026-10-12 に廃止（ADR 0185） |
 | `design-system-ios.md` | active | iOS コンパニオンアプリ向けデザインシステム拡張計画（Draft） |
-| `e2e-test-design.md` | active | Phlox E2E テスト設計書（Layer A/B の戦略・シナリオカタログ） |
+| `e2e-test-design.md` | active | fake E2Eの受入意図・シナリオカタログ。旧Layer BのXCUITest案は現行運用外 |
 | `esc-revert-composer-focus.md` | active | esc 巻き戻し後の composer フォーカス復帰とキャレット末尾化の要件・受け入れ基準（決定は ADR 0135） |
 | `gemini-cli-integration.md` | superseded | Gemini CLI 統合仕様。ADR 0041 で削除済み |
 | `goose-integration.md` | superseded | Goose 統合仕様。ADR 0041 で削除済み |

@@ -329,7 +329,7 @@ struct AcceptanceComposerDestinationLabelTests {
 
     // MARK: - 単一・グリッド × 開始前 / 進行中 / 終了後 / 開始不可
 
-    @Test("単一・開始前: conversation は 討論状態に影響されない")
+    @Test("単一・開始前: conversation はプロジェクト名 / タスク名を出す")
     func singleBeforeStartConversationLiteral() {
         #expect(
             ComposerDestinationLabel.text(
@@ -341,7 +341,7 @@ struct AcceptanceComposerDestinationLabelTests {
         )
     }
 
-    @Test("単一・進行中: conversation は 討論への発言 にならない")
+    @Test("単一・進行中: conversation は進行中もプロジェクト名 / タスク名のまま")
     func singleInProgressStillConversation() {
         #expect(
             ComposerDestinationLabel.text(

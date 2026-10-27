@@ -42,7 +42,7 @@ esac
 MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPACT_COMMAND="$MACOS_DIR/scripts/compact-command.sh"
 
-DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature DashboardFeature SimulatorBridgeKit"
+DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature DashboardFeature SimulatorBridgeKit StructuredChatKit CodexAppServerKit ClaudeAgentKit ControlServer"
 
 # ── 直列実行するパッケージ ────────────────────────────────────────────────
 #
@@ -112,11 +112,22 @@ serial_args_for() {  # <package>
 run_swift_test() {
   local pkg="$1"; shift
   local label="$1"; shift
+  local event_args=() event_label
+  case "$label" in
+    全数) event_label=all ;;
+    本体) event_label=main ;;
+    実git) event_label=git ;;
+    絞り込み) event_label=filtered ;;
+  esac
+  if [ -n "${SWIFT_TEST_EVENT_ROOT-}" ]; then
+    mkdir -p "$SWIFT_TEST_EVENT_ROOT" || return 1
+    event_args=(--event-stream-output-path "$SWIFT_TEST_EVENT_ROOT/$pkg-$event_label.jsonl" --event-stream-version 0)
+  fi
   echo "=== swift test --package-path Packages/${pkg} $* [${label}] ==="
   COMPACT_COMMAND_OUTPUT="${SWIFT_TEST_OUTPUT-compact}" \
     COMPACT_COMMAND_SUMMARY_PATTERN='^(✔ Test run with|[[:space:]]*Executed [0-9]+ tests)' \
     "$COMPACT_COMMAND" "${pkg} / ${label}" swift test --configuration "$TEST_CONFIGURATION" --package-path "Packages/$pkg" \
-    ${scratch_args[@]+"${scratch_args[@]}"} "$@"
+    ${scratch_args[@]+"${scratch_args[@]}"} ${event_args[@]+"${event_args[@]}"} "$@"
 }
 
 # SwiftPM は xcassets をコンパイルしないので、DesignSystem のロゴ（Icons.xcassets）を描くテストの

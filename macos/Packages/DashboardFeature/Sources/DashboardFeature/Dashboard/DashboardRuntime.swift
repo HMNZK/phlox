@@ -60,6 +60,8 @@ public enum DashboardRuntimeCommand: Codable, Sendable {
     case launchNewChat(NewChatLaunchRequest)
     case restartNewChat(SessionID)
     case resumeChat(SessionID)
+    /// 画面に表示中のセッション（ADR 0221）。
+    case sessionsViewed([SessionID])
     case addProject(name: String, directoryPath: String)
     case renameProject(ProjectID, String)
     case renameSession(SessionID, String)
@@ -111,6 +113,7 @@ public struct DashboardRuntimeMessageRequest: Codable, Sendable {
     public var from: SessionID?
     public var inReplyTo: UUID?
     public var images: [Image]
+    public var skill: AgentSkillSelection? = nil
 }
 
 public typealias DashboardRuntimeCommandHandler = @MainActor (DashboardRuntimeCommand) async throws -> DashboardRuntimeReply

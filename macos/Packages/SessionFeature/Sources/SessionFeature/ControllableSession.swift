@@ -55,9 +55,12 @@ public protocol ControllableSession: AnyObject {
     func terminate() async
     /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
     func markCompletionSeen()
+    func markCompletionSeen(ifCurrent token: String) async throws -> Bool
 }
 
 public extension ControllableSession {
+    func markCompletionSeen(ifCurrent token: String) async throws -> Bool { false }
+
     var displayStatus: SessionStatus {
         SessionDisplayStatus.resolve(rawStatus: status, isProcessing: isProcessing)
     }
@@ -129,12 +132,30 @@ public enum SessionNode {
     /// 未確認停止を「確認済み」にする（選択・閲覧時に呼ぶ）。
     public func markCompletionSeen() { controllable.markCompletionSeen() }
 
+    public var completionToken: String? {
+        guard hasUnseenCompletion else { return nil }
+        return switch displayStatus {
+        case .idle, .completed(exitCode: 0):
+            switch self {
+            case .pty(let session): "\(session.executionID.uuidString):\(session.completedTurnSeq)"
+            case .appServer(let session): "\(session.executionID.uuidString):\(session.completedTurnSeq)"
+            }
+        default: nil
+        }
+    }
+
+    public func markCompletionSeen(ifCurrent token: String) async throws -> Bool {
+        try await controllable.markCompletionSeen(ifCurrent: token)
+    }
+
     /// 直近の PTY/Chat 出力時刻を委譲で公開する読み取り専用アクセサ（`status` と同型）。
     public var lastOutputAt: Date? { controllable.lastOutputAt }
 
     /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。無応答なら無応答になった時刻。
     public var statusEnteredAt: Date? {
-        controllable.isStalled ? controllable.stalledSince : controllable.statusEnteredAt
+        if case .appServer(let chat) = self, chat.displayStatus == .awaitingUserQuestion,
+           let date = chat.pendingAsyncQuestionDate { return date }
+        return controllable.isStalled && displayStatus == .running ? controllable.stalledSince : controllable.statusEnteredAt
     }
 
     /// 実行中のまま 120 秒反応がない（チャット型のみ）。

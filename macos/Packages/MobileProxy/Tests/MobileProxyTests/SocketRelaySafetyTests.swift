@@ -189,28 +189,22 @@ import Darwin
 
     /// [release: connect 失敗経路] connectLoopback 失敗の早期リターン
     /// (SocketRelay.start: `close(clientFD); onFinished?(); return`)で slot が返ること。
-    /// 未 listen ポートへ向けた上限=1 のプロキシへ連続接続し、毎回 EOF で即 close されること、かつ
+    /// 接続先0へ向けた上限=1 のプロキシへ連続接続し、毎回 EOF で即 close されること、かつ
     /// slot 解放漏れでセマフォが枯渇(→proxy 破棄時に libdispatch が初期値未満 deinit を検出して trap)
     /// しないことを突く。`onFinished?()` を外すと slot が返らず、proxy stop 時に異常終了する。
     @Test func slotReleasedWhenUpstreamConnectFails() async throws {
-        // 「closed-listener」ポートを使う: listen 済みポートを close すると connect は即 ECONNREFUSED に
-        // なる(bind のみだと SYN が捨てられ ~7.8s ブロックするため不可)。プロキシの listen が同番号を
-        // 再取得して自己接続する誤検出を避けるため、**プロキシ start までポートを保持**(listener 稼働)し、
-        // proxy が別ポートを確保した後に close して解放する。
-        let deadListener = try HoldingUpstreamServer()
-        let deadPort = deadListener.port
-
+        // 解放した動的ポートは並列テストに再取得されるため、接続に使えない0で失敗経路を通す。
         let proxy = MobileProxy(
-            listenHost: "127.0.0.1", listenPort: 0, targetPort: deadPort, maxConcurrentRelays: 1
+            listenHost: "127.0.0.1", listenPort: 0, targetPort: 0, maxConcurrentRelays: 1
         )
-        let port = try await proxy.start()   // deadPort は deadListener が保持中 → proxy は別ポートに bind
-        #expect(port != deadPort)
-        deadListener.stop()                  // ここで解放 → 以後 connectLoopback(deadPort) は即 ECONNREFUSED
+        let port = try await proxy.start()
+        #expect(port != 0)
 
         for _ in 0..<3 {
             let c = try PersistentRawClient(port: port)
             let n = c.readOneWithTimeout(ms: 500)
-            #expect(n == 0, "connect 失敗でも slot が返り接続は即 close される(EOF)。got n=\(n)")
+            let readErrno = errno
+            #expect(n == 0, "connect 失敗でも slot が返り接続は即 close される(EOF)。got n=\(n), errno=\(readErrno)")
             c.close()
         }
 

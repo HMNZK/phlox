@@ -189,6 +189,7 @@ struct SidebarSessionRow<Menu: View>: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
 
     private var state: SessionDisplayState { node.tabDisplayState }
+    private var activityState: SessionDisplayState { node.activityDisplayState }
     private var isUnread: Bool { state == .doneUnread }
     private var padding: CGFloat { SidebarRowMetrics.leadingPadding(depth: depth) }
 
@@ -206,8 +207,8 @@ struct SidebarSessionRow<Menu: View>: View {
                     onCancel: onCancelRename
                 )
             } else {
-                if state.showsActivityIndicator {
-                    statusLabel
+                if activityState.showsActivityIndicator {
+                    SessionActivityIndicator(state: activityState)
                         .fixedSize()
                     chevron
                 }
@@ -251,16 +252,16 @@ struct SidebarSessionRow<Menu: View>: View {
         }
         .padding(
             .leading,
-            state.showsActivityIndicator && !isRenaming ? padding - SidebarRowMetrics.firstIndent + 4 : padding
+            activityState.showsActivityIndicator && !isRenaming ? padding - SidebarRowMetrics.firstIndent + 4 : padding
         )
         .padding(.trailing, 8)
         .frame(minHeight: 26)
         .background(alignment: .leading) {
             // スピナーが入る段の線は省き、それより左の先祖のガイドは残す。
-            SidebarGuides(depth: state.showsActivityIndicator && !isRenaming ? max(depth - 1, 0) : depth)
+            SidebarGuides(depth: activityState.showsActivityIndicator && !isRenaming ? max(depth - 1, 0) : depth)
         }
         .overlay(alignment: .leading) {
-            if !state.showsActivityIndicator || isRenaming {
+            if !activityState.showsActivityIndicator || isRenaming {
                 chevron.offset(x: padding - 13)
             }
         }

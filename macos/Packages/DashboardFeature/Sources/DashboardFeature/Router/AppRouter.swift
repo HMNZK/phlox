@@ -64,6 +64,14 @@ public final class AppRouter {
               tabs.layout(for: selectedProjectID).selected == .chat(selectedSession) else { return nil }
         return selectedSession
     }
+    /// 単一表示で画面に出ている会話（ADR 0221 の「表示中」）。左右に分けていれば両側。
+    /// プロジェクトに入っていない会話は選んだものがそのまま出る。
+    func displayedChatSessionIDs(projectOf: (SessionID) -> ProjectID?) -> [SessionID] {
+        guard !showsNewChat, let selectedSession else { return [] }
+        guard let projectID = selectedProjectID ?? projectOf(selectedSession) else { return [selectedSession] }
+        let layout = tabs.layout(for: projectID)
+        return [layout.left, layout.right].compactMap { if case .chat(let id) = $0 { id } else { nil } }
+    }
     public var mainRoute: MainRoute
     /// サイドバーの表示状態。メニュー（⌃⌘S）とビュー内トグルの双方から操作するため
     /// View の @State ではなく共有の Observable に置く。

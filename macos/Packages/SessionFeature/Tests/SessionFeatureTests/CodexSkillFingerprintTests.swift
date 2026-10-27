@@ -18,6 +18,21 @@ struct CodexSkillFingerprintTests {
         #expect(CodexSkillFingerprint.read(skillPath: alternate.path) != before)
     }
 
+    @Test("同じプラグインのスキルはフォルダを1回だけ読み、同じ指紋になる。キャッシュの有無で結果は変わらない")
+    func skillsInOnePluginShareTheCachedFingerprint() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let other = fixture.root.appendingPathComponent("skills/other/SKILL.md")
+        try FileManager.default.createDirectory(at: other.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: fixture.skill, to: other)
+        var cache: [String: String?] = [:]
+        let first = try #require(CodexSkillFingerprint.read(skillPath: fixture.skill.path, cache: &cache))
+        #expect(cache.count == 1)
+        #expect(CodexSkillFingerprint.read(skillPath: other.path, cache: &cache) == first)
+        #expect(cache.count == 1)
+        #expect(CodexSkillFingerprint.read(skillPath: other.path) == first)
+    }
+
     @Test("複数のmanifestでプラグインの範囲が曖昧なら選択を保持しない")
     func ambiguousPluginRootHasNoFingerprint() throws {
         let fixture = try Fixture()

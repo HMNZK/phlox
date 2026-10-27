@@ -323,6 +323,27 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "既存の全体レビューと今回の4ファイルレビューがmainとの差分を包含する。前回targetから今回比較元までの追加はレビュー記録のみ。テスト環境の候補OID隔離を独立1件で検証し、製品guard・既存assertの弱化がないことを確認した。Mac版番号更新、旧build選定解除、実端末identity保持とexecutions空も確認した。6シナリオの手順・期待結果・revision変更は不要。新候補の配布物・feed最終照合と必須実機5件は未完であり、mainリリースゲートの合格を意味しない。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "edaafbf9ec219a331275da23cc621cea07e87021",
+      "diffSHA256": "b8b26abe3f9540ea640397118ef54a98a7a7cf754fd3b8f0df0791f3b6348ddb",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T05:53:50Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の全体レビューが製品・テスト差分を包含し、9978以降は配布文書・records・feedの3ファイルだけであることを確認した。Mac40の来歴・成果物・外部入力・設定・現在のmanifestが共通品質検査のsourceOIDと入力SHAに一致し、feedの版/build/実ZIP URL/サイズも一致する。6シナリオの手順・期待結果・revision変更は不要。正式recordsはMac40のみ、実端末identity1件、executions空。iOS10は中断され正式来歴がなく、ユーザーの既存会話一覧の観測を必須実機5件の合格へ読み替えていない。本判定はコード・シナリオ・メタデータのレビューであり、mainリリースゲートの合格ではない。"
     }
   ]
 }

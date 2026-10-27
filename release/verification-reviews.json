@@ -463,6 +463,17 @@
       "reviewedAt": "2026-10-27T13:19:10Z",
       "scenarioIDs": [],
       "reason": "配布ZIPの署名とサイズ、Mac・iPhoneの版、DMGとZIPの内容一致、公証チケット、日英ノートの本文と見出しを独立に確認した。実機5シナリオは未確認。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "fef0638dba6b209d46cbfa0b01129427530ee88b",
+      "diffSHA256": "1454861ecaffbb21e3b7db02623b2fa72edcad94c41466d0e3ffb970fd249f33",
+      "reviewer": {"kind": "ai", "id": "codex:/root/distribution_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T13:38:46Z",
+      "scenarioIDs": ["fake-session-lifecycle", "physical-session-activity", "physical-history-follow", "physical-activity-presentation", "physical-usage-preferences-refresh", "physical-newchat-worktree-resume"],
+      "reason": "既存の135件の独立レビューとの対応と、変更されたappcastの独立レビューを照合した。135件の再読ではなく、実機5シナリオは未確認。"
     }
   ]
 }

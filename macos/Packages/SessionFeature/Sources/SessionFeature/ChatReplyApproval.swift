@@ -103,6 +103,12 @@ extension ChatSessionViewModel {
     /// 状態も「承認待ち」にそろえる（質問が同時に待っていれば質問待ちのまま）。
     public var displayStatus: SessionStatus {
         let base = SessionDisplayStatus.resolve(rawStatus: status, isProcessing: isProcessing)
+        switch base {
+        case .idle, .running, .completed:
+            if pendingAsyncQuestionDate != nil { return .awaitingUserQuestion }
+        default:
+            break
+        }
         guard base == .awaitingUserQuestion else { return base }
         var permissionPrompt: String?
         for item in transcript.reversed() {
@@ -111,6 +117,13 @@ extension ChatSessionViewModel {
             permissionPrompt = permissionPrompt ?? questions.first?.question
         }
         return permissionPrompt.map { .awaitingApproval(prompt: $0) } ?? base
+    }
+
+    var pendingAsyncQuestionDate: Date? {
+        guard case .userQuestion(_, let requestID, _, _, .pending, let timestamp)? =
+                ChatReplyArea<EmptyView>.pendingQuestionItem(in: transcript),
+              CodexAsyncQuestionID.isAsyncRequest(requestID) else { return nil }
+        return timestamp
     }
 
     static func isToolPermissionQuestion(_ questions: [ChatUserQuestion]) -> Bool {

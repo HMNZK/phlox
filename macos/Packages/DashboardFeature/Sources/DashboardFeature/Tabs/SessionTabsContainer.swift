@@ -254,6 +254,7 @@ struct ChildTabBar: View {
                         isSelected: selected == tab,
                         isDirty: isDirty(tab),
                         activityState: activityState(for: tab),
+                        displayState: displayState(for: tab),
                         onSelect: { router.selectTab(tab, in: project.id) },
                         onClose: { tab.requestClose(in: router) }
                     )
@@ -363,6 +364,11 @@ struct ChildTabBar: View {
 
     private func activityState(for tab: ProjectTab) -> SessionDisplayState {
         guard case .chat(let id) = tab else { return .idle }
+        return viewModel.sessionNode(id: id)?.activityDisplayState ?? .idle
+    }
+
+    private func displayState(for tab: ProjectTab) -> SessionDisplayState {
+        guard case .chat(let id) = tab else { return .idle }
         return viewModel.sessionNode(id: id)?.tabDisplayState ?? .idle
     }
 
@@ -379,6 +385,7 @@ private struct ChildTabButton: View {
     let isSelected: Bool
     let isDirty: Bool
     let activityState: SessionDisplayState
+    let displayState: SessionDisplayState
     let onSelect: () -> Void
     let onClose: () -> Void
 
@@ -412,7 +419,7 @@ private struct ChildTabButton: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(isDirty ? Text("\(title)、未保存") : title)
-        .accessibilityValue(activityState.showsActivityIndicator ? Text(verbatim: activityState.localizedLabel(locale: locale)) : Text(verbatim: ""))
+        .accessibilityValue(displayState.attentionKind != nil || activityState.showsActivityIndicator ? Text(verbatim: displayState.localizedLabel(locale: locale)) : Text(verbatim: ""))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction(.default, onSelect)
         .accessibilityAction(named: Text(closeHelp), onClose)

@@ -569,7 +569,7 @@ public final class DashboardViewModel {
 
     public func requiresAttention(for node: SessionNode) -> Bool {
         SessionAttentionPolicy.requiresAttention(
-            status: node.status,
+            status: node.displayStatus,
             hasUnseenCompletion: node.hasUnseenCompletion
         )
     }
@@ -1039,7 +1039,7 @@ public final class DashboardViewModel {
                     status: node.status,
                     name: node.name,
                     agentRef: node.agentRef,
-                    displayStatus: node.displayStatus
+                    displayStatus: SessionDisplayStatus.resolve(rawStatus: node.status, isProcessing: node.controllable.isProcessing)
                 )
             }
     }

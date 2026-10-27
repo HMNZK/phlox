@@ -21,9 +21,20 @@ struct AsyncQuestionNotificationTests {
             try await wait { vm.transcript.last?.id == "received" }
             #expect(notifications.approvalPendingCalls.count == 2)
             #expect(vm.status == .running)
+            #expect(vm.displayStatus == .awaitingUserQuestion)
+            #expect(vm.showsProcessingIndicator)
             let cards = vm.transcript.filter { if case .userQuestion = $0 { true } else { false } }
             #expect(cards.count == 2)
+            if case .userQuestion(_, _, _, _, _, let timestamp) = cards[0] {
+                #expect(SessionNode.appServer(vm).statusEnteredAt == timestamp)
+            }
             #expect(!vm.transcript.contains { $0.id == "q1" || $0.id == "q2" })
+            let first = try #require(pendingRequestID(vm))
+            #expect(await vm.declineUserQuestion(requestId: first))
+            #expect(vm.displayStatus == .awaitingUserQuestion)
+            if case .userQuestion(_, _, _, _, _, let timestamp) = cards[1] {
+                #expect(SessionNode.appServer(vm).statusEnteredAt == timestamp)
+            }
         }
     }
 
@@ -145,6 +156,7 @@ struct AsyncQuestionNotificationTests {
             #expect(sent["params"]?["expectedTurnId"]?.stringValue == "turn")
             #expect(messageText(sent)?.contains("原因を調査") == true)
             #expect(vm.status == .running)
+            #expect(vm.displayStatus == .running)
             #expect(vm.draft == "編集中の文章")
             #expect(pendingRequestID(vm) == nil)
             #expect(!(await vm.respondToUserQuestion(requestId: requestID, answers: ["question-0": ["重複"]])))
@@ -162,7 +174,9 @@ struct AsyncQuestionNotificationTests {
             try wire.turnCompleted()
             try await wait { vm.status == .idle }
             #expect(pendingRequestID(vm) == requestID)
+            #expect(vm.displayStatus == .awaitingUserQuestion)
             #expect(await vm.respondToUserQuestion(requestId: requestID, answers: ["question-0": ["順番に実行"]]))
+            #expect(vm.displayStatus != .awaitingUserQuestion)
             #expect(wire.requests.filter { $0["method"]?.stringValue == "turn/start" }.count == 1)
             #expect(!wire.requests.contains { $0["method"]?.stringValue == "turn/steer" })
         }
@@ -178,6 +192,7 @@ struct AsyncQuestionNotificationTests {
             let requestID = try #require(pendingRequestID(vm))
             #expect(await vm.declineUserQuestion(requestId: requestID))
             #expect(vm.status == .running)
+            #expect(vm.displayStatus == .running)
             #expect(pendingRequestID(vm) == nil)
             #expect(!wire.requests.contains { $0["method"]?.stringValue == "turn/interrupt" })
         }
@@ -269,10 +284,12 @@ struct AsyncQuestionNotificationTests {
             #expect(!(await vm.respondToUserQuestion(requestId: requestID, answers: ["question-0": ["A"]])))
             #expect(pendingRequestID(vm) == requestID)
             #expect(vm.status == .running)
+            #expect(vm.displayStatus == .awaitingUserQuestion)
             #expect(vm.transcript.contains { if case .error = $0 { true } else { false } })
             wire.rejectsMessages = false
             #expect(await vm.respondToUserQuestion(requestId: requestID, answers: ["question-0": ["A"]]))
             #expect(pendingRequestID(vm) == nil)
+            #expect(vm.displayStatus == .running)
         }
     }
 

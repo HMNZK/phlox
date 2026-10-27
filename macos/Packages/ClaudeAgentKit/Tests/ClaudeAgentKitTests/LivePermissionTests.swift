@@ -81,7 +81,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
 
 @Suite struct LivePermissionTests {
     private func makeClient(_ transport: PermissionTransport) -> ClaudeChatClient {
-        ClaudeChatClient(permissionMode: "bypassPermissions", transportFactory: { _, _, _, _ in transport })
+        ClaudeChatClient(environment: [:], permissionMode: "bypassPermissions", transportFactory: { _, _, _, _ in transport })
     }
 
     @Test func runningTurnChangesPermissionOnlyAfterAcknowledgementWithoutRespawn() async throws {
@@ -219,7 +219,7 @@ private final class PermissionTransportPair: @unchecked Sendable {
     @Test func closingOldPermissionProcessDoesNotInterruptANewConversation() async throws {
         let pair = PermissionTransportPair()
         pair.first.blocksClose = true
-        let client = ClaudeChatClient(permissionMode: "bypassPermissions", transportFactory: { _, _, _, _ in pair.make() })
+        let client = ClaudeChatClient(environment: [:], permissionMode: "bypassPermissions", transportFactory: { _, _, _, _ in pair.make() })
         await client.setPermissionRequestTimeoutForTesting(.milliseconds(100))
         try await client.start()
         try await client.turnStart([.text("old")])

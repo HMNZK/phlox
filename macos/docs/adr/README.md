@@ -12,6 +12,8 @@ last-verified: 2026-10-24
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0221 | [24 時間使われていないチャットのエージェントプロセスを止める](0221-suspend-idle-chat-agent-processes.md) | accepted |
+| 0220 | [エージェントの出力パイプは届いたときだけ読み、読んだ分をすぐ解放する](0220-agent-pipe-reads-release-buffers.md) | accepted |
 | 0218 | [自動整列とカスタム配置を分ける](0218-grid-automatic-layout-and-custom-state.md) | accepted |
 | 0217 | [チャット履歴を最上部での追加スクロールから表示する](0217-transcript-scroll-to-load-history.md) | accepted |
 | 0216 | [入力欄の設定（推論の深さ・権限・Plan）とプロジェクト一覧を Control API に載せる](0216-mobile-composer-settings-and-projects-wire.md) | accepted |
@@ -135,7 +137,7 @@ last-verified: 2026-10-24
 | 0083 | [非フォーカス時 esc の中止到達と、中断後 transport の turnStart 自己修復](0083-chat-esc-interrupt-unfocused-and-transport-respawn.md) | active |
 | 0082 | [空状態カード＋「＋」メニューで agent × mode を明示選択（Pattern A）](0082-agent-mode-launch-cards-and-menu.md) | superseded（→ 0183） |
 | 0081 | [「処理中」判定の単一正本化と interrupt の合流・世代ガード](0081-processing-predicate-unification-and-interrupt-coalescing.md) | active |
-| 0080 | [アゴラ討論を「完全自由発言（idle ゲート付きリレー）」で実装する](0080-agora-free-speech-discussion.md) | active |
+| 0080 | [アゴラ討論を「完全自由発言（idle ゲート付きリレー）」で実装する](0080-agora-free-speech-discussion.md) | archived（機能削除。記録は delivery/0037） |
 | 0079 | [モバイル向け Control API 拡張（interrupt/subagents/usage/images/差分取得）の設計判断](0079-mobile-api-extensions-design.md) | active |
 | 0078 | [チャット composer footer は幅駆動の3段階適応レイアウトにする](0078-composer-adaptive-footer-layout.md) | active |
 | 0077 | [サブエージェント transcript のストリーミング断片を itemId で結合する](0077-subagent-transcript-fragment-merge.md) | active |
@@ -143,7 +145,7 @@ last-verified: 2026-10-24
 | 0075 | [サーバー→モバイルの通知経路として APNs を採用する](0075-adopt-apns-for-mobile-notifications.md) | active |
 | 0074 | [モバイル遠隔操作は Tailscale 前提の pull 型 ControlServer API として扱う](0074-mobile-remote-control-design.md) | active |
 | 0073 | [前面オーバーレイ UI は「実測高からの余白予約」で本文と重ねない](0073-overlay-inset-by-measured-height.md) | active |
-| 0072 | [チーム表示を「アゴラ」に改称し、ツリー埋め込みを廃してフラットグループチャットにする](0072-agora-flat-group-chat.md) | active |
+| 0072 | [チーム表示を「アゴラ」に改称し、ツリー埋め込みを廃してフラットグループチャットにする](0072-agora-flat-group-chat.md) | archived（機能削除。記録は delivery/0037） |
 | 0071 | [新規セッションの既定をチャット（appServer）にし、設定で選択可能にする](0071-default-session-backend-chat.md) | superseded（→ 0183） |
 | 0070 | [エージェントビュー（チーム表示）をグループチャット＋ツリー埋め込みへ再設計する](0070-agent-view-group-chat.md) | superseded (→0072) |
 | 0069 | [ブランチ picker は present-after-load 状態機械で提示し、提示中の popover 内容変更を構造的に禁止する](0069-branch-picker-present-after-load.md) | active |

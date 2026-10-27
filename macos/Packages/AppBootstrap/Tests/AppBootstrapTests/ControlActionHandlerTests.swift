@@ -15,6 +15,31 @@ import SessionFeature
     private final class DashboardStub: ControlActionDashboard {
         var controlSessionSummaries: [ControlSessionSummary] = []
         var sendOutcome: DashboardViewModel.SendOutcome = .sent
+        var mobileSkillsResult: Result<[AgentSkill]?, any Error> = .success(nil)
+        var mobileAgentSkills: [AgentSkill]?
+        var receivedMobileSkill: AgentSkillSelection?
+        var receivedMobileSkillSessionID: SessionID?
+        var receivedMobileSkillProjectID: ProjectID?
+        var receivedMobileSkillWorkspace: String?
+        var receivedMobileSkillSender: SessionID?
+        var receivedMobileSkillImages: [ControlImageAttachment] = []
+
+        func sessionSkills(for id: SessionID) async throws -> [AgentSkill]? {
+            receivedMobileSkillSessionID = id
+            return try mobileSkillsResult.get()
+        }
+        func agentSkills(kind: AgentKind, projectID: ProjectID?, workspace: String?) async -> [AgentSkill]? {
+            receivedMobileSkillProjectID = projectID
+            receivedMobileSkillWorkspace = workspace
+            return mobileAgentSkills
+        }
+        func sendMessageWithSkill(to recipient: Recipient, text: String, submit: Bool, from: SessionID?,
+            inReplyTo: UUID?, images: [ControlImageAttachment], skill: AgentSkillSelection?) async -> DashboardViewModel.SendOutcome {
+            receivedMobileSkill = skill
+            receivedMobileSkillSender = from
+            receivedMobileSkillImages = images
+            return sendOutcome
+        }
         var spawnResult: Result<SessionID, any Error> = .success(SessionID())
         var isAuthorized = true
         var removeExisted = true
@@ -94,6 +119,50 @@ import SessionFeature
         func sessionSubAgents(for id: SessionID) -> [SubAgentControlSummary]? { nil }
         func sessionSubAgentMessages(for id: SessionID, subAgentID: String) -> [ChatItem]? { nil }
         func sessionUsage(for id: SessionID) -> ControlSessionUsage? { nil }
+    }
+
+    @Test func mobileSessionSkillsReturnCatalogNotFoundAndUnavailable() async throws {
+        let dashboard = DashboardStub()
+        let handler = makeHandler(dashboard)
+        let id = SessionID()
+        let skill = AgentSkill(name: "review", description: "Review project", path: "/skills/review/SKILL.md", runtimeFingerprint: "hash")
+        dashboard.mobileSkillsResult = .success([skill])
+        let success = await handler.handle(request(.sessionSkills(id: id)))
+        #expect(success.statusCode == 200)
+        struct Skills: Decodable { let skills: [AgentSkill] }
+        #expect(try JSONDecoder().decode(Skills.self, from: success.body).skills == [skill])
+        #expect(dashboard.receivedMobileSkillSessionID == id)
+        dashboard.mobileSkillsResult = .success(nil)
+        #expect(await handler.handle(request(.sessionSkills(id: id))).statusCode == 404)
+        dashboard.mobileSkillsResult = .failure(NSError(domain: "mobile-test", code: 1))
+        #expect(await handler.handle(request(.sessionSkills(id: id))).statusCode == 503)
+    }
+
+    @Test func mobileAgentSkillsForwardProjectAndWorkspace() async throws {
+        let dashboard = DashboardStub()
+        let handler = makeHandler(dashboard)
+        let projectID = ProjectID()
+        dashboard.mobileAgentSkills = []
+        #expect(await handler.handle(request(.agentSkills(kind: .codex, projectID: projectID, workspace: "demo"))).statusCode == 200)
+        #expect(dashboard.receivedMobileSkillProjectID == projectID)
+        #expect(dashboard.receivedMobileSkillWorkspace == "demo")
+        dashboard.mobileAgentSkills = nil
+        #expect(await handler.handle(request(.agentSkills(kind: .codex, projectID: projectID, workspace: nil))).statusCode == 404)
+    }
+
+    @Test func mobileSkillSendPreservesSelectionImagesAndRequester() async {
+        let dashboard = DashboardStub()
+        let skill = AgentSkillSelection(name: "review", path: "/skills/review/SKILL.md", runtimeFingerprint: "hash")
+        let images = [ControlImageAttachment(mediaType: "image/png", data: Data([1, 2]))]
+        let sender = SessionID()
+        let request = ControlRequest(requester: sender, action: .sendTextWithSkill(to: .id(SessionID()),
+            text: "$review inspect", submit: true, inReplyTo: nil, images: images, skill: skill))
+        #expect(await makeHandler(dashboard).handle(request).statusCode == 200)
+        #expect(dashboard.receivedMobileSkill == skill)
+        #expect(dashboard.receivedMobileSkillSender == sender)
+        #expect(dashboard.receivedMobileSkillImages == images)
+        dashboard.sendOutcome = .rejected(reason: "skill changed")
+        #expect(await makeHandler(dashboard).handle(request).statusCode == 400)
     }
 
     private func makeHandler(_ dashboard: DashboardStub?) -> ControlActionHandler {

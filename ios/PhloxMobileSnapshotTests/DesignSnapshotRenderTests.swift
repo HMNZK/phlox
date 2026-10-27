@@ -54,6 +54,16 @@ struct DesignSnapshotRenderTests {
         #expect(model.inputText == text + "続き")
     }
 
+    @Test func accessibilityHintLocatorFindsOnlyTheMatchingControl() {
+        let window = UIWindow(frame: .zero)
+        let matching = UIButton()
+        matching.accessibilityHint = UsageRingPresentation.rowAccessibilityHint
+        let unrelated = UIButton()
+        unrelated.accessibilityHint = "別の操作"
+        window.accessibilityElements = [unrelated, matching]
+        #expect(snapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint) === matching)
+    }
+
     @Test func renderDesignSnapshots() async throws {
         let variables = ProcessInfo.processInfo.environment
         guard variables["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
@@ -81,6 +91,8 @@ struct DesignSnapshotRenderTests {
         let animations = UIView.areAnimationsEnabled
         let preferences = UserDefaults.standard
         let previousTheme = preferences.object(forKey: ThemeStore.themeKey)
+        let previousUsageStyle = preferences.object(forKey: UsageBarStyle.defaultsKey)
+        preferences.set(UsageBarStyle.bar.rawValue, forKey: UsageBarStyle.defaultsKey)
         UIView.setAnimationsEnabled(false)
         defer {
             UIView.setAnimationsEnabled(animations)
@@ -90,6 +102,11 @@ struct DesignSnapshotRenderTests {
                 preferences.removeObject(forKey: ThemeStore.themeKey)
             }
             DSNavigationChrome.installUIKitAppearanceIfNeeded()
+            if let previousUsageStyle {
+                preferences.set(previousUsageStyle, forKey: UsageBarStyle.defaultsKey)
+            } else {
+                preferences.removeObject(forKey: UsageBarStyle.defaultsKey)
+            }
         }
 
         if let selectedScreenScenes {
@@ -108,6 +125,7 @@ struct DesignSnapshotRenderTests {
             return
         }
         if selectedInputScenes == nil {
+        try await renderParityNewChatSnapshots(output: output)
         try await renderGlanceSnapshots(output: output, osSuffix: osSuffix)
         try await renderPairSettingsSnapshots(output: output, osSuffix: osSuffix)
 
@@ -554,6 +572,7 @@ struct DesignSnapshotRenderTests {
             .init(name: "ReplyAttachErrTotal", text: "ログの画面 [Image #1] [Image #2] [Image #3]", attachmentCount: 3,
                   attachmentError: "画像は合計80MBまでです"),
             .init(name: "UsageNormal"),
+            .init(name: "UsagePercent"),
             .init(name: "UsageLow", usageStyle: .low),
             .init(name: "UsageNa", usageStyle: .unavailable),
             .init(name: "UsageStale", usageState: .failed),
@@ -593,6 +612,8 @@ struct DesignSnapshotRenderTests {
         defer { inputList.stop() }
         for scenario in inputScenarios {
             guard selectedInputScenes?.contains(scenario.name) ?? true else { continue }
+            preferences.set((scenario.name == "UsagePercent" ? UsageBarStyle.percent : .bar).rawValue,
+                            forKey: UsageBarStyle.defaultsKey)
             let themeID = AppearancePreference.system.themeID(systemColorScheme: scenario.dark ? .dark : .light)
             preferences.set(themeID, forKey: ThemeStore.themeKey)
             DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
@@ -723,7 +744,7 @@ struct DesignSnapshotRenderTests {
                     prepareWindow: { window in
                         if scenario.usageState == .failed {
                             try #require(!usageViewModel.shouldShowRow)
-                            try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button") == nil,
+                            try #require(snapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint) == nil,
                                          "Failed usage must not leave a visible or accessible row")
                         }
                         if ["UsageStaleDT", "UsageStaleDTSE"].contains(scenario.name) {
@@ -735,7 +756,7 @@ struct DesignSnapshotRenderTests {
                             if variables["PHLOX_SNAPSHOT_EXTERNAL_USAGE_ACTIVATION"] == "1" {
                                 try await waitForExternalUsageActivation(window: window, output: output, sceneName: scenario.name)
                             } else {
-                                let button = try await waitForSnapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button")
+                                let button = try await waitForSnapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint)
                                 try #require(button.accessibilityActivate(), "Usage row did not activate")
                             }
                             let deadline = ContinuousClock.now + .seconds(3)
@@ -924,6 +945,11 @@ struct DesignSnapshotRenderTests {
             return try evidence.validatedLabels(for: request, now: 1_002)
         }
         let labels = try parse([:])
+        var modernRequest = request
+        modernRequest.phase = "awaitingCUA"
+        let modernData = try JSONSerialization.data(withJSONObject: payload.merging(["phase": "reviewed"]) { _, new in new })
+        let modernEvidence = try JSONDecoder().decode(SnapshotExternalAXEvidence.self, from: modernData)
+        #expect(try modernEvidence.validatedLabels(for: modernRequest, now: 1_002) == labels)
         try SnapshotExternalAXEvidence.validateUsageLayout(labels: labels, isAccessibilitySize: true)
         let invalidProofs: [[String: Any]] = [
             ["rawAXTree": ""], ["nonce": "old-run"], ["scene": "ReplyDT"], ["pid": 43],
@@ -1942,6 +1968,67 @@ struct DesignSnapshotRenderTests {
         }
     }
 
+    private func renderParityNewChatSnapshots(output: URL) async throws {
+        for name in ["ParityWorkspace", "ParityStartPoint", "ParityHistory", "ParityResumeAX5"] {
+            let suiteName = "Phlox.ParitySnapshot.\(UUID().uuidString)"
+            let defaults = try #require(UserDefaults(suiteName: suiteName))
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            let api = NewChatSnapshotAPI()
+            let model = NewChatViewModel(api: api, entryProject: SessionComposeDraft(project: "Phlox"),
+                                         settingsStore: NewChatSettingsStore(defaults: defaults))
+            await model.load()
+            model.selectProject(id: "project-phlox")
+            await model.loadLaunchOptions()
+            model.usesWorktree = true
+            let ax5 = name.hasSuffix("AX5")
+            let dark = name == "ParityHistory"
+            let themeID = AppearancePreference.system.themeID(systemColorScheme: dark ? .dark : .light)
+            UserDefaults.standard.set(themeID, forKey: ThemeStore.themeKey)
+            DSNavigationChrome.installUIKitAppearanceIfNeeded(for: themeID)
+            let size = CGSize(width: ax5 ? 375 : 428, height: ax5 ? 667 : 926)
+            let content = NavigationStack {
+                NewChatView(viewModel: model, fixedGreeting: "何から始めますか？", focusOnAppear: false, onCreated: { _, _ in })
+            }
+            .environment(\.dynamicTypeSize, ax5 ? .accessibility5 : .large)
+            .environment(\.locale, Locale(identifier: "ja_JP"))
+            .environment(\.colorScheme, dark ? .dark : .light)
+            let image = try await windowImage(content, size: size,
+                safeArea: UIEdgeInsets(top: 47, left: 0, bottom: 34, right: 0), scale: 2, dark: dark,
+                scenarioID: name, settleDelay: .milliseconds(200), prepareWindow: { window in
+                    await model.loadLaunchOptions()
+                    model.usesWorktree = true
+                    await Task.yield()
+                    window.layoutIfNeeded()
+                    if name == "ParityResumeAX5" {
+                        let entry: NewChatHistoryEntry = try #require(model.historyEntries.first)
+                        model.selectHistory(entry)
+                        await Task.yield()
+                        window.layoutIfNeeded()
+                        try #require(snapshotAccessibilityElement(in: window, label: "選んだ履歴から再開") != nil)
+                    } else {
+                        // SwiftUIの公開AXノードは識別子を返さないため、読み上げラベルで操作する。
+                        let label = name == "ParityStartPoint" ? "開始地点: 今の位置（HEAD）"
+                            : name == "ParityHistory" ? "履歴から再開" : "作業場所"
+                        let element = snapshotAccessibilityElement(in: window, label: label)
+                        if element == nil {
+                            let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                                _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                            }
+                            try image.pngData()?.write(to: output.appendingPathComponent("\(name)-failure.png"))
+                            print("parity scene=\(name) project=\(model.selectedProjectID ?? "nil") points=\(model.startPoints.count) error=\(model.launchOptionsError ?? "nil")")
+                        }
+                        let control = try #require(element, "Parity control must be reachable: \(label)")
+                        if name == "ParityStartPoint" || name == "ParityHistory" {
+                            try #require(control.accessibilityActivate(), "Parity sheet must open from its real button")
+                            try await Task.sleep(for: .milliseconds(250))
+                            try #require(window.rootViewController?.presentedViewController != nil)
+                        }
+                    }
+                })
+            try writeSnapshot(image, name: "\(name).png", to: output, expectedSize: size, expectedScale: 2)
+        }
+    }
+
     private func outputDirectory(variables: [String: String]) throws -> URL {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -2230,7 +2317,7 @@ struct DesignSnapshotRenderTests {
             let show = try #require(snapshotAccessibilityElement(in: window, label: "表示"))
             let usageLabel = UsageRingPresentation.accessibilityLabel(agents: usageViewModel.presentationAgents,
                 isRefreshing: usageViewModel.isRefreshing, isStale: usageViewModel.isStale, asOf: usageViewModel.asOfDate)
-            let usage = try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button")
+            let usage = try #require(snapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint)
                 ?? snapshotAccessibilityElement(in: window, label: usageLabel))
             @MainActor
             func measuredFrame(_ object: NSObject) -> CGRect {
@@ -2577,7 +2664,7 @@ struct DesignSnapshotRenderTests {
                 if usageViewModel.shouldShowRow {
                     let rowLabel = UsageRingPresentation.accessibilityLabel(agents: usageViewModel.presentationAgents,
                         isRefreshing: usageViewModel.isRefreshing, isStale: usageViewModel.isStale, asOf: usageViewModel.asOfDate)
-                    let row = try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button")
+                    let row = try #require(snapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint)
                         ?? snapshotAccessibilityElement(in: window, label: rowLabel))
                     usageElement = row
                     requiredElements.append(row)
@@ -2593,7 +2680,7 @@ struct DesignSnapshotRenderTests {
                                  "The actual Usage row must retain its same-VM AX5 natural height")
                     try #require(!rowRect.intersects(inputRect) && !rowRect.intersects(frame(send)), "Usage must not overlap input or send")
                 } else {
-                    try #require(snapshotAccessibilityElement(in: window, identifier: "UsageRingRow.button") == nil,
+                    try #require(snapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint) == nil,
                                  "No accessible usage button may remain when no valid bucket is available")
                 }
             }
@@ -2704,7 +2791,7 @@ struct DesignSnapshotRenderTests {
         try #require(observer.isStable, "Expanded ListMany geometry did not remain stable for a disclosure-duration interval")
     }
 
-    private func windowImage<Content: View>(
+    func windowImage<Content: View>(
         _ content: Content,
         size: CGSize,
         safeArea: UIEdgeInsets,
@@ -2798,11 +2885,21 @@ struct DesignSnapshotRenderTests {
 
     private func waitForExternalUsageActivation(window: UIWindow, output: URL, sceneName: String, requiresPopover: Bool = true) async throws {
         let readyURL = output.appendingPathComponent("\(sceneName)-external-ready.json")
+        let variables = ProcessInfo.processInfo.environment
+        let nonce = UUID().uuidString
+        let ackURL = output.appendingPathComponent("\(sceneName)-\(nonce)-ack.json")
+        let windowTitle = try #require(variables["PHLOX_SNAPSHOT_EXTERNAL_AX_WINDOW_TITLE"] ?? variables["SIMULATOR_DEVICE_NAME"])
+        let requestedAt = Date().timeIntervalSince1970
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let udid = try #require(variables["SIMULATOR_UDID"])
         func writePhase(_ phase: String) throws {
             let payload: [String: Any] = [
                 "scene": sceneName, "phase": phase,
-                "pid": ProcessInfo.processInfo.processIdentifier,
-                "udid": ProcessInfo.processInfo.environment["SIMULATOR_UDID"] ?? "unknown",
+                "step": sceneName, "nonce": nonce, "pid": pid, "udid": udid,
+                "windowTitle": windowTitle, "requestedAt": requestedAt,
+                "ackFile": ackURL.path, "proofFile": ackURL.path,
+                "nativeContentSizeCategory": window.traitCollection.preferredContentSizeCategory.rawValue,
+                "instruction": requiresPopover ? "使用量の詳細ボタンを開き、枠・残量・リセットの表示をAXで確認する" : "思考の強さと権限のメニューを開く",
                 "window": [window.bounds.origin.x, window.bounds.origin.y, window.bounds.width, window.bounds.height],
                 "screen": [window.screen.bounds.origin.x, window.screen.bounds.origin.y, window.screen.bounds.width, window.screen.bounds.height],
                 "sceneActivation": window.windowScene?.activationState.rawValue ?? -1,
@@ -2814,17 +2911,25 @@ struct DesignSnapshotRenderTests {
                 .write(to: readyURL, options: .atomic)
             FileHandle.standardError.write(Data("external usage \(phase): \(readyURL.path)\n".utf8))
         }
-        try writePhase("awaitingTap")
+        try writePhase("awaitingCUA")
         do {
             func isPresented() -> Bool {
                 requiresPopover ? snapshotHasPresentedPopover(window.rootViewController) : snapshotHasPresentedController(window.rootViewController)
             }
             let deadline = ContinuousClock.now + .seconds(60)
-            while !isPresented(), ContinuousClock.now < deadline {
+            while !FileManager.default.fileExists(atPath: ackURL.path), ContinuousClock.now < deadline {
                 try await Task.sleep(for: .milliseconds(100))
             }
+            try #require(FileManager.default.fileExists(atPath: ackURL.path), "Fresh external AX acknowledgement was not provided")
+            let reply = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: ackURL)) as? [String: Any])
+            try #require(reply["nonce"] as? String == nonce && reply["scene"] as? String == sceneName && reply["step"] as? String == sceneName)
+            try #require((reply["pid"] as? NSNumber)?.int32Value == pid && reply["udid"] as? String == udid && reply["windowTitle"] as? String == windowTitle)
+            try #require(reply["phase"] as? String == "reviewed" && reply["confirmed"] as? Bool == true)
+            let capturedAt = try #require(reply["capturedAt"] as? Double)
+            try #require(capturedAt >= requestedAt && capturedAt <= Date().timeIntervalSince1970 + 5)
+            let tree = try #require(reply["rawAXTree"] as? String)
+            try #require(tree.contains("Window: \"\(windowTitle)\", App: Simulator."))
             try #require(isPresented(), "External tap did not present the real interface: \(sceneName)")
-            try writePhase("presented")
         } catch {
             try writePhase("failed")
             throw error
@@ -2832,53 +2937,23 @@ struct DesignSnapshotRenderTests {
     }
 
     private func waitForExternalPopoverAXEvidence(window: UIWindow, output: URL, sceneName: String) async throws -> Set<String> {
-        let variables = ProcessInfo.processInfo.environment
-        let windowTitle = try #require(variables["PHLOX_SNAPSHOT_EXTERNAL_AX_WINDOW_TITLE"] ?? variables["SIMULATOR_DEVICE_NAME"])
-        let nonce = UUID().uuidString
-        let proofURL = output.appendingPathComponent("\(sceneName)-\(nonce)-external-ax.json")
         let readyURL = output.appendingPathComponent("\(sceneName)-external-ready.json")
-        var request = SnapshotExternalAXRequest(
-            nonce: nonce, scene: sceneName, phase: "awaitingAXProof",
-            pid: ProcessInfo.processInfo.processIdentifier,
-            udid: try #require(variables["SIMULATOR_UDID"]), windowTitle: windowTitle,
-            requestedAt: Date().timeIntervalSince1970,
-            nativeContentSizeCategory: window.traitCollection.preferredContentSizeCategory.rawValue,
-            proofFile: proofURL.path
-        )
-        func writeRequest() throws {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try encoder.encode(request).write(to: readyURL, options: .atomic)
-            print("external usage \(request.phase): \(readyURL.path)")
-        }
-        try writeRequest()
-        do {
-            let deadline = ContinuousClock.now + .seconds(60)
-            while !FileManager.default.fileExists(atPath: proofURL.path), ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(100))
-            }
-            try #require(FileManager.default.fileExists(atPath: proofURL.path), "Fresh external popover AX evidence was not provided")
-            let evidence = try JSONDecoder().decode(SnapshotExternalAXEvidence.self, from: Data(contentsOf: proofURL))
-            let labels = try evidence.validatedLabels(for: request, now: Date().timeIntervalSince1970)
-            try #require(snapshotHasPresentedPopover(window.rootViewController), "Popover closed before AX evidence was validated")
-            request.phase = "validatedAXProof"
-            try writeRequest()
-            return labels
-        } catch {
-            request.phase = "failedAXProof"
-            try writeRequest()
-            throw error
-        }
+        let request = try JSONDecoder().decode(SnapshotExternalAXRequest.self, from: Data(contentsOf: readyURL))
+        let evidence = try JSONDecoder().decode(SnapshotExternalAXEvidence.self,
+            from: Data(contentsOf: URL(fileURLWithPath: request.proofFile)))
+        let labels = try evidence.validatedLabels(for: request, now: Date().timeIntervalSince1970)
+        try #require(snapshotHasPresentedPopover(window.rootViewController), "Popover closed before AX evidence was validated")
+        return labels
     }
 
-    private func waitForSnapshotAccessibilityElement(in window: UIWindow, identifier: String) async throws -> NSObject {
+    func waitForSnapshotAccessibilityElement(in window: UIWindow, identifier: String? = nil, label: String? = nil, hint: String? = nil) async throws -> NSObject {
         let deadline = ContinuousClock.now + .seconds(3)
         repeat {
-            if let element = snapshotAccessibilityElement(in: window, identifier: identifier) { return element }
+            if let element = snapshotAccessibilityElement(in: window, identifier: identifier, label: label, hint: hint) { return element }
             try await Task.sleep(for: .milliseconds(50))
         } while ContinuousClock.now < deadline
         snapshotAccessibilityDiagnostics(window)
-        return try #require(snapshotAccessibilityElement(in: window, identifier: identifier), "AX element did not appear: \(identifier)")
+        return try #require(snapshotAccessibilityElement(in: window, identifier: identifier, label: label, hint: hint), "AX element did not appear: \(identifier ?? label ?? hint ?? "nil")")
     }
 
     private func snapshotAccessibilityDiagnostics(_ window: UIWindow) {
@@ -2951,7 +3026,7 @@ struct DesignSnapshotRenderTests {
     }
 
     private func snapshotAccessibilityElement(
-        in window: UIWindow, identifier: String? = nil, label: String? = nil
+        in window: UIWindow, identifier: String? = nil, label: String? = nil, hint: String? = nil
     ) -> NSObject? {
         var visited: Set<ObjectIdentifier> = []
         func search(_ object: NSObject) -> NSObject? {
@@ -2959,6 +3034,7 @@ struct DesignSnapshotRenderTests {
             if let identifier,
                (object as? UIAccessibilityIdentification)?.accessibilityIdentifier == identifier { return object }
             if let label, object.accessibilityLabel == label { return object }
+            if let hint, object.accessibilityHint == hint { return object }
             if let children = object.accessibilityElements {
                 for child in children {
                     if let child = child as? NSObject, let found = search(child) { return found }
@@ -3151,7 +3227,8 @@ private struct SnapshotExternalAXEvidence: Codable {
     let rawAXTree: String
 
     func validatedLabels(for request: SnapshotExternalAXRequest, now: TimeInterval) throws -> Set<String> {
-        guard nonce == request.nonce, scene == request.scene, phase == "presentedAX",
+        let expectedPhase = request.phase == "awaitingCUA" ? "reviewed" : "presentedAX"
+        guard nonce == request.nonce, scene == request.scene, phase == expectedPhase,
               pid == request.pid, udid == request.udid else {
             throw SnapshotExternalAXValidationError.wrongIdentity
         }
@@ -3615,6 +3692,17 @@ private struct NewChatSnapshotAPI: PhloxAPI {
             ProjectSummary(id: "project-landing-page", name: "landing-page"),
             ProjectSummary(id: "project-dotfiles", name: "dotfiles"),
         ]
+    }
+
+    func projectStartPoints(projectID: String, commit: String?) async throws -> [NewChatStartPoint] {
+        [NewChatStartPoint(kind: .head, title: "今の位置（HEAD）"),
+         NewChatStartPoint(kind: .localBranch, value: "dev", title: "dev"),
+         NewChatStartPoint(kind: .tag, value: "v1.13.0", title: "v1.13.0")]
+    }
+
+    func projectHistory(projectID: String, kind: AgentKind) async throws -> [NewChatHistoryEntry] {
+        [NewChatHistoryEntry(id: "parity-history", title: "セッション状態と表示を揃える作業",
+                             updatedAt: Date(timeIntervalSince1970: 1_792_300_000), branch: "dev", workingDirectory: nil)]
     }
 
     func cliUsage() async throws -> [CLIUsage] {

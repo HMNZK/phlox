@@ -6,15 +6,18 @@ import DesignSystem
 public struct DSSessionNavigationChrome<Menu: View>: ViewModifier {
     private let title: String
     private let subtitle: Text?
+    private let displayState: SessionDisplayState?
     private let menu: Menu
 
     public init(
         title: String,
         subtitle: Text?,
+        displayState: SessionDisplayState? = nil,
         @ViewBuilder menu: () -> Menu
     ) {
         self.title = title
         self.subtitle = subtitle
+        self.displayState = displayState
         self.menu = menu()
     }
 
@@ -39,13 +42,20 @@ public struct DSSessionNavigationChrome<Menu: View>: ViewModifier {
                             .foregroundStyle(IOSColor.text.primary)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                        if let subtitle {
-                            subtitle
-                                .font(DSFont.sessionDetailSubtitle)
-                                // ナビの副題だけ拡大を抑え、本文の Dynamic Type は維持する。
-                                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
+                        if subtitle != nil || displayState?.showsActivityIndicator == true {
+                            HStack(spacing: DSSpacing.xs) {
+                                if let displayState, displayState.showsActivityIndicator {
+                                    SessionActivityIndicator(state: displayState)
+                                }
+                                if let subtitle {
+                                    subtitle
+                                        .font(DSFont.sessionDetailSubtitle)
+                                        // ナビの副題だけ拡大を抑え、本文の Dynamic Type は維持する。
+                                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                }
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .center)

@@ -6,8 +6,10 @@ last-verified: 2026-10-12
 # Phlox E2E テスト設計書
 
 - 作成日: 2026-06-11
-- ステータス: Layer A 実装完了（WP-E1〜E4 完了、2026-06-11 マージ済み。`E2EFakeAgentSmokeTests` / `E2ESessionLifecycleTests` / `E2EControlServerTests` / `E2EPersistenceTests` が green。件数は腐敗しやすいため明記せず、実行コマンド（§5.1）で都度確認する）。Layer B（WP-E5〜E7）と S10 の codex スモークは未実施
+- ステータス: Layer A の実装資産あり。2026-10-25にdev `90a0c801`のテスト定義を静的確認したが、今回の実行成功は未確認。過去のgreenは現在の候補の合格を意味しない。Layer Bは旧XCUITest計画であり、実行禁止。S10の実CLIスモークは必須fake集合に含めない
 - 対象: Phlox macOS アプリの主要シナリオ E2E テスト
+
+統合前の必須検査・実機記録・シナリオ変更レビューの正本は [merge-verification-gates.md](merge-verification-gates.md)。同書の開始OIDで13関数を必須fake集合とし、外部CLI不要の`E2ERealPTYTests.realPTY_deterministic_inputEchoThenSilenceReachesIdleCompletion`を含む。以下のシナリオは受入意図を示す設計で、実行済みの証拠ではない。XCUITestは入力ソースを追加し得るため使わず、画面の確認は単体描画・AX/イベント操作・実機観測を区別する。
 
 ## 1. 目的とスコープ
 
@@ -26,7 +28,7 @@ last-verified: 2026-10-12
 | 層 | 名称 | 基盤 | 起動対象 | 実行時間目標 | 本数目安 |
 |---|---|---|---|---|---|
 | **Layer A** | ヘッドレス E2E | `swift test`（Swift Testing、`PHLOX_E2E=1` ゲート） | 実 PTYManager + 実 HookServer/ControlServer + フェイクエージェントCLI。GUI なし | 1本 < 10秒 | 10〜15本 |
-| **Layer B** | GUI E2E | XCUITest（新規 `PhloxUITests` ターゲット） | アプリ本体（Debug ビルド）を実起動 | 1本 < 60秒 | 4〜6本 |
+| **Layer B（旧計画）** | GUI E2E | XCUITest（実行禁止、導入計画は現行運用外） | 旧アプリ操作案 | — | — |
 
 **割当の原則**: 「状態遷移・永続化・サーバAPI・PTY 入出力」は Layer A で検証する。Layer B は「GUI の配線（画面に出る・押せる・遷移する）」だけを検証し、ロジックの正しさは Layer A に委ねる。同じアサーションを両層に重複して置かない。
 
@@ -34,17 +36,17 @@ last-verified: 2026-10-12
 - 既存の `RealPTYIntegrationTests`（`PHLOX_E2E=1` ゲート、`Packages/DashboardFeature/Tests/DashboardFeatureTests/RealPTYIntegrationTests.swift`）は Layer A の先行事例。本設計はこれを拡張する形をとる
 - ユニットテスト（Mock 注入）で既に検証済みの分岐（レート制限の境界値、パーサ等）は E2E で再検証しない。E2E は各シナリオ1ハッピーパス＋代表的異常系1つまで
 
-## 3. 前提改修（テスタビリティ向上）
+## 3. 旧Layer Bの前提改修（履歴）
 
-E2E 実装前に必要な改修。**特に Layer B はこの改修なしでは本番データを破壊するため着手禁止**。
+以下は策定時の改修案・調査記録で、現在の実装状況や実行指示ではない。Layer BのXCUITest案は実行しない。現在の分離方法は [Release/Debug併存ガイド](../guides/running-release-and-debug-together.md)、現行の必須集合・入口は [統合前検証契約](merge-verification-gates.md)を参照する。
 
 ### T1. データディレクトリの差し替え（必須・Layer B 前提）
-- 現状: `App/CompositionRoot.swift:243-266` が `~/Library/Application Support/Phlox` 固定
+- 策定当時の記述（現行状況の主張ではない）: `App/CompositionRoot.swift:243-266` が `~/Library/Application Support/Phlox` 固定
 - 改修: 環境変数 `PHLOX_DATA_DIR`（または launch argument `-PhloxDataDir <path>`）が設定されていればそれを使う。`phloxAppSupportURL()` の1箇所変更で済む想定
 - 効果: E2E は一時ディレクトリで完結し、本番 `sessions.json` / `ports.json` / SQLite を汚さない
 
 ### T2. UserDefaults suite の差し替え（必須・Layer B 前提）
-- 現状: `BypassSettings` 等が `UserDefaults.standard` 直接参照（`Packages/DashboardFeature/Sources/DashboardFeature/Environment/BypassSettings.swift:18-33`）。さらに `@AppStorage(ThemeStore.themeKey)` が DesignSystem 4箇所 + DashboardFeature の View に10箇所以上散在しており、全面差し替えは規模が大きい
+- 策定当時の記述（現行状況の主張ではない）: `BypassSettings` 等が `UserDefaults.standard` 直接参照（`Packages/DashboardFeature/Sources/DashboardFeature/Environment/BypassSettings.swift:18-33`）。さらに `@AppStorage(ThemeStore.themeKey)` が DesignSystem 4箇所 + DashboardFeature の View に10箇所以上散在しており、全面差し替えは規模が大きい
 - 改修方針: **動作に影響する設定（Bypass・通知・Usage）のみ** `PHLOX_DEFAULTS_SUITE` 指定時に `UserDefaults(suiteName:)` へ切り替える。テーマ・言語等の表示系 `@AppStorage` は差し替え対象外とし、E2E は表示系設定を変更した場合にテスト終了時へ元値復元する運用で汚染を許容範囲に抑える（S8 はこの前提で設計）
 - 効果: 設定系シナリオ（S9〜S10）が本番の動作系 Preferences を汚さず、テスト間で独立する
 
@@ -58,12 +60,12 @@ E2E 実装前に必要な改修。**特に Layer B はこの改修なしでは�
 - **注入経路は層で異なる（重要）**:
   - **Layer A**: テストが `SessionViewModel.SpawnRequest`（command/args/env）を直接組み立てるため、registry を使わない。フック検証が必要なテストはテスト側で実 `HookServer` を起動し、その URL を `FAKE_AGENT_HOOK_URL` として env に注入する（既存 `realPTY_deterministic_*` の発展形）
   - **Layer B**: 組込みハーネス（Claude Code）の実行ファイルの場所を、環境変数 `PHLOX_TEST_AGENT_BINARY_PATHS`（JSON。例 `{"claudeCode":"/path/to/fake-agent.sh"}`。`PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1` のときだけ有効。読む側は `AppBootstrap/BinaryPathResolver.swift` の `testBinaryOverrides`、設定する側は `UITests/IsolatedPhloxApplication.swift`）でフェイクCLI に差し替える。カスタムエージェント（`agents.json`・`PHLOX_AGENTS_JSON`）は 2026-10-12 に廃止された（ADR 0185）ので使わない。組込みの Claude Code には `AgentLaunchPlanner` が `CLAUDE_HOOKS_URL` を注入する（`Spawn/AgentLaunchPlanner.swift`）。フェイクCLI の出力と、組込みハーネスの会話の読み取り方との整合は、Layer B の実装時に確かめる（未検証）
-- 実 CLI を使うテストは既存方針どおり「PATH に存在しなければ自動スキップ」（`realGoose_*` と同形式）
+- 実CLI依存のopt-inテストは必須fake集合とは別扱い。未実行/skipを実行成功として数えない
 - フェイクCLI 自体の正しさは WP-E1 の最初に「直接 spawn して ready 出力とエコーを確認するスモーク1本」で保証する
 - **トレードオフ**: フェイクCLI では実 CLI のプロトコル変更（起動引数・出力形式の変化）を検出できない。この乖離リスクは S10（実CLIスモーク、オプトイン）で補う
 
 ### T4. accessibilityIdentifier の付与（必須・Layer B 前提）
-- 策定時（2026-07）の現状: `.accessibilityIdentifier` はゼロ（`.accessibilityLabel` が DesignSystem に3箇所のみ）。今は新規チャット画面・タブ列・設定などに付いている
+- 策定時（2026-07）の記述: `.accessibilityIdentifier` はゼロ（`.accessibilityLabel` が DesignSystem に3箇所のみ）。次の2026-10-12の調査はその後の状態であり、現在の全数確認ではない
 - 2026-10-12 時点でコードに実在するのは次の表の `tabs.item.add`・`newChat.composer`・`newChat.sendButton` だけ（ほかは付与の予定。タブ列には `tabs.project.<n>`・`tabs.project.add`・`tabs.item.<n>`・`tabs.overflow` もある）:
 - 改修: Layer B のシナリオが触る要素に限定して付与する（全画面網羅はしない）:
 
@@ -108,7 +110,7 @@ E2E 実装前に必要な改修。**特に Layer B はこの改修なしでは�
 - 異常系 A-1b: フック env なしのフェイクCLI で idle fallback により ready 検知できる（既存 `realPTY_deterministic_*` の発展）
 - 異常系 A-1c: `--exit-after 0`（即死 CLI）でセッションがエラー/終了状態になり、テストプロセス全体は無事
 
-**Layer B**（XCUITest）
+**Layer B**（旧XCUITest操作案、実行禁止）
 - Given: `PHLOX_DATA_DIR`=一時dir、フェイクCLI registry 配置済み、アプリ起動
 - When: `session.newButton` をクリック → `session.inputField` に "hello" を入力 → `session.sendButton`
 - Then: サイドバーに新セッション行が現れ、`phlox read`（T6①）の取得結果に `ECHO: hello` が含まれる
@@ -174,66 +176,63 @@ E2E 実装前に必要な改修。**特に Layer B はこの改修なしでは�
 
 ### S10. 実 CLI スモーク（P2、Layer A、オプトイン）
 
-- 既存 `realGoose_*` 方式の踏襲: 実 claude / codex が PATH にあるときだけ、spawn → ready → 1メッセージ → stop 検知を1本ずつ
+- 実claude/codex等のプロトコル互換性を別途明示確認する。PATHや認証が必要な実CLI依存検査は、外部依存不要の必須fake集合と分ける
 - CI 既定では走らせない（ローカル・リリース前の手動実行用）
 
-### シナリオ × 層 マトリクス
+### シナリオ × 層 マトリクス（受入意図）
 
-| # | シナリオ | P | Layer A | Layer B |
+各欄は対象とする検証で、合格実績ではない。旧Layer Bの操作意図を残すが、XCUITestは起動しない。実際に検査する関数・判定範囲は必須集合とコードで照合する。
+
+| # | シナリオ | P | Layer A | 旧Layer B案 |
 |---|---|---|---|---|
-| S1 | spawn→ready→send→echo | P0 | ✅ 3本（正常+no-hooks+即死） | ✅ 1本 |
-| S2 | 再起動復元 | P0 | ✅ 2本（正常+破損JSON） | ✅ 1本 |
-| S3 | 削除とプロセス終了 | P0 | ✅ 1本 | — |
-| S4 | 外部 phlox CLI | P0 | ✅ 2本（正常+認証異常） | — |
-| S5 | API spawn と親子 | P0 | ✅ 2本 | — |
-| S6 | プロジェクト管理 | P1 | ✅ 1本 | — |
-| S7 | グリッド切替 | P1 | — | ✅ 1本 |
-| S8 | テーマ設定 | P1 | — | ✅ 1本 |
-| S9 | Bypass 設定 | P1 | ✅ 1本 | ✅ 1本 |
-| S10 | 実CLIスモーク | P2 | ✅ 2本（オプトイン） | — |
-| 計 | | | 14本 | 5本 |
+| S1 | spawn→ready→send→echo | P0 | fake・決定論的PTY | 生成・送受信 |
+| S2 | 再起動復元 | P0 | Store/ViewModelの復元 | アプリ再起動 |
+| S3 | 削除とプロセス終了 | P0 | プロセス終了 | — |
+| S4 | 外部 phlox CLI | P0 | list/send/read・認証異常 | — |
+| S5 | API spawn と親子 | P0 | 親子生成・終了 | — |
+| S6 | プロジェクト管理 | P1 | 永続化・配置 | — |
+| S7 | グリッド切替 | P1 | — | 表示切替 |
+| S8 | テーマ設定 | P1 | — | 設定保存 |
+| S9 | Bypass 設定 | P1 | 設定選択 | トグル操作 |
+| S10 | 実CLIスモーク | P2 | opt-in（必須fake集合の外） | — |
 
 ## 5. 実行環境・運用設計
 
-### 5.1 実行コマンド
+### 5.1 実行入口
 
-```bash
-# Layer A（ローカル・CI 共通。フェイクCLIのみで完結）
-# スイート命名規約: スイート表示名は @Suite("E2E <領域>")、構造体型名も E2E プレフィックス
-# （--filter は表示名ではなく型名・関数名にマッチするため）
-# --no-parallel 必須: 実 PTY の settle 窓(400ms)がテスト並列実行の CPU 競合で
-# 破られ flaky になるため、E2E は直列で実行する
-PHLOX_E2E=1 swift test --package-path Packages/DashboardFeature --filter E2E --no-parallel
+dev/verify/mainへの反映前に`macos/scripts/verification-gate.py quality`から、文書保守後の同じ候補でmacOS全19パッケージを既存標準入口へ明示して検査し、iOS lint/単体/build、指定した13関数のfake E2Eも実行する。新パッケージの検査漏れと親環境による対象/並行性の変更も検出する。入口は [統合前検証契約](merge-verification-gates.md)で合意した接続先であり、本書により実装済み・実行成功とは主張しない。CLI引数とJSONの正本は実装コードとし、同書の監査基準OIDとは区別する。
 
-# Layer B（要ビルド。CLAUDE.md の規約どおり頻度を絞る）
-xcodebuild -project Phlox.xcodeproj -scheme Phlox \
-  -configuration Debug -derivedDataPath /tmp/PhloxBuild \
-  test -only-testing:PhloxUITests
-```
+fake E2Eは関数IDを明示して`--no-parallel`で実行し、`PHLOX_E2E=1`はその子プロセスだけに渡す。広い`--filter E2E`や通常検査全体への一括exportは実CLI依存テストまで選び得るため使わない。テストは`~/.agents/scripts/compact-test`、ビルドを伴う検査は`managed-build`に従う。exit 0だけでなく必須IDごとの実行・成功を確認し、0件・必須skip・検査不能は非0とする。
+
+通常検査の既存opt-in skipは未実行として別記する。known issueは`GitHistoryWorkflowTests.GTWRegression_改名前の名前を再利用しても利用順を混同しない`のADR 0209だけを未解決として別記でき、成功件数に含めない。未知のknown issueと、fake必須13関数のknown issue/skipは非0。個別ID・生ログ・結果JSONは共通マージ時に`$GITFLOW_VERIFICATION_DIR`のcandidate外へ保存し、外側のログ要約やcandidate削除で失わない。
+
+シナリオ鮮度はビルド入力と、対象AC行・操作・期待結果の内容を別々に照合する。対応表の独立レビューには明示`decision`を保存し、対象差分の最新`pass`だけを受理する。実機の初期対応表にはiOS統一のAC-8（Usage設定/60秒更新）・AC-9（worktree/起点/Claude-Codex再開）も含める。qualityのテストコマンド成功と、その後のイベント解析を含むゲート全体の成功は別であり、現在の未解決事項は[統合前検証契約](merge-verification-gates.md)を参照する。
 
 ### 5.2 隔離と安全（CLAUDE.md の制約への対応）
 
 | 制約 | 対応 |
 |---|---|
-| ポート競合 | ポートは `preferredPort: 0` で動的割当（CompositionRoot.swift:29,66。CLAUDE.md の「57398/57399 固定」記述はコード実態より古い）。データdir 分離により `ports.json` も分離されるため本番との並走が可能。**手動起動での並走無害は 2026-07-28 に実測済み**（Debug 版と Release 版を約15分並走させ、Release 側のセッションに影響が無いことを確認。手順は [guides/running-release-and-debug-together.md](../guides/running-release-and-debug-together.md)、記録は [delivery/0023](../delivery/0023-esc-restore-composer-focus-worklog.md)）。**Layer B（XCUITest ハーネス経由）での並走は未確認**のため、そちらは既存インスタンスを終了する暫定ルールを維持する（確認は WP-E5 の完了条件に残す） |
-| 本番データ汚染 | T1/T2 で一時ディレクトリ・専用 suite に完全分離。テスト終了時に削除 |
-| リリース版破壊 | Layer B は `/tmp/PhloxBuild` の Debug 版のみ起動。`/Applications/Phlox.app` に触れない |
+| ポート競合 | テストのサーバーは動的割当。手動アプリの併存は [ガイド](../guides/running-release-and-debug-together.md)に従い、通常Releaseや他作業のDebugを終了させない |
+| 本番データ汚染 | 専用データ・設定・出力先へ分離。作業が作成したことを確認できる不要物だけ片付ける |
+| 検証成果物 | worktreeの`.verification/<作業名>/`にまとめ、所有・PIDを記録する。既存キャッシュや他作業の成果物を削除しない |
 
 ### 5.3 Flaky 対策（設計ルール）
 
-1. **sleep 禁止**: 待機はすべて「フック受信イベント」「`waitForExistence(timeout:)`」「`phlox wait --sentinel`」のいずれかで行う
-2. **タイムアウト統一**: Layer A = 10秒、Layer B = 30秒を既定とし、定数で一元管理
-3. **テスト間独立**: 1テスト = 1一時データディレクトリ。共有状態なし。Layer A の Suite は `.serialized` 不要な設計を保つ（ポート動的割当のため並列可）
+1. **条件で待つ**: フック・状態・出力の成立を期限付きで確認する。固定待ちだけを合格の根拠にしない
+2. **タイムアウト**: テストにある有限の期限を維持し、期限切れは失敗として残す
+3. **テスト間独立**: 一意のデータ・ポートを使い、必須fake集合はCPU競合を避けて直列実行する
 4. **フェイクCLI の決定性**: 出力は固定文字列のみ。時刻・乱数を含めない
-5. **quarantine 運用**: flaky 化したテストは `.disabled("理由", .bug("issue"))` で即隔離し Issue 化
+5. **失敗を隠さない**: flakyでもskip/disabledや期待値緩和で通さず、根本原因を確認する。解決できない場合は理由を報告して判断を戻す
 
 ### 5.4 CI への組み込み
 
-- PR ごと: 既存ユニット + Layer A（フェイクCLI のみなので外部依存ゼロ）
-- main マージ後 or 日次: Layer B（ビルドが重いため）
-- S10（実CLI）は CI 対象外
+- dev/verify/main反映前: 既存品質入口に接続した必須自動検査を実行する。mainは実機記録の照合も必要
+- S10（実CLI）・人操作/ACK待ちは自動ゲートから一括起動せず、必要に応じて別途明示実行する
+- XCUITestは実行しない。ローカルゲートを設けても、サーバー側の必須チェックや保護が設定済みとは扱わない
 
-## 6. 実装フェーズ分割
+## 6. 旧実装フェーズ分割（履歴）
+
+以下は策定当時の計画。特にWP-E5〜E7のXCUITest導入・実行案は現行運用外で、実装指示ではない。
 
 | WP | 内容 | 依存 | 規模感 |
 |---|---|---|---|
@@ -246,11 +245,11 @@ xcodebuild -project Phlox.xcodeproj -scheme Phlox \
 | WP-E7 | Layer B: S7, S8, S9-B + CI 組み込み | WP-E6 | 中 |
 | WP-E8 | S10 実CLIスモーク（オプトイン） | WP-E2 | 小 |
 
-WP-E1〜E4（Layer A）はアプリ本体の改修がほぼ不要で先行着手できる。WP-E5〜E7（Layer B）は本体改修を含むため、実装前に Codex レビューを挟む。
+現在の品質・実機記録の変更は [統合前検証契約](merge-verification-gates.md)に従う。
 
 ## 7. リスクと未確定事項
 
 1. **SwiftTerm 領域の検証手段**（T6）: `phlox read` 経由で足りるかは実装時に検証が必要。不足時は accessibilityValue 追加（本体改修）に発展する
-2. **XCUITest の権限**: 実行マシンに Automation 権限付与が必要。CI ランナー（セルフホスト想定）での事前設定手順を WP-E7 で文書化する
+2. **画面確認の不足**: XCUITestは実行禁止。単体描画、AX/イベント操作、実機の操作・観測は検証範囲が異なり、互いの成功を代用しない
 3. **（解決済み・T3 に反映）** Layer A は SpawnRequest 直接組み立てで registry 不要。Layer B は `PHLOX_TEST_AGENT_BINARY_PATHS` で組込みハーネスの実行ファイルを差し替える（カスタムエージェントは廃止。ADR 0185）
 4. **ports.json の共有**: 本番とテストでデータdir を分けることで ports.json も分離されるが、`scripts/phlox` が参照する API URL の解決経路をテスト側で正しく注入できるか WP-E3 で確認する

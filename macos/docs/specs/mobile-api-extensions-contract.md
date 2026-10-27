@@ -116,3 +116,12 @@ func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -
 - **サーバー側 run（Phlox / feature/mobile-api-extensions）**: 上記 1〜6 の wire 挙動を AppBootstrapTests / ControlServerTests の既存ハーネス流儀で受け入れテスト化し green にする
 - **モバイル側 run（Phlox-mobile / feature/chat-parity-review-fixes）**: 上記 JSON をフィクスチャに URLProtocol スタブで PhloxAPIClient の各メソッドをテストし green にする
 - **統合（フェーズ4）**: 両ブランチを突き合わせ、実サーバーに対する実機/シミュレータ疎通で確認する
+
+## 2026-10-25: Macとの統一に伴う追加契約
+
+- `GET /projects/{id}/start-points?commit=…` は登録済みプロジェクトの `startPoints` 配列を返す。各要素は `{kind,value?,title,summary?}`。kind は `head/localBranch/remoteBranch/tag/commit`。commit検索は省略可能。
+- `GET /projects/{id}/history?kind=claudeCode|codex` は再開可能な `entries` 配列を返す。各要素は `{id,title,updatedAt,branch?,workingDirectory?}`。履歴ファイルのURLは公開しない。既に開かれている履歴を除外する。
+- `POST /sessions` に省略可能な `usesWorktree:Bool`、`startPoint:{kind,value?}`、`resumeHistoryID:String` を追加。通常起動の既存bodyは有効。無効な起点・他プロジェクト／エージェントの履歴を拒否し、既存の起動制限・親子判定を保つ。履歴復元後、iOSは初回メッセージを追加送信しない。
+- `GET /sessions` に省略可能な `completionToken:String` を追加。実行IDと正常完了の連番から生成し、次の完了や再起動で別tokenにする。
+- `POST /sessions/{id}/completion-seen` は `{completionToken:String}` を受け取り、tokenが一致する完了だけを確認済みにする。不在404、競合409、成功204。runtimeへ委譲する場合も最終適用時に一致を確認する。
+- 上記は既存と同じBearer認証下に置く。古いMacの未対応応答を成功扱いにしない。詳細要件と受入条件は iOS の `session-activity-parity.md` を参照。

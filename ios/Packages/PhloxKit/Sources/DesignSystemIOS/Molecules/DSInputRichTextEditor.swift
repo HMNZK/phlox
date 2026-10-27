@@ -9,14 +9,32 @@ struct DSInputRichTextEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var cursorUTF16: Int
     @Binding var isFocused: Bool
+    @Binding var hasMarkedText: Bool
     let dynamicTypeSize: DynamicTypeSize
     let accessibilityLabel: String
+    let submission: Submission
+    let submissionRevision: Int
+
+    @MainActor
+    @Observable
+    final class Submission {
+        @ObservationIgnored weak var view: UITextView?
+        var composingText: String?
+        var revision = 0
+
+        func commit() {
+            guard let view, let coordinator = view.delegate as? Coordinator else { return }
+            coordinator.commitNativeState(from: view)
+            revision &+= 1
+        }
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView()
         view.delegate = context.coordinator
+        submission.view = view
         view.backgroundColor = .clear
         view.textContainerInset = .zero
         view.textContainer.lineFragmentPadding = 0
@@ -38,6 +56,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
         coordinator.parent = self
         view.accessibilityLabel = accessibilityLabel
         view.tintColor = UIColor(IOSColor.accent)
+        coordinator.updateMarkedText(in: view)
 
         // IME の未確定文字列は UITextInput の所有物。属性・本文・選択を触らない。
         guard view.markedTextRange == nil else { return }
@@ -124,6 +143,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
         var parent: DSInputRichTextEditor
         let delivery = DSInputSelectionDelivery()
         let focusDelivery = DSInputSelectionDelivery()
+        let markedTextDelivery = DSInputSelectionDelivery()
         var lastExternalText = ""
         var lastExternalCursor = -1
         var pendingNativeText: String?
@@ -151,22 +171,54 @@ struct DSInputRichTextEditor: UIViewRepresentable {
 
         func textViewDidChangeSelection(_ textView: UITextView) { publishNativeState(from: textView) }
 
+        @discardableResult
+        func updateMarkedText(in view: UITextView) -> Task<Void, Never>? {
+            markedTextDelivery.invalidate()
+            let marked = view.markedTextRange != nil && !view.text.isEmpty
+            guard parent.hasMarkedText != marked else { return nil }
+            // 未確定の本文は公開せず、placeholder に必要な変換状態だけを渡す。
+            return markedTextDelivery.enqueue(isCurrent: { [weak view] in
+                guard let view else { return false }
+                return (view.markedTextRange != nil && !view.text.isEmpty) == marked
+            }) { [weak self] in
+                self?.parent.hasMarkedText = marked
+            }
+        }
+
+        func commitNativeState(from view: UITextView) {
+            view.unmarkText()
+            // 確定に伴う遅延通知で、送信受付後のクリアを巻き戻さない。
+            delivery.invalidate()
+            markedTextDelivery.invalidate()
+            parent.hasMarkedText = false
+            parent.submission.composingText = nil
+            applyNativeState(text: view.text ?? "", cursor: view.selectedRange.location)
+        }
+
+        private func applyNativeState(text: String, cursor: Int) {
+            if parent.text != text { parent.text = text }
+            if parent.cursorUTF16 != cursor { parent.cursorUTF16 = cursor }
+            lastExternalText = text
+            lastExternalCursor = cursor
+            pendingNativeText = nil
+        }
+
         private func publishNativeState(from view: UITextView) {
-            guard !isApplying, view.markedTextRange == nil else { return }
+            guard !isApplying else { return }
+            updateMarkedText(in: view)
             let capturedText = view.text ?? ""
             let capturedCursor = view.selectedRange.location
-            pendingNativeText = capturedText
+            let isComposing = view.markedTextRange != nil
+            if !isComposing { pendingNativeText = capturedText }
             delivery.enqueue(isCurrent: { [weak view] in
                 guard let view else { return false }
-                return view.markedTextRange == nil && view.text == capturedText
+                return (view.markedTextRange != nil) == isComposing && view.text == capturedText
                     && view.selectedRange.location == capturedCursor
             }) { [weak self] in
                 guard let self else { return }
-                if parent.text != capturedText { parent.text = capturedText }
-                if parent.cursorUTF16 != capturedCursor { parent.cursorUTF16 = capturedCursor }
-                lastExternalText = capturedText
-                lastExternalCursor = capturedCursor
-                pendingNativeText = nil
+                parent.submission.composingText = isComposing ? capturedText : nil
+                guard !isComposing else { return }
+                applyNativeState(text: capturedText, cursor: capturedCursor)
             }
         }
 

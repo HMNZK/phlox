@@ -279,12 +279,18 @@ public struct DSInputBar: View {
     let onSelectProjectID: ((String) -> Void)?
     let focusOnAppear: Bool
     let focusRequest: Int
+    let skills: [AgentSkill]
+    let skillsLoading: Bool
+    let skillsError: String?
+    let onSelectSkill: ((AgentSkill) -> Void)?
     let onSubmit: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if os(iOS)
     @State private var isFocused = false
+    @State private var hasMarkedText = false
+    @State private var editorSubmission = DSInputRichTextEditor.Submission()
     #else
     @FocusState private var isFocused: Bool
     #endif
@@ -322,6 +328,10 @@ public struct DSInputBar: View {
         onSelectProjectID: ((String) -> Void)? = nil,
         focusOnAppear: Bool = false,
         focusRequest: Int = 0,
+        skills: [AgentSkill] = [],
+        skillsLoading: Bool = false,
+        skillsError: String? = nil,
+        onSelectSkill: ((AgentSkill) -> Void)? = nil,
         onSubmit: @escaping () -> Void
     ) {
         self._text = text
@@ -349,6 +359,10 @@ public struct DSInputBar: View {
         self.onSelectProjectID = onSelectProjectID
         self.focusOnAppear = focusOnAppear
         self.focusRequest = focusRequest
+        self.skills = skills
+        self.skillsLoading = skillsLoading
+        self.skillsError = skillsError
+        self.onSelectSkill = onSelectSkill
         self.onSubmit = onSubmit
     }
 
@@ -365,8 +379,16 @@ public struct DSInputBar: View {
         )
     }
 
+    private var actionText: String {
+        #if os(iOS)
+        editorSubmission.composingText ?? text
+        #else
+        text
+        #endif
+    }
+
     private var actionState: DSInputBarActionState {
-        Self.actionState(text: text, isLoading: isLoading, isRunning: isRunning)
+        Self.actionState(text: actionText, isLoading: isLoading, isRunning: isRunning)
     }
 
     private var layout: DSInputBarLayout {
@@ -379,7 +401,7 @@ public struct DSInputBar: View {
             effortName: showsEffortChip ? currentEffortName : nil,
             permissionName: showsPermissionChip ? currentPermissionName : nil,
             isStrongPermission: isStrongPermissionSelected,
-            hasText: !text.isEmpty,
+            hasText: !actionText.isEmpty,
             isRunning: isRunning,
             hasProject: mode == .newChat && (projectName != nil || onSelectProject != nil || onSelectProjectID != nil),
             projectName: projectName
@@ -418,6 +440,7 @@ public struct DSInputBar: View {
     public var body: some View {
         observeWidth(
             VStack(alignment: .leading, spacing: DSSpacing.chip) {
+                skillSuggestions
                 if let contextLabel, !contextLabel.isEmpty {
                     Label(contextLabel, systemImage: "arrow.triangle.branch")
                         .font(DSFont.inputBar(.caption, for: dynamicTypeSize))
@@ -492,6 +515,59 @@ public struct DSInputBar: View {
     }
 
     @ViewBuilder
+    private var skillSuggestions: some View {
+        if let query = SkillSuggestionQuery.detect(text: text, cursorUTF16: cursorUTF16) {
+            if skillsLoading {
+                ProgressView("スキルを取得中")
+                    .font(DSFont.inputBar(.caption, for: dynamicTypeSize))
+                    .padding(.horizontal, DSSpacing.m)
+            } else if let skillsError {
+                errorLine(skillsError)
+            } else {
+                let matches = skills.filter(query.matches)
+                if !matches.isEmpty {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(matches) { skill in
+                                Button {
+                                    let result = query.inserting(skill, into: text, agent: model?.kind ?? .claudeCode)
+                                    text = result.text
+                                    cursorUTF16 = result.cursorUTF16
+                                    onSelectSkill?(skill)
+                                    isFocused = true
+                                } label: {
+                                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                                        Text("/" + skill.name).font(DSFont.inputBar(.textField, for: dynamicTypeSize).weight(.semibold))
+                                        if !skill.description.isEmpty {
+                                            Text(skill.description)
+                                                .font(DSFont.inputBar(.caption, for: dynamicTypeSize))
+                                                .foregroundStyle(DSColor.textSecondary)
+                                                .lineLimit(2)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .padding(.horizontal, DSSpacing.m)
+                                    .padding(.vertical, DSSpacing.xs)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("/" + skill.name)
+                                .accessibilityHint(skill.description)
+                                .accessibilityIdentifier("skill-suggestion-" + skill.name)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 200)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .glassSurface(.inputField)
+                    .padding(.horizontal, 12)
+                    .accessibilityLabel("スキル候補")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private func observeWidth<Content: View>(_ content: Content) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
             content.onGeometryChange(for: CGFloat.self) { proxy in
@@ -546,10 +622,15 @@ public struct DSInputBar: View {
 
     @ViewBuilder
     private var inputTextField: some View {
-        let usesExpandedPlaceholder = dynamicTypeSize.isAccessibilitySize && text.isEmpty
+        #if os(iOS)
+        let isEmpty = text.isEmpty && !hasMarkedText
+        #else
+        let isEmpty = text.isEmpty
+        #endif
+        let usesExpandedPlaceholder = dynamicTypeSize.isAccessibilitySize && isEmpty
         let minimumTextLineCount = usesExpandedPlaceholder ? expandedPlaceholderMinimumLineCount : 1
         ZStack(alignment: usesExpandedPlaceholder ? .topLeading : .leading) {
-            if text.isEmpty {
+            if isEmpty {
                 placeholderText
                     .font(DSFont.inputBar(.textField, for: dynamicTypeSize))
                     .onGeometryChange(for: CGFloat.self) { proxy in
@@ -580,8 +661,12 @@ public struct DSInputBar: View {
                 text: $text,
                 cursorUTF16: $cursorUTF16,
                 isFocused: $isFocused,
+                hasMarkedText: $hasMarkedText,
                 dynamicTypeSize: dynamicTypeSize,
-                accessibilityLabel: placeholder
+                accessibilityLabel: placeholder,
+                submission: editorSubmission,
+                // 本文が同じ描画周期で「空→確定→空」へ戻っても UIKit を更新する。
+                submissionRevision: editorSubmission.revision
             )
             .frame(minHeight: usesExpandedPlaceholder ? placeholderNaturalHeight : 0)
         #else
@@ -1180,7 +1265,11 @@ public struct DSInputBar: View {
     }
 
     private func submit() {
-        guard actionState.sendIsEnabled else { return }
+        guard !isLoading else { return }
+        #if os(iOS)
+        editorSubmission.commit()
+        #endif
+        guard Self.canSubmit(text: text, isLoading: isLoading) else { return }
         onSubmit()
     }
 

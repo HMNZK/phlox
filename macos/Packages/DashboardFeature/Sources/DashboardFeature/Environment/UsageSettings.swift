@@ -1,5 +1,6 @@
 import Foundation
 import AgentDomain
+import DesignSystem
 
 /// CLI 使用量モニタに関する設定の単一の真実源。
 /// App 層の @AppStorage と UsageMonitor の双方が同じキーを参照する。
@@ -10,12 +11,8 @@ public enum UsageSettings {
     public static let showUnavailableKey = "phlox.usage.showUnavailable"
     public static let showInHeaderKey = "phlox.usage.showInHeader"
     /// 画面下部のバーで各枠の残りを横棒か数値（%）で出すか（既定は横棒）。
-    public static let bottomBarStyleKey = "phlox.usage.bottomBarStyle"
-
-    public enum BottomBarStyle: String, CaseIterable, Sendable {
-        case bar
-        case percent
-    }
+    public static let bottomBarStyleKey = UsageBarStyle.defaultsKey
+    public typealias BottomBarStyle = UsageBarStyle
 
     public static var defaultsDictionary: [String: Any] {
         [

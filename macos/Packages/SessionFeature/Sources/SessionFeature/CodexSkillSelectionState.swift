@@ -188,8 +188,9 @@ public final class CodexSkillSelectionState {
 
     func makeRuntimeSnapshot() -> SessionRuntimeSkillSnapshot {
         if runtimeRefresh == nil, runtimeFingerprintGeneration != generation {
+            var cache: [String: String?] = [:]
             runtimeFingerprints = Dictionary(skills.compactMap { skill in
-                CodexSkillFingerprint.read(skillPath: skill.path).map { (skill.path, $0) }
+                CodexSkillFingerprint.read(skillPath: skill.path, cache: &cache).map { (skill.path, $0) }
             }, uniquingKeysWith: { first, _ in first })
             runtimeFingerprintGeneration = generation
         }
@@ -251,12 +252,25 @@ public final class CodexSkillSelectionState {
         }
         guard canSendSelectedSkill else { return nil }
 
-        let body = Self.removingDisplayToken(from: text, name: selectedSkill.name)
+        return Self.inputs(text: text, skill: selectedSkill)
+    }
+
+    func nativeInputs(for text: String, skill: SkillIdentity) -> [UserInput]? {
+        guard !isLoading, !isStale, let fingerprint = skill.runtimeFingerprint,
+              let current = skills.first(where: { $0.name == skill.name && $0.path == skill.path && Self.isUsable($0) }),
+              makeRuntimeSnapshot().fingerprints[skill.path] == fingerprint,
+              runtimeRefresh != nil || CodexSkillFingerprint.read(skillPath: skill.path) == fingerprint
+        else { return nil }
+        return Self.inputs(text: text, skill: current)
+    }
+
+    private static func inputs(text: String, skill: SkillMetadata) -> [UserInput] {
+        let body = removingDisplayToken(from: text, name: skill.name)
         var result: [UserInput] = []
         if !body.isEmpty {
             result.append(.text(body))
         }
-        result.append(.skill(name: selectedSkill.name, path: selectedSkill.path))
+        result.append(.skill(name: skill.name, path: skill.path))
         return result
     }
 

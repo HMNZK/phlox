@@ -54,10 +54,12 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
     private var exitStatus: Int32?
     private var continuation: AsyncStream<Data>.Continuation?
     private var isFinished = false
-    private var stdoutReaderQueue: DispatchQueue?
-    private var stderrReaderQueue: DispatchQueue?
+    private var stdoutSource: DispatchSourceRead?
+    private var stderrSource: DispatchSourceRead?
     private var readGroup: DispatchGroup?
     private let stderrTailLimit = 64 * 1024
+    private let maxLineBytes: Int
+    private var lineLimitExceeded = false
 
     public let receivedLines: AsyncStream<Data>
 
@@ -65,12 +67,14 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
         command: String,
         arguments: [String] = [],
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        workingDirectory: URL? = nil
+        workingDirectory: URL? = nil,
+        maxLineBytes: Int = 64 * 1024 * 1024
     ) {
         self.command = command
         self.arguments = arguments
         self.environment = environment
         self.workingDirectory = workingDirectory
+        self.maxLineBytes = maxLineBytes
 
         var captured: AsyncStream<Data>.Continuation?
         self.receivedLines = AsyncStream(bufferingPolicy: .unbounded) { continuation in
@@ -98,8 +102,7 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
 
-            let stdoutReaderQueue = DispatchQueue(label: "StructuredChatKit.LineDelimitedProcessTransport.stdout")
-            let stderrReaderQueue = DispatchQueue(label: "StructuredChatKit.LineDelimitedProcessTransport.stderr")
+            let readQueue = DispatchQueue(label: "StructuredChatKit.LineDelimitedProcessTransport.read")
             let readGroup = DispatchGroup()
             readGroup.enter()
             readGroup.enter()
@@ -121,31 +124,43 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
             self.stdinPipe = stdinPipe
             self.stdoutPipe = stdoutPipe
             self.stderrPipe = stderrPipe
-            self.stdoutReaderQueue = stdoutReaderQueue
-            self.stderrReaderQueue = stderrReaderQueue
             self.readGroup = readGroup
 
             try? stdoutPipe.fileHandleForWriting.close()
             try? stderrPipe.fileHandleForWriting.close()
-            stdoutReaderQueue.async { [weak self] in
-                defer { readGroup.leave() }
-                let handle = stdoutPipe.fileHandleForReading
-                while true {
-                    let data = handle.availableData
-                    guard !data.isEmpty else { return }
-                    self?.appendOutput(data)
-                }
-            }
-            stderrReaderQueue.async { [weak self] in
-                defer { readGroup.leave() }
-                let handle = stderrPipe.fileHandleForReading
-                while true {
-                    let data = handle.availableData
-                    guard !data.isEmpty else { return }
-                    self?.appendStderr(data)
-                }
+            // stderr も読み続けないと、子が 64KiB を超える stderr を出したときに write でブロックする。
+            stdoutSource = Self.makeReadSource(stdoutPipe.fileHandleForReading, queue: readQueue,
+                onData: { [weak self] in self?.appendOutput($0) }, onEnd: { readGroup.leave() })
+            stderrSource = Self.makeReadSource(stderrPipe.fileHandleForReading, queue: readQueue,
+                onData: { [weak self] in self?.appendStderr($0) }, onEnd: { readGroup.leave() })
+        }
+    }
+
+    /// データが届いたときだけ読み、EOF で cancel して onEnd を呼ぶ。読み取りごとに処理を終えるので、
+    /// 読んだバッファはその場で解放される（`availableData` の無限ループは autorelease プールに溜め続けた。ADR 0220）。
+    /// fd は閉じない（閉じるのは finish() だけ）。cancel 完了まで handle を掴み、先に解放されて fd が閉じるのを防ぐ。
+    private static func makeReadSource(
+        _ handle: FileHandle,
+        queue: DispatchQueue,
+        onData: @escaping @Sendable (Data) -> Void,
+        onEnd: @escaping @Sendable () -> Void
+    ) -> DispatchSourceRead {
+        let fd = handle.fileDescriptor
+        let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+        source.setEventHandler {
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            let count = read(fd, &buffer, buffer.count)
+            if count > 0 {
+                onData(Data(buffer[0..<count]))
+            } else if count < 0 && (errno == EINTR || errno == EAGAIN) {
+                return
+            } else {
+                source.cancel()
             }
         }
+        source.setCancelHandler { withExtendedLifetime(handle) { onEnd() } }
+        source.resume()
+        return source
     }
 
     public func send(_ data: Data) async throws {
@@ -215,19 +230,38 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
 
     private func appendOutput(_ data: Data) {
         lock.withLock {
-            guard !isFinished else { return }
+            guard !isFinished, !lineLimitExceeded else { return }
             pendingOutput.append(data)
             emitCompleteLinesFromPendingOutput()
+            if pendingOutput.count > maxLineBytes { stopForOversizedLine() }
         }
     }
 
     private func appendStderr(_ data: Data) {
         lock.withLock {
-            guard !isFinished else { return }
-            capturedStderr.append(data)
-            if capturedStderr.count > stderrTailLimit {
-                capturedStderr.removeFirst(capturedStderr.count - stderrTailLimit)
-            }
+            // 上限超えで止めた後は追記しない（止めた理由を末尾から押し出さない）。
+            guard !isFinished, !lineLimitExceeded else { return }
+            appendStderrTail(data)
+        }
+    }
+
+    private func appendStderrTail(_ data: Data) {
+        capturedStderr.append(data)
+        if capturedStderr.count > stderrTailLimit {
+            // removeFirst は切り出しになるだけで、先頭の領域を解放しない（追記のたびに裏の領域が伸び続ける）。
+            let excess = capturedStderr.count - stderrTailLimit
+            capturedStderr.removeSubrange(capturedStderr.startIndex..<capturedStderr.startIndex + excess)
+        }
+    }
+
+    /// 改行の来ない行が上限を超えたら、理由を stderr 末尾に残して子を止める。
+    /// 既存の「プロセス終了」エラーの経路で理由が表示される。lock 内で呼ぶ。
+    private func stopForOversizedLine() {
+        lineLimitExceeded = true
+        pendingOutput.removeAll()
+        appendStderrTail(Data("\nPhlox stopped the agent: an output line exceeded \(maxLineBytes) bytes without a newline.\n".utf8))
+        if let pid = process?.processIdentifier, pid > 0 {
+            _ = Darwin.kill(pid, SIGKILL)
         }
     }
 
@@ -255,8 +289,8 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
             stdinPipe = nil
             stdoutPipe = nil
             stderrPipe = nil
-            stdoutReaderQueue = nil
-            stderrReaderQueue = nil
+            stdoutSource = nil
+            stderrSource = nil
             readGroup = nil
         }
     }

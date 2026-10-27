@@ -36,6 +36,7 @@ actor SentMessages {
 final class MockTransport: AppServerTransport, @unchecked Sendable {
     let sent = SentMessages()
     let receivedLines: AsyncStream<Data>
+    nonisolated(unsafe) var stderrTailValue: String?
     private let continuation: AsyncStream<Data>.Continuation
 
     init() {
@@ -50,6 +51,10 @@ final class MockTransport: AppServerTransport, @unchecked Sendable {
 
     func close() async {
         continuation.finish()
+    }
+
+    func stderrTail() async -> String? {
+        stderrTailValue
     }
 
     func receive(_ json: String) {

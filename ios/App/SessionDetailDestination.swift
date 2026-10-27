@@ -8,6 +8,7 @@ struct SessionDetailDestination: View {
     let api: PhloxAPI
     let recovery: SessionDetailRecovery?
     let scrollToBottomOnAppear: Bool
+    private var completionViewingAllowed = true
     let onDelete: () -> Void
 
     @State private var detailVM: SessionDetailViewModel
@@ -18,6 +19,7 @@ struct SessionDetailDestination: View {
         recovery: SessionDetailRecovery? = nil,
         scrollToBottomOnAppear: Bool = true,
         isNewSession: Bool = false,
+        completionViewingAllowed: Bool = true,
         initialAttachmentPreviews: [String: [Data]] = [:],
         initialExpandedMessageIDs: Set<String> = [],
         attentionSessions: [Session] = [],
@@ -28,6 +30,7 @@ struct SessionDetailDestination: View {
         self.api = api
         self.recovery = recovery
         self.scrollToBottomOnAppear = scrollToBottomOnAppear
+        self.completionViewingAllowed = completionViewingAllowed
         self.onDelete = onDelete
         let viewModel = SessionDetailViewModel(
             session: session,
@@ -82,6 +85,7 @@ struct SessionDetailDestination: View {
         SessionDetailView(
             viewModel: detailVM,
             scrollToBottomOnAppear: scrollToBottomOnAppear,
+            completionViewingAllowed: completionViewingAllowed,
             onDelete: onDelete
         )
     }

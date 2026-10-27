@@ -252,8 +252,10 @@ private func runIsolated(_ name: String) throws -> Bool {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
     var arguments = Array(CommandLine.arguments.dropFirst())
-    while let index = arguments.firstIndex(of: "--filter") {
-        arguments.removeSubrange(index...index + 1)
+    for option in ["--filter", "--event-stream-output-path"] {
+        while let index = arguments.firstIndex(of: option) {
+            arguments.removeSubrange(index...index + 1)
+        }
     }
     process.arguments = arguments + ["--filter", "InteractiveSpawnTests/\(name)"]
     var environment = ProcessInfo.processInfo.environment

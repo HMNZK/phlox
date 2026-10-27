@@ -45,3 +45,5 @@ last-verified: 2026-07-27
 
 - `macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceToolCallGroupingTests.swift` — 1件でも集約・identity 安定・平坦化等価
 - `macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceBlockWindowTests.swift` — ツール1000件でも直前メッセージが可視・可視ブロック数 ≤ blockLimit（列挙した入力表）・部分ブロックが生じない・block index 翻訳
+
+> 追記（2026-10-25）: 「以前のメッセージを表示」ボタンは [ADR 0217](0217-transcript-scroll-to-load-history.md) で廃止し、最上部からさらにスクロールして離す操作に置き換えた。

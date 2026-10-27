@@ -13,15 +13,18 @@ public struct SessionDetailRecovery: Sendable {
     public let text: String
     public let attachments: [SessionDetailViewModel.SessionAttachmentItem]
     public let errorMessage: String
+    public let skill: AgentSkillSelection?
 
     public init(
         text: String,
         attachments: [SessionDetailViewModel.SessionAttachmentItem],
-        errorMessage: String
+        errorMessage: String,
+        skill: AgentSkillSelection? = nil
     ) {
         self.text = text
         self.attachments = attachments
         self.errorMessage = errorMessage
+        self.skill = skill
     }
 }
 
@@ -42,6 +45,12 @@ public final class SessionDetailViewModel {
     static let maxAttachmentTotalBytes = ImageAttachmentLimits.maxTotalInputBytes
 
     private let api: PhloxAPI
+    let skillSuggestions = MobileSkillSuggestions()
+    var skillContext: MobileSkillSuggestions.Context { .session(session.id, session.agent) }
+    var skillRequestContext: MobileSkillSuggestions.Context? {
+        SkillSuggestionQuery.detect(text: inputText, cursorUTF16: inputCursorUTF16) == nil ? nil : skillContext
+    }
+    func loadSkillSuggestions() async { await skillSuggestions.load(api: api, context: skillRequestContext) }
     public private(set) var session: Session
     public private(set) var currentStatus: SessionStatus {
         didSet { syncThinkingStartedAt(from: oldValue) }
@@ -53,7 +62,10 @@ public final class SessionDetailViewModel {
     /// `didSet` の中から自分自身へ書き戻すと、SwiftUI の `TextField` がその更新を
     /// 取り込まず、モデルと画面の本文がずれる（実機・シミュレータで確認）。
     public var inputText: String = "" {
-        didSet { if inputText != oldValue { inputRevision &+= 1 } }
+        didSet {
+            if inputText != oldValue { inputRevision &+= 1 }
+            skillSuggestions.reconcile(text: inputText, context: skillContext)
+        }
     }
     @ObservationIgnored private var inputRevision: UInt64 = 0
 
@@ -73,6 +85,9 @@ public final class SessionDetailViewModel {
     private(set) var sendErrorPresentation: ErrorPresentation?
     public private(set) var isRecoveringInitialSend = false
     public private(set) var loadError: String?
+    public private(set) var completionSyncError: String?
+    private var isCompletionViewing = false
+    private var completionAcknowledgementInFlight = false
     public private(set) var isSessionMissing = false
     public private(set) var approvals: [Approval] = []
     private(set) var approvalLoadError: String?
@@ -226,6 +241,9 @@ public final class SessionDetailViewModel {
             attachmentItems = recovery.attachments
             sendState = .failed(recovery.errorMessage)
             isRecoveringInitialSend = true
+            if let skill = recovery.skill {
+                skillSuggestions.select(AgentSkill(name: skill.name, description: "", path: skill.path, runtimeFingerprint: skill.runtimeFingerprint), context: skillContext)
+            }
         }
         // didSet は init では発火しないため、初期の実行中・応答待ち状態をここで記録する。
         if Self.isActivityRecapStatus(session.status) {
@@ -594,6 +612,34 @@ public final class SessionDetailViewModel {
         if currentStatus != .running {
             await fetchTurnUsageIfAvailable()
         }
+        await acknowledgeCompletionIfViewing()
+    }
+
+    public func setCompletionViewing(_ isViewing: Bool) async {
+        isCompletionViewing = isViewing
+        if isViewing { await acknowledgeCompletionIfViewing() }
+    }
+
+    public func stopCompletionViewing() {
+        isCompletionViewing = false
+    }
+
+    private func acknowledgeCompletionIfViewing() async {
+        guard isCompletionViewing, !completionAcknowledgementInFlight, didFetchMessagesSuccessfully else { return }
+        guard session.hasUnseenCompletion, let token = session.completionToken else {
+            completionSyncError = nil
+            return
+        }
+        completionAcknowledgementInFlight = true
+        defer { completionAcknowledgementInFlight = false }
+        do {
+            try await api.markCompletionSeen(sessionID: session.id, completionToken: token)
+            completionSyncError = nil
+            await refreshCurrentStatus()
+        } catch {
+            guard !Task.isCancelled else { return }
+            completionSyncError = "完了の確認をMacに反映できませんでした。接続後に再試行します。"
+        }
     }
 
     /// Codex の承認は一覧 API から取得する。Claude のツール許可は会話の質問から組み立てる。
@@ -899,6 +945,7 @@ public final class SessionDetailViewModel {
         if replyApprovalResult != nil { await loadApprovals() }
         _ = await adoptMessagesFromDelta(updateOnlyIfChanged: true)
         updateReplyApprovalResult()
+        await acknowledgeCompletionIfViewing()
     }
 
     /// モデル・設定の一覧を取得する。古い Mac や一時的な取得失敗では現在値を保つ。
@@ -1113,6 +1160,7 @@ public final class SessionDetailViewModel {
         guard !text.isEmpty, sendState != .sending else { return }
 
         let backupText = inputText
+        let backupSkill = skillSuggestions.selection(text: text, context: skillContext)
         let backupRevision = inputRevision
         let backupItems = attachmentItems
         let backupModel = selectedModelPickerEntryID
@@ -1134,10 +1182,17 @@ public final class SessionDetailViewModel {
             return
         }
         do {
+            let skill = try await MobileSkillSuggestions.refreshed(backupSkill, api: api, sessionID: session.id)
+            guard inputRevision == backupRevision, inputText == backupText, attachmentItems == backupItems,
+                  selectedModelPickerEntryID == backupModel, session.id == backupSessionID else {
+                sendState = .failed("本文・添付・モデルが変更されたため、送信を中止しました")
+                return
+            }
             _ = try await api.send(SendRequest(
                 sessionID: session.id,
                 text: text,
-                images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) }
+                images: prepared.map { SendAttachment(mediaType: $0.mediaType, data: $0.data) },
+                skill: skill
             ))
             if inputRevision == backupRevision, inputText == backupText, attachmentItems == backupItems {
                 inputText = ""

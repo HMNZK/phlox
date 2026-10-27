@@ -261,7 +261,10 @@ public actor CodexAppServerClient {
         eventContinuation.yield(event)
     }
 
-    private func notificationStreamDidFinish() {
+    private func notificationStreamDidFinish() async {
+        // 通知の流れが閉じた時点で stderr は読み切っている。app-server はログも stderr に出すため、最後の 1 行だけ添える。
+        let stderrLastLine = await rpc.transportStderrTail()?
+            .split(whereSeparator: \.isNewline).last.map { $0.trimmingCharacters(in: .whitespaces) }
         guard !closeRequested else {
             eventContinuation.finish()
             return
@@ -273,7 +276,8 @@ public actor CodexAppServerClient {
             eventContinuation.yield(.error(
                 threadId: threadId,
                 turnId: state.activeTurnId,
-                message: "Codex app-server process exited before the turn completed",
+                message: stderrLastLine.map { "Codex app-server process exited before the turn completed: \($0)" }
+                    ?? "Codex app-server process exited before the turn completed",
                 willRetry: false
             ))
         }

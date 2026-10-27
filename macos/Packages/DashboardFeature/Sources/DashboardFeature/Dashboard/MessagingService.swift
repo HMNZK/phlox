@@ -38,6 +38,7 @@ final class MessagingService {
         from: SessionID?,
         inReplyTo: UUID?,
         images: [ControlImageAttachment],
+        skill: AgentSkillSelection? = nil,
         sessions: [SessionNode]
     ) async -> DashboardViewModel.SendOutcome {
         if let from {
@@ -103,7 +104,11 @@ final class MessagingService {
 
         let deliveryOutcome: DashboardViewModel.SendOutcome
         do {
-            if !images.isEmpty, let appServer = matchedNode?.appServer {
+            if let skill {
+                guard let appServer = matchedNode?.appServer else { return .rejected(reason: "skill unavailable") }
+                try await appServer.sendTextWithControlSkill(payload, submit: submit,
+                    images: images.map { (mediaType: $0.mediaType, data: $0.data) }, skill: skill)
+            } else if !images.isEmpty, let appServer = matchedNode?.appServer {
                 try await appServer.sendTextWithControlImages(
                     payload,
                     submit: submit,
@@ -113,6 +118,8 @@ final class MessagingService {
                 try await resolved.sendText(payload, submit: submit)
             }
             deliveryOutcome = .sent
+        } catch is ChatSessionViewModel.ControlSkillError, SendRejected.skillReselectionRequired {
+            deliveryOutcome = .rejected(reason: "skill changed or unavailable; select it again")
         } catch ChatSessionViewModel.ControlImageSendError.imagesUnsupported {
             deliveryOutcome = .imagesUnsupported
         } catch ChatSessionViewModel.ControlImageSendError.imageSendInProgress {

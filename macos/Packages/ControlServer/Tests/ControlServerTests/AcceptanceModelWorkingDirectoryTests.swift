@@ -14,6 +14,14 @@ struct AcceptanceModelWorkingDirectoryTests {
         #expect(model.defaultReasoningEffort == "high")
         #expect(model.acceptsImages == true)
     }
+    // 1 回の読み取りが行の途中で切れても、改行までを溜めてから解釈する。
+    @Test func codexModelListSurvivesAResponseSplitAcrossReads() async throws {
+        let fixture = try ModelDirectoryFixture()
+        defer { fixture.remove() }
+        let models = try await fixture.provider(dataRoot: fixture.root.appendingPathComponent("data"), splitCodexResponse: true)
+            .fetchModels(for: .codex)
+        #expect(models.map(\.id) == ["probe-split"])
+    }
     @Test("実CLI境界の全モデル取得は専用フォルダで実行する", arguments: [AgentKind.claudeCode, .cursor, .codex])
     func modelProcessesUseIsolatedDirectory(kind: AgentKind) async throws {
         let fixture = try ModelDirectoryFixture()
@@ -160,6 +168,12 @@ private struct ModelDirectoryFixture {
             while IFS= read -r request; do
               case "$request" in
                 *'"method":"model/list"'*)
+                  if [ "${PHLOX_MODEL_PROBE_SPLIT:-0}" = 1 ]; then
+                    printf '%s' '{"id":2,"result":{"da'
+                    sleep 0.3
+                    printf '%s\n' 'ta":[{"id":"probe-split"}]}}'
+                    exit 0
+                  fi
                   printf '%s\n' '{"id":2,"result":{"data":[{"id":"probe-codex","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"high"}],"defaultReasoningEffort":"high","inputModalities":["text","image"]}]}}'
                   exit 0
                   ;;
@@ -174,11 +188,12 @@ private struct ModelDirectoryFixture {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
     }
 
-    func provider(dataRoot: URL?, emptyOverride: Bool = false, blockAliases: Bool = false) -> LiveAgentModelProvider {
+    func provider(dataRoot: URL?, emptyOverride: Bool = false, blockAliases: Bool = false, splitCodexResponse: Bool = false) -> LiveAgentModelProvider {
         var environment = ["PATH": "/usr/bin:/bin", "PHLOX_MODEL_PROBE_LOG": logs.path]
         if let dataRoot { environment["PHLOX_DATA_DIR"] = dataRoot.path }
         else if emptyOverride { environment["PHLOX_DATA_DIR"] = "" }
         if blockAliases { environment["PHLOX_MODEL_PROBE_BLOCK_ALIAS"] = "1" }
+        if splitCodexResponse { environment["PHLOX_MODEL_PROBE_SPLIT"] = "1" }
         return LiveAgentModelProvider(
             environment: environment,
             commands: [.claudeCode: executable.path, .cursor: executable.path, .codex: executable.path],

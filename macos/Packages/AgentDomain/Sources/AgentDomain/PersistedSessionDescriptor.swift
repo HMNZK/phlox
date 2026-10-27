@@ -66,7 +66,7 @@ public struct PersistedSessionDescriptor: Identifiable, Hashable, Sendable, Coda
     public private(set) var resumeID: String?
     /// API spawn の親セッション。nil は UI/内部生成または旧 descriptor。
     public private(set) var parentSessionID: SessionID?
-    /// アゴラ討論での役割名（例「批判者」「ファシリテーター」）。nil は役割なし・旧 descriptor。
+    /// Control API の spawn で指定された役割名。nil は役割なし・旧 descriptor。
     public private(set) var role: String?
     /// 前回起動時のセッション実体（CLI 子プロセス）の OS プロセス pid。
     /// アプリ再起動後の復元で「前回プロセスの生存孤児を reap してから再 spawn」する

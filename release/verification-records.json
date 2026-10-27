@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "builds": [],
+  "devices": [
+    {
+      "deviceID": "iphone14plus-physical",
+      "platform": "ios",
+      "physical": true,
+      "model": "iPhone 14 Plus",
+      "osVersion": "27.0.1",
+      "osBuild": "24A446",
+      "identityEvidence": {
+        "path": "release-evidence/1.14.1/ios-1.0-9/install-20261027/device-identity.json",
+        "sha256": "af89feeee3d51ae87a0964a594fda11884c8bd1528210f69e6d158361e941b9f"
+      }
+    }
+  ],
+  "executions": []
+}

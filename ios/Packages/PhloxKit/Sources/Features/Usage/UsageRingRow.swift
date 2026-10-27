@@ -6,9 +6,7 @@ import SwiftUI
 public struct UsageRingRow: View {
     let viewModel: UsageViewModel
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    @ScaledMetric(relativeTo: .caption) private var scaledRingDiameter: CGFloat = 18
-    @ScaledMetric(relativeTo: .caption) private var scaledRingStroke: CGFloat = 2.6
+    @AppStorage(UsageBarStyle.defaultsKey) private var style = UsageBarStyle.bar
     @State private var isPopoverPresented: Bool
 
     public init(viewModel: UsageViewModel, isPopoverPresented: Bool = false) {
@@ -17,6 +15,11 @@ public struct UsageRingRow: View {
     }
 
     public var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in usageButton }
+    }
+
+    @ViewBuilder
+    private var usageButton: some View {
         let agents = viewModel.presentationAgents
         if !agents.isEmpty {
             Button {
@@ -60,6 +63,7 @@ public struct UsageRingRow: View {
             )
             .accessibilityHint(UsageRingPresentation.rowAccessibilityHint)
             .accessibilityIdentifier("UsageRingRow.button")
+            .accessibilityAction { isPopoverPresented = true }
             .popover(
                 isPresented: $isPopoverPresented,
                 attachmentAnchor: .rect(.rect(CGRect(x: 0, y: 0, width: 18, height: 44))),
@@ -91,9 +95,6 @@ public struct UsageRingRow: View {
             }
         }
     }
-
-    private var ringDiameter: CGFloat { min(30, scaledRingDiameter) }
-    private var ringStroke: CGFloat { min(4.3, scaledRingStroke) }
 
     @ViewBuilder
     private func agentLayout(_ agents: [UsageRingAgent]) -> some View {
@@ -130,24 +131,28 @@ public struct UsageRingRow: View {
             HStack(spacing: 6) {
                 ForEach(agent.buckets) { bucket in
                     HStack(spacing: 3) {
-                        UsageRing(
-                            bucket: bucket,
-                            isUnavailable: agent.isUnavailable,
-                            diameter: ringDiameter,
-                            lineWidth: ringStroke
-                        )
-                        if let ringLabel = bucket.ringLabel {
-                            Text(verbatim: ringLabel)
-                                .font(
-                                    DSFont.usageRingLabel(for: dynamicTypeSize).weight(
-                                        bucket.isLow && !agent.isUnavailable ? .bold : .regular
-                                    )
+                        Text(verbatim: bucket.ringLabel ?? bucket.label)
+                            .font(
+                                DSFont.usageRingLabel(for: dynamicTypeSize).weight(
+                                    bucket.isLow && !agent.isUnavailable ? .bold : .regular
                                 )
-                                .foregroundStyle(
-                                    bucket.isLow && !agent.isUnavailable
-                                        ? IOSColor.status.caution
-                                        : IOSColor.text.secondary
-                                )
+                            )
+                            .foregroundStyle(
+                                bucket.isLow && !agent.isUnavailable
+                                    ? IOSColor.status.caution
+                                    : IOSColor.text.secondary
+                            )
+                            .fixedSize()
+                        if style == .bar {
+                            DSMeterBar(
+                                fraction: Double(bucket.remainingPercent ?? 0) / 100,
+                                tint: bucket.isLow ? IOSColor.status.caution : IOSColor.text.secondary
+                            )
+                            .frame(width: dynamicTypeSize.isAccessibilitySize ? 52 : 42)
+                        } else if let remaining = bucket.remainingPercent {
+                            Text(verbatim: "\(remaining)%")
+                                .font(DSFont.iosCaption2.monospacedDigit())
+                                .foregroundStyle(bucket.isLow ? IOSColor.status.caution : IOSColor.text.secondary)
                                 .fixedSize()
                         }
                     }
@@ -155,44 +160,6 @@ public struct UsageRingRow: View {
             }
         }
         .fixedSize(horizontal: true, vertical: false)
-    }
-}
-
-private struct UsageRing: View {
-    let bucket: UsageRingBucket
-    let isUnavailable: Bool
-    let diameter: CGFloat
-    let lineWidth: CGFloat
-
-    private var isLow: Bool { bucket.isLow && !isUnavailable }
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .strokeBorder(trackColor, lineWidth: lineWidth)
-            if !isUnavailable, let fraction = bucket.remainingFraction {
-                Circle()
-                    .inset(by: lineWidth / 2)
-                    .trim(from: 0, to: fraction)
-                    .stroke(
-                        ringColor,
-                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-            }
-        }
-        .frame(width: diameter, height: diameter)
-        .accessibilityHidden(true)
-    }
-
-    private var ringColor: Color {
-        isLow ? IOSColor.status.caution : IOSColor.text.secondary
-    }
-
-    private var trackColor: Color {
-        isLow
-            ? IOSColor.status.caution.opacity(0.24)
-            : IOSColor.text.tertiary.opacity(0.32)
     }
 }
 

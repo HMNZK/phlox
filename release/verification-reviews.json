@@ -247,6 +247,44 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "前回の全体レビュー後に製品コード・テストの変更がないことを固定OID間diffで確認し、今回の版/build/feed・英日notes・実ビルド来歴を独立照合した。正規化122変更と指定hashが一致し、6必須シナリオの手順・期待結果・revision 1の変更は不要。来歴・成果物・外部入力・設定・現在およびビルド時manifestの検査4件は成功。端末・実機実行記録は空で、必須実機5件はnot_run。PhotosPicker表示中のACK懸念は実機確認事項として残す。本判定はコード・シナリオレビューであり、実機合格やmain統合・公開許可を意味しない。"
+    },
+    {
+      "baseOID": "3f2efbbfe8b7b622c92a65a7df1da4c130a954d1",
+      "targetOID": "59060c304d6f0a976f307a249c312970e3ff51f1",
+      "diffSHA256": "2ab0c1dfd8653960b4091233e575a860bff04e40d9ade46263680f4d14881017",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:23:11Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "既存レビュー済み6937以降はreleasebook・来歴参照・feedだけで、製品コードとテストは不変。Mac39/iOS9の来歴・成果物・外部入力・設定・現在の入力manifestを照合し、実IPA1.0/9とfeed39の版・URL・ZIPサイズを確認した。端末更新・起動記録も照合済み。影響2シナリオの手順・期待結果・revision変更は不要。実画面と必須実機5シナリオは未確認。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "59060c304d6f0a976f307a249c312970e3ff51f1",
+      "diffSHA256": "d3fa09ef05984823bb9c0bf2385eadfeefc3a670b8831ff9493f8d46a2b7a0b8",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/main_release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T04:23:11Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の全体レビューと6937までの表示版・配布検査修正レビューが製品差分を包含する。以降は配布メタデータ3ファイルのみで、新feed・両ビルド来歴・成果物・外部入力・設定・入力manifest・実IPA表示版の整合を確認した。実iPhoneの更新後1.0/9、起動と後続プロセスの記録を確認したが、実画面は未観測。6シナリオの手順・期待結果・revision変更は不要。executionsは空、必須実機5件はnot_runであり、mainリリースゲートの合格を意味しない。"
     }
   ]
 }

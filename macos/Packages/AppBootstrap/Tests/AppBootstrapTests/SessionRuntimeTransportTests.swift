@@ -6,6 +6,100 @@ import Testing
 @testable import AppBootstrap
 
 @Suite struct SessionRuntimeTransportTests {
+    @Test @MainActor func acceptedCommandWaitsForSaturatedSnapshotQueue() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let handled = AsyncStream<Void>.makeStream()
+        var snapshots = 0
+        let transport = try SessionRuntimeTransport(
+            generation: generation, storeURL: fixture.url,
+            snapshot: {
+                snapshots += 1
+                return .init(projects: [], sessions: [], availableAgentKinds: [])
+            },
+            command: { _ in handled.continuation.yield(); return .none }
+        )
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let endpoint = try SessionRuntimeEndpoint(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url))
+        let gate = SaturatedSnapshotDecodeGate()
+        defer { gate.release() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { gate.release() }
+        let client = SessionRuntimeClient(endpoint: endpoint, snapshotDecoder: gate.decode)
+        client.onCommandSnapshot = { _ in }
+        var entered = gate.started.stream.makeAsyncIterator()
+        let first = Task { try await client.snapshot() }
+        let second = Task { try await client.snapshot() }
+        _ = await entered.next()
+        _ = await entered.next()
+
+        let queued = AsyncStream<Void>.makeStream()
+        var queuedEvents = queued.stream.makeAsyncIterator()
+        var waiting: [Task<DashboardRuntimeSnapshot, Error>] = []
+        for _ in 0..<8 {
+            waiting.append(Task { queued.continuation.yield(); return try await client.snapshot() })
+            _ = await queuedEvents.next()
+        }
+        let sending = Task { try await client.command(.session(SessionID(), UUID(), .interrupt)) }
+        var handledEvents = handled.stream.makeAsyncIterator()
+        _ = await handledEvents.next()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(snapshots == 2)
+        gate.release()
+        _ = try await first.value
+        _ = try await second.value
+        for task in waiting { _ = try await task.value }
+        _ = try await sending.value
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
+    @Test @MainActor func delayedSnapshotDecodeDoesNotBlockNewerSnapshotAndCancellation() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        var snapshots = 0
+        let transport = try SessionRuntimeTransport(
+            generation: generation, storeURL: fixture.url,
+            snapshot: {
+                snapshots += 1
+                return .init(projects: [], sessions: [], availableAgentKinds: snapshots == 1 ? [.codex] : [.claudeCode])
+            },
+            command: { _ in .none }
+        )
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let endpoint = try SessionRuntimeEndpoint(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url))
+        let gate = SnapshotDecodeGate()
+        defer { gate.releaseAll() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { gate.releaseAll() }
+        let client = SessionRuntimeClient(endpoint: endpoint, snapshotDecoder: gate.decode)
+        var events = gate.started.stream.makeAsyncIterator()
+
+        let first = Task { try await client.snapshot() }
+        #expect(await events.next() == 1)
+        let newer = try await client.snapshot()
+        #expect(newer.availableAgentKinds == [.claudeCode])
+        gate.first.signal()
+        let retried = try await first.value
+        #expect(retried.availableAgentKinds == [.claudeCode])
+
+        let cancelled = Task { try await client.snapshot() }
+        #expect(await events.next() == 4)
+        cancelled.cancel()
+        gate.fourth.signal()
+        await #expect(throws: CancellationError.self) { _ = try await cancelled.value }
+        await #expect(throws: SnapshotDecodeGate.Failure.self) { _ = try await client.snapshot() }
+        #expect(try await client.snapshot().availableAgentKinds == [.claudeCode])
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
     @Test @MainActor func controlSkillsRequireAdvertisedOwnerSupportWithoutBreakingOldCommands() async throws {
         let fixture = try RuntimeTransportFixture()
         defer { fixture.remove() }
@@ -497,6 +591,51 @@ private actor RuntimeHeldCommands {
         release()
     }
     func release() { continuation?.resume(); continuation = nil }
+}
+
+private final class SaturatedSnapshotDecodeGate: @unchecked Sendable {
+    let started = AsyncStream<Void>.makeStream()
+    let semaphore = DispatchSemaphore(value: 0)
+
+    func decode(_ data: Data) throws -> SessionRuntimeSnapshotEnvelope {
+        let snapshot = try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: data)
+        if snapshot.sequence <= 2 {
+            started.continuation.yield()
+            semaphore.wait()
+        }
+        return snapshot
+    }
+
+    func release() {
+        semaphore.signal()
+        semaphore.signal()
+    }
+}
+
+private final class SnapshotDecodeGate: @unchecked Sendable {
+    enum Failure: Error { case invalid }
+    let started = AsyncStream<UInt64>.makeStream()
+    let first = DispatchSemaphore(value: 0)
+    let fourth = DispatchSemaphore(value: 0)
+
+    func decode(_ data: Data) throws -> SessionRuntimeSnapshotEnvelope {
+        let snapshot = try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: data)
+        if snapshot.sequence == 1 {
+            started.continuation.yield(snapshot.sequence)
+            first.wait()
+        } else if snapshot.sequence == 4 {
+            started.continuation.yield(snapshot.sequence)
+            fourth.wait()
+        } else if snapshot.sequence == 5 {
+            throw Failure.invalid
+        }
+        return snapshot
+    }
+
+    func releaseAll() {
+        first.signal()
+        fourth.signal()
+    }
 }
 
 private struct RuntimeTransportFixture {

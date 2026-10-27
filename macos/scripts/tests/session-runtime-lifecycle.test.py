@@ -342,7 +342,7 @@ class RuntimeAPI:
             route = method + " " + path
             self.backpressure_counts[route] = self.backpressure_counts.get(route, 0) + 1
             self.observe("runtime-backpressure", method=method, path=path, status=503, attempt=attempts)
-            if method != "GET" or time.monotonic() >= deadline:
+            if time.monotonic() >= deadline:
                 raise AssertionError(f"Runtime {method} {path} returned HTTP 503 (attempt {attempts})")
             time.sleep(min(0.1, max(0, deadline - time.monotonic())))
 

@@ -760,12 +760,13 @@ class GateTests(unittest.TestCase):
         with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "run_stage", side_effect=stage), patch.object(gate.shutil, "which", return_value="/fixture/xcodegen"), patch.dict(os.environ, {"MANAGED_BUILD_DIR": str(build), "PHLOX_USAGE_LIVE": "1", "PHLOX_DATA_DIR": "/private-fixture"}, clear=True), redirect_stdout(io.StringIO()):
             gate.quality_worker(SimpleNamespace(output=str(out), build_dir=str(build)))
         self.assertEqual(original.read_text(), "original source plist")
-        self.assertEqual(len(commands), 8)
+        self.assertEqual(len(commands), 9)
         self.assertIn("discover", commands[0])
         self.assertIn("test_verification_gate*.py", commands[0])
         self.assertIn("test_prepare_ad_hoc.py", commands[1])
         self.assertIn("macos/scripts/tests/run-swift-tests-output.test.sh", commands[2])
-        self.assertIn("TerminalUI", commands[3])
+        self.assertIn("test_session_runtime_lifecycle_api.py", commands[3])
+        self.assertIn("TerminalUI", commands[4])
         self.assertTrue((out / "result.json").is_file())
         self.assertFalse((out / "source").exists())
 

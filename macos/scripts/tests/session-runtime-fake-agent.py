@@ -173,6 +173,8 @@ class FakeAgent:
             if method == "initialize":
                 result = dict(codexHome=str(self.root / "codex-home"), platformFamily="unix",
                               platformOs="macos", userAgent="runtime-lifecycle-fixture/1")
+            elif method == "config/read":
+                result = dict(config=dict(developer_instructions=None))
             elif method in ("thread/start", "thread/resume", "thread/read"):
                 result = dict(thread=dict(id=self.thread_id, status=dict(type="idle"),
                                           cwd=str(self.root / "project"), turns=[]))

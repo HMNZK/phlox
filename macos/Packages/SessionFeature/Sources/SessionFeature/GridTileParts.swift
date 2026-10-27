@@ -38,6 +38,15 @@ extension SessionNode {
     public var gridDisplayState: SessionDisplayState {
         SessionDisplayState.resolve(displayStatus, hasUnseenCompletion: hasUnseenCompletion, isStalled: isStalled)
     }
+
+    public var activityDisplayState: SessionDisplayState {
+        let state = gridDisplayState
+        if state == .question,
+           SessionDisplayStatus.resolve(rawStatus: status, isProcessing: controllable.isProcessing) == .running {
+            return .running
+        }
+        return state
+    }
 }
 
 public enum GridTileText {
@@ -80,8 +89,8 @@ struct GridTileHeader: View {
     var body: some View {
         let _ = themeID
         HStack(spacing: 7) {
-            if state.showsActivityIndicator {
-                SessionActivityIndicator(state: state)
+            if session.activityDisplayState.showsActivityIndicator {
+                SessionActivityIndicator(state: session.activityDisplayState)
             }
             if isInternal {
                 Text("内部")

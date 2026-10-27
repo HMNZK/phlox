@@ -134,7 +134,9 @@ public enum SessionNode {
 
     /// 今の状態の種類へ入った時刻（対応待ちの待ち時間の起点）。無応答なら無応答になった時刻。
     public var statusEnteredAt: Date? {
-        controllable.isStalled ? controllable.stalledSince : controllable.statusEnteredAt
+        if case .appServer(let chat) = self, chat.displayStatus == .awaitingUserQuestion,
+           let date = chat.pendingAsyncQuestionDate { return date }
+        return controllable.isStalled && displayStatus == .running ? controllable.stalledSince : controllable.statusEnteredAt
     }
 
     /// 実行中のまま 120 秒反応がない（チャット型のみ）。

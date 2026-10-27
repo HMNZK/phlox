@@ -2,7 +2,7 @@
 
 ## 状態
 
-準備中。main・verifyへは未統合。旧候補Mac38/iPhone8は不採用とし、版番号の生成・実ファイル検査を直してMac39/iPhone9を作り直す。実機確認・公開・push・通常Macアプリの差し替えは行っていない。
+準備中。main・verifyへは未統合。旧候補Mac38/iPhone8は不採用。版番号の生成・実ファイル検査を直してMac39/iPhone9を生成した。iPhoneは1.0/build9への更新インストールとOSによる起動・プロセス照会が成功した。実機5シナリオ・公開・push・通常Macアプリの差し替えは未実施。
 既に配布した1.14.0 / build 36を別バイナリへ再利用せず、新しい版とbuildで実機確認用の候補を作る。
 iPhoneに既に入っている表示版1.0を維持し、設定と実Info.plistと記録を1.0 / build 9にそろえる。既存のbuild 7の確認を新候補へ流用しない。
 
@@ -20,12 +20,16 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 - 初回の回答読取timeoutの発生原因は未特定。Devの自動復帰修正は、timeout後の表示更新の停止を対象にしている。
 - 旧1.14.0のZIPにはstaple後の`Contents/CodeResources`が不足していた。本候補ではstaple済appから最終ZIPを生成し、DMG内appとの一致と、DMGの公開鍵による実ZIP署名の検証を行う。
 - 旧Mac build38の実配布ZIP署名/DMG内app一致と、旧iPhone build8のarchive/export・Ad Hoc署名・端末profileは成功した。しかしiPhoneの実表示版を未照合だったため、版情報が正しい配布候補と報告した点を訂正する。いずれもインストールや実機シナリオの成功ではない。
+- 新しい版照合の回帰を含むゲート59件、Ad Hoc5件、iOS lintが成功した。まとまった修正と両ビルドの実入力/予定コマンドの独立レビューはpass、独立11検査が成功した。旧実IPA8を新しい検査が拒否することも確認した。
+- Mac39は実コンパイル・署名・公証・stapleが成功し、実ZIPの署名・DMG内appとの内容一致も成功。iPhone9は実archive/exportと実Infoの識別子・表示版・buildの照合が成功。これらは新候補の共通quality全体・実機5シナリオの合格ではない。
 
 ## 配布物と来歴
 
 旧記録は統合元リポジトリの`.verification/release-1.14.1/`へ保持する。新配布物・設定・外部入力・来歴は`.verification/release-1.14.1-build39/`へ保存する。
 MacはDMGと最終ZIPを同じ`capture-build`工程で新規生成し、同じ実体をrelease照合へ渡す。
-旧実ビルド記録はMacが`macos-build.json`、iPhoneが`ios-build-retry1.json`。元のsourceOIDはそれぞれ`2f5198fc644ab01eec4b0aa9788a2c2ff931987a`と`23602f0a71a43e13eeff27436e3971fcd0094724`。これらの元記録を変更せず保持する。`release/verification-records.json`は新候補の実測後に更新し、端末へのインストール・実機結果は別に記録する。
+旧実ビルド記録はMacが`macos-build.json`、iPhoneが`ios-build-retry1.json`。元のsourceOIDはそれぞれ`2f5198fc644ab01eec4b0aa9788a2c2ff931987a`と`23602f0a71a43e13eeff27436e3971fcd0094724`。これらの元記録を変更せず保持する。
+
+新候補のMac/iPhoneはともにsourceOID`6937d01316263f2b4db84ef79eac9e76e88160af`、入力manifestが一致する。新rootの`macos-build.json`/`ios-build.json`が来歴で、`release/verification-records.json`に実測後の参照を追加した。iPhoneの実インストール・起動記録は共通証拠基準の`release-evidence/1.14.1/ios-1.0-9/install-20261027/`。実画面/接続についてはユーザーの観測待ちで、必須実機シナリオのpassedは作っていない。
 
 ## リリースノート
 

@@ -1,6 +1,34 @@
 {
   "schemaVersion": 1,
-  "builds": [],
-  "devices": [],
+  "builds": [
+    {
+      "buildID": "macos-1.14.1-39",
+      "provenance": {
+        "path": "release-1.14.1-build39/macos-build.json",
+        "sha256": "7ada5efafbd754af74dca51b497a0234a0dba7c1ae793c2af7d149200c2f7b81"
+      }
+    },
+    {
+      "buildID": "ios-1.0-9",
+      "provenance": {
+        "path": "release-1.14.1-build39/ios-build.json",
+        "sha256": "6e37ee01326aae21979835a747a6a0070a4fd326f65e7ccb9c06f5cdf0e891d1"
+      }
+    }
+  ],
+  "devices": [
+    {
+      "deviceID": "iphone14plus-physical",
+      "platform": "ios",
+      "physical": true,
+      "model": "iPhone 14 Plus",
+      "osVersion": "27.0.1",
+      "osBuild": "24A446",
+      "identityEvidence": {
+        "path": "release-evidence/1.14.1/ios-1.0-9/install-20261027/device-identity.json",
+        "sha256": "af89feeee3d51ae87a0964a594fda11884c8bd1528210f69e6d158361e941b9f"
+      }
+    }
+  ],
   "executions": []
 }

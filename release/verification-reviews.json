@@ -413,6 +413,23 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "正規化126変更を新規に全件再調査した判定ではない。既存の全体・配布検査修正・EDAまでのメタデータのpass記録と、今回独立確認した4ファイルが差分を包含することを確認した。EDAからEF8の間はレビュー記録のみで、未確認の製品変更はない。接続失敗テストの検出力は正例とcallback欠落の否定実験で確認済み。iPhone10の実版・来歴・署名結果・一覧表示観測を確認し、40/10を新入力へ流用せず41/11を生成する記述も妥当。6シナリオの本文・手順・期待結果・revision変更は不要。executionsは空で、必須実機5件および現在のmainゲートの成功は主張しない。"
+    },
+    {
+      "baseOID": "b0f88f0ec6a0cdd02a1a87a2d46e261b56843a6f",
+      "targetOID": "539722c3af45b30178eb8b14db313dc41cdcee38",
+      "diffSHA256": "ae4dd8f759e8d6b46a21bee70c4f4ac0daad25d5b519a224ce57611bb6bc3cdf",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review_sol"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T09:25:57Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "Solが変更とシナリオの対応、既存契約、復号の並行性・順序・キャンセル・混雑のテスト、検証用POST再試行を独立に確認した。シナリオの手順・期待結果の変更は不要。これは部分改善のシナリオレビューであり、実ユーザーの長時間停止の解消や実機・品質ゲート全体の合格を意味しない。"
     }
   ]
 }

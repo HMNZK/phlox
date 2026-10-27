@@ -452,6 +452,17 @@
       "reviewedAt": "2026-10-27T11:05:51Z",
       "scenarioIDs": ["fake-session-lifecycle", "physical-session-activity", "physical-history-follow", "physical-activity-presentation", "physical-usage-preferences-refresh", "physical-newchat-worktree-resume"],
       "reason": "正規化対象135ファイルについて既存の4件の独立レビューとの対応を確認した。固定候補106bd7c8のfake 13件と、最終候補1b78f66aの品質・セキュリティ検査結果を確認した。実機5項目は未実施で、この判定には含まない。"
+    },
+    {
+      "baseOID": "193f2b71a719376b80278e0eb7a77e5926ca962f",
+      "targetOID": "9b64d88aaf3f6ed5329fb9fddab9e1af2b78465f",
+      "diffSHA256": "ee115556e6ba59f9372e17b2bd8c2409fab43a356c633f7cc6dd3c0dd1a8fcd3",
+      "reviewer": {"kind": "ai", "id": "codex:/root/distribution_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T13:19:10Z",
+      "scenarioIDs": [],
+      "reason": "配布ZIPの署名とサイズ、Mac・iPhoneの版、DMGとZIPの内容一致、公証チケット、日英ノートの本文と見出しを独立に確認した。実機5シナリオは未確認。"
     }
   ]
 }

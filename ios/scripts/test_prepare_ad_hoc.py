@@ -13,6 +13,18 @@ spec.loader.exec_module(distribution)
 
 
 class DistributionTests(unittest.TestCase):
+    def test_actual_display_version_must_match_for_app_and_widget(self):
+        app = Path("App.app")
+        widget = app / "PlugIns/Widget.appex"
+        for versions in (("1.0", "0.1.0"), ("0.1.0", "1.0")):
+            with self.subTest(versions=versions), \
+                    patch.object(Path, "glob", return_value=[widget]), \
+                    patch.object(Path, "open"), \
+                    patch.object(distribution.plistlib, "load", side_effect=[
+                        {"CFBundleVersion": "2", "CFBundleShortVersionString": version} for version in versions]):
+                with self.assertRaisesRegex(ValueError, "表示版"):
+                    distribution.verify_build_number(app, 2, "0.1.0")
+
     def test_archive_build_number_must_match_for_both_bundles(self):
         app = Path("App.app")
         widget = app / "PlugIns/Widget.appex"
@@ -22,12 +34,12 @@ class DistributionTests(unittest.TestCase):
                     patch.object(Path, "glob", return_value=[widget]), \
                     patch.object(Path, "open"), \
                     patch.object(distribution.plistlib, "load", side_effect=[
-                        {"CFBundleVersion": version} for version in versions]):
+                        {"CFBundleVersion": version, "CFBundleShortVersionString": "1.0"} for version in versions]):
                 if succeeds:
-                    distribution.verify_build_number(app, 2)
+                    distribution.verify_build_number(app, 2, "1.0")
                 else:
                     with self.assertRaisesRegex(ValueError, "ビルド番号"):
-                        distribution.verify_build_number(app, 2)
+                        distribution.verify_build_number(app, 2, "1.0")
 
     def test_development_profile_is_rejected(self):
         team = "9JGGMW6UW6"

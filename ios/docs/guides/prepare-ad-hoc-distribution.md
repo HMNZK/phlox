@@ -26,10 +26,11 @@ python3 ios/scripts/prepare-ad-hoc.py \
   --team-id 9JGGMW6UW6 \
   --base-url https://MAC.TAILNET.ts.net/phlox-ios/ \
   --build-number 2 \
+  --app-version 1.0 \
   --output .verification/tailscale-ios-install-20261020/release-2
 ```
 
-XcodeGenで生成後、Releaseを汎用iOS端末向けにarchiveし、`release-testing`（Ad Hoc）としてexportする。署名チーム・登録端末付き配布プロファイル・Widget同梱・ビルド番号を検査する。`public/`の3ファイルが配布対象。`RESULT.txt`に版とGit revision、`archive.log`/`export.log`にログを保存する。失敗した出力先は残し、再実行では別の新規出力先を使う。
+XcodeGenで生成後、Releaseを汎用iOS端末向けにarchiveし、`release-testing`（Ad Hoc）としてexportする。署名チーム・登録端末付き配布プロファイル・Widget同梱・ビルド番号・表示版を検査する。`--app-version`は実ビルド設定へ渡し、本体とWidgetの実Info.plistが一致することをarchive/export後に確認する。`public/`の3ファイルが配布対象。`RESULT.txt`に版とGit revision、`archive.log`/`export.log`にログを保存する。失敗した出力先は残し、再実行では別の新規出力先を使う。
 
 本人がApple側の署名資材更新を許可した場合に限り、`--allow-provisioning-updates`を追加できる。これはarchive/exportに`-allowProvisioningUpdates`を渡し、Xcodeのログイン済みアカウントから証明書・App ID・プロファイルの作成/更新/取得を許す。既定では使わない。新しい端末の自動登録は行わない。
 

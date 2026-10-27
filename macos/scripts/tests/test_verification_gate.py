@@ -246,6 +246,38 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(gate.GateError, "hash mismatch"):
             gate.verify_file({"path": evidence.name, "sha256": "0" * 64}, self.root)
 
+    def ios_artifact(self, app_changes=None, widget_changes=None):
+        app = {"CFBundleIdentifier": "fixture.ios", "CFBundleShortVersionString": "1", "CFBundleVersion": "2"}
+        widget = {**app, "CFBundleIdentifier": "fixture.ios.PhloxWidget"}
+        app.update(app_changes or {})
+        widget.update(widget_changes or {})
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as archive:
+            archive.writestr("Payload/Fixture.app/Info.plist", gate.plistlib.dumps(app))
+            archive.writestr("Payload/Fixture.app/PlugIns/Widget.appex/Info.plist", gate.plistlib.dumps(widget))
+        return output.getvalue()
+
+    def test_ios_ipa_requires_actual_identity_for_app_and_widget(self):
+        path = self.root / "fixture.ipa"
+        path.write_bytes(self.ios_artifact())
+        gate.validate_ios_artifact(path, "fixture.ios", "1", "2")
+        for key in ("CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleVersion"):
+            for bundle in ("app", "widget"):
+                with self.subTest(key=key, bundle=bundle):
+                    changes = {key: "wrong"}
+                    path.write_bytes(self.ios_artifact(changes if bundle == "app" else None,
+                                                       changes if bundle == "widget" else None))
+                    with self.assertRaisesRegex(gate.GateError, "iOS bundle identity"):
+                        gate.validate_ios_artifact(path, "fixture.ios", "1", "2")
+        for data in (b"not a ZIP", io.BytesIO().getvalue()):
+            path.write_bytes(data)
+            with self.assertRaises(gate.GateError):
+                gate.validate_ios_artifact(path, "fixture.ios", "1", "2")
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("Payload/Fixture.app/Info.plist", b"not a plist")
+        with self.assertRaises(gate.GateError):
+            gate.validate_ios_artifact(path, "fixture.ios", "1", "2")
+
     def physical_fixture(self):
         self.git_repo()
         (self.root / ".gitignore").write_text("fixture-output/\n.verification/\n")
@@ -265,7 +297,7 @@ class GateTests(unittest.TestCase):
         data = {"schemaVersion": 1, "builds": [], "devices": [], "executions": []}
         pair = {}
         for platform in ("macos", "ios"):
-            artifact = file(platform + ".bin", ("SYNTHETIC " + platform).encode())
+            artifact = file(platform + ".bin", self.ios_artifact() if platform == "ios" else b"SYNTHETIC macos")
             settings = [{"buildSettings": {"PRODUCT_BUNDLE_IDENTIFIER": "fixture." + platform, "MARKETING_VERSION": "1", "CURRENT_PROJECT_VERSION": "2", "PLATFORM_NAME": "macosx" if platform == "macos" else "iphoneos", "CODE_SIGNING_ALLOWED": "YES", "CODE_SIGN_IDENTITY": "Fixture only"}}]
             settings_file = file(platform + "-settings.json", json.dumps(settings).encode())
             provenance = {"schemaVersion": 1, "sourceOID": source, "platform": platform, "startedAt": "2026-10-24T01:00:00+00:00", "finishedAt": "2026-10-24T02:00:00+00:00", "inputManifest": manifest, "toolchain": {"xcode": "Fixture Xcode", "sdk": "Fixture SDK"}, "settingsSHA256": gate.digest(gate.canonical(settings)), "settingsPath": settings_file["path"], "externalInputs": [settings_file], "bundleID": "fixture." + platform, "version": "1", "buildNumber": "2", "artifact": artifact}
@@ -302,6 +334,20 @@ class GateTests(unittest.TestCase):
                 gate.validate_physical_records(changed, scenarios, manifest, tools, self.root)
         with self.assertRaisesRegex(gate.GateError, "DMG"):
             gate.validate_physical_records(data, scenarios, manifest, tools, self.root, dmg_sha256="0" * 64)
+
+    def test_ios_provenance_rejects_wrong_embedded_version_even_with_matching_hashes(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        build = next(b for b in data["builds"] if b["buildID"] == "ios")
+        provenance_path = self.root / build["provenance"]["path"]
+        provenance = json.loads(provenance_path.read_text())
+        artifact = self.root / provenance["artifact"]["path"]
+        artifact.write_bytes(self.ios_artifact({"CFBundleShortVersionString": "1.0"}))
+        provenance["artifact"]["sha256"] = gate.digest(artifact.read_bytes())
+        data["executions"][0]["pair"]["ios"]["artifactSHA256"] = provenance["artifact"]["sha256"]
+        provenance_path.write_text(json.dumps(provenance))
+        build["provenance"]["sha256"] = gate.digest(provenance_path.read_bytes())
+        with self.assertRaisesRegex(gate.GateError, "iOS bundle identity"):
+            gate.validate_physical_records(data, scenarios, manifest, tools, self.root)
 
     def test_docs_only_build_reuse_but_source_change_is_stale(self):
         data, scenarios, manifest, tools = self.physical_fixture()
@@ -447,6 +493,24 @@ class GateTests(unittest.TestCase):
             build(command, log)
             (self.root / "app.swift").write_text("let fixture = false\n")
         with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "toolchain", return_value={"xcode": "Historical Xcode", "sdk": "Historical SDK"}), patch.object(gate, "run_stage", side_effect=mutate), self.assertRaisesRegex(gate.GateError, "inputs changed"):
+            gate.capture_build(args)
+        self.assertFalse((self.root / args.output).exists())
+
+    def test_ios_capture_rejects_embedded_version_before_writing_provenance(self):
+        data, _, _, _ = self.physical_fixture()
+        settings = next(b for b in data["builds"] if b["buildID"] == "ios")
+        record = json.loads((self.root / settings["provenance"]["path"]).read_text())
+        args = SimpleNamespace(evidence_root=str(self.root), artifact="fixture-output/captured.ipa", zip=None,
+                               settings=record["settingsPath"], output="fixture-output/capture.json", external_input=[],
+                               platform="ios", bundle_id="fixture.ios", version="1", build_number="2",
+                               command=["fixture-builder", "{build_dir}"])
+        def build(command, log):
+            (self.root / args.artifact).write_bytes(self.ios_artifact(widget_changes={"CFBundleShortVersionString": "1.0"}))
+        self.saved_git = gate.git
+        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), \
+                patch.object(gate, "toolchain", return_value={"xcode": "Fixture Xcode", "sdk": "Fixture SDK"}), \
+                patch.object(gate, "run_stage", side_effect=build), redirect_stdout(io.StringIO()), \
+                self.assertRaisesRegex(gate.GateError, "iOS bundle identity"):
             gate.capture_build(args)
         self.assertFalse((self.root / args.output).exists())
 
@@ -694,11 +758,12 @@ class GateTests(unittest.TestCase):
         with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "run_stage", side_effect=stage), patch.object(gate.shutil, "which", return_value="/fixture/xcodegen"), patch.dict(os.environ, {"MANAGED_BUILD_DIR": str(build), "PHLOX_USAGE_LIVE": "1", "PHLOX_DATA_DIR": "/private-fixture"}, clear=True), redirect_stdout(io.StringIO()):
             gate.quality_worker(SimpleNamespace(output=str(out), build_dir=str(build)))
         self.assertEqual(original.read_text(), "original source plist")
-        self.assertEqual(len(commands), 7)
+        self.assertEqual(len(commands), 8)
         self.assertIn("discover", commands[0])
         self.assertIn("test_verification_gate*.py", commands[0])
-        self.assertIn("macos/scripts/tests/run-swift-tests-output.test.sh", commands[1])
-        self.assertIn("TerminalUI", commands[2])
+        self.assertIn("test_prepare_ad_hoc.py", commands[1])
+        self.assertIn("macos/scripts/tests/run-swift-tests-output.test.sh", commands[2])
+        self.assertIn("TerminalUI", commands[3])
         self.assertTrue((out / "result.json").is_file())
         self.assertFalse((out / "source").exists())
 

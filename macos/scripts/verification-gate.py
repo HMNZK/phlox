@@ -480,6 +480,7 @@ def quality_worker(args):
     command = ["env", f"SWIFT_TEST_SCRATCH_ROOT={build_dir}", "SWIFT_TEST_OUTPUT=full", f"SWIFT_TEST_EVENT_ROOT={out / 'macos-events'}", "bash", "macos/scripts/run-swift-tests.sh", *MACOS_PACKAGES]
     compact = str(Path.home() / ".agents/scripts/compact-test")
     run_stage([compact, "--full", "gate-unit", "python3", "-B", "-m", "unittest", "discover", "-s", "macos/scripts/tests", "-p", "test_verification_gate*.py"], out / "gate-unit.log", env=env)
+    run_stage([compact, "--full", "ios-ad-hoc-unit", "python3", "-B", "-m", "unittest", "discover", "-s", "ios/scripts", "-p", "test_prepare_ad_hoc.py"], out / "ios-ad-hoc-unit.log", env=env)
     run_stage([compact, "--full", "standard-entry-regression", "bash", "macos/scripts/tests/run-swift-tests-output.test.sh"], out / "standard-entry.log", env=env)
     run_stage([compact, "--full", "macos-packages", *command], out / "macos.log", env=env)
     results["macos"] = check_test_log(out / "macos.log")
@@ -566,6 +567,26 @@ def validate_build_settings(settings, platform, bundle_id, version, number):
     return digest(canonical(settings))
 
 
+def validate_ios_artifact(artifact, bundle_id, version, number):
+    try:
+        with zipfile.ZipFile(artifact) as archive:
+            apps = [entry for entry in archive.infolist()
+                    if re.fullmatch(r"Payload/[^/]+\.app/Info\.plist", entry.filename)]
+            require(len(apps) == 1, "iOS IPA requires exactly one app Info.plist")
+            prefix = apps[0].filename.removesuffix("Info.plist")
+            widgets = [entry for entry in archive.infolist()
+                       if re.fullmatch(re.escape(prefix) + r"PlugIns/[^/]+\.appex/Info\.plist", entry.filename)]
+            require(len(widgets) == 1, "iOS IPA requires exactly one Widget Info.plist")
+            for entry, ident in ((apps[0], bundle_id), (widgets[0], bundle_id + ".PhloxWidget")):
+                require(entry.file_size <= 1024 * 1024, "Oversized iOS Info.plist")
+                info = plistlib.loads(archive.read(entry))
+                require(isinstance(info, dict) and info.get("CFBundleIdentifier") == ident
+                        and info.get("CFBundleShortVersionString") == version
+                        and info.get("CFBundleVersion") == number, "iOS bundle identity does not match the build record")
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, plistlib.InvalidFileException) as error:
+        raise GateError(f"Invalid iOS artifact: {error}") from error
+
+
 def capture_build(args):
     require(not git("status", "--porcelain", "--untracked-files=all"), "A reusable build must start from clean committed sources")
     require(args.command and args.command[0] != "--", "Missing build command")
@@ -591,6 +612,8 @@ def capture_build(args):
     require(candidate() == source and input_manifest(ROOT) == before and external_inputs(args.external_input + [args.settings], evidence_root) == external and toolchain() == tools, "Build inputs changed during compilation")
     require(not git("status", "--porcelain", "--untracked-files=all"), "Build changed its source tree")
     require(artifact.is_file(), "Missing build artifact")
+    if args.platform == "ios":
+        validate_ios_artifact(artifact, args.bundle_id, args.version, args.build_number)
     record = {"schemaVersion": 1, "sourceOID": source, "platform": args.platform, "startedAt": started, "finishedAt": now(), "inputManifest": before, "toolchain": tools, "settingsSHA256": settings_hash, "settingsPath": evidence_path(args.settings, evidence_root).relative_to(evidence_root).as_posix(), "externalInputs": external, "bundleID": args.bundle_id, "version": args.version, "buildNumber": args.build_number, "artifact": file_reference(artifact, evidence_root)}
     if sparkle_zip:
         require(sparkle_zip.is_file(), "Missing distribution ZIP")
@@ -636,6 +659,8 @@ def validate_physical_records(data, scenarios, manifest, tools=None, root=ROOT, 
         require(validate_build_settings(settings, record["platform"], record["bundleID"], record["version"], record["buildNumber"]) == record.get("settingsSHA256"), "Effective build settings changed")
         artifact = record.get("artifact")
         artifact_path = verify_file(artifact, evidence_root)
+        if record["platform"] == "ios":
+            validate_ios_artifact(artifact_path, record["bundleID"], record["version"], record["buildNumber"])
         identity = [artifact["sha256"]]
         if record["platform"] == "macos":
             require(verify_file(record.get("sparkleZIP"), evidence_root) != artifact_path, "DMG and ZIP must be separate artifacts")

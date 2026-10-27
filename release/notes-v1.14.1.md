@@ -1,6 +1,6 @@
 # Phlox 1.14.1
 
-## Improved
+## New
 
 - Agent processes for chats unused for 24 hours can rest to reduce background resource use. Resume a resting chat with its resume button.
 
@@ -13,7 +13,7 @@
 - Composer descriptions no longer fade during refreshes.
 - On iPhone, changes to the pending-work bar no longer rebuild the conversation screen.
 
-## 改善
+## 新機能
 
 - 24時間使っていないチャットのエージェント処理を休止して、バックグラウンドの資源使用を抑えます。会話画面の「この会話から再開」ボタンで再開できます。
 

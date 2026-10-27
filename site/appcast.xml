@@ -6,7 +6,7 @@
             <title>1.14.1</title>
             <pubDate>Tue, 27 Oct 2026 12:11:36 GMT</pubDate>
             <description xml:lang="en"><![CDATA[
-<h3>Improved</h3>
+<h3>New</h3>
 <ul>
   <li>Agent processes for chats unused for 24 hours can rest to reduce background resource use. Resume a resting chat with its resume button.</li>
 </ul>
@@ -21,7 +21,7 @@
 </ul>
 ]]></description>
             <description xml:lang="ja"><![CDATA[
-<h3>改善</h3>
+<h3>新機能</h3>
 <ul>
   <li>24時間使っていないチャットのエージェント処理を休止して、バックグラウンドの資源使用を抑えます。会話画面の「この会話から再開」ボタンで再開できます。</li>
 </ul>

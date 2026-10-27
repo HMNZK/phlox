@@ -32,7 +32,7 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 
 ## 配布物と来歴
 
-旧記録は統合元リポジトリの`.verification/release-1.14.1/`、`.verification/release-1.14.1-build39/`、`.verification/release-1.14.1-build40/`、`.verification/release-1.14.1-build41/`へ保持する。次の候補は`.verification/release-1.14.1-build42/`へ保存する。正式recordsとappcastの旧参照は新しい実配布物の生成・照合後に更新する。現在のソース入力とは一致しないため、旧参照のままでrelease検査が成功する状態ではない。
+旧記録は統合元リポジトリの`.verification/release-1.14.1/`、`.verification/release-1.14.1-build39/`、`.verification/release-1.14.1-build40/`、`.verification/release-1.14.1-build41/`へ保持する。候補は`.verification/release-1.14.1-build42/`に保存し、appcastは新しい実配布ZIPの情報に更新した。正式recordsは実機確認後に更新する。
 Mac42はDMGと最終ZIPを同じ`capture-build`工程で生成し、署名・公証・stapleとZIP署名を確認した。iPhone12も署名済みIPAを生成し、既存アプリを更新した。両者の来歴はbuild42の`final-verify/`に保存した。Mac検証版への切り替えと5シナリオの実機確認は未完了。
 旧実ビルド記録はMacが`macos-build.json`、iPhoneが`ios-build-retry1.json`。元のsourceOIDはそれぞれ`2f5198fc644ab01eec4b0aa9788a2c2ff931987a`と`23602f0a71a43e13eeff27436e3971fcd0094724`。これらの元記録を変更せず保持する。
 

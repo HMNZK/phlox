@@ -2,6 +2,38 @@
   "schemaVersion": 1,
   "reviews": [
     {
+      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
+      "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
+      "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "needs_changes",
+      "reviewedAt": "2026-10-27T07:02:58Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "独立コードレビューで correctness の指摘はなかった。初回の対象19件は通過したが、ビルド中のソース変更で実行全体は失敗した。候補固定後の再実行は管理ビルドのロックが使用中のため開始できず、対象19件と fake-session-lifecycle の13件は未検証。"
+    },
+    {
+      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
+      "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
+      "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T07:09:01Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "対象差分を独立レビューし、質問の実行中・終了後・回答・拒否・復元と状態表示を確認した。固定候補で対象19件と fake-session-lifecycle の必須13件が通過し、13件のイベントを確認した。実機の検証はこの判定に含まない。"
+    },
+    {
       "baseOID": "d4452feb33a08e43fc80a23802ad56db13bc6019",
       "targetOID": "1657b03c4c96273257c812fb053f646922a4c06e",
       "diffSHA256": "868dab24633a06981e6568ec6b488ca85399e09aea6e0f4549ad698b61eaf94a",
@@ -323,38 +355,6 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "既存の全体レビューと今回の4ファイルレビューがmainとの差分を包含する。前回targetから今回比較元までの追加はレビュー記録のみ。テスト環境の候補OID隔離を独立1件で検証し、製品guard・既存assertの弱化がないことを確認した。Mac版番号更新、旧build選定解除、実端末identity保持とexecutions空も確認した。6シナリオの手順・期待結果・revision変更は不要。新候補の配布物・feed最終照合と必須実機5件は未完であり、mainリリースゲートの合格を意味しない。"
-    },
-    {
-      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
-      "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
-      "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
-      "reviewer": {
-        "kind": "ai",
-        "id": "codex:/root/scenario_review"
-      },
-      "independent": true,
-      "decision": "needs_changes",
-      "reviewedAt": "2026-10-27T07:02:58Z",
-      "scenarioIDs": [
-        "fake-session-lifecycle"
-      ],
-      "reason": "独立コードレビューで correctness の指摘はなかった。初回の対象19件は通過したが、ビルド中のソース変更で実行全体は失敗した。候補固定後の再実行は管理ビルドのロックが使用中のため開始できず、対象19件と fake-session-lifecycle の13件は未検証。"
-    },
-    {
-      "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
-      "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
-      "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
-      "reviewer": {
-        "kind": "ai",
-        "id": "codex:/root/scenario_review"
-      },
-      "independent": true,
-      "decision": "pass",
-      "reviewedAt": "2026-10-27T07:09:01Z",
-      "scenarioIDs": [
-        "fake-session-lifecycle"
-      ],
-      "reason": "対象差分を独立レビューし、質問の実行中・終了後・回答・拒否・復元と状態表示を確認した。固定候補で対象19件と fake-session-lifecycle の必須13件が通過し、13件のイベントを確認した。実機の検証はこの判定に含まない。"
     }
   ]
 }

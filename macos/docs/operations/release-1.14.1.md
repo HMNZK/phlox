@@ -2,7 +2,7 @@
 
 ## 状態
 
-準備中。非同期質問の表示修正と後続の実行状態改善を含むdevをverifyへ統合し、Mac42/iPhone12を生成した。その後の修正を含むMac43を新たに生成したが、2026-10-28の独立レビューでは、Mac43はQR再試行・入力欄・テストの追加修正より前の入力で生成されたため、リリース前に再生成が必要と記録された。mainへの統合、公開、pushは未実施。
+準備中。非同期質問の表示修正と後続の実行状態改善を含むdevをverifyへ統合し、Mac42/iPhone12を生成した。その後の修正を含むMac43を新たに生成したが、2026-10-28の独立レビューでは、このMac43はQR再試行・入力欄・テストの追加修正より前の入力で生成されたため、リリース前に再生成が必要と記録された。その後、追加テスト後のverifyからMac43を再生成し、appcastを再生成したZIPの情報へ更新した。再生成したMac43の配布物は独立レビューでpassとなった（「検証の区別」）。実機検証、main用リリース検査、mainへの統合、公開、pushは未実施。
 既に配布した1.14.0 / build 36を別バイナリへ再利用せず、新しい版とbuildで実機確認用の候補を作る。
 iPhone 1.0/build13の書き出しは署名認証待ちで中断し、配布物・来歴は未完成。ユーザーの実機テスト不要という指示に従い、実機向けビルドを待たずMacの配布準備を進める。
 
@@ -35,7 +35,8 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 - その後、`8df067c863fb5a5d4b0cc5c68fac0584affd4840`から`1b78f66a9f08c1166d1b268267ac12c85f6d882f`の正規化差分（135ファイル）は、既存の独立レビュー4件との対応、固定候補`106bd7c8`のfake 13件、最終候補`1b78f66a`の品質・セキュリティ検査結果の確認を経て、独立レビューでpassとなり、6シナリオ分を`release/verification-reviews.json`へ記録した。実機5項目は未実施で、この判定には含まない。
 - verify統合後の配布メタデータ差分（`193f2b71a719376b80278e0eb7a77e5926ca962f`から`9b64d88aaf3f6ed5329fb9fddab9e1af2b78465f`）は、配布ZIPの署名とサイズ、Mac・iPhoneの版、DMGとZIPの内容一致、公証チケット、日英ノートの本文と見出しの独立レビューでpassとなり、シナリオ対象なしで`release/verification-reviews.json`へ記録した。実機5シナリオは未確認で、この判定には含まない。
 - `8df067c863fb5a5d4b0cc5c68fac0584affd4840`から`fef0638dba6b209d46cbfa0b01129427530ee88b`の差分は、既存の独立レビュー135件との対応と、変更されたappcastの独立レビューを照合してpassとなり、6シナリオ分を`release/verification-reviews.json`へ記録した。135件の再読ではなく、実機5シナリオは未確認。
-- `c49c3798271769e0b3f8e655116f17080298de18`から`136a86419f1b64d3fa462c0ba1be1f35fd945482`の差分（QR再試行・入力欄・テスト修正と配布情報）は、独立レビューでpassとなり、4シナリオ分を`release/verification-reviews.json`へ記録した。QRの成功・空結果・内部エラー・その他のエラーと再試行失敗を独立実行し、日英ノートを照合した。旧Vision方式の非推奨警告が残る。同レビューの記録では、この追加修正後のシミュレーター全体テストと実機検証は未実施で、既存のMac43は旧入力のためリリース前に再生成が必要。
+- `c49c3798271769e0b3f8e655116f17080298de18`から`136a86419f1b64d3fa462c0ba1be1f35fd945482`の差分（QR再試行・入力欄・テスト修正と配布情報）は、独立レビューでpassとなり、4シナリオ分を`release/verification-reviews.json`へ記録した。QRの成功・空結果・内部エラー・その他のエラーと再試行失敗を独立実行し、日英ノートを照合した。旧Vision方式の非推奨警告が残る。同レビューの記録では、この追加修正後のシミュレーター全体テストと実機検証は未実施で、既存のMac43は旧入力のためリリース前に再生成が必要（再生成は次項）。
+- 再生成したMac43の配布メタデータ差分（`476c6d290bd0352e5e4e365fb4ddf75c591c54e1`から`233a1cd4f9b69df25ae5ca009f7dc80f9c671359`）は、DMGとZIPの内容・署名・公証・版・サイズ・来歴、appcast署名と日英ノートの独立レビューでpassとなり、シナリオ対象なしで`release/verification-reviews.json`へ記録した。実機とmain用リリース検査は未実施で、この判定には含まない。
 - 必須実機5シナリオはnot_run。正本は`release/verification-scenarios.json`、実施結果は`release/verification-records.json`。人間の観測なしにpassedを作らない。PhotosPicker表示中の完了確認の扱いも確認事項として残す。
 - 初回の回答読取timeoutの発生原因は未特定。Devの自動復帰修正は、timeout後の表示更新の停止を対象にしている。
 - 旧1.14.0のZIPにはstaple後の`Contents/CodeResources`が不足していた。本候補ではstaple済appから最終ZIPを生成し、DMG内appとの一致と、DMGの公開鍵による実ZIP署名の検証を行う。
@@ -45,7 +46,7 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 
 ## 配布物と来歴
 
-旧記録は統合元リポジトリの`.verification/release-1.14.1/`、`.verification/release-1.14.1-build39/`、`.verification/release-1.14.1-build40/`、`.verification/release-1.14.1-build41/`と、この作業場所の`.verification/release-1.14.1-build42/`へ保持する。Mac43の配布物と来歴は`.verification/release-1.14.1-build43/`に保存し、appcastを同じZIPの情報に更新した。このMac43はQR再試行・入力欄・テストの追加修正前の入力で生成されており、リリース前に再生成が必要（「検証の区別」の2026-10-28の独立レビュー）。
+旧記録は統合元リポジトリの`.verification/release-1.14.1/`、`.verification/release-1.14.1-build39/`、`.verification/release-1.14.1-build40/`、`.verification/release-1.14.1-build41/`と、この作業場所の`.verification/release-1.14.1-build42/`へ保持する。最初に生成したMac43の配布物と来歴は`.verification/release-1.14.1-build43/`に保存した。このMac43はQR再試行・入力欄・テストの追加修正前の入力で生成されていたため今回の配布には使わない。appcastは再生成したMac43のZIPの情報へ更新した（「検証の区別」の2026-10-28の独立レビュー）。
 Mac42はDMGと最終ZIPを同じ`capture-build`工程で生成し、署名・公証・stapleとZIP署名を確認した。iPhone12も署名済みIPAを生成し、既存アプリを更新した。両者の来歴はbuild42の`final-verify/`に保存した。Mac検証版への切り替えと5シナリオの実機確認は未完了。
 旧実ビルド記録はMacが`macos-build.json`、iPhoneが`ios-build-retry1.json`。元のsourceOIDはそれぞれ`2f5198fc644ab01eec4b0aa9788a2c2ff931987a`と`23602f0a71a43e13eeff27436e3971fcd0094724`。これらの元記録を変更せず保持する。
 

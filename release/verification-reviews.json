@@ -493,6 +493,17 @@
         "physical-activity-presentation"
       ],
       "reason": "追加のQR再試行・入力欄・テスト修正と配布情報を独立確認し、QRの成功・空結果・内部エラー・その他のエラーと再試行失敗を独立実行した。日英ノートを照合した。旧Vision方式の非推奨警告あり。既存Mac43は旧入力のためリリース前に再生成が必要。今回の追加修正後のシミュレーター全体テストと実機検証は未実施。"
+    },
+    {
+      "baseOID": "476c6d290bd0352e5e4e365fb4ddf75c591c54e1",
+      "targetOID": "233a1cd4f9b69df25ae5ca009f7dc80f9c671359",
+      "diffSHA256": "e06771cdd434c13091102487e7951f039967e11fcd32433db1419bb9835a183c",
+      "reviewer": {"kind": "ai", "id": "codex:/root/distribution_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T07:53:45Z",
+      "scenarioIDs": [],
+      "reason": "再生成したMac43のDMGとZIPの内容・署名・公証・版・サイズ・来歴、appcast署名と日英ノートを独立に照合した。実機とmain用リリース検査は未実施。"
     }
   ]
 }

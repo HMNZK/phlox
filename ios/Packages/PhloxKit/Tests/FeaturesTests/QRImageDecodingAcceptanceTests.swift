@@ -30,10 +30,12 @@ struct QRImageDecodingAcceptanceTests {
     func retriesOnlyInternalErrors() {
         let internalError = NSError(domain: VNErrorDomain, code: VNErrorCode.internalError.rawValue)
         let otherError = NSError(domain: "test", code: 1)
+        let otherVisionError = NSError(domain: VNErrorDomain, code: VNErrorCode.invalidArgument.rawValue)
         for (errors, expectedCalls, expectedResult) in [
             ([NSError](), 1, "QR" as String?),
             ([internalError], 2, "QR" as String?),
             ([otherError], 1, nil),
+            ([otherVisionError], 1, nil),
             ([internalError, otherError], 2, nil)
         ] {
             let request = VNDetectBarcodesRequest()
@@ -57,6 +59,13 @@ struct QRImageDecodingAcceptanceTests {
             throw internalError
         }
         #expect(result == nil)
+        #expect(calls == 1)
+        calls = 0
+        let emptyResult = QRImageDecoder.decodeQRString(request: VNDetectBarcodesRequest()) { _ in
+            calls += 1
+            return nil
+        }
+        #expect(emptyResult == nil)
         #expect(calls == 1)
     }
 

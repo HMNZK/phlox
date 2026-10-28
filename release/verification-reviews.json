@@ -504,6 +504,17 @@
       "reviewedAt": "2026-10-28T07:53:45Z",
       "scenarioIDs": [],
       "reason": "再生成したMac43のDMGとZIPの内容・署名・公証・版・サイズ・来歴、appcast署名と日英ノートを独立に照合した。実機とmain用リリース検査は未実施。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "8e399932186a05ba439c2d8a3ff9906e52497da6",
+      "diffSHA256": "649380fda4b848ec3f5d5cc6dca894877e11aef7ed9de86f22cbc714dacc1c6d",
+      "reviewer": {"kind": "ai", "id": "codex:/root/release_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T08:26:41Z",
+      "scenarioIDs": ["fake-session-lifecycle", "physical-session-activity", "physical-history-follow", "physical-activity-presentation", "physical-usage-preferences-refresh", "physical-newchat-worktree-resume"],
+      "reason": "既存の独立レビュー記録と配布物・追加修正のレビューを照合し、正規化140ファイルの最終内容を確認した。実機5件は未実施で、iPhone版は今回配布しない。これはシナリオレビューであり、リリース検査の合格ではない。"
     }
   ]
 }

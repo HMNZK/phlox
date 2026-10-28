@@ -236,7 +236,7 @@ struct SimulatorHubTests {
         let fake = HubTransport(), retry = HubTransport()
         var attempts = 0
         let hub = SimulatorHub(catalog: fixture.catalog(), refreshInterval: 60) {
-            SimulatorDisplayConnection(timeout: timeout ? 0.02 : 5) {
+            SimulatorDisplayConnection(timeout: timeout ? 0.02 : 5, recoveryProbeTimeout: timeout ? 0.02 : 20) {
                 attempts += 1
                 return attempts == 1 ? fake : retry
             }

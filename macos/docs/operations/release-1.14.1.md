@@ -38,6 +38,7 @@ iPhone版の最初のexportは、署名確認待ちの後に`errSecInternalCompo
 - `8df067c863fb5a5d4b0cc5c68fac0584affd4840`から`fef0638dba6b209d46cbfa0b01129427530ee88b`の差分は、既存の独立レビュー135件との対応と、変更されたappcastの独立レビューを照合してpassとなり、6シナリオ分を`release/verification-reviews.json`へ記録した。135件の再読ではなく、実機5シナリオは未確認。
 - `c49c3798271769e0b3f8e655116f17080298de18`から`136a86419f1b64d3fa462c0ba1be1f35fd945482`の差分（QR再試行・入力欄・テスト修正と配布情報）は、独立レビューでpassとなり、4シナリオ分を`release/verification-reviews.json`へ記録した。QRの成功・空結果・内部エラー・その他のエラーと再試行失敗を独立実行し、日英ノートを照合した。旧Vision方式の非推奨警告が残る。同レビューの記録では、この追加修正後のシミュレーター全体テストと実機検証は未実施で、既存のMac43は旧入力のためリリース前に再生成が必要（再生成は次項）。
 - 再生成したMac43の配布メタデータ差分（`476c6d290bd0352e5e4e365fb4ddf75c591c54e1`から`233a1cd4f9b69df25ae5ca009f7dc80f9c671359`）は、DMGとZIPの内容・署名・公証・版・サイズ・来歴、appcast署名と日英ノートの独立レビューでpassとなり、シナリオ対象なしで`release/verification-reviews.json`へ記録した。実機とmain用リリース検査は未実施で、この判定には含まない。
+- `8df067c863fb5a5d4b0cc5c68fac0584affd4840`から`8e399932186a05ba439c2d8a3ff9906e52497da6`の正規化差分（140ファイル）は、既存の独立レビュー記録と配布物・追加修正のレビューとの照合、最終内容の確認を経て独立レビューでpassとなり、6シナリオ分を`release/verification-reviews.json`へ記録した。実機5シナリオは未実施で、iPhone版は今回配布しない。これはシナリオレビューであり、main用リリース検査の合格ではない。
 - 必須実機5シナリオはnot_run。正本は`release/verification-scenarios.json`、実施結果は`release/verification-records.json`。人間の観測なしにpassedを作らない。PhotosPicker表示中の完了確認の扱いも確認事項として残す。
 - 初回の回答読取timeoutの発生原因は未特定。Devの自動復帰修正は、timeout後の表示更新の停止を対象にしている。
 - 旧1.14.0のZIPにはstaple後の`Contents/CodeResources`が不足していた。本候補ではstaple済appから最終ZIPを生成し、DMG内appとの一致と、DMGの公開鍵による実ZIP署名の検証を行う。

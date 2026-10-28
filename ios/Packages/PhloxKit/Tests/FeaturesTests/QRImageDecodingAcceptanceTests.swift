@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import Vision
 @testable import Features
 
 // task-2 受け入れテスト（PM 著・凍結）。契約: tasks/task-2.md
@@ -24,6 +25,40 @@ private func makeQRImage(of string: String, scale: CGFloat = 8) throws -> CGImag
 
 @Suite("QRImageDecoder 受け入れ（写真読み取り経路のラウンドトリップ）")
 struct QRImageDecodingAcceptanceTests {
+
+    @Test("Vision の内部エラーだけ旧方式で再試行する")
+    func retriesOnlyInternalErrors() {
+        let internalError = NSError(domain: VNErrorDomain, code: VNErrorCode.internalError.rawValue)
+        let otherError = NSError(domain: "test", code: 1)
+        for (errors, expectedCalls, expectedResult) in [
+            ([NSError](), 1, "QR" as String?),
+            ([internalError], 2, "QR" as String?),
+            ([otherError], 1, nil),
+            ([internalError, otherError], 2, nil)
+        ] {
+            let request = VNDetectBarcodesRequest()
+            request.revision = VNDetectBarcodesRequestRevision2
+            var revisions: [Int] = []
+            let result = QRImageDecoder.decodeQRString(request: request) { request in
+                revisions.append(request.revision)
+                if revisions.count <= errors.count { throw errors[revisions.count - 1] }
+                return "QR"
+            }
+            #expect(result == expectedResult)
+            #expect(revisions.count == expectedCalls)
+            #expect(revisions.first == VNDetectBarcodesRequestRevision2)
+            if expectedCalls == 2 { #expect(revisions.last == VNDetectBarcodesRequestRevision1) }
+        }
+        let request = VNDetectBarcodesRequest()
+        request.revision = VNDetectBarcodesRequestRevision1
+        var calls = 0
+        let result = QRImageDecoder.decodeQRString(request: request) { _ in
+            calls += 1
+            throw internalError
+        }
+        #expect(result == nil)
+        #expect(calls == 1)
+    }
 
     @Test("契約 v1 URL の QR 画像からペイロード文字列を復元する")
     func decodesContractURLRoundTrip() throws {

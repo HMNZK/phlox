@@ -74,7 +74,7 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 **`SimulatorDisplayConnection`**（端末ごと。`SimulatorDisplayTransport` プロトコルの背後に `SimulatorXPCTransport`（`NSXPCConnection(serviceName:)`）を持ち、テストでは差し替える）
 
 1. `attach(udid:)` → `start`: 既存接続を `disconnect`（世代を進める）→ 新しい transport を作り `resume`。
-2. `probe`（期限 5 秒）。通信仕様の版が本体と違えば「通信仕様の版が異なります。アプリを再起動してください」で失敗（再試行不可）。`coreSimulatorLoaded`・`simulatorKitLoaded` が偽または `reason` があれば、その理由で失敗（再試行不可）。
+2. `probe`（期限は通常5秒、自動再接続時は20秒）。通信仕様の版が本体と違えば「通信仕様の版が異なります。アプリを再起動してください」で失敗（再試行不可）。`coreSimulatorLoaded`・`simulatorKitLoaded` が偽または `reason` があれば、その理由で失敗（再試行不可）。
 3. `SimulatorPolicy.support(xcodeBuild:runtimeIdentifier:triesUnverified:)` で対応可否を決める。表示不可なら切断して理由（「未確認の組み合わせです」）を出す。
 4. `attach`（期限 5 秒）の応答と `surfaceChanged` は、同じ世代検査 `receive(_:)` を通って `displayInfo` を更新する。
 5. 期限切れ・`NSXPCConnection` の中断・切断・不正な表示情報は `fail` → 切断し、`reason` を設定して再接続ボタンを許可する。**自動再接続**は、失敗の連鎖ごとに 1 回（表示情報を受け取れたら解除）、かつ 60 秒間に 3 回まで（`SimulatorHub` が接続ごとに `automaticallyReconnects = true`）。再試行不可の失敗は自動・手動とも再接続しない。
@@ -118,7 +118,7 @@ Phlox.app（本体。CoreSimulator / SimulatorKit を読み込まない）
 | 項目 | 値・挙動 | 場所 |
 |---|---|---|
 | 通信仕様の版 | 2 | `SimulatorBridgeInterfaces.protocolVersion` |
-| `probe`・`attach` の応答期限 | 5 秒（タッチ等には期限なし） | `SimulatorBridgeInterfaces.replyTimeout` |
+| `probe`・`attach` の応答期限 | 通常5秒、自動再接続時の `probe` のみ20秒（タッチ等には期限なし） | `SimulatorBridgeInterfaces.replyTimeout`、`SimulatorDisplayConnection` |
 | 自動再接続 | 失敗の連鎖ごとに 1 回、60 秒に 3 回まで | `SimulatorDisplayConnection.fail` |
 | 画面更新の診断 | 5 秒間 seed が変わらない | `SimulatorDisplayConnection.hasStaleFrame` |
 | 端末一覧の更新間隔 | 見えている間 2 秒 | `SimulatorHub.refreshInterval` |

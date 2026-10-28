@@ -197,6 +197,83 @@ struct SimulatorDisplayConnectionTests {
         connection.disconnect()
     }
 
+    @Test func 自動再接続は通常期限後のprobe応答でも復旧する() async throws {
+        var attempts: [FakeTransport] = []
+        let connection = SimulatorDisplayConnection(timeout: 0.05, recoveryProbeTimeout: 1) {
+            let fake = FakeTransport()
+            attempts.append(fake)
+            return fake
+        }
+        configure(connection)
+        connection.automaticallyReconnects = true
+        connection.attach(udid: "端末")
+        attempts[0].failed?("切断")
+        #expect(attempts.count == 2)
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(connection.reason == nil)
+        let retry = attempts[1]
+        retry.probeReply?(capability())
+        retry.attachReply?(try info(connection.generation.current), nil)
+        #expect(connection.displayInfo != nil)
+        #expect(connection.inputEnabled)
+        connection.disconnect()
+    }
+
+    @Test func 自動再接続期限切れ後は手動復旧でき古い応答を捨てる() async throws {
+        var attempts: [FakeTransport] = []
+        let connection = SimulatorDisplayConnection(timeout: 0.02, recoveryProbeTimeout: 0.04) {
+            let fake = FakeTransport()
+            attempts.append(fake)
+            return fake
+        }
+        configure(connection)
+        connection.automaticallyReconnects = true
+        connection.attach(udid: "端末")
+        attempts[0].failed?("切断")
+        for _ in 0..<100 {
+            if connection.canReconnect { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(connection.reason == "補助プロセスの応答期限を超えました")
+        #expect(connection.canReconnect)
+        attempts[1].probeReply?(capability())
+        #expect(attempts[1].attachedUDID == nil)
+        connection.reconnect()
+        #expect(attempts.count == 3)
+        attempts[2].probeReply?(capability())
+        attempts[2].attachReply?(try info(connection.generation.current), nil)
+        #expect(connection.displayInfo != nil)
+        connection.disconnect()
+    }
+
+    @Test(arguments: [false, true])
+    func 自動復旧後のattachと手動probeは通常期限を使う(attach: Bool) async throws {
+        var attempts: [FakeTransport] = []
+        let connection = SimulatorDisplayConnection(timeout: 0.05, recoveryProbeTimeout: 1) {
+            let fake = FakeTransport()
+            attempts.append(fake)
+            return fake
+        }
+        configure(connection)
+        connection.automaticallyReconnects = true
+        connection.attach(udid: "端末")
+        attempts[0].failed?("切断")
+        if attach {
+            attempts[1].probeReply?(capability())
+        } else {
+            attempts[1].failed?("再接続失敗")
+            #expect(connection.canReconnect)
+            connection.reconnect()
+        }
+        for _ in 0..<100 {
+            if connection.reason == "補助プロセスの応答期限を超えました" { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(connection.reason == "補助プロセスの応答期限を超えました")
+        #expect(connection.canReconnect)
+        connection.disconnect()
+    }
+
     @Test(arguments: [false, true])
     func 方針またはランタイムが未設定なら接続しない(runtimeOnly: Bool) {
         let fake = FakeTransport()

@@ -6,6 +6,7 @@
 
 ## Fixed
 
+- Simulator connections can recover when the helper process takes longer to restart.
 - Unanswered asynchronous questions appear in the attention list while the agent continues working.
 - Answers resume updating automatically after a temporary read timeout, without sending another message.
 - Visible chats stay active in split panes, and resuming a resting chat keeps its runtime connection.
@@ -18,6 +19,7 @@
 
 ## 修正
 
+- シミュレーターの補助プロセスの再起動に時間がかかる場合も、接続を復旧できるようにしました。
 - エージェントが作業を続けている間も、未回答の質問を対応待ちに表示します。
 - 一時的な読み取りタイムアウトの後も、追加送信なしで回答の自動更新を再開します。
 - 分割表示中の会話を休止対象から外し、画面から再開した会話の接続を維持します。

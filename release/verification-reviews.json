@@ -537,6 +537,17 @@
       "reviewedAt": "2026-10-28T09:48:55Z",
       "scenarioIDs": ["fake-session-lifecycle", "physical-session-activity", "physical-history-follow", "physical-activity-presentation", "physical-usage-preferences-refresh", "physical-newchat-worktree-resume"],
       "reason": "旧全体レビューと追加の再接続レビューを142ファイルの最終内容に照合し、配布情報・日英ノートの差分も確認した。新配布物の実物照合は別途必要。実機5件は未実施、iPhone版は今回配布しない。"
+    },
+    {
+      "baseOID": "3358cc51f40c87deea4ff01a20b2cf4da32a6a73",
+      "targetOID": "efcb97a55145b04993ef5c219d716d838eed8404",
+      "diffSHA256": "085f390938ccb4a3486837fa369c984902dcf50fbe614224e84da100b3e8e866",
+      "reviewer": {"kind": "ai", "id": "codex:/root/distribution_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T09:50:41Z",
+      "scenarioIDs": ["fake-session-lifecycle"],
+      "reason": "再接続修正の独立レビューと配布情報の最終差分を照合し、Mac43の署名・公証・来歴・ZIP内容・日英ノートと、候補と入力一致するシミュレーターテスト1098件の記録を確認した。実機は未実施。"
     }
   ]
 }

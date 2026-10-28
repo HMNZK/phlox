@@ -526,6 +526,17 @@
       "reviewedAt": "2026-10-28T09:41:01Z",
       "scenarioIDs": ["fake-session-lifecycle"],
       "reason": "自動復旧・通常接続の期限、古い応答と世代、再接続回数と非retryable条件を独立レビューし、対象23テストを独立実行した。専用XPC停止後の復旧とタップ成功は別担当の記録。修正を含む配布物は再生成が必要。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "efcb97a55145b04993ef5c219d716d838eed8404",
+      "diffSHA256": "d228b6b4ae25437285a3f56d2c13e928bf09e028a478b27da22c48c59174ce31",
+      "reviewer": {"kind": "ai", "id": "codex:/root/release_review"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T09:48:55Z",
+      "scenarioIDs": ["fake-session-lifecycle", "physical-session-activity", "physical-history-follow", "physical-activity-presentation", "physical-usage-preferences-refresh", "physical-newchat-worktree-resume"],
+      "reason": "旧全体レビューと追加の再接続レビューを142ファイルの最終内容に照合し、配布情報・日英ノートの差分も確認した。新配布物の実物照合は別途必要。実機5件は未実施、iPhone版は今回配布しない。"
     }
   ]
 }

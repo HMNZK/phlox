@@ -27,7 +27,7 @@ last-verified: 2026-08-01
 | `amazon-q-integration.md` | superseded | Amazon Q Developer CLI 統合仕様。ベンダー撤退により撤去済み（2026-06-11） |
 | `custom-agents-json.md` | superseded | ユーザー定義 CLI（JSON）対応。2026-10-12 に廃止（ADR 0185） |
 | `design-system-ios.md` | active | iOS コンパニオンアプリ向けデザインシステム拡張計画（Draft） |
-| `e2e-test-design.md` | active | fake E2Eの受入意図・シナリオカタログ。旧Layer BのXCUITest案は現行運用外 |
+| `e2e-test-design.md` | active | fake E2Eの受入意図・シナリオカタログ。旧Layer BのXCUITest案は自動ゲート外（手元実行は`~/.agents/scripts/xcuitest-run`経由） |
 | `esc-revert-composer-focus.md` | active | esc 巻き戻し後の composer フォーカス復帰とキャレット末尾化の要件・受け入れ基準（決定は ADR 0135） |
 | `gemini-cli-integration.md` | superseded | Gemini CLI 統合仕様。ADR 0041 で削除済み |
 | `goose-integration.md` | superseded | Goose 統合仕様。ADR 0041 で削除済み |

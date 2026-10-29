@@ -13,6 +13,7 @@ private final class GatedTransport: LineDelimitedTransport, @unchecked Sendable 
     private var pendingInterrupt: CheckedContinuation<Void, Never>?
     private var gatesSend = false
     private var gatesInterrupt = false
+    private var sends = 0
     let receivedLines: AsyncStream<Data>
     let exitCode: Int32
     var stderr: String?
@@ -28,10 +29,11 @@ private final class GatedTransport: LineDelimitedTransport, @unchecked Sendable 
     func gateNextInterrupt() { lock.withLock { gatesInterrupt = true } }
     var sendEntered: Bool { lock.withLock { pendingSend != nil } }
     var interruptEntered: Bool { lock.withLock { pendingInterrupt != nil } }
+    var sentCount: Int { lock.withLock { sends } }
 
     func start() throws {}
     func send(_ data: Data) async throws {
-        guard lock.withLock({ gatesSend }) else { return }
+        guard lock.withLock({ sends += 1; return gatesSend }) else { return }
         try await withCheckedThrowingContinuation { c in
             lock.withLock { gatesSend = false; pendingSend = c }
         }
@@ -270,6 +272,183 @@ private let cleanupError = #"{"type":"result","subtype":"error_during_execution"
     healed.receive(#"{"type":"result","subtype":"success","is_error":false}"#)
     try await waitUntil { events.all.contains { if case .turnCompleted = $0 { true } else { false } } }
     #expect(!events.all.contains { if case .error = $0 { true } else { false } })
+    await client.close()
+    await collector.value
+}
+
+@Test func turnSentRightAfterStopWaitsForTheStoppedProcessAndRestarts() async throws {
+    let first = GatedTransport()
+    let second = GatedTransport()
+    let starts = StartCounter()
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in
+        defer { starts.increment() }
+        return starts.count == 0 ? first : second
+    })
+    let events = Events()
+    let stream = client.events
+    let collector = Task { for await event in stream { events.append(event) } }
+    try await client.start()
+
+    try await client.turnStart([.text("first")])
+    try await client.interrupt()
+    // SIGINT で CLI が終わる前に次を送る。終わりかけの CLI へは書き込まない。
+    let send = Task { try await client.turnStart([.text("second")]) }
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(first.sentCount == 1)
+    first.exit()
+    try await send.value
+
+    #expect(starts.count == 2)
+    #expect(first.sentCount == 1)
+    #expect(second.sentCount == 1)
+    #expect(!events.all.contains { if case .error = $0 { true } else { false } })
+    await client.close()
+    await collector.value
+}
+
+@Test func closeWhileWaitingForTheStoppedProcessDoesNotRestart() async throws {
+    let transport = GatedTransport()
+    let starts = StartCounter()
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in
+        starts.increment()
+        return transport
+    })
+    try await client.start()
+
+    try await client.turnStart([.text("first")])
+    try await client.interrupt()
+    let send = Task { try await client.turnStart([.text("second")]) }
+    try await Task.sleep(for: .milliseconds(50))
+    await client.close()
+
+    await #expect(throws: ClaudeChatClientError.self) { try await send.value }
+    #expect(starts.count == 1)
+    #expect(transport.sentCount == 1)
+}
+
+@Test func cleanupErrorsOfTwoStopsReadAfterBothStopsAreAbsorbed() async throws {
+    let transport = GatedTransport()
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in transport })
+    let events = Events()
+    let stream = client.events
+    let collector = Task { for await event in stream { events.append(event) } }
+    try await client.start()
+
+    // CLI が SIGINT で終わらず、2 回の停止の後始末が両方の停止の後に読まれる。
+    try await client.turnStart([.text("first")])
+    try await client.interrupt()
+    try await client.turnStart([.text("second")])
+    try await client.interrupt()
+    transport.receive(cleanupError)
+    transport.receive(cleanupError)
+    try await client.turnStart([.text("third")])
+    transport.receive(#"{"type":"result","subtype":"success","is_error":false}"#)
+
+    try await waitUntil { events.all.contains { if case .turnCompleted = $0 { true } else { false } } }
+    #expect(!events.all.contains { if case .error = $0 { true } else { false } })
+    #expect(transport.sentCount == 3)  // 終わらない CLI には待った後に同じ CLI へ送る
+    await client.close()
+    await collector.value
+}
+
+@Test func absorptionStopsAfterTheCountedCleanups() async throws {
+    let transport = GatedTransport()
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in transport })
+    let events = Events()
+    let stream = client.events
+    let collector = Task { for await event in stream { events.append(event) } }
+    try await client.start()
+
+    try await client.turnStart([.text("first")])
+    try await client.interrupt()
+    try await client.turnStart([.text("second")])
+    try await client.interrupt()
+    transport.receive(cleanupError)
+    transport.receive(cleanupError)
+    try await client.turnStart([.text("third")])
+    transport.receive(cleanupError)  // 3 件目は third の本物のエラー
+
+    try await waitUntil { events.all.contains { if case .error = $0 { true } else { false } } }
+    await client.close()
+    await collector.value
+}
+
+@Test func resultAlreadyInFlightAtStopUsesUpThatStopsAbsorption() async throws {
+    let transport = GatedTransport()
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in transport })
+    let events = Events()
+    let stream = client.events
+    let collector = Task { for await event in stream { events.append(event) } }
+    try await client.start()
+
+    try await client.turnStart([.text("first")])
+    try await client.interrupt()
+    // 停止したターン自身の結果。このターンの後始末は来ない。
+    transport.receive(#"{"type":"result","subtype":"success","is_error":false}"#)
+    try await client.turnStart([.text("second")])
+    try await client.interrupt()
+    transport.receive(cleanupError)  // second の後始末
+    try await client.turnStart([.text("third")])
+    transport.receive(cleanupError)  // third の本物のエラー
+
+    try await waitUntil { events.all.contains { if case .error = $0 { true } else { false } } }
+    await client.close()
+    await collector.value
+}
+
+@Test func stopDuringTheWaitKeepsTheWaitForTheNextSend() async throws {
+    let first = GatedTransport()
+    let second = GatedTransport()
+    let starts = StartCounter()
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in
+        defer { starts.increment() }
+        return starts.count == 0 ? first : second
+    })
+    try await client.start()
+
+    try await client.turnStart([.text("first")])
+    try await client.interrupt()
+    let stopped = Task { try await client.turnStart([.text("stopped")]) }
+    try await Task.sleep(for: .milliseconds(50))
+    try await client.interrupt()
+    try await stopped.value  // CLI が終わらないまま待ちの上限で戻る
+
+    // 2 回目の停止の SIGINT で CLI が終わる前に送る。これも待つ。
+    let next = Task { try await client.turnStart([.text("next")]) }
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(first.sentCount == 1)
+    first.exit()
+    try await next.value
+
+    #expect(starts.count == 2)
+    #expect(second.sentCount == 1)
+    await client.close()
+}
+
+@Test func stopWhileTheSendWaitsForTheStoppedProcessCancelsThatSend() async throws {
+    let transport = GatedTransport()
+    let starts = StartCounter()
+    let client = ClaudeChatClient(environment: [:], transportFactory: { _, _, _, _ in
+        starts.increment()
+        return transport
+    })
+    let events = Events()
+    let stream = client.events
+    let collector = Task { for await event in stream { events.append(event) } }
+    try await client.start()
+
+    try await client.turnStart([.text("first")])
+    try await client.interrupt()
+    let send = Task { try await client.turnStart([.text("second")]) }
+    try await Task.sleep(for: .milliseconds(50))
+    // 待っている間に停止し、その後で CLI が終わる。止めた送信を新しい CLI で始めない。
+    try await client.interrupt()
+    transport.exit()
+    try await send.value
+
+    #expect(starts.count == 1)
+    #expect(transport.sentCount == 1)
+    #expect(events.all.filter { $0 == .turnStarted }.count == 1)
     await client.close()
     await collector.value
 }

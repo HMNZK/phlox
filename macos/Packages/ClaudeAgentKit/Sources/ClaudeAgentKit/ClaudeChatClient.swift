@@ -42,6 +42,8 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     struct InterruptedResultSuppression {
         var generation: Int
+        /// 吸収を待つ後始末の数。後始末を読む前に同じ世代で続けて停止したら、その数だけ吸収する（ADR 0222）。
+        var count = 1
     }
 
     struct PendingUsageRequest {
@@ -164,8 +166,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
     /// incremented only by `recordSelfHealAttemptIfTurnBound()`.
     var currentTurnHealCount = 0
     /// Writes: initialized here; cleared by `resetConversation()`,
-    /// `spawn(sessionArgument:)`, and `handleResultEvent(_:generation:)` after
-    /// absorption; armed only by `interrupt()` with the current `spawnGeneration`.
+    /// `spawn(sessionArgument:)`, and `handleResultEvent(_:generation:)` once its
+    /// count reaches zero; armed (or counted up) only by `interrupt()` with the
+    /// current `spawnGeneration`.
     var interruptedResultSuppression: InterruptedResultSuppression?
     var nextUsageRequestID = 1
     var pendingUsageRequests: [String: PendingUsageRequest] = [:]
@@ -178,6 +181,15 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var interruptEndedGeneration: Int?
     /// processExited を知らせた世代。この世代のまま送られても起動し直さない（画面は終了表示。ADR 0222）。
     var exitReportedGeneration: Int?
+    /// 中断を始め、まだ次の送信で終了を待っていない世代（ADR 0222）。
+    var interruptExitPendingGeneration: Int?
+    /// 中断した CLI の終了を送信が待つ上限。
+    // ponytail: 2 秒は実測値ではない。SIGINT から終了までを測ったら合わせる。
+    var interruptExitGrace: Duration = .seconds(2)
+    /// close() の回数。待っている間に閉じられたかを見分ける。
+    var closeCount = 0
+    /// interrupt() の回数。待っている間に止められたかを見分ける。
+    var interruptRequestCount = 0
     /// turnStarted を出した回数。中断の途中で次のターンが始まったら、その中断の turnInterrupted を出さない（ADR 0222）。
     var turnStartCount = 0
     /// get_usage 応答待ちの内部タイムアウト（契約: 15 秒以下・テスト注入可能）。
@@ -324,6 +336,16 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     public func turnStart(_ input: [ChatInput]) async throws {
         try Task.checkCancellation()
+        // 中断の SIGINT で CLI は終わる（ADR 0083）。終わりかけの CLI へ書き込まず、終わるのを待って起動し直す（ADR 0222）。
+        if let generation = interruptExitPendingGeneration, generation == spawnGeneration, transport != nil {
+            let closes = closeCount
+            let stops = interruptRequestCount
+            await waitForInterruptedExit(generation: generation, closes: closes)
+            guard closeCount == closes else { throw ClaudeChatClientError.notStarted }
+            // 待っている間に止められた送信は始めない。その停止の終了待ちは次の送信に残す。
+            guard interruptRequestCount == stops else { return }
+            if interruptExitPendingGeneration == generation { interruptExitPendingGeneration = nil }
+        }
         guard pendingPermissionRequest == nil else {
             throw ClaudeChatClientError.permissionRequestInProgress
         }
@@ -450,16 +472,25 @@ public actor ClaudeChatClient: StructuredAgentClient {
         }
     }
 
+    private func waitForInterruptedExit(generation: Int, closes: Int) async {
+        let deadline = ContinuousClock.now + interruptExitGrace
+        while transport != nil, spawnGeneration == generation, closeCount == closes, ContinuousClock.now < deadline {
+            do { try await Task.sleep(for: .milliseconds(20)) } catch { return }
+        }
+    }
+
     /// その世代に中断を始めた（SIGINT 前を含む）か。
     private func isInterrupting(_ generation: Int) -> Bool {
         interruptingControlGeneration == generation || interruptEndedGeneration == generation
     }
 
     public func interrupt() async throws {
+        interruptRequestCount += 1
         guard let transport else { return }
         let generation = spawnGeneration
         let interruptedSessionId = currentSessionId
         interruptingControlGeneration = generation
+        interruptExitPendingGeneration = generation
         // isResponding（allow 送信 suspend 中）の質問へ deny を重ねると、同一
         // request_id に allow+deny の二重 control_response が届きうる（stage2 MEDIUM）。
         // 送信中のものは deny 対象から除外する（失効処理は expire 側で行われる）。
@@ -476,9 +507,13 @@ public actor ClaudeChatClient: StructuredAgentClient {
         currentTurnLine = nil
         yieldPendingResultErrorIfNeeded()
         if shouldSuppressInterruptedResult {
-            interruptedResultSuppression = InterruptedResultSuppression(
-                generation: spawnGeneration
-            )
+            if interruptedResultSuppression?.generation == spawnGeneration {
+                interruptedResultSuppression?.count += 1
+            } else {
+                interruptedResultSuppression = InterruptedResultSuppression(
+                    generation: spawnGeneration
+                )
+            }
         }
 
         var firstControlResponseError: Error?
@@ -510,6 +545,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     }
 
     public func close() async {
+        closeCount += 1
         receiveTask?.cancel()
         receiveTask = nil
         releaseStopTasks()

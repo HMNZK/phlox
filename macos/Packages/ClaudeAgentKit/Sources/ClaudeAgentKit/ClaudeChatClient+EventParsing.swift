@@ -307,9 +307,12 @@ extension ClaudeChatClient {
                 // so it must not touch currentTurnOpen/currentTurnLine.
                 // We intentionally keep this armed across the next turnStart; if
                 // the CLI never sends cleanup, the next real error_during_execution
-                // may be absorbed once, which is the accepted tradeoff from the
-                // task-24 decision log.
-                interruptedResultSuppression = nil
+                // may be absorbed once per uncounted stop, which is the accepted
+                // tradeoff from the task-24 decision log (ADR 0222 counts stops).
+                interruptedResultSuppression?.count -= 1
+                if interruptedResultSuppression?.count == 0 {
+                    interruptedResultSuppression = nil
+                }
                 pendingResultError = nil
                 return
             }
@@ -327,6 +330,13 @@ extension ClaudeChatClient {
         }
 
         if event["subtype"] as? String == "success" {
+            // 停止したターン自身の結果が先に届いたら、そのターンの後始末は来ない（1 ターンに result は 1 件）。
+            if interruptedResultSuppression?.generation == generation {
+                interruptedResultSuppression?.count -= 1
+                if interruptedResultSuppression?.count == 0 {
+                    interruptedResultSuppression = nil
+                }
+            }
             currentTurnOpen = false
             currentTurnLine = nil
             pendingResultError = nil

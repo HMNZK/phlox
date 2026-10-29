@@ -6,10 +6,10 @@ last-verified: 2026-10-12
 # Phlox E2E テスト設計書
 
 - 作成日: 2026-06-11
-- ステータス: Layer A の実装資産あり。2026-10-25にdev `90a0c801`のテスト定義を静的確認したが、今回の実行成功は未確認。過去のgreenは現在の候補の合格を意味しない。Layer Bは旧XCUITest計画であり、実行禁止。S10の実CLIスモークは必須fake集合に含めない
+- ステータス: Layer A の実装資産あり。2026-10-25にdev `90a0c801`のテスト定義を静的確認したが、今回の実行成功は未確認。過去のgreenは現在の候補の合格を意味しない。Layer B（XCUITest）は自動ゲートに含めず、手元で`~/.agents/scripts/xcuitest-run`経由で実行する。S10の実CLIスモークは必須fake集合に含めない
 - 対象: Phlox macOS アプリの主要シナリオ E2E テスト
 
-統合前の必須検査・実機記録・シナリオ変更レビューの正本は [merge-verification-gates.md](merge-verification-gates.md)。同書の開始OIDで13関数を必須fake集合とし、外部CLI不要の`E2ERealPTYTests.realPTY_deterministic_inputEchoThenSilenceReachesIdleCompletion`を含む。以下のシナリオは受入意図を示す設計で、実行済みの証拠ではない。XCUITestは入力ソースを追加し得るため使わず、画面の確認は単体描画・AX/イベント操作・実機観測を区別する。
+統合前の必須検査・実機記録・シナリオ変更レビューの正本は [merge-verification-gates.md](merge-verification-gates.md)。同書の開始OIDで13関数を必須fake集合とし、外部CLI不要の`E2ERealPTYTests.realPTY_deterministic_inputEchoThenSilenceReachesIdleCompletion`を含む。以下のシナリオは受入意図を示す設計で、実行済みの証拠ではない。XCUITestは入力ソースを追加し得るため`~/.agents/scripts/xcuitest-run`経由で実行し（実行後に増えた入力ソースを外す）、画面の確認は単体描画・AX/イベント操作・実機観測を区別する。
 
 ## 1. 目的とスコープ
 
@@ -28,7 +28,7 @@ last-verified: 2026-10-12
 | 層 | 名称 | 基盤 | 起動対象 | 実行時間目標 | 本数目安 |
 |---|---|---|---|---|---|
 | **Layer A** | ヘッドレス E2E | `swift test`（Swift Testing、`PHLOX_E2E=1` ゲート） | 実 PTYManager + 実 HookServer/ControlServer + フェイクエージェントCLI。GUI なし | 1本 < 10秒 | 10〜15本 |
-| **Layer B（旧計画）** | GUI E2E | XCUITest（実行禁止、導入計画は現行運用外） | 旧アプリ操作案 | — | — |
+| **Layer B（旧計画）** | GUI E2E | XCUITest（`~/.agents/scripts/xcuitest-run`経由で手元実行。自動ゲート外） | 旧アプリ操作案 | — | — |
 
 **割当の原則**: 「状態遷移・永続化・サーバAPI・PTY 入出力」は Layer A で検証する。Layer B は「GUI の配線（画面に出る・押せる・遷移する）」だけを検証し、ロジックの正しさは Layer A に委ねる。同じアサーションを両層に重複して置かない。
 
@@ -38,7 +38,7 @@ last-verified: 2026-10-12
 
 ## 3. 旧Layer Bの前提改修（履歴）
 
-以下は策定時の改修案・調査記録で、現在の実装状況や実行指示ではない。Layer BのXCUITest案は実行しない。現在の分離方法は [Release/Debug併存ガイド](../guides/running-release-and-debug-together.md)、現行の必須集合・入口は [統合前検証契約](merge-verification-gates.md)を参照する。
+以下は策定時の改修案・調査記録で、現在の実装状況や実行指示ではない。Layer BのXCUITestを実行するときは`~/.agents/scripts/xcuitest-run`を経由する。現在の分離方法は [Release/Debug併存ガイド](../guides/running-release-and-debug-together.md)、現行の必須集合・入口は [統合前検証契約](merge-verification-gates.md)を参照する。
 
 ### T1. データディレクトリの差し替え（必須・Layer B 前提）
 - 策定当時の記述（現行状況の主張ではない）: `App/CompositionRoot.swift:243-266` が `~/Library/Application Support/Phlox` 固定
@@ -110,7 +110,7 @@ last-verified: 2026-10-12
 - 異常系 A-1b: フック env なしのフェイクCLI で idle fallback により ready 検知できる（既存 `realPTY_deterministic_*` の発展）
 - 異常系 A-1c: `--exit-after 0`（即死 CLI）でセッションがエラー/終了状態になり、テストプロセス全体は無事
 
-**Layer B**（旧XCUITest操作案、実行禁止）
+**Layer B**（XCUITest操作案。`~/.agents/scripts/xcuitest-run`経由）
 - Given: `PHLOX_DATA_DIR`=一時dir、フェイクCLI registry 配置済み、アプリ起動
 - When: `session.newButton` をクリック → `session.inputField` に "hello" を入力 → `session.sendButton`
 - Then: サイドバーに新セッション行が現れ、`phlox read`（T6①）の取得結果に `ECHO: hello` が含まれる
@@ -181,7 +181,7 @@ last-verified: 2026-10-12
 
 ### シナリオ × 層 マトリクス（受入意図）
 
-各欄は対象とする検証で、合格実績ではない。旧Layer Bの操作意図を残すが、XCUITestは起動しない。実際に検査する関数・判定範囲は必須集合とコードで照合する。
+各欄は対象とする検証で、合格実績ではない。旧Layer Bの操作意図を残すが、XCUITestは自動ゲートでは起動しない。実際に検査する関数・判定範囲は必須集合とコードで照合する。
 
 | # | シナリオ | P | Layer A | 旧Layer B案 |
 |---|---|---|---|---|
@@ -228,11 +228,11 @@ fake E2Eは関数IDを明示して`--no-parallel`で実行し、`PHLOX_E2E=1`は
 
 - dev/verify/main反映前: 既存品質入口に接続した必須自動検査を実行する。mainは実機記録の照合も必要
 - S10（実CLI）・人操作/ACK待ちは自動ゲートから一括起動せず、必要に応じて別途明示実行する
-- XCUITestは実行しない。ローカルゲートを設けても、サーバー側の必須チェックや保護が設定済みとは扱わない
+- XCUITestは自動ゲートに含めず、手元で`~/.agents/scripts/xcuitest-run`経由で実行する。ローカルゲートを設けても、サーバー側の必須チェックや保護が設定済みとは扱わない
 
 ## 6. 旧実装フェーズ分割（履歴）
 
-以下は策定当時の計画。特にWP-E5〜E7のXCUITest導入・実行案は現行運用外で、実装指示ではない。
+以下は策定当時の計画。特にWP-E5〜E7は計画時点の案で、実装指示ではない。XCUITestの実行は`~/.agents/scripts/xcuitest-run`を経由する。
 
 | WP | 内容 | 依存 | 規模感 |
 |---|---|---|---|
@@ -250,6 +250,6 @@ fake E2Eは関数IDを明示して`--no-parallel`で実行し、`PHLOX_E2E=1`は
 ## 7. リスクと未確定事項
 
 1. **SwiftTerm 領域の検証手段**（T6）: `phlox read` 経由で足りるかは実装時に検証が必要。不足時は accessibilityValue 追加（本体改修）に発展する
-2. **画面確認の不足**: XCUITestは実行禁止。単体描画、AX/イベント操作、実機の操作・観測は検証範囲が異なり、互いの成功を代用しない
+2. **画面確認の不足**: XCUITestは自動ゲート外。単体描画、AX/イベント操作、実機の操作・観測は検証範囲が異なり、互いの成功を代用しない
 3. **（解決済み・T3 に反映）** Layer A は SpawnRequest 直接組み立てで registry 不要。Layer B は `PHLOX_TEST_AGENT_BINARY_PATHS` で組込みハーネスの実行ファイルを差し替える（カスタムエージェントは廃止。ADR 0185）
 4. **ports.json の共有**: 本番とテストでデータdir を分けることで ports.json も分離されるが、`scripts/phlox` が参照する API URL の解決経路をテスト側で正しく注入できるか WP-E3 で確認する

@@ -8,7 +8,7 @@ last-verified: 2026-10-15
 リリース前後に「ユーザーの操作を再現して**見た目が正しく表現されているか**」を、AI がスクリーンショットを目視して確認する手順。コード/ロジックの正しさは対象外（それは自動テスト → `specs/e2e-test-design.md`）。
 
 - **これで見るもの**: 実行中インジケータ・停止赤枠・グリッド・Usage バー・ツールコールカード等、**実行中しか現れない動的な状態**の表示。
-- **反復回帰はここでやらない**: 状態・API・描画の自動検査へ寄せ、必要な操作はAX/イベント送信で確認する。XCUITestは入力ソースを追加し得るため実行しない。ビジョン検証は探索的確認に使い、[統合前検証契約](../specs/merge-verification-gates.md)に従って自動検査・画面観測・実機記録を分ける。
+- **反復回帰はここでやらない**: 状態・API・描画の自動検査へ寄せ、必要な画面操作は XCUITest（`~/.agents/scripts/xcuitest-run` 経由。実行後に増えた入力ソースを外す）か AX/イベント送信で確認する。ビジョン検証は探索的確認に使い、[統合前検証契約](../specs/merge-verification-gates.md)に従って自動検査・画面観測・実機記録を分ける。
 - **一般技法の正本**: 非侵襲キャプチャ・AppleScript/AX 駆動の汎用手順は `~/.claude/skills/swift-testing-and-perf`（SKILL.md 共通規律＋`references/macos-ui-test-applescript.md`）。ここには **Phlox 固有の束縛だけ**を書く。
 
 ## 前提（Phlox 固有）
@@ -28,7 +28,7 @@ last-verified: 2026-10-15
 
 ## 比較用画像を画面外で描画する
 
-`DesignSnapshotRenderTests` はウィンドウを表示せずに比較用画像を作る。エージェントが実行するときは、worktree のルートで次の環境変数を設定し、共通の `managed-build` と `compact-test` を経由して標準のパッケージテスト入口を実行する。XCUITest は使用しない。
+`DesignSnapshotRenderTests` はウィンドウを表示せずに比較用画像を作る。エージェントが実行するときは、worktree のルートで次の環境変数を設定し、共通の `managed-build` と `compact-test` を経由して標準のパッケージテスト入口を実行する。XCUITest は不要。
 
 ```bash
 export PHLOX_DESIGN_SNAPSHOTS=1
@@ -81,6 +81,6 @@ Debug インスタンス終了（`osascript -e 'tell application "Phlox" to quit
 
 ## 関連
 
-- 自動テスト設計（必須fake集合・シナリオカタログ。XCUITestは運用外）: `specs/e2e-test-design.md`
+- 自動テスト設計（必須fake集合・シナリオカタログ。XCUITestは自動ゲート外）: `specs/e2e-test-design.md`
 - Release/Debug 同時併用: `guides/running-release-and-debug-together.md`（ADR 0034）
 - 汎用の macOS UI テスト技法: `~/.claude/skills/swift-testing-and-perf`

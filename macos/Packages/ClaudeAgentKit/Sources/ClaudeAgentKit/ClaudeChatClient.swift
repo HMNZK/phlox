@@ -176,6 +176,10 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var interruptingControlGeneration: Int?
     /// 中断で CLI を止めた世代。この世代の終了は次の送信で再開する前提なので「終了」として知らせない（04 B3）。
     var interruptEndedGeneration: Int?
+    /// processExited を知らせた世代。この世代のまま送られても起動し直さない（画面は終了表示。ADR 0222）。
+    var exitReportedGeneration: Int?
+    /// turnStarted を出した回数。中断の途中で次のターンが始まったら、その中断の turnInterrupted を出さない（ADR 0222）。
+    var turnStartCount = 0
     /// get_usage 応答待ちの内部タイムアウト（契約: 15 秒以下・テスト注入可能）。
     /// 実 CLI はターン処理中でも control_response を即応するが（2026-07-10 実測）、
     /// 重負荷時の余裕を見て既定 10 秒にする。
@@ -324,6 +328,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
             throw ClaudeChatClientError.permissionRequestInProgress
         }
         if transport == nil {
+            guard exitReportedGeneration != spawnGeneration else {
+                throw ClaudeChatClientError.notStarted
+            }
             do {
                 try await spawn(sessionArgument: settingsRespawnSessionArgument())
                 settingsDirty = false
@@ -386,13 +393,24 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
         currentTurnHealCount = 0
         currentTurnLatestContextTokens = nil
+        // 書き込みを待つ前にターンを開く。書き込み中の中断でも後始末エラーの吸収が準備され、
+        // 中断で閉じたターンを書き込み完了後に開き直さない（ADR 0222）。
+        currentTurnOpen = true
+        currentTurnLine = line
+        turnStartCount += 1
+        let writeGeneration = spawnGeneration
+        let stoppedBeforeWrite = isInterrupting(writeGeneration)
         eventContinuation.yield(.turnStarted)
         do {
             try await transport.send(line)
-            currentTurnOpen = true
-            currentTurnLine = line
         } catch {
+            // 書き込み中に自己修復が新しいプロセスへ送り直したなら、そのターンは続いている。
+            if spawnGeneration != writeGeneration { return }
+            // 書き込み中に始まった中断でプロセスが終わったなら、中断の結果でありエラーではない。
+            // 中断の後に送った指示の失敗は、黙って消さずエラーにする。
+            if !stoppedBeforeWrite, isInterrupting(writeGeneration) { return }
             currentTurnOpen = false
+            currentTurnLine = nil
             eventContinuation.yield(.error(message: "Failed to send Claude user turn: \(error)"))
             throw error
         }
@@ -432,6 +450,11 @@ public actor ClaudeChatClient: StructuredAgentClient {
         }
     }
 
+    /// その世代に中断を始めた（SIGINT 前を含む）か。
+    private func isInterrupting(_ generation: Int) -> Bool {
+        interruptingControlGeneration == generation || interruptEndedGeneration == generation
+    }
+
     public func interrupt() async throws {
         guard let transport else { return }
         let generation = spawnGeneration
@@ -446,6 +469,8 @@ public actor ClaudeChatClient: StructuredAgentClient {
                 && $0.value.permission == nil
         }
         await expirePendingUserQuestions(generation: generation)
+        // ここで開いているターンはこの中断が閉じる。これより後に始まったターンには turnInterrupted を出さない。
+        let startedTurnCount = turnStartCount
         let shouldSuppressInterruptedResult = currentTurnOpen
         currentTurnOpen = false
         currentTurnLine = nil
@@ -476,7 +501,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
         if interruptingControlGeneration == generation {
             interruptingControlGeneration = nil
         }
-        eventContinuation.yield(.turnInterrupted(nativeSessionId: interruptedSessionId))
+        if turnStartCount == startedTurnCount {
+            eventContinuation.yield(.turnInterrupted(nativeSessionId: interruptedSessionId))
+        }
         if let firstControlResponseError {
             throw firstControlResponseError
         }

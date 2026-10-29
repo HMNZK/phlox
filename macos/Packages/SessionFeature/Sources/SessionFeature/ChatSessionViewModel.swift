@@ -1449,7 +1449,7 @@ public final class ChatSessionViewModel: Identifiable {
                 self.touchOutput()
             }
 
-            guard self.turnGeneration == startedGeneration else { return }
+            guard self.turnGeneration == startedGeneration, !self.isTerminating else { return }
             self.flushPendingStreamDeltasBarrier()
             self.clearRunningTurn()
             self.clearRunningBackgroundTasks()
@@ -2705,6 +2705,9 @@ public final class ChatSessionViewModel: Identifiable {
             appendOrReplace(.fileChange(id: itemId, changes: changes, timestamp: eventDate))
             touchOutput()
         case .turnStarted:
+            // 閉じる・休止を始めた後は、ターンの状態を動かさない。eventTask を止めても溜まった
+            // 通知は届くため（ADR 0222）。会話 ID・費用など会話の記録は残す。
+            guard !isTerminating else { return }
             beginRunningTurn(at: eventDate)
             if shouldClearBackgroundTasksOnNextTurnStart {
                 clearRunningBackgroundTasks()
@@ -2740,6 +2743,7 @@ public final class ChatSessionViewModel: Identifiable {
             }
             await expireAllPendingUserQuestions(preservingAsync: true)
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
+            guard !isTerminating else { return }
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
             isCompacting = false
@@ -2762,6 +2766,7 @@ public final class ChatSessionViewModel: Identifiable {
                 codexEventTurnId = nil
             }
             await expireAllPendingUserQuestions()
+            guard !isTerminating else { return }
             isCompacting = false
             clearRunningTurn()
             clearRunningBackgroundTasks()
@@ -2781,6 +2786,7 @@ public final class ChatSessionViewModel: Identifiable {
                 codexEventTurnId = nil
             }
             await expireAllPendingUserQuestions()
+            guard !isTerminating else { return }
             isCompacting = false
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
@@ -2808,6 +2814,7 @@ public final class ChatSessionViewModel: Identifiable {
             pendingApprovals.removeAll()
             await expireAllPendingUserQuestions()
             await approvalBroker.cancelAll()
+            guard !isTerminating else { return }
             isCompacting = false
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
@@ -4393,7 +4400,7 @@ extension ChatSessionViewModel: ControllableSession {
                     clearRunningTurn()
                     isAwaitingLocallyStartedTurnEvent = false
                     firstTurnInput = nil
-                    if !isTerminating { status = .idle }
+                    if !isTerminating, processExit == nil { status = .idle }
                     throw CancellationError()
                 }
                 guard launchFailure == nil else { throw error }
@@ -4403,7 +4410,8 @@ extension ChatSessionViewModel: ControllableSession {
                 clearRunningTurn()
                 isAwaitingLocallyStartedTurnEvent = false
                 firstTurnInput = nil
-                status = .idle
+                // 閉じた後・終了表示（processExited）の後は status を書き換えない（ADR 0222）。
+                if !isTerminating, processExit == nil { status = .idle }
                 sendFailure = SendFailure(
                     reason: Self.sendFailureReason(error),
                     restoredDraft: restoreDraftAfterRejectedSend(input)

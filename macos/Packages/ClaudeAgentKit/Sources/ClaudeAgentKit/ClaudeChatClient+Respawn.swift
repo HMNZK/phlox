@@ -169,6 +169,7 @@ extension ClaudeChatClient {
         guard !Task.isCancelled, interruptEndedGeneration != generation else { return }
         let exitCode = await endedTransport?.terminationStatus()
         guard !Task.isCancelled, interruptEndedGeneration != generation, spawnGeneration == generation else { return }
+        exitReportedGeneration = generation
         eventContinuation.yield(.processExited(exitCode: exitCode))
     }
 

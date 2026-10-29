@@ -42,8 +42,9 @@ last-verified: 2026-08-21
 
 ## 中断（interrupt）の後始末
 
-- 中断時にターンが開いていた場合、同一世代の次の `error_during_execution` result は「後始末」として1件だけ吸収する（次の turnStart では解除しない・世代交代で解除・新ターンの状態には触れない。ADR 0022）。
-- **中断後の transport 復活（Bug2・2026-07-13）**: `claude -p` は SIGINT で終了する（`interrupt()`→`transport.interrupt()`→`process.interrupt()`）。中断でターンが閉じた後にプロセスが死ぬと `handleStreamEnded` は自己修復ブランチ（`currentTurnOpen` が既に false）を素通りして `transport=nil` に落とす。この状態で次の `turnStart` が来ると、以前は `notStarted` を throw して**「停止後に送っても処理が始まらない」無音失敗**になっていた。現行の `turnStart` は入口で `transport==nil` を検出したら `settingsRespawnSessionArgument()`（会話確立後は `--resume <currentSessionId>`）で respawn してから送信し、respawn 失敗時のみ `.error` を yield して throw する（握りつぶさない）。Cursor/Codex 経路は interrupt が transport/thread を殺さないため構造的にこの穴が無い。ADR 0083。
+- 中断時にターンが開いていた場合、同一世代の次の `error_during_execution` result は「後始末」として1件だけ吸収する（次の turnStart では解除しない・世代交代で解除・新ターンの状態には触れない。ADR 0022）。`turnStart` は `turnStarted` を出すと同時に `currentTurnOpen`・`currentTurnLine` を立て、書き込み完了後には書き直さない。書き込み中の中断でも吸収が準備され、中断で閉じたターンが開き直らない。書き込み中に始まった中断でプロセスが終わった書き込み失敗と、書き込み中に自己修復が送り直した後の書き込み失敗は `.error` にしない。中断が始まった後に送った指示の失敗は `.error` にする（ADR 0222）。
+- `interrupt()` は開いているターンを閉じる時点で `turnStarted` の回数を控え、SIGINT の後に変わっていれば `turnInterrupted` を出さない（新しいターンを古い中断で止めた表示にしない。ADR 0222）。
+- **中断後の transport 復活（Bug2・2026-07-13）**: `claude -p` は SIGINT で終了する（`interrupt()`→`transport.interrupt()`→`process.interrupt()`）。中断でターンが閉じた後にプロセスが死ぬと `handleStreamEnded` は自己修復ブランチ（`currentTurnOpen` が既に false）を素通りして `transport=nil` に落とす。この状態で次の `turnStart` が来ると、以前は `notStarted` を throw して**「停止後に送っても処理が始まらない」無音失敗**になっていた。現行の `turnStart` は入口で `transport==nil` を検出したら `settingsRespawnSessionArgument()`（会話確立後は `--resume <currentSessionId>`）で respawn してから送信し、respawn 失敗時のみ `.error` を yield して throw する（握りつぶさない）。Cursor/Codex 経路は interrupt が transport/thread を殺さないため構造的にこの穴が無い。ADR 0083。ただし `processExited` を出した世代（中断以外で終わった）では起動し直さず `notStarted` で失敗させる。画面は既に終了表示で、続けるのは「この会話から再開」（ADR 0222）。
 
 ## control protocol（ツール許可・AskUserQuestion 中継）
 
@@ -55,7 +56,7 @@ last-verified: 2026-08-21
 
 ## 使われていないチャットの休止
 
-24 時間使われていない Claude・Codex のチャットは、常駐側の見回り（10 分ごと）が `ChatSessionViewModel.suspendForIdle()` でエージェントのプロセスだけを止める。`processExit`（`suspendedForIdle: true`）を先に立てて送信・承認を止め、イベントの受信を止めてから会話を保存する。status は変えないので対応待ちにはならない。再開は「この会話から再開」（`resumeEndedChatSession`）で、起動時の復元と同じ経路を通る。条件と理由は [ADR 0221](../adr/0221-suspend-idle-chat-agent-processes.md)。
+24 時間使われていない Claude・Codex のチャットは、常駐側の見回り（10 分ごと）が `ChatSessionViewModel.suspendForIdle()` でエージェントのプロセスだけを止める。`processExit`（`suspendedForIdle: true`）を先に立てて送信・承認を止め、イベントの受信を止めてから会話を保存する。status は変えないので対応待ちにはならない。終了・休止を始めた後（`isTerminating`）に届いたターンの通知（開始・完了・中断・エラー・終了）は status を動かさない。会話 ID と費用の記録は残す（ADR 0222）。再開は「この会話から再開」（`resumeEndedChatSession`）で、起動時の復元と同じ経路を通る。条件と理由は [ADR 0221](../adr/0221-suspend-idle-chat-agent-processes.md)。
 
 ## バックグラウンドタスクイベント
 

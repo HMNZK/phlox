@@ -484,6 +484,22 @@
         "fake-session-lifecycle"
       ],
       "reason": "変更は ClaudeChatClient*.swift と ChatSessionViewModel.swift のチャット型状態管理だけで、S1 の要件（ターミナル型セッションでのフック駆動の送受信と完了）とは別経路。testIDs の5ファイルはどちらの型も参照せず、シナリオの procedure/expected/method/required/testIDs と e2e-test-design.md は差分に含まれない。対象 b0c511bb で PHLOX_E2E=1 の必須fake 13件、ClaudeAgentKit 全214件、SessionFeature 全1304件が通過。"
+    },
+    {
+      "baseOID": "7a3e0901b825f8db7b92da54f3b725063896e02a",
+      "targetOID": "71e985947fc83b9d7bb6488563a3251eda8ca790",
+      "diffSHA256": "34209a4ebdd37730fca4122cf648c9dd5dd43f0f4c1a8555a2abf2de5c59234c",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/a3b31ecec235da83a"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-29T10:47:49Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "変更は ClaudeAgentKit の ClaudeChatClient(+EventParsing).swift とそのテスト、ADR 0222・アーキテクチャ文書だけで、e2e-test-design.md#S1 の要件行とシナリオの procedure/expected/method/required/testIDs は差分に含まれない。testIDs の5ファイルは ClaudeChatClient・ChatSessionViewModel・StructuredAgentClient を参照せず、S1 はフック駆動のターミナル型経路なので、停止直後の送信の終了待ちと後始末吸収の回数化は影響しない。対象 71e98594 で PHLOX_E2E=1 の必須fake 13件と ClaudeAgentKit 全221件が通過。"
     }
   ]
 }

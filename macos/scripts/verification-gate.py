@@ -110,7 +110,9 @@ def text_field(obj, key):
 
 def excluded_input(path):
     # These documents are never compilation inputs; scenario content is checked separately.
+    # integrations/ holds tools that run outside the app and are never built into it.
     return (path in (SCENARIOS, REVIEWS, RECORDS)
+            or path.startswith("integrations/")
             or (path.startswith(("macos/docs/", "ios/docs/")) and path.endswith((".md", ".html")))
             or ("/" not in path and path.startswith("README") and path.endswith(".md"))
             or (path.startswith("release/notes-") and path.endswith(".md")))

@@ -48,6 +48,11 @@ class GateTests(unittest.TestCase):
         target.write_text("\n".join(json.dumps(row) for row in transform(rows)) + "\n")
         return target
 
+    def test_only_top_level_integrations_are_outside_build_inputs(self):
+        self.assertTrue(gate.excluded_input("integrations/tool/build.py"))
+        self.assertFalse(gate.excluded_input("ios/integrations/tool.swift"))
+        self.assertFalse(gate.excluded_input("macos/scripts/tool.py"))
+
     def test_measured_fake_run_has_exactly_thirteen_successful_ids(self):
         self.assertEqual(len(gate.check_fake_events(FIXTURES / "swift-testing-fake.jsonl")), 13)
 

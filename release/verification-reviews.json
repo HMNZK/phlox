@@ -500,6 +500,17 @@
         "fake-session-lifecycle"
       ],
       "reason": "変更は ClaudeAgentKit の ClaudeChatClient(+EventParsing).swift とそのテスト、ADR 0222・アーキテクチャ文書だけで、e2e-test-design.md#S1 の要件行とシナリオの procedure/expected/method/required/testIDs は差分に含まれない。testIDs の5ファイルは ClaudeChatClient・ChatSessionViewModel・StructuredAgentClient を参照せず、S1 はフック駆動のターミナル型経路なので、停止直後の送信の終了待ちと後始末吸収の回数化は影響しない。対象 71e98594 で PHLOX_E2E=1 の必須fake 13件と ClaudeAgentKit 全221件が通過。"
+    },
+    {
+      "baseOID": "42044159abc5ce3e54e9daf51e8277ab956b136c",
+      "targetOID": "8314e53ef2d42b8cfc00852108280c32b8254a81",
+      "diffSHA256": "430816762212fdb28c53c92833045725747b1f2891da8362b014e53408adae34",
+      "reviewer": {"kind": "ai", "id": "claude-code:reviewer/a9e83423a7eb241d6"},
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-30T14:14:12Z",
+      "scenarioIDs": ["fake-session-lifecycle"],
+      "reason": "本差分は、別リポジトリへ移した `integrations/pstack-codex/`（アプリのビルドに含まれない Python 製生成器）と pstack 関連文書の削除、`macos/scripts/verification-gate.py` の `excluded_input()` への `integrations/` 配下の追加、およびその単体テスト追加である。リポジトリ内に `integrations/` を参照するビルド設定・スクリプト・project.yml・Package.swift が無いことを確認した。ビルド入力 manifest に `integrations/` が入らないこと、独立レビュー対象の差分がゲートスクリプトとそのテストの2ファイルだけになることを実走で確認した。除外は先頭が `integrations/` のパスに限られ、`ios/integrations/` やソース・ビルドスクリプトの検査は弱まらない。追加テストはこの境界を検証し、ゲート単体テストは成功した。fake-session-lifecycle は codePaths に `macos/scripts/**` を含み影響対象に該当するが、要件 S1・手順・期待結果は生成器にもゲートの除外規則にも依存せず変更されない。仕様 `merge-verification-gates.md` の追記は実装と一致し、削除した文書への参照切れも無い。"
     }
   ]
 }

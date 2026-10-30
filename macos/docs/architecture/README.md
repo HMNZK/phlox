@@ -28,6 +28,7 @@ GUI は `DesktopCompositionRoot` が組み立て、別プロセスの `SessionRu
 | `agent-model-catalog.md` | spawn 前モデル一覧の live 取得・保持・消費（AgentModelCatalog、CLI パース、フォールバックと観測） |
 | `chat-mode-ux-components.md` | チャットモード UX コンポーネント構成（composer/transcript/サジェスト等の現行分割） |
 | `chat-orchestration.md` | チャットモードのオーケストレーション（`$PHLOX_CLI` spawn/send/wait の現行配線） |
+| `codex-skill-selection.md` | Codex のスキル候補選択と、更新通知後に選択を保持する条件 |
 | `agent-management-console.md` | 「エージェント管理」ウィンドウと `AgentConfigKit`（Claude Code / Codex / Cursor の設定・対話 TUI 専用スラッシュコマンドの置き換え・会話エクスポート） |
 | `chat-revert-escape-and-interrupt.md` | チャットの中断・Esc・履歴リバート機構 |
 | `chat-subagent-display.md` | サブエージェント別チャット表示の現行構造 |

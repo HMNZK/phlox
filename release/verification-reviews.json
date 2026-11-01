@@ -726,6 +726,22 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "旧全体レビューとの対応、期限試験とappcastの最終差分を独立確認した。配布物の実物照合は別担当。実機5件は未実施、iPhone版は配布対象外。"
+    },
+    {
+      "baseOID": "a681cbb8b901afbc82127d213c082af7e5f8df58",
+      "targetOID": "22784ed2b7164b2b4fd6aede05c2caa55f34e617",
+      "diffSHA256": "8721b6ba807c7721dc4afd4e47f8a960b255ef2453c1a68a8ce60ce23381162e",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/stage1_independent_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-01T13:51:11+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "main..HEADの正確な差分を独立に読み取りレビューした。競合したverification-reviewsは原dev31/main36の完全和集合41件で、完全一致重複26件だけが除去され全record内容を保持する。gate正本のnormalized15変更でaffected scenarioはfake-session-lifecycleのみ。catalog要求/method/required/testIDs5群/必須13関数は維持され、E2E文書の変更も必須自動集合を弱めない。Claude停止/終了競合修正とcache変更・回帰テスト、性能出力先、top-level integrations除外を確認し、新しい確定機能不具合・修正欠落を検出しなかった。今回は呼出元の指示に従いbuild/testを新規実行せず、同最終候補でのquality、verify-phlox段1、状態モデルhuman/any両モードとmainリリース検査は別途必要。このpassはコード/シナリオ適合と競合解消の読み取り判定であり、全性能目標、実機release、main反映の成功を認定しない。 追補としてモデル同期42044159との5状態関連ファイルの全文byte一致とChatVM差分が投影/cacheだけであることを直接照合した。主担当実走の保存ログはhuman2841状態/違反0、any891026状態/既知handle(.turnInterrupted)違反1を示す。--expect exit0は主担当報告であり、新規6性質allpassや既知違反解消とは扱わない。"
     }
   ]
 }

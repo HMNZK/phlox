@@ -635,12 +635,10 @@ def verify_file(value, root):
     return path
 
 
-def validate_physical_records(data, scenarios, manifest, tools=None, root=ROOT, dmg_sha256=None, evidence_root=None, dmg_path=None):
+def validate_recorded_builds(data, manifest, root=ROOT, dmg_sha256=None, evidence_root=None, dmg_path=None):
     require(data.get("schemaVersion") == 1, "Unknown physical record schema")
     evidence_root = evidence_root or root
-    required = [s for s in scenarios if s["required"] and s["method"] == "physical-device"]
-    require(required, "Required physical scenario set disappeared")
-    builds, devices = {}, {}
+    builds = {}
     identities = {}
     matching_mac_builds = set()
     for build in data.get("builds", []):
@@ -674,6 +672,23 @@ def validate_physical_records(data, scenarios, manifest, tools=None, root=ROOT, 
         require(key not in identities or identities[key] == identity, "Build number reused for different artifacts")
         identities[key] = identity
         builds[ident] = record
+    return builds, matching_mac_builds
+
+
+def validate_distribution_records(data, manifest, root=ROOT, dmg_sha256=None, evidence_root=None, dmg_path=None):
+    builds, matching = validate_recorded_builds(data, manifest, root, dmg_sha256, evidence_root, dmg_path)
+    require({record["platform"] for record in builds.values()} >= {"macos", "ios"}, "Mac and iOS distribution builds are required")
+    require(matching, "No recorded Mac build matches the validated DMG")
+    return [builds[ident] for ident in sorted(matching)]
+
+
+def validate_physical_records(data, scenarios, manifest, tools=None, root=ROOT, dmg_sha256=None, evidence_root=None, dmg_path=None):
+    require(data.get("schemaVersion") == 1, "Unknown physical record schema")
+    evidence_root = evidence_root or root
+    required = [s for s in scenarios if s["required"] and s["method"] == "physical-device"]
+    require(required, "Required physical scenario set disappeared")
+    builds, matching_mac_builds = validate_recorded_builds(data, manifest, root, dmg_sha256, evidence_root, dmg_path)
+    devices = {}
     for device in data.get("devices", []):
         ident = text_field(device, "deviceID")
         require(ident not in devices, f"Duplicate device ID: {ident}")
@@ -866,7 +881,7 @@ def validate_distribution(dmg, sparkle_zip, build, evidence_root):
     mount.rmdir()
 
 
-def release(args):
+def release(args, *, physical=True):
     require(os.environ.get("GITFLOW_MERGE_CANDIDATE"), "Release requires the final merge candidate OID environment")
     head, before = candidate(), input_manifest(ROOT)
     require(os.environ.get("GITFLOW_MERGE_TO"), "Release requires the merge base OID environment")
@@ -877,13 +892,23 @@ def release(args):
     evidence_root = Path(args.evidence_root).resolve(strict=True)
     dmg = evidence_path(args.dmg, evidence_root)
     dmg_hash = digest(dmg.read_bytes())
-    builds = validate_physical_records(data, scenarios, before, root=ROOT, evidence_root=evidence_root, dmg_sha256=dmg_hash, dmg_path=dmg)
+    if physical:
+        builds = validate_physical_records(data, scenarios, before, root=ROOT, evidence_root=evidence_root, dmg_sha256=dmg_hash, dmg_path=dmg)
+    else:
+        builds = validate_distribution_records(data, before, root=ROOT, evidence_root=evidence_root, dmg_sha256=dmg_hash, dmg_path=dmg)
     sparkle_zip = evidence_path(args.zip, evidence_root)
     for build in builds:
         require(verify_file(build["sparkleZIP"], evidence_root).samefile(sparkle_zip), "Distribution ZIP differs from recorded build")
         validate_distribution(dmg, sparkle_zip, build, evidence_root)
     require(candidate() == head and input_manifest(ROOT) == before, "Release inputs changed during verification")
-    print("Physical release evidence matched. Existing version/notes/appcast/stapler checks must precede this command.")
+    if physical:
+        print("Physical release evidence matched. Existing version/notes/appcast/stapler checks must precede this command.")
+    else:
+        print("Distribution evidence matched; installation and physical scenarios not verified. Existing version/notes/appcast/stapler checks must precede this command.")
+
+
+def distribution(args):
+    release(args, physical=False)
 
 
 def review_input(args, root=ROOT):
@@ -902,11 +927,12 @@ def main():
     worker = sub.add_parser("_quality-worker", help=argparse.SUPPRESS)
     worker.add_argument("--output", required=True)
     worker.add_argument("--build-dir", required=True)
-    physical = sub.add_parser("release")
-    physical.add_argument("--record", default=RECORDS)
-    physical.add_argument("--dmg", required=True, help="Exactly the DMG path passed to the preceding stapler validation")
-    physical.add_argument("--zip", required=True, help="The distribution ZIP captured with the physical Mac build")
-    physical.add_argument("--evidence-root", required=True)
+    for mode in ("release", "distribution"):
+        release_parser = sub.add_parser(mode)
+        release_parser.add_argument("--record", default=RECORDS)
+        release_parser.add_argument("--dmg", required=True, help="Exactly the DMG path passed to the preceding stapler validation")
+        release_parser.add_argument("--zip", required=True, help="The distribution ZIP captured with the Mac build")
+        release_parser.add_argument("--evidence-root", required=True)
     capture = sub.add_parser("capture-build")
     capture.add_argument("--platform", required=True, choices=["macos", "ios"])
     capture.add_argument("--evidence-root", required=True)
@@ -919,7 +945,7 @@ def main():
     if args.mode == "capture-build" and args.command[:1] == ["--"]:
         args.command.pop(0)
     try:
-        {"quality": quality, "_quality-worker": quality_worker, "capture-build": capture_build, "release": release, "review-input": review_input}[args.mode](args)
+        {"quality": quality, "_quality-worker": quality_worker, "capture-build": capture_build, "release": release, "distribution": distribution, "review-input": review_input}[args.mode](args)
     except (GateError, OSError, ValueError, KeyError, TypeError, ET.ParseError, expat.ExpatError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         print(f"verification-gate: inspection failed or incomplete: {error}", file=sys.stderr)
         return 1

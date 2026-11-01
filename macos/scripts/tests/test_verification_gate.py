@@ -340,6 +340,45 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(gate.GateError, "DMG"):
             gate.validate_physical_records(data, scenarios, manifest, tools, self.root, dmg_sha256="0" * 64)
 
+    def test_distribution_without_installations_does_not_make_physical_release_pass(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        data["devices"] = []
+        data["executions"] = []
+        path = self.root / "fixture-output/records.json"
+        path.write_text(json.dumps(data))
+        self.saved_git = gate.git
+        head = self.saved_git("rev-parse", "HEAD", root=self.root)
+        args = SimpleNamespace(record=str(path), evidence_root=str(self.root), dmg="fixture-output/macos.bin", zip="fixture-output/Phlox-1.zip")
+        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution") as packaging, patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
+            gate.distribution(args)
+            self.assertEqual(packaging.call_count, 1)
+            with self.assertRaisesRegex(gate.GateError, "Physical scenario not_run"):
+                gate.release(args)
+            copied_zip = self.root / "fixture-output/other.zip"
+            copied_zip.write_bytes((self.root / args.zip).read_bytes())
+            args.zip = copied_zip.relative_to(self.root).as_posix()
+            with self.assertRaisesRegex(gate.GateError, "ZIP differs"):
+                gate.distribution(args)
+
+    def test_distribution_requires_both_current_builds_and_matching_dmg(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        only_mac = copy.deepcopy(data)
+        only_mac["builds"] = [build for build in data["builds"] if build["buildID"] == "macos"]
+        with self.assertRaisesRegex(gate.GateError, "Mac and iOS"):
+            gate.validate_distribution_records(only_mac, manifest, self.root)
+        with self.assertRaisesRegex(gate.GateError, "DMG"):
+            gate.validate_distribution_records(data, manifest, self.root, dmg_sha256="0" * 64)
+        (self.root / "app.swift").write_text("let fixture = false\n")
+        changed = self.tree_commit()
+        with self.assertRaisesRegex(gate.GateError, "Stale build inputs"):
+            gate.validate_distribution_records(data, gate.input_manifest(self.root, changed), self.root)
+
+    def test_distribution_rejects_tampered_recorded_zip(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        (self.root / "fixture-output/Phlox-1.zip").write_bytes(b"changed distribution")
+        with self.assertRaisesRegex(gate.GateError, "hash mismatch"):
+            gate.validate_distribution_records(data, manifest, self.root)
+
     def test_ios_provenance_rejects_wrong_embedded_version_even_with_matching_hashes(self):
         data, scenarios, manifest, tools = self.physical_fixture()
         build = next(b for b in data["builds"] if b["buildID"] == "ios")

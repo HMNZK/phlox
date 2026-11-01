@@ -238,9 +238,19 @@ iOSでは設定JSONだけでなく、完成したIPAの本体とWidgetのInfo.pl
 | `macos/scripts/verification-gate.py quality` | 文書保守後の候補で必須の自動検査を実行するプロジェクト入口。`gitflow.verifyCommand`の接続先 |
 | `macos/scripts/verification-gate.py capture-build --evidence-root <基準> ... -- <ビルドコマンド>` | 実機に入れるビルドの実入力・ソース・成果物を対応付ける。settingsは呼び出し側の実測資料。実機合格は作らない |
 | `macos/scripts/verification-gate.py release --dmg <既存staplerと同じDMG> --zip <同じ工程の配布ZIP> --evidence-root <基準> [--record <JSON>]` | main反映前の独立レビュー・実機記録・再利用条件の照合。既存署名/版検査は親の接続先で先行実行する |
+| `macos/scripts/verification-gate.py distribution --dmg <既存staplerと同じDMG> --zip <同じ工程の配布ZIP> --evidence-root <基準> [--record <JSON>]` | 独立レビュー、Mac/iOS両配布物の入力・有効設定・ハッシュ、DMG/ZIP・版・署名・appcastの一致を確認する。実機操作の合格は作らない |
 | `macos/scripts/verification-gate.py review-input --base <比較元> [--target <対象、既定HEAD>]` | 正規化差分とハッシュを標準出力に得る。レビュー判定を作らず、作業ツリーも書き換えない |
 | `release/verification-scenarios.json` | 要件/対象コード/テスト/実機シナリオ対応。`schemaVersion`付き |
 | `release/verification-reviews.json` | 差分に結び付いた独立レビュー。担当種別は`ai`/`human`を明記する |
 | `release/verification-records.json` | 実ビルドと実機観測の記録。初期は空集合で、passedを作らない |
 
 上記は検査の契約と入口の説明であり、実行済みの証明ではない。開始OIDの監査表は履歴として残し、新実装の動作確認として上書きしない。Git管理外の設定は各環境で接続を確認し、実機の合否は対象ビルドに結び付いた実施記録で確認する。
+
+
+## 配布物と実機操作の検査を分ける（2026-11-01）
+
+今回のmain統合では、ユーザーが「実機検査は必須ではない」と指定し、「配布物の検査を直すまで統合しない」を選択した。従ってqualityとdistributionを必須とし、実機操作はnot_runのまま記録する。実機未実施を配布物の鮮度不一致と混同せず、古いMac40/iOS10の来歴やMac41のDMGを今回の候補へ流用しない。
+
+distributionは既存releaseのビルド来歴・配布物検証を共用し、Mac/iOS両方の現入力、署名ありの実機用有効設定、成果物ハッシュ、Macの選択DMG/ZIPとappcastの同一性を保つ。sourceOIDやハッシュを後付けしない。現在選択する記録と古い記録を分離し、旧履歴を消して合格に見せない。
+
+releaseは従来どおりhuman observer・実際の端末へのインストール・必須5シナリオを要求し、物理端末の不足や未実施を拒否する。distributionの成功をrelease全体や実機操作の成功へ読み替えない。どちらも既存のstapler確認と独立シナリオレビューを先行し、同一の配布物・入力・検査前後の不変性を確認する。公開・push・通常アプリの入替は今回の依頼に含めない。

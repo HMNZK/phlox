@@ -162,7 +162,7 @@ provision 後、`mobileRequesterSessionID` が Dashboard の特権 requester と
 | **project start points** | `GET` | `/projects/{id}/start-points?commit=<hex>` | `commit` は省略可（4〜40 桁の16進のみ。他のクエリ・形式不正の id は `400`） | `200` + `{ "startPoints":[{ "kind", "value"?, "title", "summary"? }] }` / 未登録プロジェクト: `404`（2026-10-25） | `ControlActionHandler.handle`（`.projectStartPoints`） |
 | **project history** | `GET` | `/projects/{id}/history?kind=claudeCode\|codex` | `kind` 必須（他の値・他のクエリ・形式不正の id は `400`） | `200` + `{ "entries":[{ "id", "title", "updatedAt", "branch"?, "workingDirectory"? }] }` / 未登録プロジェクト: `404`（2026-10-25） | `ControlActionHandler.handle`（`.projectHistory`） |
 | **usage (account)** | `GET` | `/usage` | — | `200` + `{ "agents":[…] }`（wave-2） | `handleCLIUsage` |
-| **question** | `POST` | `/sessions/{id}/question` | JSON: `{ "requestId", "answers": {"<question文>": [String]} }` | `200`（受理）/ セッション or pending 質問なし: `404` / body 不正: `400`。Claude のツール使用許可の質問は `questions[].allowsSessionScope`（省略可）が true なら回答 `"AllowForSession"` で「このセッション中は許可」（ADR 0216 追記） | `handleRespondQuestion` |
+| **question** | `POST` | `/sessions/{id}/question` | JSON: `{ "requestId", "answers": {"<id ?? question文>": [String]} }`（キーは質問の `id`、無ければ質問文） | `200`（受理）/ セッション or pending 質問なし: `404` / body 不正: `400`。Claude のツール使用許可の質問は `questions[].allowsSessionScope`（省略可）が true なら回答 `"AllowForSession"` で「このセッション中は許可」（ADR 0216 追記） | `handleRespondQuestion` |
 
 **approve の一覧取得**（操作の前提）: `GET /approvals` → `handleListApprovals`（`ControlServer.swift:180-184`, `ControlActionHandler.swift:278-281`）。各要素は `{ "id", "sessionID", "kind"（エージェントの種類）, "prompt", "actionKind"? }`。`actionKind` は操作の種類（`command`・`fileChange`・`permissions`）で、`DashboardViewModel.controlApprovalActionKind` が `ChatApprovalKind` から作る（契約 §8.9。ADR 0216 追記 7）。
 
@@ -214,7 +214,7 @@ iOS の新規チャットの作業場所・起点・履歴再開と、未確認�
 
 ### AskUserQuestion の wire ミラー（2026-07-19 追加。設計判断＝[ADR 0103](../adr/0103-user-question-wire-mirror.md)）
 
-- **messages DTO**: `GET /sessions/{id}/messages` の `ChatMessageDTO` に `type == "userQuestion"` を追加。`requestId`/`state`（`pending`|`answered`|`expired`）/`questions`（`question`/`header`/`multiSelect`/`options`{`label`/`description`}）を持ち、`answers` は present 時のみ出力（pending は省略）。`options[].description` も present 時のみ。
+- **messages DTO**: `GET /sessions/{id}/messages` の `ChatMessageDTO` に `type == "userQuestion"` を追加。`requestId`/`state`（`pending`|`answered`|`expired`）/`questions`（`id`（省略可）/`question`/`header`/`multiSelect`/`options`{`label`/`description`}）を持ち、`answers` は present 時のみ出力（pending は省略）。`options[].description` も present 時のみ。回答のキーは `id ?? question`。
 - **回答ルーティング**: `POST /sessions/{id}/question`（表参照）。`ControlServer.parseQuestionResponse` が query 付き→`404`、不正 sessionID→`400`、body decode 失敗/`requestId` 空→`400` に振り分け、`ControlActionHandler.handleRespondQuestion` が `DashboardViewModel.respondToUserQuestion` へ委譲し `found ? 200 : 404` を返す。
 - **ワイヤキー正本**: `Packages/ControlServer/Sources/ControlServer/ControlQuestionWireContract.swift`（iOS 側 `PhloxQuestionWireContract` と値を一字一句一致させる二重管理）。`implemented` フラグでその側の実装完了と同時に段階反転する。
 - **App 層 witness**: `App/ControlActionDashboard+DashboardViewModel.swift` の `extension DashboardViewModel: @retroactive ControlActionDashboard` は転送ラッパを持たない。`DashboardViewModel` 本体（DashboardFeature）の同シグネチャ public メソッドが witness として自動解決されるため（Swift の retroactive conformance 規則）、これが正しい実装であり App 層への追記は不要（追記すると `sendMessage` と同型の無限再帰を招く）。詳細は [ADR 0103](../adr/0103-user-question-wire-mirror.md) 参照。

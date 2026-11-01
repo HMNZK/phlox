@@ -11,6 +11,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
     @Binding var isFocused: Bool
     @Binding var hasMarkedText: Bool
     let dynamicTypeSize: DynamicTypeSize
+    let minimumHeight: CGFloat
     let accessibilityLabel: String
     let submission: Submission
     let submissionRevision: Int
@@ -113,7 +114,7 @@ struct DSInputRichTextEditor: UIViewRepresentable {
         let measured = layout.usedRect(for: container).height + trailingLine
         let shouldScroll = measured > maximumHeight
         if view.isScrollEnabled != shouldScroll { view.isScrollEnabled = shouldScroll }
-        return CGSize(width: width, height: ceil(min(max(measured, lineHeight), maximumHeight)))
+        return CGSize(width: width, height: ceil(max(min(max(measured, lineHeight), maximumHeight), minimumHeight)))
     }
 
     private func baseAttributes() -> [NSAttributedString.Key: Any] {

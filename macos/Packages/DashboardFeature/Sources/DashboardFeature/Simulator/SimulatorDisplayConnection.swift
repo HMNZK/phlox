@@ -55,6 +55,7 @@ public final class SimulatorDisplayConnection {
     private(set) var sentKeyCodes: Set<UInt16> = []
     @ObservationIgnored private let makeTransport: () -> any SimulatorDisplayTransport
     @ObservationIgnored private let timeout: TimeInterval
+    @ObservationIgnored private let recoveryProbeTimeout: TimeInterval
     @ObservationIgnored private let now: () -> TimeInterval
     @ObservationIgnored private var transport: (any SimulatorDisplayTransport)?
     @ObservationIgnored private var deadline: Task<Void, Never>?
@@ -66,9 +67,11 @@ public final class SimulatorDisplayConnection {
     }
 
     init(timeout: TimeInterval = SimulatorBridgeInterfaces.replyTimeout,
+         recoveryProbeTimeout: TimeInterval = 20,
          now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          makeTransport: @escaping () -> any SimulatorDisplayTransport) {
         self.timeout = timeout
+        self.recoveryProbeTimeout = recoveryProbeTimeout
         self.now = now
         self.makeTransport = makeTransport
     }
@@ -116,7 +119,7 @@ public final class SimulatorDisplayConnection {
         attach(udid: requestedUDID)
     }
 
-    private func start(udid: String) {
+    private func start(udid: String, recovering: Bool = false) {
         disconnect()
         reason = nil
         canReconnect = false
@@ -130,7 +133,7 @@ public final class SimulatorDisplayConnection {
             self?.receive(info)
         }, failed: { [weak self] message in self?.fail(message, generation: current) })
         guard generation.accepts(current) else { return }
-        let probeRequest = beginDeadline(current)
+        let probeRequest = beginDeadline(current, duration: recovering ? recoveryProbeTimeout : timeout)
         transport.probe { [weak self] capability in
             guard let self, self.finishDeadline(probeRequest, generation: current) else { return }
             self.capability = capability
@@ -241,11 +244,11 @@ public final class SimulatorDisplayConnection {
         return date.timeIntervalSince(lastFrameUpdate) >= 5
     }
 
-    private func beginDeadline(_ current: Int) -> Int {
+    private func beginDeadline(_ current: Int, duration: TimeInterval? = nil) -> Int {
         deadline?.cancel()
         request += 1
         let pending = request
-        let duration = timeout
+        let duration = duration ?? timeout
         deadline = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(duration)) } catch { return }
             guard let self, self.request == pending else { return }
@@ -274,7 +277,7 @@ public final class SimulatorDisplayConnection {
             guard automaticReconnectTimes.count < 3 else { return }
             retried = true
             automaticReconnectTimes.append(instant)
-            start(udid: requestedUDID)
+            start(udid: requestedUDID, recovering: true)
         }
     }
 }

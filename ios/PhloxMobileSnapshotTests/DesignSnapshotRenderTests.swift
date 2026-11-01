@@ -11,6 +11,7 @@ import PhloxNetworking
 import DesignSystemIOS
 @testable import PhloxMobile
 
+@Suite(.serialized)
 @MainActor
 struct DesignSnapshotRenderTests {
     @Test(.serialized, arguments: [1, 4])

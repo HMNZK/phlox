@@ -39,10 +39,16 @@ struct APNsModelsAcceptanceTests {
         #expect(APNsEnvironment.resolve(embeddedProvisioningProfileData: corrupted) == nil)
     }
 
+    #if targetEnvironment(simulator)
+    @Test func シミュレーターではプロファイル無しでsandboxにフォールバックする() {
+        #expect(APNsEnvironment.current == .sandbox)
+    }
+    #elseif os(macOS)
     @Test func macOSホストのswiftTestではプロファイル無しでproductionにフォールバックする() {
         // swift test は macOS ホストで走り、embedded.mobileprovision も Simulator でもないため production。
         #expect(APNsEnvironment.current == .production)
     }
+    #endif
 
     // MARK: - DeviceTokenRegistration（POST /device-tokens の body 契約）
 

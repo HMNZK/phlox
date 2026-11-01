@@ -547,6 +547,185 @@
         "fake-session-lifecycle"
       ],
       "reason": "指定OID間の製品2ファイル、回帰テスト、性能出力先と資料を独立に読み取りレビューした。gate正本のnormalized diffに該当するaffected scenarioはfake-session-lifecycleのみで、要求S1を含む同設計書・procedure/expected・testIDs5群とgate必須13関数は変更後も整合し、要求削減・検査の弱体化・新しい確定機能不具合を検出しなかった。初回rev0/実行変更/remote・local revision衝突/質問Observation/同revisionの承認とraw更新の回帰確認が追加され、送受信・保存・停止・復元の既存契約は維持される。性能3試験は出力先指定のみで閾値と素材は不変。今回は呼出元の明示指示に従いbuild/testを新規実行せず、後続の共通quality gateが同候補を実走する。このpassは差分の正しさとシナリオ適合の読み取りレビューであり、既存Markdown性能未達、N30厳密切替/実IME/全メモリ収束未知を変更せず、全性能目的達成やマージ完了を認定しない。"
+    },
+    {
+      "baseOID": "193f2b71a719376b80278e0eb7a77e5926ca962f",
+      "targetOID": "9b64d88aaf3f6ed5329fb9fddab9e1af2b78465f",
+      "diffSHA256": "ee115556e6ba59f9372e17b2bd8c2409fab43a356c633f7cc6dd3c0dd1a8fcd3",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/distribution_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T13:19:10Z",
+      "scenarioIDs": [],
+      "reason": "配布ZIPの署名とサイズ、Mac・iPhoneの版、DMGとZIPの内容一致、公証チケット、日英ノートの本文と見出しを独立に確認した。実機5シナリオは未確認。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "fef0638dba6b209d46cbfa0b01129427530ee88b",
+      "diffSHA256": "1454861ecaffbb21e3b7db02623b2fa72edcad94c41466d0e3ffb970fd249f33",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/distribution_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-27T13:38:46Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の135件の独立レビューとの対応と、変更されたappcastの独立レビューを照合した。135件の再読ではなく、実機5シナリオは未確認。"
+    },
+    {
+      "baseOID": "c49c3798271769e0b3f8e655116f17080298de18",
+      "targetOID": "136a86419f1b64d3fa462c0ba1be1f35fd945482",
+      "diffSHA256": "166324595292534f94a98925b288b25d23c7a039892e277fd0b364b813a243c0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/distribution_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T07:24:36Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation"
+      ],
+      "reason": "追加のQR再試行・入力欄・テスト修正と配布情報を独立確認し、QRの成功・空結果・内部エラー・その他のエラーと再試行失敗を独立実行した。日英ノートを照合した。旧Vision方式の非推奨警告あり。既存Mac43は旧入力のためリリース前に再生成が必要。今回の追加修正後のシミュレーター全体テストと実機検証は未実施。"
+    },
+    {
+      "baseOID": "476c6d290bd0352e5e4e365fb4ddf75c591c54e1",
+      "targetOID": "233a1cd4f9b69df25ae5ca009f7dc80f9c671359",
+      "diffSHA256": "e06771cdd434c13091102487e7951f039967e11fcd32433db1419bb9835a183c",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/distribution_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T07:53:45Z",
+      "scenarioIDs": [],
+      "reason": "再生成したMac43のDMGとZIPの内容・署名・公証・版・サイズ・来歴、appcast署名と日英ノートを独立に照合した。実機とmain用リリース検査は未実施。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "8e399932186a05ba439c2d8a3ff9906e52497da6",
+      "diffSHA256": "649380fda4b848ec3f5d5cc6dca894877e11aef7ed9de86f22cbc714dacc1c6d",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T08:26:41Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "既存の独立レビュー記録と配布物・追加修正のレビューを照合し、正規化140ファイルの最終内容を確認した。実機5件は未実施で、iPhone版は今回配布しない。これはシナリオレビューであり、リリース検査の合格ではない。"
+    },
+    {
+      "baseOID": "3358cc51f40c87deea4ff01a20b2cf4da32a6a73",
+      "targetOID": "29a0640cbb3e9dfd84dbdb41412ad9eae10c1e01",
+      "diffSHA256": "62ae724885f314e65a7e612907a45a3c93fc642183e28b3ab0b29376e225bf1e",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T09:41:01Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "自動復旧・通常接続の期限、古い応答と世代、再接続回数と非retryable条件を独立レビューし、対象23テストを独立実行した。専用XPC停止後の復旧とタップ成功は別担当の記録。修正を含む配布物は再生成が必要。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "efcb97a55145b04993ef5c219d716d838eed8404",
+      "diffSHA256": "d228b6b4ae25437285a3f56d2c13e928bf09e028a478b27da22c48c59174ce31",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T09:48:55Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "旧全体レビューと追加の再接続レビューを142ファイルの最終内容に照合し、配布情報・日英ノートの差分も確認した。新配布物の実物照合は別途必要。実機5件は未実施、iPhone版は今回配布しない。"
+    },
+    {
+      "baseOID": "3358cc51f40c87deea4ff01a20b2cf4da32a6a73",
+      "targetOID": "efcb97a55145b04993ef5c219d716d838eed8404",
+      "diffSHA256": "085f390938ccb4a3486837fa369c984902dcf50fbe614224e84da100b3e8e866",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/distribution_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T09:50:41Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "再接続修正の独立レビューと配布情報の最終差分を照合し、Mac43の署名・公証・来歴・ZIP内容・日英ノートと、候補と入力一致するシミュレーターテスト1098件の記録を確認した。実機は未実施。"
+    },
+    {
+      "baseOID": "3358cc51f40c87deea4ff01a20b2cf4da32a6a73",
+      "targetOID": "f65b89c7d92c9926971756db407fe588ceb1a26d",
+      "diffSHA256": "73eb22a36b48d323af8dab28ab63132a5df1fdd54fc251bbb1b40b51029138d9",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/distribution_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T10:16:24Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "既存レビューに加え期限を指定したテストの追加差分と新Mac43の署名・公証・版・来歴・配布ZIP・日英ノート、入力一致するシミュレーター1098件を独立確認した。実機は未実施。"
+    },
+    {
+      "baseOID": "8df067c863fb5a5d4b0cc5c68fac0584affd4840",
+      "targetOID": "f65b89c7d92c9926971756db407fe588ceb1a26d",
+      "diffSHA256": "ac2c1745322bdeb4a66d38a9a3164ab7409ae50613d4ec117ee4b0ce60d94209",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-10-28T10:16:24Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "旧全体レビューとの対応、期限試験とappcastの最終差分を独立確認した。配布物の実物照合は別担当。実機5件は未実施、iPhone版は配布対象外。"
     }
   ]
 }

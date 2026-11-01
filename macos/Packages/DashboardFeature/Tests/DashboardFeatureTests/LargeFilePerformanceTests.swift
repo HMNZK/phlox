@@ -16,7 +16,9 @@ struct LargeFilePerformanceTests {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let output = root.appendingPathComponent(".build/large-file-performance")
+        let outputRoot = ProcessInfo.processInfo.environment["PHLOX_PERFORMANCE_OUTPUT_ROOT"]
+            .map { URL(fileURLWithPath: $0) } ?? root.appendingPathComponent(".build")
+        let output = outputRoot.appendingPathComponent("large-file-performance")
         let fixtures = output.appendingPathComponent("document-fixtures")
         try FileManager.default.createDirectory(at: fixtures, withIntermediateDirectories: true)
         var names: [String] = []

@@ -31,7 +31,9 @@ struct CodeSyntaxPerformanceTests {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let output = root.appendingPathComponent(".build/syntax-performance.json")
+        let outputRoot = ProcessInfo.processInfo.environment["PHLOX_PERFORMANCE_OUTPUT_ROOT"]
+            .map { URL(fileURLWithPath: $0) } ?? root.appendingPathComponent(".build")
+        let output = outputRoot.appendingPathComponent("syntax-performance.json")
         let defaults = UserDefaults.standard
         let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
         defer { defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain) }
@@ -44,7 +46,7 @@ struct CodeSyntaxPerformanceTests {
             let isIME = path == "ime.swift"
             for size in isIME ? [1_000_000] : [10_000, 100_000, 1_000_000] {
                 let fixture = Self.fixture(unit, bytes: size)
-                let fixtureRoot = root.appendingPathComponent(".build/syntax-performance-fixtures")
+                let fixtureRoot = outputRoot.appendingPathComponent("syntax-performance-fixtures")
                 try FileManager.default.createDirectory(at: fixtureRoot, withIntermediateDirectories: true)
                 let filename = "fixture.\(path)"
                 try Data(fixture.utf8).write(to: fixtureRoot.appendingPathComponent(filename))

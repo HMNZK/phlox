@@ -312,7 +312,10 @@ final class MarkdownScrollPerformanceTests: XCTestCase {
     }
 
     private static var output: URL {
-        URL(fileURLWithPath: #filePath)
+        if let root = ProcessInfo.processInfo.environment["PHLOX_PERFORMANCE_OUTPUT_ROOT"] {
+            return URL(fileURLWithPath: root).appendingPathComponent("scroll-performance")
+        }
+        return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(".build/scroll-performance")

@@ -1,14 +1,81 @@
 import AgentDomain
 import CodexAppServerKit
 import Foundation
+import Observation
+import os
 import HookServer
 import PTYKit
 import TerminalUI
 import Testing
+import StructuredChatKit
 @testable import SessionFeature
 
 @MainActor
 struct SessionRuntimeProjectionTests {
+    @Test func initialZeroRevisionStillDisplaysRemoteTranscript() {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+            agentRef: .builtin(.codex), workingDirectory: nil)
+        snapshot.transcript = [.userMessage(id: "initial", text: "復元された本文", timestamp: .distantPast, attachments: [])]
+        let viewModel = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        #expect(viewModel.transcript == snapshot.transcript)
+        #expect(viewModel.transcriptItemIDs == ["initial"])
+    }
+
+    @Test(arguments: [false, true])
+    func revisionOrExecutionChangeReplacesTranscript(restarted: Bool) throws {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+            agentRef: .builtin(.codex), workingDirectory: nil)
+        snapshot.transcriptRevision = 7
+        snapshot.transcript = [.userMessage(id: "old", text: "変更前", timestamp: .distantPast, attachments: [])]
+        let viewModel = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        snapshot.executionID = restarted ? UUID() : snapshot.executionID
+        snapshot.transcriptRevision = restarted ? 7 : 8
+        snapshot.transcript = []
+        try viewModel.applyRuntimeSnapshot(snapshot)
+        #expect(viewModel.transcript.isEmpty)
+        #expect(viewModel.transcriptItemIDs.isEmpty)
+        #expect(viewModel.executionID == snapshot.executionID)
+    }
+
+    @Test func unchangedRemoteRevisionReplacesLocallyReportedError() throws {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+            agentRef: .builtin(.codex), workingDirectory: nil)
+        snapshot.transcriptRevision = 7
+        snapshot.transcript = [.userMessage(id: "remote", text: "所有側の本文", timestamp: .distantPast, attachments: [])]
+        let viewModel = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        viewModel.reportError("送信できませんでした")
+        #expect(viewModel.transcript.count == 2)
+        try viewModel.applyRuntimeSnapshot(snapshot)
+        #expect(viewModel.transcript == snapshot.transcript)
+        #expect(viewModel.transcriptItemIDs == ["remote"])
+        #expect(viewModel.transcriptRevision == 7)
+    }
+
+    @Test func equalLocalAndRemoteRevisionStillUpdatesObservedQuestionState() throws {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+            agentRef: .builtin(.codex), workingDirectory: nil)
+        snapshot.status = .running
+        let viewModel = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        viewModel.reportError("一時的な送信エラー")
+        #expect(viewModel.transcriptRevision == 1)
+        #expect(viewModel.displayStatus == .running)
+        let changed = OSAllocatedUnfairLock(initialState: false)
+        withObservationTracking {
+            _ = viewModel.displayStatus
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+        let request = try #require(CodexAsyncQuestionID(threadID: "thread", turnID: "turn", itemID: "question"))
+        snapshot.transcriptRevision = 1
+        snapshot.transcript = [.userQuestion(id: "question", requestId: request.requestID,
+            questions: [ChatUserQuestion(question: "どちらを選びますか", header: "選択", options: [], multiSelect: false)],
+            answers: nil, state: .pending, timestamp: Date(timeIntervalSince1970: 1234))]
+        try viewModel.applyRuntimeSnapshot(snapshot)
+        #expect(changed.withLock { $0 })
+        #expect(viewModel.displayStatus == .awaitingUserQuestion)
+        #expect(SessionNode.appServer(viewModel).statusEnteredAt == Date(timeIntervalSince1970: 1234))
+    }
+
     @Test func applyingRemoteStateDoesNotRunLocalStatusOrPersistenceObservers() throws {
         let id = SessionID()
         var initial = SessionRuntimeChatSnapshot(id: id, startedAt: .distantPast,
@@ -25,12 +92,17 @@ struct SessionRuntimeProjectionTests {
         changed.statusEnteredAt = .distantPast
         changed.titleState = .legacy(name: "remote title")
         changed.hasUnseenCompletion = false
+        changed.pendingApprovals = [ChatApprovalRequest(id: UUID(), kind: .command,
+            threadId: "thread", turnId: "turn", itemId: "item", prompt: "permission")]
+        changed.rawEventLog = ["first event", "second event"]
         try viewModel.applyRuntimeSnapshot(changed)
         #expect(viewModel.statusEnteredAt == .distantPast)
         #expect(!viewModel.hasUnseenCompletion)
         #expect(titleWrites == 0)
         #expect(attentionWrites == 0)
         #expect(viewModel.draft == "unsent local draft")
+        #expect(viewModel.pendingApprovals == changed.pendingApprovals)
+        #expect(viewModel.rawEventLog == ["first event", "second event"])
     }
 
     @Test func projectionForwardsExactRequestIdentityWithoutInventingAProvider() async throws {

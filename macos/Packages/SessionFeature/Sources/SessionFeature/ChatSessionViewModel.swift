@@ -120,6 +120,7 @@ public final class ChatSessionViewModel: Identifiable {
     @ObservationIgnored private let transcriptStreamCoalescer = TranscriptStreamCoalescer()
     @ObservationIgnored private var midTurnPersistenceGate = MidTurnPersistenceGate()
     public private(set) var transcriptRevision: Int = 0
+    @ObservationIgnored var pendingAsyncQuestionCache: (executionID: UUID, revision: Int, date: Date?)?
     public private(set) var rawEventLog: [String] = []
     public private(set) var pendingApprovals: [ChatApprovalRequest] = []
     /// 返答エリアの承認カードで表示中の要求（05 R6d「1 / 3」）。範囲外は `currentReplyApproval` で丸める。
@@ -4706,6 +4707,9 @@ extension ChatSessionViewModel {
     private func applyRuntimeState(_ snapshot: SessionRuntimeChatSnapshot) {
         isApplyingRuntimeSnapshot = true
         defer { isApplyingRuntimeSnapshot = false }
+        let shouldApplyTranscript = runtimeProjectionSnapshot?.executionID != snapshot.executionID
+            || runtimeProjectionSnapshot?.transcriptRevision != snapshot.transcriptRevision
+            || transcriptRevision != snapshot.transcriptRevision
         if runtimeProjectionSnapshot?.executionID != snapshot.executionID {
             runtimeDraftRecoveryTask?.cancel()
             runtimeDraftRecoveryTask = nil
@@ -4763,11 +4767,17 @@ extension ChatSessionViewModel {
         historySummaries = snapshot.historySummaries
         codexSubAgentError = snapshot.codexSubAgentError
         if !runtimeSendInFlight { inFlightText = snapshot.inFlightText }
-        transcript = snapshot.transcript
-        transcriptItemIDs = Set(transcript.map(\.id))
-        transcriptIndexByID = Dictionary(transcript.enumerated().map { ($0.element.id, $0.offset) },
-            uniquingKeysWith: { _, last in last })
-        transcriptRevision = snapshot.transcriptRevision
+        if shouldApplyTranscript {
+            transcript = snapshot.transcript
+            transcriptItemIDs = Set(transcript.map(\.id))
+            transcriptIndexByID = Dictionary(transcript.enumerated().map { ($0.element.id, $0.offset) },
+                uniquingKeysWith: { _, last in last })
+            transcriptRevision = snapshot.transcriptRevision
+            pendingAsyncQuestionCache = nil
+        } else {
+            // GUI内では現在の本文配列を共有する。
+            runtimeProjectionSnapshot?.transcript = transcript
+        }
         cachedHistoryEntries = snapshot.historyEntries
         codexSubAgentState = snapshot.codexSubAgents
         subAgentModel.applyRuntimeSnapshot(snapshot.subAgents)

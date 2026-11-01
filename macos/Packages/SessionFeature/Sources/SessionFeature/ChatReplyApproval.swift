@@ -120,10 +120,21 @@ extension ChatSessionViewModel {
     }
 
     var pendingAsyncQuestionDate: Date? {
-        guard case .userQuestion(_, let requestID, _, _, .pending, let timestamp)? =
-                ChatReplyArea<EmptyView>.pendingQuestionItem(in: transcript),
-              CodexAsyncQuestionID.isAsyncRequest(requestID) else { return nil }
-        return timestamp
+        let items = transcript
+        if let cached = pendingAsyncQuestionCache,
+           cached.executionID == executionID, cached.revision == transcriptRevision {
+            return cached.date
+        }
+        let date: Date?
+        if case .userQuestion(_, let requestID, _, _, .pending, let timestamp)? =
+                ChatReplyArea<EmptyView>.pendingQuestionItem(in: items),
+           CodexAsyncQuestionID.isAsyncRequest(requestID) {
+            date = timestamp
+        } else {
+            date = nil
+        }
+        pendingAsyncQuestionCache = (executionID, transcriptRevision, date)
+        return date
     }
 
     static func isToolPermissionQuestion(_ questions: [ChatUserQuestion]) -> Bool {

@@ -777,6 +777,22 @@
         "physical-activity-presentation"
       ],
       "reason": "dev基準。既存main由来のQR限定再試行、入力最小高さ、Simulator自動復旧probe期限と回帰/環境別テストを追加照合し、対応する4scenarioの要求/手順/testIDsを維持する。physical-deviceのstatic reviewであり実機実施認定ではない。最終候補の追跡差分、配布物検査分離、受入scenario、記録選択/来歴を独立に読み取りレビューした。validate_recorded_buildsは既存来歴検証の抽出で、distributionはMac/iOS両現入力と選択DMG/ZIPを要求し、既存releaseのhuman/実機5scenario判定を保持する。追加3テストを含む保存ログ63成功を確認し、要求削減や新しい確定機能不具合を検出しなかった。選択Mac1.14.1/43・iOS1.0/12はsource3ed5276951d600d6046e29fadf93eaa2a7b0fe0c/同一2133入力manifestに対応し、Original証拠rootのprovenance/外部入力/DMG/ZIP/IPA計24参照の実SHA一致、旧RECORDS完全退避を確認した。iOS初回失敗を残しretryの成功と分離、実機passは生成していない。ユーザーの実機必須外かつ配布物検査を直すまで未統合という指示に沿う。今回は新build/testなしで、最終quality/distribution/外側版・notes・feed・stapler検査は主担当の後続実走が必要。このpassは静的正しさとscenario適合であり、全性能目標・実機検査・公開/main反映成功を認定しない。"
+    },
+    {
+      "baseOID": "5de7602c5f9e9d5a3dbae4ff3acaabdbf2c9d708",
+      "targetOID": "2c2158679d5b305346a15381006796c7a176a924",
+      "diffSHA256": "7bdbde0b6a4e266029f1ed6374d6568c38a4f5f86a26be23d74d0d93dd357e46",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_1142_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-02T03:33:16+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "公開準備5ファイルを独立レビューし、読み取り専用の照合8件がpass。共通設定・生成済みMac全3target・ZIP内本体/XPCの1.14.2/build44、日英ノート、protocol1、新ZIPの実サイズ・組み込み公開鍵によるEd25519署名、公開済みappcast履歴の全バイト保持、Mac44/iOS14来歴・外部入力・配布物SHA・保存済みコンパイラ入力を確認。source d8612885とtargetのinput_manifestが完全一致。製品ロジック変更・実機pass捏造・署名検査の弱体化を検出せず、初回managed-build拒否exit2の記録も保持。製品テストと全体品質ゲートは本レビューでは実行せず別担当が確認し、実機検査・実公開・iOS公開は本判定の対象外。"
     }
   ]
 }

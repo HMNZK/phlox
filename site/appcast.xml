@@ -3,6 +3,33 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.2</title>
+            <pubDate>Mon, 02 Nov 2026 03:23:50 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>Fixed</h3>
+<ul>
+  <li>Reduced repeated work when syncing unchanged chat history and checking unanswered questions, helping keep the interface responsive with many sessions.</li>
+  <li>Fixed inconsistent chat status when stopping, closing, or receiving delayed agent notifications.</li>
+  <li>Sending immediately after stopping now waits for the previous agent process to finish exiting before sending the new message.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>修正</h3>
+<ul>
+  <li>変更のないチャット履歴の同期と未回答の質問の確認で、繰り返す処理を減らしました。多数のセッションを開いたときの画面の応答性を改善します。</li>
+  <li>停止・終了や遅れて届く通知が重なったとき、会話の状態が食い違う問題を修正しました。</li>
+  <li>停止直後に送信したときは、前のエージェント処理が終了してから新しいメッセージを送るようにしました。</li>
+</ul>
+]]></description>
+            <sparkle:version>44</sparkle:version>
+            <sparkle:shortVersionString>1.14.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.2.zip" length="30194181" type="application/octet-stream" sparkle:edSignature="/FIz/qfjax8mS65MwsRzeEVSUmKaOug8D6UoRdVGYsa5MqDlewNbjHn7JZx3ol+PvpRhh50/q0RScIo37oZeCg=="/>
+        </item>
+        <item>
             <title>1.14.1</title>
             <pubDate>Tue, 27 Oct 2026 15:58:34 GMT</pubDate>
             <description xml:lang="en"><![CDATA[
@@ -41,7 +68,7 @@
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
             <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
-            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.1.zip" length="30195257" type="application/octet-stream" sparkle:edSignature="9WX2QS/PtaTmVcH3tsp0RlS+H/PBUoauQXmND1mdLPkJxzOIHJ8mXbTFL1qKb4qyeti8g8MYcEVpRNssmOgIAQ=="/>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.1.zip" length="30188916" type="application/octet-stream" sparkle:edSignature="oAhW6yDrURfeHsB4+JKqbAVtEq0SRKjPtJfw0CslmTOoRrPKSBsRb5WX+fRZu2eyZOWjcgepx/gL8ZbUjq5YAg=="/>
         </item>
         <item>
             <title>1.14.0</title>

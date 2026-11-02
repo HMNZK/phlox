@@ -3,6 +3,33 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.4</title>
+            <pubDate>Mon, 02 Nov 2026 12:28:37 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>Fixed</h3>
+<ul>
+  <li>Reduce repeated processing when showing long conversations.</li>
+  <li>Prepare only the transcript blocks needed for display while preserving conversation history, grouping, and order.</li>
+  <li>Keep running sessions alive during updates. If an older session service is still running, save your work and restart your Mac when convenient to activate the incremental synchronization introduced in 1.14.3.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>修正</h3>
+<ul>
+  <li>長い会話を表示するときの繰り返し処理を削減しました。</li>
+  <li>会話の履歴・グループ・順序を保ち、表示に必要なブロックだけを組み立てるようにしました。</li>
+  <li>更新中も実行中のセッションは継続します。旧版の実行サービスが動いている場合、1.14.3で導入した差分同期を有効にするには、作業を保存し、都合のよいタイミングでMacを再起動してください。</li>
+</ul>
+]]></description>
+            <sparkle:version>46</sparkle:version>
+            <sparkle:shortVersionString>1.14.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.4.zip" length="30343978" type="application/octet-stream" sparkle:edSignature="jOLbbMDhn5mXam+YgWgJWoh97vpXS436jD1Flgu9p/o+C0Yes+EwvsJZ2jvkc/Ar/Mbe0wYARFL5eFqSCJJeDw=="/>
+        </item>
+        <item>
             <title>1.14.3</title>
             <pubDate>Mon, 02 Nov 2026 07:25:42 GMT</pubDate>
             <description xml:lang="en"><![CDATA[

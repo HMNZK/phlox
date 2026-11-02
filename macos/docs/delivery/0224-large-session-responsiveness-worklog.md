@@ -61,3 +61,5 @@ last-verified: 2026-11-02
 - 今回はClaude実行状態機械を変更していないため、Claudeの状態モデル検査は対象外。AppBootstrap通信内の復元は専用回帰と実アプリで確認した。
 
 各ownershipのcleanupは終了を記録したが、最終のプロセス監査で検証用GUIの再起動分（PID71989）が残っており、監査assertが1回失敗した。このPIDは通常版とは異なる`large-history-final/original/Phlox.app`の実行パスと起動時刻を確認してSIGTERMで終了し、`final-cleanup-audit.json`へ記録した。再監査は成功し、検証用GUI・常駐処理・fakeの残存なしと、品質ゲート後にソース入力が変わっていないことを確認した。通常のReleaseと常駐処理は停止していない。管理ビルドは2セッションをfinishし、最終の固有Debugアプリだけpinした。ユーザーから作業ブランチへのコミットのみ承認を得た。dev統合とRelease配布は保留する。
+
+その後、ユーザーからリリースまでの一括承認を得た。追加診断・統合・配布の結果は[1.14.3の記録](../operations/release-1.14.3.md)へ引き継ぎ、本記録の初回失敗や未計測を成功に読み替えない。受入の原ログと保守スキルは元リポジトリの`.verification/release-1.14.3-20261102/`へ退避した。

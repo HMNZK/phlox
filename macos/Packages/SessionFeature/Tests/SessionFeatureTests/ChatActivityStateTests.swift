@@ -75,4 +75,35 @@ struct ChatActivityStateTests {
         let transcript = [user(), command("swift build"), reasoning("r2")]
         #expect(ChatRecap.deriveActivityState(transcript: transcript, status: .running) == .thinking)
     }
+
+    @Test("最新の入力後に活動が無ければ前のターンの活動を引き継がない")
+    func newUserMessageClearsPreviousActivity() {
+        let transcript = [command("rg previous"), user(),
+            .error(id: "error", message: "再接続しました", timestamp: t0)]
+
+        let state = ChatRecap.deriveActivityState(transcript: transcript, status: .running)
+
+        #expect(state == .thinking)
+    }
+
+    @Test("末尾のエラーや使用量は直前の未指定コマンドの活動を変えない")
+    func nonActivityItemsPreserveLatestCommand() {
+        let transcript = [user(), command(nil),
+            .error(id: "error", message: "出力の取得に失敗", timestamp: t0),
+            .turnCost(id: "cost", costUSD: 0.27, timestamp: t0)]
+
+        let state = ChatRecap.deriveActivityState(transcript: transcript, status: .running)
+
+        #expect(state == .running)
+    }
+
+    @Test("ユーザー入力が無くても空のファイル変更は editing")
+    func emptyFileChangeIsStillEditing() {
+        let transcript: [ChatItem] = [command("rg source"),
+            .fileChange(id: "empty-change", changes: [], timestamp: t0)]
+
+        let state = ChatRecap.deriveActivityState(transcript: transcript, status: .running)
+
+        #expect(state == .editing)
+    }
 }

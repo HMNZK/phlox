@@ -31,6 +31,15 @@ struct AgentActivityClassifierTests {
         #expect(AgentActivityClassifier.state(forCommand: "/usr/bin/grep foo bar") == .searching)
     }
 
+    @Test("Unicode空白で囲まれた先頭語と長い引数を持つ読み取りコマンドを分類する")
+    func unicodeWhitespaceAndLongArgumentsAreSearching() {
+        let command = "\u{2003}\t/usr/bin/rg\u{00A0}" + String(repeating: "長い引数 ", count: 2_000)
+
+        let state = AgentActivityClassifier.state(forCommand: command)
+
+        #expect(state == .searching)
+    }
+
     @Test("承認待ち・質問待ちは waiting")
     func awaitingStatusesAreWaiting() {
         #expect(AgentActivityClassifier.waitingState(for: .awaitingApproval(prompt: "続行?")) == .waiting)

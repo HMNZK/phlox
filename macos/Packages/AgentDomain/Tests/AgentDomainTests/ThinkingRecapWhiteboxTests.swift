@@ -215,9 +215,39 @@ struct ThinkingRecapWhiteboxTests {
         #expect(RecapActivity.fromCommand("\t\n") == .running("コマンド"))
     }
 
+    @Test("ゼロ幅空白だけのコマンドは代替表示を使う", arguments: ["\u{200B}", " \u{200B}\t"])
+    func zeroWidthBlankCommandsUseFallback(command: String) {
+        let activity = RecapActivity.fromCommand(command)
+
+        #expect(activity == .running("コマンド"))
+    }
+
+    @Test("ゼロ幅空白に続くコマンドは省略せず元の本文を表示する")
+    func zeroWidthPrefixKeepsNonblankCommand() {
+        let activity = RecapActivity.fromCommand("\u{200B} cat Sources/Visible.swift")
+
+        #expect(activity == .running("\u{200B} cat Sources/Visible.swift"))
+    }
+
     @Test("先頭トークンの basename で判定（引数付きパス）")
     func basenameWithArgs() {
         #expect(RecapActivity.fromCommand("/bin/cat /tmp/a") == .reading("/bin/cat /tmp/a"))
         #expect(RecapActivity.fromCommand("/opt/homebrew/bin/rg -n foo") == .reading("/opt/homebrew/bin/rg -n foo"))
+    }
+
+    @Test("Unicode空白と長い引数があっても読み取りコマンドの本文を保持する")
+    func unicodeWhitespacePreservesOriginalCommand() {
+        let command = "\u{2003}\t/bin/cat\u{00A0}" + String(repeating: "長い引数 ", count: 2_000)
+
+        let activity = RecapActivity.fromCommand(command)
+
+        #expect(activity == .reading(command))
+    }
+
+    @Test("ツール名Readはシェル読み取りコマンドと区別してrunningにする")
+    func toolNameKeepsRecapClassification() {
+        let activity = RecapActivity.fromCommand("Read Sources/App.swift")
+
+        #expect(activity == .running("Read Sources/App.swift"))
     }
 }

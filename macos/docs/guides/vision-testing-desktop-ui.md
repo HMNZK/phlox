@@ -77,7 +77,7 @@ export PHLOX_DESIGN_SNAPSHOT_FRAME_IDS="10-A1-dark-ja 11-T1-dark"
 
 ## 後片付け
 
-Debug インスタンス終了（`osascript -e 'tell application "Phlox" to quit'`）で fake-agent と `claude --resume` 子プロセスも止まる。テストで作った実セッションはユーザーのデータなので勝手に消さない。
+画面を終了しても、独立した実行サービスとその子プロセスは動き続ける。検証の終了時は、今回の所有記録でPID・実行パス・起動時刻を照合し、検証用の画面・実行サービス・fake-agentだけを終了して残存を確認する。`session-runtime-lifecycle.test.py`と大履歴受入のハーネスはこの所有確認と後片付けを行う。通常利用中のReleaseや別のDebugには触れない。テストで作った実セッションはユーザーのデータなので勝手に消さない。
 
 ## 関連
 

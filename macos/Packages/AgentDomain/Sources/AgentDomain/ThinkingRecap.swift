@@ -13,11 +13,13 @@ public enum RecapActivity: Equatable, Sendable {
 
     /// コマンド文字列を read/run に分類する（先頭トークンの basename で判定）。
     public static func fromCommand(_ command: String?) -> RecapActivity {
-        guard let command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let command, command.unicodeScalars.contains(where: {
+            !CharacterSet.whitespacesAndNewlines.contains($0)
+        }) else {
             return .running("コマンド")
         }
-        let firstToken = command.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
-        let base = basename(firstToken)
+        let firstToken = command.drop(while: \.isWhitespace).prefix(while: { !$0.isWhitespace })
+        let base = basename(String(firstToken))
         if readCommandNames.contains(base) {
             return .reading(command)
         }

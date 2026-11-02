@@ -119,6 +119,29 @@ struct ChatHistoryLoadingTests {
         try await wait(host) { hiddenCount(host) == 30 }
     }
 
+    @Test(arguments: [(TranscriptPresentationContext.single, 118), (TranscriptPresentationContext.gridTile, 106)])
+    func heavyHistoryKeepsTotalHiddenCountAcrossBudgetedExpansion(
+        context: TranscriptPresentationContext, expandedHiddenCount: Int
+    ) async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let heavyItems = (0..<130).map { index in
+            ChatItem.userMessage(id: "heavy-\(index)", text: String(repeating: "長", count: 2_000),
+                                 timestamp: Date(timeIntervalSince1970: 1_700_000_000))
+        }
+        let host = NSHostingView(rootView: ChatTranscriptView(
+            viewModel: makeModel(), transcript: heavyItems, presentationContext: context
+        ))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { hiddenCount(host) == 124 }
+
+        try loadEarlier(host)
+
+        try await wait(host) { hiddenCount(host) == expandedHiddenCount }
+        #expect(element(host, "ChatTranscript.historyLoading") == nil)
+    }
+
     @Test func switchingSessionCancelsPendingLoad() async throws {
         let restoreAccessibility = enableAccessibility()
         defer { restoreAccessibility() }

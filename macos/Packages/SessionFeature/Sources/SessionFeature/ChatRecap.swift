@@ -14,32 +14,21 @@ public enum ChatRecap {
     ) -> AgentActivityState {
         if let waiting = AgentActivityClassifier.waitingState(for: status) { return waiting }
 
-        let scoped: ArraySlice<ChatItem>
-        if let lastUserIndex = transcript.lastIndex(where: {
-            if case .userMessage = $0 { return true }
-            return false
-        }) {
-            scoped = transcript[(lastUserIndex + 1)...]
-        } else {
-            scoped = transcript[...]
-        }
-
-        var state = AgentActivityState.thinking
-        for item in scoped {
+        for item in transcript.reversed() {
             switch item {
-            case .reasoning:
-                state = .thinking
+            case .userMessage, .reasoning:
+                return .thinking
             case .commandExecution(_, let command, _, _):
-                state = AgentActivityClassifier.state(forCommand: command)
+                return AgentActivityClassifier.state(forCommand: command)
             case .fileChange:
-                state = .editing
+                return .editing
             case .agentMessage:
-                state = .writing
+                return .writing
             default:
                 break
             }
         }
-        return state
+        return .thinking
     }
 
     /// 思考中インジケータの下段に出す「いま何をしているか」（04 A1・B1）。最後のユーザー入力以降の
@@ -47,27 +36,23 @@ public enum ChatRecap {
     /// （開始 5 秒未満は出さない）。文言は表示言語で組むため、活動そのものを返す。
     public static func summary(transcript: [ChatItem], elapsed: TimeInterval) -> Summary? {
         guard elapsed >= ThinkingRecap.defaultThreshold else { return nil }
-        let start = transcript.lastIndex(where: {
-            if case .userMessage = $0 { return true }
-            return false
-        }).map { $0 + 1 } ?? 0
-        var activity: RecapActivity?
         var reasoningText: String?
-        for item in transcript[start...] {
+        for item in transcript.reversed() {
             switch item {
+            case .userMessage:
+                return ThinkingRecap.headline(from: reasoningText).map(Summary.headline)
             case .commandExecution(_, let command, _, _):
-                activity = .fromCommand(command)
+                return .activity(.fromCommand(command))
             case .fileChange(_, let changes, _):
                 if let path = changes.last?.path {
-                    activity = .editing((path as NSString).lastPathComponent)
+                    return .activity(.editing((path as NSString).lastPathComponent))
                 }
-            case .reasoning(_, let text, _):
+            case .reasoning(_, let text, _) where reasoningText == nil:
                 reasoningText = text
             default:
                 break
             }
         }
-        if let activity { return .activity(activity) }
         return ThinkingRecap.headline(from: reasoningText).map(Summary.headline)
     }
 

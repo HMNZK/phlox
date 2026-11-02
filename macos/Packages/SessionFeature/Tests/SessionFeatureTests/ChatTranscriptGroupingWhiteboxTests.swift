@@ -95,6 +95,42 @@ struct ChatTranscriptGroupingWhiteboxTests {
         #expect(grouped.map(\.id) == ["c1", "c2", "c3"])
     }
 
+    @Test func 非表示の巨大グループは一枠で数え可視グループは全内容を保つ() throws {
+        let hiddenCommands = (0..<10_000).map { groupingCommand("hidden-\($0)") }
+        let items = [groupingAgent("old")] + hiddenCommands + [
+            groupingAgent("boundary"),
+            groupingCommand("visible-first", output: "最初の結果"),
+            groupingCommand("visible-last", output: "最後の結果"),
+            groupingAgent("tail"),
+        ]
+
+        let slice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: 2)
+
+        #expect(slice.hiddenBlockCount == 3)
+        #expect(slice.blocks.map(\.id) == ["visible-first", "tail"])
+        let first = try #require(slice.blocks.first)
+        guard case .commandGroup(let id, let grouped) = first.content else {
+            Issue.record("expected the complete visible command group")
+            return
+        }
+        #expect(id == "visible-first")
+        #expect(grouped == [
+            groupingCommand("visible-first", output: "最初の結果"),
+            groupingCommand("visible-last", output: "最後の結果"),
+        ])
+    }
+
+    @Test(arguments: [0, -3])
+    func 表示件数が正でなくてもコマンド群をブロック単位で隠す(limit: Int) {
+        let items = [groupingCommand("first"), groupingCommand("second"),
+                     groupingAgent("answer"), groupingCommand("last")]
+
+        let slice = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: limit)
+
+        #expect(slice.blocks.isEmpty)
+        #expect(slice.hiddenBlockCount == 3)
+    }
+
     @Test func コマンドが無い集約カードは件数見出しと末尾コマンドの実行中状態を持つ() {
         let items: [ChatItem] = [
             .commandExecution(id: "c1", command: nil, output: "output", timestamp: groupingTestTime),

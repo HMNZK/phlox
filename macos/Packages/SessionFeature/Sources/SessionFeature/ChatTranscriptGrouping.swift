@@ -100,7 +100,36 @@ enum ChatTranscriptGrouping {
     }
 
     static func visibleSlice(from items: [ChatItem], blockLimit: Int) -> ChatTranscriptSlice {
-        visibleSlice(fromBlocks: blocks(from: items), blockLimit: blockLimit)
+        let limit = max(0, blockLimit)
+        var visibleBlocks: [ChatTranscriptVisibleBlock] = []
+        visibleBlocks.reserveCapacity(min(items.count, limit))
+        var blockCount = 0
+        var index = items.endIndex
+
+        while index > items.startIndex {
+            let end = index
+            index -= 1
+            if case .commandExecution = items[index] {
+                while index > items.startIndex {
+                    guard case .commandExecution = items[index - 1] else { break }
+                    index -= 1
+                }
+                if visibleBlocks.count < limit {
+                    let id = items[index].id
+                    visibleBlocks.append(ChatTranscriptVisibleBlock(
+                        id: id,
+                        content: .commandGroup(id: id, items: Array(items[index..<end]))
+                    ))
+                }
+            } else if visibleBlocks.count < limit {
+                let item = items[index]
+                visibleBlocks.append(ChatTranscriptVisibleBlock(id: item.id, content: .single(item)))
+            }
+            blockCount += 1
+        }
+
+        visibleBlocks.reverse()
+        return ChatTranscriptSlice(blocks: visibleBlocks, hiddenBlockCount: blockCount - visibleBlocks.count)
     }
 
     /// 既にブロック化済みの配列からスライスを作る。

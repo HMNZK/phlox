@@ -55,6 +55,73 @@ struct SessionChatRedesignTests {
         #expect(ChatRecap.summary(transcript: items, elapsed: 10) == .headline("認証フローを設計"))
     }
 
+    @Test("後続の推論と空のファイル変更があっても最後のコマンドを要約する")
+    func recapKeepsLatestActivityAcrossNonActivityItems() {
+        let items: [ChatItem] = [
+            .userMessage(id: "u", text: "確認して", timestamp: t0),
+            .commandExecution(id: "c", command: "cat Source.swift", output: "内容", timestamp: t0),
+            .reasoning(id: "r", text: "## 次の修正を検討", timestamp: t0),
+            .fileChange(id: "empty-change", changes: [], timestamp: t0),
+            .agentMessage(id: "answer", text: "確認しています", timestamp: t0),
+        ]
+
+        let summary = ChatRecap.summary(transcript: items, elapsed: 10)
+
+        #expect(summary == .activity(.reading("cat Source.swift")))
+    }
+
+    @Test("最新の推論が空なら古い推論の見出しへ戻らない")
+    func emptyLatestReasoningDoesNotReuseOldHeadline() {
+        let items: [ChatItem] = [
+            .userMessage(id: "u", text: "調べて", timestamp: t0),
+            .reasoning(id: "old", text: "## 古い検討", timestamp: t0),
+            .reasoning(id: "new", text: "", timestamp: t0),
+        ]
+
+        let summary = ChatRecap.summary(transcript: items, elapsed: 10)
+
+        #expect(summary == nil)
+    }
+
+    @Test("ユーザー入力が無い履歴では最新の推論見出しを要約する")
+    func recapWithoutUserUsesLatestReasoning() {
+        let items: [ChatItem] = [
+            .reasoning(id: "old", text: "## 調査を開始", timestamp: t0),
+            .reasoning(id: "new", text: "## テストを検討", timestamp: t0),
+            .error(id: "error", message: "一時的な接続エラー", timestamp: t0),
+        ]
+
+        let summary = ChatRecap.summary(transcript: items, elapsed: 10)
+
+        #expect(summary == .headline("テストを検討"))
+    }
+
+    @Test("新しいユーザー入力より前の活動や推論を要約しない")
+    func recapStopsAtLatestUserMessage() {
+        let items: [ChatItem] = [
+            .commandExecution(id: "old-command", command: "swift build", output: "成功", timestamp: t0),
+            .reasoning(id: "old-reasoning", text: "## ビルド完了", timestamp: t0),
+            .userMessage(id: "new-user", text: "次の確認をして", timestamp: t0),
+            .fileChange(id: "empty-change", changes: [], timestamp: t0),
+        ]
+
+        let summary = ChatRecap.summary(transcript: items, elapsed: 10)
+
+        #expect(summary == nil)
+    }
+
+    @Test("未指定コマンドも新しい活動として直前のファイル変更より優先する")
+    func nilCommandOverridesPreviousFileActivity() {
+        let items: [ChatItem] = [
+            .fileChange(id: "file", changes: [FilePatchChange(path: "Sources/Previous.swift", diff: "+変更")], timestamp: t0),
+            .commandExecution(id: "command", command: nil, output: "実行中", timestamp: t0),
+        ]
+
+        let summary = ChatRecap.summary(transcript: items, elapsed: 5)
+
+        #expect(summary == .activity(.running("コマンド")))
+    }
+
     @Test("「↓ 最新へ」は読み戻しで追従を外したときだけ（スクロール中・最下部では出さない）")
     func detachedOnlyAfterScrollingAway() {
         let controller = ChatAutoFollowController()

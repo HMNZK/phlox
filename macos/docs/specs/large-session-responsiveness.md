@@ -13,7 +13,7 @@ last-verified: 2026-11-02
 
 2026-11-02のRelease観測では、全9セッションの状態応答が約22.8MBだった。指定された`torigonon-fix`は2,189項目、本文約3.3MB。親リポジトリの`.verification/input-lag-investigation-20261102/`に内容を含まない集計とsampleを保存した。10秒の対象表示中sampleでは常駐Mainの32.0%がJSON変換、GUI Mainの24.7%がSwiftUI描画だった。これは入力遅延の測定値ではない。
 
-`SessionRuntimeClient.startPolling`は取得・適用後250ms待って再取得する。`SessionRuntimeTransport.handle`はMainActor内で全状態をJSON化する。送信コマンドの応答後にも完全状態取得を待つ。GUIの復号は既に別Taskで、同じ本文revisionの再代入も省略済み。これらを未実装の改善と数えない。
+変更前の調査対象では、`SessionRuntimeClient.startPolling`は取得・適用後250ms待って再取得し、`SessionRuntimeTransport.handle`はMainActor内で全状態をJSON化していた。送信コマンドの応答後にも完全状態取得を待っていた。GUIの復号は当時から別Taskで、同じ本文revisionの再代入も省略済みだった。現在はADR0224の差分同期と別実行場所での変換を実装している。旧サービスへの接続では互換経路を維持する。
 
 ## 成功基準（検証可能な形で）
 
@@ -40,5 +40,7 @@ last-verified: 2026-11-02
 基準状態の取り違えは本文の欠落・重複につながる。基準は要求ごとに固定し、復元に失敗した状態は適用しない。キャッシュは有界とし、退去時は完全応答へ戻す。表示の軽さと、単体テストや転送byte数の改善を同じ結果として扱わない。
 
 ## 検証結果
+
+活動表示に残る不要な履歴解析の修正方針は[追加の問題定義と作業記録](../delivery/runtime-history-sync.md)に記す。差分同期の再実装と、稼働中サービスの無断停止は行わない。
 
 差分復元・上限・旧版互換・同時要求の回帰18件と標準品質ゲートは成功した。大履歴の実アプリでは完全状態との一致、5回の送信・中断、GUI操作後の保存一致を確認した。ASCIIキー入力と日本語貼り付けの反映を確認したが、キー単位の遅延と実IMEは未計測。終了受入で1回だけ拒否があり、診断版と最終版では再現しなかった。原因未確定のまま記録し、統合判断と区別する。条件と結果は[作業記録](../delivery/0224-large-session-responsiveness-worklog.md)を参照する。

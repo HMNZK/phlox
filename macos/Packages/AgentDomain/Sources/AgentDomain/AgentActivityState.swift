@@ -30,11 +30,11 @@ public enum AgentActivityClassifier {
 
     /// コマンド文字列（先頭にツール名が載る）を searching / running へ分類する。
     public static func state(forCommand command: String?) -> AgentActivityState {
-        guard let command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let command else {
             return .running
         }
-        let firstToken = command.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
-        return readNames.contains(basename(firstToken)) ? .searching : .running
+        let firstToken = command.drop(while: \.isWhitespace).prefix(while: { !$0.isWhitespace })
+        return readNames.contains(basename(String(firstToken))) ? .searching : .running
     }
 
     /// セッション状態がユーザーの応答待ちなら .waiting。それ以外は nil（transcript 側で決める）。

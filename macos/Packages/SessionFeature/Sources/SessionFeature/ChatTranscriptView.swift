@@ -216,11 +216,7 @@ struct ChatTranscriptView: View {
         // 抑える（遅延機構の再導入ではなく件数制限。ADR 0030:22）。
         // window と予算はいずれも内容と明示操作だけに依存する純計算で、
         // スクロール量・可視領域・GeometryReader の値には連動しない。
-        let blocks = ChatTranscriptGrouping.blocks(from: items)
-        let blockLimit = renderBlockLimit(for: blocks)
-        let visibleSlice = ChatTranscriptGrouping.visibleSlice(fromBlocks: blocks, blockLimit: blockLimit)
-        // スクラバー連動用: 各ユーザー入力ブロックだけ縦位置を測る（スクロール不変な content 座標系）。
-        let userMessageIDs = Set(InputHistoryPolicy.entries(from: items).map(\.id))
+        let visibleSlice = budgetedSlice(from: items)
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(visibleSlice.blocks.enumerated()), id: \.element.id) { index, block in
                 let after: TranscriptTypography.BlockRole? = index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole
@@ -228,7 +224,7 @@ struct ChatTranscriptView: View {
                 transcriptBlock(block.content, lastTranscriptID: transcriptSignal.lastID)
                     .padding(.top, TranscriptTypography.gap(after: after, before: role))
                     .id(block.id)
-                    .background(userMessagePositionProbe(id: block.id, isTracked: userMessageIDs.contains(block.id)))
+                    .background(userMessagePositionProbe(id: block.id, isTracked: role == .user))
             }
             if transcript == nil {
                 CodexSessionSurface(viewModel: viewModel)
@@ -294,6 +290,15 @@ struct ChatTranscriptView: View {
         }
     }
 
+    private func budgetedSlice(from items: [ChatItem]) -> ChatTranscriptSlice {
+        let candidate = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
+        let blockLimit = renderBlockLimit(for: candidate.blocks.map(\.content))
+        return ChatTranscriptSlice(
+            blocks: Array(candidate.blocks.suffix(blockLimit)),
+            hiddenBlockCount: candidate.hiddenBlockCount + candidate.blocks.count - blockLimit
+        )
+    }
+
     private func renderBlockLimit(for blocks: [ChatTranscriptBlock]) -> Int {
         TranscriptRenderBudget.allowedBlockCount(
             blocks: blocks,
@@ -356,8 +361,7 @@ struct ChatTranscriptView: View {
 
     private func beginLoadingEarlier() {
         guard !isLoadingEarlier else { return }
-        let blocks = ChatTranscriptGrouping.blocks(from: transcriptItems)
-        guard renderBlockLimit(for: blocks) < blocks.count else { return }
+        guard budgetedSlice(from: transcriptItems).hiddenBlockCount > 0 else { return }
         jumpGeneration += 1
         autoFollow.userInitiatedJump()
         setDetached(true)
@@ -368,8 +372,7 @@ struct ChatTranscriptView: View {
         guard isLoadingEarlier else { return }
         autoFollow.userInitiatedJump()
         setDetached(true)
-        let blocks = ChatTranscriptGrouping.blocks(from: transcriptItems)
-        let slice = ChatTranscriptGrouping.visibleSlice(fromBlocks: blocks, blockLimit: renderBlockLimit(for: blocks))
+        let slice = budgetedSlice(from: transcriptItems)
         window.expand()
         pendingExpandAnchor = slice.blocks.first?.id
         isLoadingEarlier = false

@@ -793,6 +793,23 @@
         "fake-session-lifecycle"
       ],
       "reason": "公開準備5ファイルを独立レビューし、読み取り専用の照合8件がpass。共通設定・生成済みMac全3target・ZIP内本体/XPCの1.14.2/build44、日英ノート、protocol1、新ZIPの実サイズ・組み込み公開鍵によるEd25519署名、公開済みappcast履歴の全バイト保持、Mac44/iOS14来歴・外部入力・配布物SHA・保存済みコンパイラ入力を確認。source d8612885とtargetのinput_manifestが完全一致。製品ロジック変更・実機pass捏造・署名検査の弱体化を検出せず、初回managed-build拒否exit2の記録も保持。製品テストと全体品質ゲートは本レビューでは実行せず別担当が確認し、実機検査・実公開・iOS公開は本判定の対象外。"
+    },
+    {
+      "baseOID": "6dad0d23e5281b6fbde92838e8a459837d937055",
+      "targetOID": "b3c8c620ff525e80bb4991dc76b495d5e5cd6ff0",
+      "diffSHA256": "8ba381a71ab90348cd4310075fbbf55fbf261d2c46efb9ad93aa9c78ebad9167",
+      "reviewedAt": "2026-11-02T07:36:37.483237+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_1143_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reason": "main6dad0d23から最終b3c8c620までの大履歴差分同期、18回帰と受入2script、設計・affected fake-session-lifecycle/physical-session-activityの本文を独立レビューし新規指摘0。要求固定基準、順序/取消/旧版互換、親子本文とrolling rawログ、UTF8/時刻の厳密保持、wire/復元64MiB上限、画面とtransportを塞がない処理経路を確認。compact-test経由の読み取り8照合はexit0で、固定source432d0b26と現入力、Mac45/iOS15来歴・外部入力と実配布物のSHA、Universal本体/XPC、DMG/ZIPの全app内容/mode/symlink/ticket一致、codesign/stapler、Ed25519署名・実サイズ・日英ノート・旧feed全byte保持と後片付けを確認。初回照合はcryptography未導入のPythonで照合前に失敗し、既存導入済みPython絶対パスで実行した。10run/正常終了20回/cleanup100件の保存記録も照合したが過去1回の拒否原因は未解明。製品テスト/quality/実公開/実機操作はレビューでは実行せず親担当であり、本passはIMEやキー遅延の改善率・実機合格・終了拒否の原因解決を認定しない。"
     }
   ]
 }

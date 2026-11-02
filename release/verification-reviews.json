@@ -810,6 +810,23 @@
       "independent": true,
       "decision": "pass",
       "reason": "main6dad0d23から最終b3c8c620までの大履歴差分同期、18回帰と受入2script、設計・affected fake-session-lifecycle/physical-session-activityの本文を独立レビューし新規指摘0。要求固定基準、順序/取消/旧版互換、親子本文とrolling rawログ、UTF8/時刻の厳密保持、wire/復元64MiB上限、画面とtransportを塞がない処理経路を確認。compact-test経由の読み取り8照合はexit0で、固定source432d0b26と現入力、Mac45/iOS15来歴・外部入力と実配布物のSHA、Universal本体/XPC、DMG/ZIPの全app内容/mode/symlink/ticket一致、codesign/stapler、Ed25519署名・実サイズ・日英ノート・旧feed全byte保持と後片付けを確認。初回照合はcryptography未導入のPythonで照合前に失敗し、既存導入済みPython絶対パスで実行した。10run/正常終了20回/cleanup100件の保存記録も照合したが過去1回の拒否原因は未解明。製品テスト/quality/実公開/実機操作はレビューでは実行せず親担当であり、本passはIMEやキー遅延の改善率・実機合格・終了拒否の原因解決を認定しない。"
+    },
+    {
+      "baseOID": "913abe9a7017bedd0b92927c50615d0fa9600ffd",
+      "targetOID": "39d677c244ca6d420793eda99f2fab5c236d7bbf",
+      "diffSHA256": "482f2fc8dca78d1dad1171de5488095b839d6a3a07794e50e0e17f1a57b47305",
+      "reviewedAt": "2026-11-02T11:36:06+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reason": "要約のユーザー境界・最新空推論・活動優先・待機優先・5秒閾値とU+200Bを含む空白判定を保持。逆順グループ化は可視群の全内容・元順序・先頭ID・正確な隠れ件数を保持し、候補に絞った描画予算も従来と同じ範囲を評価する。履歴展開アンカー、非Lazy構造、ユーザー入力位置の計測対象を維持。追加テストの観測可能な戻り値とAX状態を確認し、既存期待値の緩和なし。影響fake-session-lifecycle/physical-session-activityの定義・要求本文は同一。標準qualityの入力SHAとnativeソース記録1733件を現対象と照合し、Mac/iOS/必須fake13件、native送信・中断・保存一致、画像4状態の比較記録を確認。製品テスト再実行・実機・実IME・入力遅延測定はレビューで未実施。ADR0209既知問題1件は未解決で、本passは実機合格や画面全体の改善率を認定しない。"
     }
   ]
 }

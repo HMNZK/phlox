@@ -827,6 +827,39 @@
       "independent": true,
       "decision": "pass",
       "reason": "要約のユーザー境界・最新空推論・活動優先・待機優先・5秒閾値とU+200Bを含む空白判定を保持。逆順グループ化は可視群の全内容・元順序・先頭ID・正確な隠れ件数を保持し、候補に絞った描画予算も従来と同じ範囲を評価する。履歴展開アンカー、非Lazy構造、ユーザー入力位置の計測対象を維持。追加テストの観測可能な戻り値とAX状態を確認し、既存期待値の緩和なし。影響fake-session-lifecycle/physical-session-activityの定義・要求本文は同一。標準qualityの入力SHAとnativeソース記録1733件を現対象と照合し、Mac/iOS/必須fake13件、native送信・中断・保存一致、画像4状態の比較記録を確認。製品テスト再実行・実機・実IME・入力遅延測定はレビューで未実施。ADR0209既知問題1件は未解決で、本passは実機合格や画面全体の改善率を認定しない。"
+    },
+    {
+      "baseOID": "155dc25ff9d0b10214b9113754b9759cde0ef2d5",
+      "targetOID": "222271d3fa248b9b5e987ce479319dee6dcb4adc",
+      "diffSHA256": "5edee6d39a4b8952d8e8a024f695c94fe1ef0c70f39c264f8a921afecb514543",
+      "reviewedAt": "2026-11-02T12:39:46.348726+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_review_1144"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reason": "版1.14.4/build46と更新feedを独立レビュー。compact-test経由の読み取り8検査がexit0。現入力と固定c1cfd334からのMac/iOS実ビルド来歴・外部入力・設定・配布物SHA、Universal本体/XPC、codesign/stapler、DMG/ZIP全appの内容・mode・symlink・ticket一致、実ZIPのEd25519署名、日英ノート一致、旧feed全byte保持を照合。シナリオ定義と必須性は無変更、実機記録は空のまま。製品テスト再実行・最終quality・実機・実CLI・IME/物理キー/入力遅延・公開は本reviewで未実施。既存Git順序known issueとモデル既知1件・過去の終了拒否原因未解明は未解決。"
+    },
+    {
+      "baseOID": "913abe9a7017bedd0b92927c50615d0fa9600ffd",
+      "targetOID": "222271d3fa248b9b5e987ce479319dee6dcb4adc",
+      "diffSHA256": "cbadaef5da7bcb44ed75fc08dd7a4a60e2dfa8b14e419e0b96d7d17d74610396",
+      "reviewedAt": "2026-11-02T12:39:46.348726+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_review_1144"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reason": "版1.14.4/build46と更新feedを独立レビュー。compact-test経由の読み取り8検査がexit0。現入力と固定c1cfd334からのMac/iOS実ビルド来歴・外部入力・設定・配布物SHA、Universal本体/XPC、codesign/stapler、DMG/ZIP全appの内容・mode・symlink・ticket一致、実ZIPのEd25519署名、日英ノート一致、旧feed全byte保持を照合。シナリオ定義と必須性は無変更、実機記録は空のまま。要約のユーザー境界・最新空推論・活動優先・Unicode空白、可視群の全内容とID・隠れ件数・予算・履歴展開アンカー・位置計測を保持し、追加テストの期待値緩和なし。native4機能と状態モデルの保存証拠も照合。製品テスト再実行・最終quality・実機・実CLI・IME/物理キー/入力遅延・公開は本reviewで未実施。既存Git順序known issueとモデル既知1件・過去の終了拒否原因未解明は未解決。"
     }
   ]
 }

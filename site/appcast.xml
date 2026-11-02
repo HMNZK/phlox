@@ -41,7 +41,7 @@
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
             <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
-            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.1.zip" length="30188916" type="application/octet-stream" sparkle:edSignature="oAhW6yDrURfeHsB4+JKqbAVtEq0SRKjPtJfw0CslmTOoRrPKSBsRb5WX+fRZu2eyZOWjcgepx/gL8ZbUjq5YAg=="/>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.1.zip" length="30195257" type="application/octet-stream" sparkle:edSignature="9WX2QS/PtaTmVcH3tsp0RlS+H/PBUoauQXmND1mdLPkJxzOIHJ8mXbTFL1qKb4qyeti8g8MYcEVpRNssmOgIAQ=="/>
         </item>
         <item>
             <title>1.14.0</title>

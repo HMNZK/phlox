@@ -60,3 +60,10 @@ Mac40のsourceOIDは`9978c6254519c8a7e7188eac403b9719b9277e0f`、iPhone10は`ef8
 ## リリースノート
 
 英日本文の正本は[`release/notes-v1.14.1.md`](../../../release/notes-v1.14.1.md)。公開する場合はGitHub Releaseとappcastへ同じ内容を使う。
+
+
+## main統合に向けた配布物の再作成（2026-11-02）
+
+古い検査設定はMac41の配布物とMac40/iOS10の来歴を選択しており、今回の入力との一致を確認できなかった。旧記録を変更せず保存し、ソース `3ed5276951d600d6046e29fadf93eaa2a7b0fe0c` から未公開QA用Mac 1.14.1/build43とiOS 1.0/build12を新規生成した。両ビルドの全入力manifestは一致し、実測設定と外部入力・成果物のSHAで来歴を採取した。Macの署名・App/DMG公証・staple・最終ZIP、XPC等の4署名検査が成功。iOSは最初のexportがキー応答待ち後にerrSecInternalComponentで失敗し、失敗archive/logを保存した。現在のキー利用を作業用コピーで確認後、同じ固定入力から再archive/exportした署名済みIPAの生成に成功した。鍵のアクセス権は変更していない。
+
+今回のユーザー指示により実機操作は必須外・not_runであり、過去の42/43・iPhone12の確認記述を今回の成功証拠へ転用しない。選択JSONは今回のMac/iOS来歴だけを指し、旧選択は `.verification/main-promotion-20261101/distribution/previous-verification-records.json` に保持する。新しい配布物検査はdistribution入口を使い、従来release入口の実機要件は維持する。公開・push・使用中アプリへのインストールは行わない。配布物検査と全体品質の最終結果は同作業の検証記録を正本とし、ビルド成功だけを全体合格としない。

@@ -742,6 +742,41 @@
         "fake-session-lifecycle"
       ],
       "reason": "main..HEADの正確な差分を独立に読み取りレビューした。競合したverification-reviewsは原dev31/main36の完全和集合41件で、完全一致重複26件だけが除去され全record内容を保持する。gate正本のnormalized15変更でaffected scenarioはfake-session-lifecycleのみ。catalog要求/method/required/testIDs5群/必須13関数は維持され、E2E文書の変更も必須自動集合を弱めない。Claude停止/終了競合修正とcache変更・回帰テスト、性能出力先、top-level integrations除外を確認し、新しい確定機能不具合・修正欠落を検出しなかった。今回は呼出元の指示に従いbuild/testを新規実行せず、同最終候補でのquality、verify-phlox段1、状態モデルhuman/any両モードとmainリリース検査は別途必要。このpassはコード/シナリオ適合と競合解消の読み取り判定であり、全性能目標、実機release、main反映の成功を認定しない。 追補としてモデル同期42044159との5状態関連ファイルの全文byte一致とChatVM差分が投影/cacheだけであることを直接照合した。主担当実走の保存ログはhuman2841状態/違反0、any891026状態/既知handle(.turnInterrupted)違反1を示す。--expect exit0は主担当報告であり、新規6性質allpassや既知違反解消とは扱わない。"
+    },
+    {
+      "baseOID": "a681cbb8b901afbc82127d213c082af7e5f8df58",
+      "targetOID": "3831e23e9d447262b34d00d41ab4478871002283",
+      "diffSHA256": "cad17355e03b01e09f8b077eeb7cceffd1ed498386f5812c41844dba3c840c72",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/stage1_independent_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-02T02:21:46+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "main基準。最終候補の追跡差分、配布物検査分離、受入scenario、記録選択/来歴を独立に読み取りレビューした。validate_recorded_buildsは既存来歴検証の抽出で、distributionはMac/iOS両現入力と選択DMG/ZIPを要求し、既存releaseのhuman/実機5scenario判定を保持する。追加3テストを含む保存ログ63成功を確認し、要求削減や新しい確定機能不具合を検出しなかった。選択Mac1.14.1/43・iOS1.0/12はsource3ed5276951d600d6046e29fadf93eaa2a7b0fe0c/同一2133入力manifestに対応し、Original証拠rootのprovenance/外部入力/DMG/ZIP/IPA計24参照の実SHA一致、旧RECORDS完全退避を確認した。iOS初回失敗を残しretryの成功と分離、実機passは生成していない。ユーザーの実機必須外かつ配布物検査を直すまで未統合という指示に沿う。今回は新build/testなしで、最終quality/distribution/外側版・notes・feed・stapler検査は主担当の後続実走が必要。このpassは静的正しさとscenario適合であり、全性能目標・実機検査・公開/main反映成功を認定しない。"
+    },
+    {
+      "baseOID": "fb2483309c29375ae57dee1ae94008eb122123dd",
+      "targetOID": "3831e23e9d447262b34d00d41ab4478871002283",
+      "diffSHA256": "dd13148dbf3112581634241363377606889faa70c80c57943c4a23a9d2f20b8a",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/stage1_independent_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-02T02:21:46+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation"
+      ],
+      "reason": "dev基準。既存main由来のQR限定再試行、入力最小高さ、Simulator自動復旧probe期限と回帰/環境別テストを追加照合し、対応する4scenarioの要求/手順/testIDsを維持する。physical-deviceのstatic reviewであり実機実施認定ではない。最終候補の追跡差分、配布物検査分離、受入scenario、記録選択/来歴を独立に読み取りレビューした。validate_recorded_buildsは既存来歴検証の抽出で、distributionはMac/iOS両現入力と選択DMG/ZIPを要求し、既存releaseのhuman/実機5scenario判定を保持する。追加3テストを含む保存ログ63成功を確認し、要求削減や新しい確定機能不具合を検出しなかった。選択Mac1.14.1/43・iOS1.0/12はsource3ed5276951d600d6046e29fadf93eaa2a7b0fe0c/同一2133入力manifestに対応し、Original証拠rootのprovenance/外部入力/DMG/ZIP/IPA計24参照の実SHA一致、旧RECORDS完全退避を確認した。iOS初回失敗を残しretryの成功と分離、実機passは生成していない。ユーザーの実機必須外かつ配布物検査を直すまで未統合という指示に沿う。今回は新build/testなしで、最終quality/distribution/外側版・notes・feed・stapler検査は主担当の後続実走が必要。このpassは静的正しさとscenario適合であり、全性能目標・実機検査・公開/main反映成功を認定しない。"
     }
   ]
 }

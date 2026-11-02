@@ -47,3 +47,5 @@ last-verified: 2026-07-27
 - `macos/Packages/SessionFeature/Tests/SessionFeatureTests/AcceptanceBlockWindowTests.swift` — ツール1000件でも直前メッセージが可視・可視ブロック数 ≤ blockLimit（列挙した入力表）・部分ブロックが生じない・block index 翻訳
 
 > 追記（2026-10-25）: 「以前のメッセージを表示」ボタンは [ADR 0217](0217-transcript-scroll-to-load-history.md) で廃止し、最上部からさらにスクロールして離す操作に置き換えた。
+
+> 追記（2026-11-02）: 窓をブロック単位で数える決定は変えずに、実装を変えた。`visibleSlice(from:blockLimit:)` は item 列を末尾から1回走査して総ブロック数を数え、末尾 `blockLimit` ブロックだけを組み立てる（隠れたブロックの配列は作らない）。`ChatTranscriptView` は描画のたびの `InputHistoryPolicy.entries(from:)` による全入力 ID の Set 生成をやめ、可視ブロック自身の種類で入力位置の計測対象を決める。上の「結果」にある全 item のブロック化と呼び出し元の全件走査の説明は当時の実装を表す。現行の説明は [chat-mode-ux-components](../architecture/chat-mode-ux-components.md)、設計と計測は [表示準備の作業記録](../delivery/transcript-preparation.md) を参照する。

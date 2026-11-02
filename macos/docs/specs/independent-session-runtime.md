@@ -49,7 +49,9 @@ Phloxの画面を終了、更新、再起動しても、既に動いているセ
 
 画面側では状態データの復号を画面スレッド外で行う。取得から復号までの同時数を2件に制限し、状態の順序・期限・取消しと送信結果の扱いを維持する。実際の画面と送信の応答性への効果は未計測。
 
-画面側のチャット本文は、既に適用した実行IDと本文revision、現在のGUI本文revisionが受信値とすべて一致するときだけ、代入と索引の再構築を省く。初回、実行の交代、revisionの変化、GUI内の一時エラーによる本文変更後は全本文を適用する。status、承認、rawイベント、接続エラーの解除は毎回適用し、転送方式は完全snapshotのままとする。再接続・取りこぼし後の取得と古いsequenceの破棄も変更しない。質問日付の探索結果は実行ID/revisionごとにDate?だけを保持し、本文を置換したときは失効させる。本文のObservation依存をcachehitでも維持する。実測条件と未確定値は[ADR0223](../adr/0223-runtime-snapshot-main-actor-budget.md)と[作業記録](../delivery/0219-macos-responsiveness-worklog.md)に記録する。
+画面側のチャット本文は、既に適用した実行IDと本文revision、現在のGUI本文revisionが受信値とすべて一致するときだけ、代入と索引の再構築を省く。初回、実行の交代、revisionの変化、GUI内の一時エラーによる本文変更後は全本文を適用する。status、承認、rawイベント、接続エラーの解除は毎回適用する。画面へ渡す状態は完全snapshotとし、再接続と古いsequenceの破棄も維持する。質問日付の探索結果は実行ID/revisionごとにDate?だけを保持し、本文を置換したときは失効させる。本文のObservation依存をcachehitでも維持する。このGUI内の省略処理の測定は[ADR0223](../adr/0223-runtime-snapshot-main-actor-budget.md)と[作業記録](../delivery/0219-macos-responsiveness-worklog.md)に記録する。
+
+通信はhandshakeの`supportsSnapshotUpdates`がtrueのときだけ`/snapshot-update`を使う。要求開始時の基準sequenceを固定し、親子本文の共有先頭と変更末尾、rolling rawログの共有末尾と追加分から完全状態へ復元する。重い比較・JSON変換・復号・復元は画面のメイン処理から外す。サービスの基準保持は直近2状態で、未知の基準や初回は完全応答へ戻す。旧GUIの`/snapshot`と旧サービスへの完全取得も維持する。wireと復元後の完全状態相当の上限はいずれも64MiB。方式と検証状態は[ADR0224](../adr/0224-incremental-runtime-snapshots.md)と[大履歴の作業記録](../delivery/0224-large-session-responsiveness-worklog.md)を参照する。
 
 独立 runtime の検証用 Codex は、初期設定を取得する `config/read` にも応答する。
 検証クライアントは混雑応答を受けた操作を、同じ操作 ID と内容のまま期限付きで再試行する。

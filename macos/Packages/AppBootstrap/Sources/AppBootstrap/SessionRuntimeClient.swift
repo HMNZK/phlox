@@ -4,6 +4,7 @@ import Foundation
 struct SessionRuntimeReceivedSnapshot {
     let envelope: SessionRuntimeSnapshotEnvelope
     let startedAt: ContinuousClock.Instant
+    var baseline: SessionRuntimeSnapshotBaseline? = nil
     func isFresh(at now: ContinuousClock.Instant = ContinuousClock.now) -> Bool { startedAt.duration(to: now) <= .seconds(35) }
 }
 
@@ -16,11 +17,13 @@ public final class SessionRuntimeClient {
     private var latestSnapshot: SessionRuntimeReceivedSnapshot?
     private var latestReceivedSequence: UInt64 = 0
     private var supportsControlSkills = false
+    private var supportsSnapshotUpdates = false
     private var pendingOperationBytes = 0
     private var pendingOperationCount = 0
     private var pendingUrgentOperationBytes = 0
     private var pendingUrgentOperationCount = 0
     private let snapshotDecoder: @Sendable (Data) throws -> SessionRuntimeSnapshotEnvelope
+    private let snapshotUpdateDecoder: @Sendable (Data) throws -> SessionRuntimeSnapshotUpdate
     private enum RequestLane: Hashable {
         case read, snapshot, command, urgent
         var maximumActive: Int { switch self { case .read, .snapshot: 2; case .command: 3; case .urgent: 1 } }
@@ -30,12 +33,16 @@ public final class SessionRuntimeClient {
     private var requestWaiters: [(id: UUID, lane: RequestLane, continuation: CheckedContinuation<Void, Error>)] = []
 
     public convenience init(endpoint: SessionRuntimeEndpoint) {
-        self.init(endpoint: endpoint) { try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: $0) }
+        self.init(endpoint: endpoint, snapshotDecoder: { try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: $0) })
     }
 
-    init(endpoint: SessionRuntimeEndpoint, snapshotDecoder: @escaping @Sendable (Data) throws -> SessionRuntimeSnapshotEnvelope) {
+    init(endpoint: SessionRuntimeEndpoint, snapshotDecoder: @escaping @Sendable (Data) throws -> SessionRuntimeSnapshotEnvelope,
+         snapshotUpdateDecoder: @escaping @Sendable (Data) throws -> SessionRuntimeSnapshotUpdate = {
+             try JSONDecoder().decode(SessionRuntimeSnapshotUpdate.self, from: $0)
+         }) {
         self.endpoint = endpoint
         self.snapshotDecoder = snapshotDecoder
+        self.snapshotUpdateDecoder = snapshotUpdateDecoder
     }
 
     public func handshake() async throws {
@@ -50,6 +57,7 @@ public final class SessionRuntimeClient {
         }
         guard handshake.generation == endpoint.generation else { throw SessionRuntimeConnectionError.staleGeneration }
         supportsControlSkills = handshake.supportsControlSkills == true
+        supportsSnapshotUpdates = handshake.supportsSnapshotUpdates == true
     }
 
     public func snapshot() async throws -> DashboardRuntimeSnapshot {
@@ -134,9 +142,9 @@ public final class SessionRuntimeClient {
         for _ in 0..<3 {
             if let latestSnapshot, !latestSnapshot.isFresh() { self.latestSnapshot = nil }
             let startedAt = ContinuousClock.now
-            let envelope = try await readSnapshot()
+            let (envelope, baseline) = try await readSnapshot()
             try Task.checkCancellation()
-            let received = SessionRuntimeReceivedSnapshot(envelope: envelope, startedAt: startedAt)
+            let received = SessionRuntimeReceivedSnapshot(envelope: envelope, startedAt: startedAt, baseline: baseline)
             guard received.isFresh(), envelope.sequence >= latestReceivedSequence else { continue }
             latestReceivedSequence = envelope.sequence
             latestSnapshot = received
@@ -145,7 +153,7 @@ public final class SessionRuntimeClient {
         throw SessionRuntimeConnectionError.runtimeUnavailable("新しい画面状態を期限内に取得できません。")
     }
 
-    private func readSnapshot() async throws -> SessionRuntimeSnapshotEnvelope {
+    private func readSnapshot() async throws -> (SessionRuntimeSnapshotEnvelope, SessionRuntimeSnapshotBaseline?) {
         let deadline = ContinuousClock.now + .seconds(30)
         while true {
             do {
@@ -157,13 +165,24 @@ public final class SessionRuntimeClient {
             }
         }
         defer { releaseRequest(lane: .snapshot) }
-        let data = try await read(path: "snapshot")
+        let usesUpdates = supportsSnapshotUpdates
+        let baseline = latestSnapshot.flatMap { $0.isFresh() ? $0.baseline : nil }
+        let data = try await read(path: usesUpdates ? "snapshot-update" : "snapshot",
+                                  snapshotBase: usesUpdates ? baseline?.envelope.sequence : nil)
         let snapshotDecoder = snapshotDecoder
+        let snapshotUpdateDecoder = snapshotUpdateDecoder
         let task = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
-            let snapshot = try snapshotDecoder(data)
+            let result: (SessionRuntimeSnapshotEnvelope, SessionRuntimeSnapshotBaseline?)
+            if usesUpdates {
+                let update = try snapshotUpdateDecoder(data)
+                let restored = try update.restoring(base: baseline)
+                result = (restored.envelope, restored)
+            } else {
+                result = (try snapshotDecoder(data), nil)
+            }
             try Task.checkCancellation()
-            return snapshot
+            return result
         }
         return try await withTaskCancellationHandler {
             try await task.value
@@ -223,7 +242,7 @@ public final class SessionRuntimeClient {
         }
     }
 
-    private func request(path: String, body: Data? = nil, urgent: Bool = false) async throws -> Data {
+    private func request(path: String, body: Data? = nil, urgent: Bool = false, snapshotBase: UInt64? = nil) async throws -> Data {
         let lane: RequestLane = body == nil ? .read : urgent ? .urgent : .command
         try await acquireRequest(lane: lane)
         defer { releaseRequest(lane: lane) }
@@ -235,6 +254,7 @@ public final class SessionRuntimeClient {
         request.setValue(String(SessionRuntimeEndpoint.protocolVersion), forHTTPHeaderField: "X-Phlox-Runtime-Protocol")
         request.setValue(endpoint.generation.uuidString, forHTTPHeaderField: "X-Phlox-Runtime-Generation")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let snapshotBase { request.setValue(String(snapshotBase), forHTTPHeaderField: "X-Phlox-Runtime-Snapshot-Base") }
         let maximumBytes = body == nil ? SessionRuntimeTransport.maximumSnapshotBytes : SessionRuntimeTransport.maximumCommandReplyBytes
         let (data, response) = try await BoundedRuntimeRequest.load(request, maximumBytes: maximumBytes)
         switch response.statusCode {
@@ -247,10 +267,10 @@ public final class SessionRuntimeClient {
         }
     }
 
-    private func read(path: String) async throws -> Data {
+    private func read(path: String, snapshotBase: UInt64? = nil) async throws -> Data {
         let deadline = ContinuousClock.now + .seconds(30)
         while true {
-            do { return try await request(path: path) }
+            do { return try await request(path: path, snapshotBase: snapshotBase) }
             catch SessionRuntimeConnectionError.busy {
                 guard ContinuousClock.now < deadline else { throw SessionRuntimeConnectionError.busy }
                 try await Task.sleep(for: .milliseconds(100))

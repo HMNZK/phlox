@@ -12,6 +12,7 @@ last-verified: 2026-10-24
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0224 | [既知の履歴を共有して状態の変更部分を転送する](0224-incremental-runtime-snapshots.md) | accepted（転送削減と内容保持を検証。実IME・キー遅延は未計測） |
 | 0223 | [状態同期のメイン処理と不変本文の費用を抑える](0223-runtime-snapshot-main-actor-budget.md) | accepted（GUI本文の不変時省略と質問日付cacheのみ統合。encodeの別actor移動は撤回） |
 | 0222 | [停止・終了と遅れて届く通知でチャットの状態を矛盾させない](0222-stop-exit-and-late-events-consistency.md) | accepted |
 | 0221 | [24 時間使われていないチャットのエージェントプロセスを止める](0221-suspend-idle-chat-agent-processes.md) | accepted |

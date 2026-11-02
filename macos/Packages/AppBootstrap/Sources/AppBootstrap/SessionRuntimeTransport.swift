@@ -74,6 +74,7 @@ struct SessionRuntimeHandshake: Codable, Sendable {
     let protocolVersion: Int
     let generation: UUID
     var supportsControlSkills: Bool? = nil
+    var supportsSnapshotUpdates: Bool? = nil
 }
 
 struct SessionRuntimeSnapshotEnvelope: Codable, Sendable {
@@ -253,6 +254,7 @@ public actor SessionRuntimeTransport {
     private let applicationCommand: (@MainActor @Sendable (Data) async throws -> Data)?
     private let ledger: SessionRuntimeCommandLedger
     private let snapshotSequence = SessionRuntimeSnapshotSequence()
+    private let snapshotEncoder = SessionRuntimeSnapshotEncoder()
     private let queue = DispatchQueue(label: "Phlox.SessionRuntimeTransport")
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
@@ -267,6 +269,7 @@ public actor SessionRuntimeTransport {
     private enum Request {
         case handshake
         case snapshot
+        case snapshotUpdate(UInt64?)
         case applicationSnapshot
         case command(SessionRuntimeOperation, DashboardRuntimeCommand)
         case applicationCommand(SessionRuntimeOperation)
@@ -336,17 +339,21 @@ public actor SessionRuntimeTransport {
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
                 pendingReads += 1
                 readAdmitted = true
-                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation, supportsControlSkills: true))
-            case .snapshot:
+                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation, supportsControlSkills: true, supportsSnapshotUpdates: true))
+            case .snapshot, .snapshotUpdate:
                 maximumResponseBytes = Self.maximumSnapshotBytes
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
                 pendingReads += 1
                 readAdmitted = true
                 let provider = snapshot
                 let sequence = snapshotSequence
-                body = try await MainActor.run {
+                let envelope = try await MainActor.run {
                     let snapshot = try provider()
-                    return try JSONEncoder().encode(SessionRuntimeSnapshotEnvelope(sequence: sequence.next(), snapshot: snapshot))
+                    return SessionRuntimeSnapshotEnvelope(sequence: sequence.next(), snapshot: snapshot)
+                }
+                switch request {
+                case .snapshotUpdate(let base): body = try await snapshotEncoder.encode(envelope, baseSequence: base, updates: true)
+                default: body = try await snapshotEncoder.encode(envelope, baseSequence: nil, updates: false)
                 }
             case .applicationSnapshot:
                 maximumResponseBytes = Self.maximumSnapshotBytes
@@ -405,6 +412,14 @@ public actor SessionRuntimeTransport {
         switch (request.method, request.target) {
         case ("GET", "/handshake"): return .handshake
         case ("GET", "/snapshot"): return .snapshot
+        case ("GET", "/snapshot-update"):
+            if let value = request.headers["x-phlox-runtime-snapshot-base"] {
+                guard let sequence = UInt64(value), sequence > 0 else {
+                    throw SessionRuntimeConnectionError.rejected("画面状態の基準番号が不正です。")
+                }
+                return .snapshotUpdate(sequence)
+            }
+            return .snapshotUpdate(nil)
         case ("GET", "/application-snapshot"): return .applicationSnapshot
         case ("POST", "/command"):
             let operation = try JSONDecoder().decode(SessionRuntimeOperation.self, from: request.body)

@@ -40,6 +40,7 @@ final class DesktopCompositionRoot {
             writable: false
         )
         let client = SessionRuntimeClient(endpoint: endpoint)
+        try await client.handshake()
         let application = try JSONDecoder().decode(SessionRuntimeApplicationSnapshot.self, from: await client.applicationSnapshot())
         AgentModelCatalog.configure(provider: SessionRuntimeModelProvider(models: application.models))
         await AgentModelCatalog.refresh()

@@ -876,6 +876,24 @@
         "fake-session-lifecycle"
       ],
       "reason": "固定base/targetの7ファイルを別コンテキストで独立レビューし、正規化差分SHAを再計算して一致を確認した。get_usage要求の共通生成箇所へskip_behaviors:trueを追加するため、会話とClaudeUsageProcessの専用接続の両方へ到達し、応答解析・タイムアウト・終了処理は維持される。外部CLIへ送るJSONのテストはフラグ欠落を検出し、保存済みredの2指摘とgreenの1件成功を確認した。画面外描画は初期化後へ既存setFrameを移し、window1920x1050を追加検証する。既存viewport1643x903・タイル最小540x440・5/6件の契約は維持され、診断ログのwindow1038/viewport891と修正後の両ケース成功を確認した。normalized_changes/validate_reviewsと全scenarioのcodePathsを照合し、対象3pathはfake-session-lifecycleだけに一致する。直接変更した要件文書はなく、S1の生成・ready・送受信と必須13関数の手順・期待結果・必須性は不変で、scenario更新は不要。資料の追加説明は共有使用量経路および画面外描画の設定順と整合し、追加コメントは0件。これは同一モデルの別コンテキストによる静的レビューで、多様モデル検証ではない。テスト・ビルドの再実行、最終quality全体、Release導入状態、Mac/iPhone実機の動作は本レビューで検証しておらず、本passに含まない。"
+    },
+    {
+      "baseOID": "3c03129cc279f640782e526f296e19adc34336ac",
+      "targetOID": "d68872dea9e0e4b5e642b2194bcc5099d56d9d71",
+      "diffSHA256": "fa43c28fc5ed8af4f62bf3882e151f0e88998ed1f738c013137bcb4a825e6156",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/final_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-03T15:29:58.823303Z",
+      "scenarioIDs": [
+        "physical-activity-presentation",
+        "physical-history-follow",
+        "physical-session-activity"
+      ],
+      "reason": "独立レビューで入力欄の幅制約、回転後の計測更新、実画面の回帰テストを確認し、correctness の欠陥を検出しなかった。iOS 26.2 の画面描画スイート25件と新規の幅縮小テストの合格結果を xcresult で照合した。隔離アプリの7条件と品質ゲートは通過した。実機検証は含まない。"
     }
   ]
 }

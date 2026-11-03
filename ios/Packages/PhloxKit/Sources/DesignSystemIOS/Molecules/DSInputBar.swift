@@ -471,7 +471,7 @@ public struct DSInputBar: View {
                 }
                 .padding(.horizontal, 12)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
         )
         #if os(iOS)
@@ -574,15 +574,8 @@ public struct DSInputBar: View {
                 proxy.size.width
             } action: { width in
                 guard width.isFinite, width > 0 else { return }
-                Task { @MainActor in
-                    do {
-                        try await Task.sleep(for: .milliseconds(16))
-                    } catch {
-                        return
-                    }
-                    guard abs(measuredWidth - width) > 0.5 else { return }
-                    measuredWidth = width
-                }
+                guard abs(measuredWidth - width) > 0.5 else { return }
+                measuredWidth = width
             }
         } else {
             content

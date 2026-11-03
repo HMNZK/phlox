@@ -35,7 +35,7 @@ GUI は `DesktopCompositionRoot` が組み立て、別プロセスの `SessionRu
 | `claude-chat-session-lifecycle.md` | Claude チャットセッションのプロセスライフサイクル（spawn/respawn/self-heal） |
 | `dashboard-empty-state-agent-cards.md` | **superseded** → 新規チャット画面（ADR 0183・specs/unified-new-chat-start.md）。旧 空状態のエージェント選択カード |
 | `dashboard-pane-layout.md` | Dashboard 3ペインレイアウトと幅クランプ（PaneWidthPolicy・クランプ発火点） |
-| `claude-usage-supply.md` | Claude Usage（5h/7d 残量）キャッシュの供給経路（statusLine＋`/usage` プローブ） |
+| `claude-usage-supply.md` | Claude 使用量（5h/7d 残量）の供給経路（通知・`get_usage`・補助キャッシュ） |
 | `design-system.md` | Phlox デザインシステム（macOS 本体・`Packages/DesignSystem`） |
 | `mobile-proxy.md` | モバイル連携（Tailscale→MobileProxy→ControlServer、トークン・API・バインド方針） |
 | `mobile-device-pairing.md` | 端末別モバイルトークンと Keychain 保護（`PairedDevice`・DPK/ファイルベースの選択・起動シーケンス・発行/失効） |

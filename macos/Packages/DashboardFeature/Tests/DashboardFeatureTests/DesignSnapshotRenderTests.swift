@@ -73,13 +73,14 @@ struct DesignSnapshotRenderTests {
             .environment(\.locale, Locale(identifier: "ja"))
             .environment(\.colorScheme, .dark)
         let window = makeSnapshotWindow(view, id: "13-bp-window-grid-auto-\(count)", width: 1920, height: 1050)
-        window.setFrame(NSRect(x: -10000, y: -10000, width: 1920, height: 1050), display: false)
         let host = try #require(window.contentView)
         defer { window.contentViewController = nil; window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(500))
+        window.setFrame(NSRect(x: -10000, y: -10000, width: 1920, height: 1050), display: false)
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(100))
         let layout = dashboard.gridLayoutForDisplay(in: viewport.size)
+        #expect(window.frame.size == CGSize(width: 1920, height: 1050))
         #expect(layout.tree.sessions.count == count)
         #expect(viewport.size == CGSize(width: 1643, height: 903))
         var measured: [String: [Double]] = [:]

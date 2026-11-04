@@ -945,6 +945,44 @@
         "physical-activity-presentation"
       ],
       "reason": "指定diffと成功基準から契約適合・正しさ・誠実性・根本原因・構造・到達性・非機能・テスト品質を独立確認し、correctness指摘0件。正規化差分SHAを再計算して一致。MarkdownのList配置、クリック位置の選択可能文字部品への転送と再入抑止、古いフォーカス要求のガード、画面外編集の同期・確定と失敗時保持、本文・URL・テーマによる等価比較を確認。iOS入力欄の幅制約と同期した幅更新、共有get_usage経路のskip_behaviors追加を確認。関連テストの既存期待値・対象集合・期限は弱められていない。compact-test経由の独立37テストと標準入口fake検査が成功。固定494b98e2・両build入力manifest・全externalInputs・実コンパイラコピーと依存snapshot・配布物SHA・Mac1.14.5/48・IPA1.0/18とwidgetを照合。DMG/ZIP全app内容・mode・symlink、codesign/stapler/Gatekeeper、実ZIP署名と改ざん拒否、既存更新鍵・URL、appcast版・サイズ・日英ノート・旧feed保持が一致。catalog全文とS1・AC1〜9を読み、変更pathに対応する4scenarioを確認し、必須実機5件の定義・必須性は維持。実機結果は空でphysical合格ではない。シミュレーターへのユーザー指定変更も実機成功へ読み替えない。本passに製品Swiftテスト・GUI・シミュレーター操作・実機・最終quality/distribution/security・公開の実施成功は含まない。既知Git履歴問題と状態モデルの既知違反、任意Markdown入力での固着不在は解消・保証したと扱わない。"
+    },
+    {
+      "baseOID": "ec88fa8abc070df022ee14ad630c44a38ae8c8e7",
+      "targetOID": "aacf04c9eb2b46577431b5b7606c89018dfcaaf4",
+      "diffSHA256": "e5e4e724d033bfd5576987faa87725fbb00cde143f5dc3fbf8e26ad0cb26a76d",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent:/root/release_1145_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-04T06:28:55Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation",
+        "physical-history-follow",
+        "physical-session-activity"
+      ],
+      "reason": "旧48の判定・配布検査を流用せず、新49/19を独立検査した。1契約適合: 正規化差分を再計算して指定SHAと一致。固定c9892288、target、両build入力manifest、実コンパイラコピー・依存snapshot、全externalInputs・配布物SHA、Mac1.14.5/build49・IPA1.0/build19とwidgetを照合。2正しさ: DMG/ZIP全app内容・実行mode・symlink、codesign deep/strict、appとDMGのstapler、Gatekeeper accepted、実ZIPのEd25519署名と改ざん拒否が成功。appcastの49・URL・30382169bytes・日英ノートと旧feedのbyte保持、既存公開鍵・更新URL・最小macOS14.0も一致。3誠実性: AX役割誤認の指摘は修正され、exact Swift helperの独立6ケースが成功。scroll-finalのparser0件実行を検出し、成功証拠から除外する文書訂正とparser-finalの正しいID started/passed・1件成功を確認。4根本原因: 距離0固定をScrollGeometryへ置換し、内容サイズのみの増減では直前の追従意図を保持、offset/container変更時に再計測する条件を確認。5構造: 既存追従・履歴anchor・Menu経路を維持。6到達性: Menu本体ラベルと外部AXPress前後の証拠照合、native検査コピー4ファイルと最終ソースの一致を確認。7非機能: 79/81pt・0.3秒±2フレーム・逸脱0.5pt、Reduce Motion、最大文字での表示検査の基準を維持。8テスト品質: 原アサーションの弱体化なし。今回compact-test経由で配布11件・契約16件、managed-build経由でSwift6ケース成功。親実走の描画26件・外部AX10操作・Remaining計4methods/6cases・79/81の保存ログを照合した。catalog本文と変更pathから4scenarioを算出し、必須実機5件の定義・必須性に弱体化なし。実機recordsは空で合格ではない。ユーザーのsim-only指定による既存distributionへの接続と前置検査保持を確認。本passは差分と配布物の独立レビューであり、追加hosted回帰・最終候補のquality/distribution/security・公開後確認の成功を含まない。既知Git順序問題と状態モデル違反も未解消として扱う。"
+    },
+    {
+      "baseOID": "5f30f08eb1a5eb3ea39659bee3bddc87e3ba1488",
+      "targetOID": "aacf04c9eb2b46577431b5b7606c89018dfcaaf4",
+      "diffSHA256": "386fa4447375634e43f2fbf23bfca637f897e772498426b1290a282ea8a29062",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent:/root/release_1145_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-04T06:28:55Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation",
+        "physical-history-follow",
+        "physical-session-activity"
+      ],
+      "reason": "変更全体を8次元で更新レビューし、旧48の判定・配布検査を流用せず未解決指摘0件。1契約適合: 正規化差分SHA、固定c9892288とtargetのbuild入力、両build来歴、実コンパイラコピー・依存snapshot、全外部入力・配布物SHA、Mac1.14.5/49・IPA1.0/19とwidgetが一致。2正しさ: DMG/ZIP全appファイル・mode・symlink、codesign/stapler/Gatekeeper、実ZIP署名と改ざん拒否、既存更新鍵・URL、appcast版・30382169bytes・日英ノート・旧feed byte保持が一致。3誠実性: AX役割誤認はroleトークン完全一致と否定例で修正。scroll-finalのparser0件実行を検出し、不採用の文書訂正と正しいselectorでの実ID・1件成功を確認。4根本原因: MarkdownのList配置・再解析抑止、クリック転送の再入抑止・古いfocus要求のガード、画面外編集の同期と失敗時保持、ScrollGeometryによる距離更新と内容量のみ変化時の追従意図保持を確認。5構造: 既存編集確定・可視判定・使用量要求・追従状態を利用し、共有get_usage経路へskip_behaviorsが到達する。6到達性: 入力転送、公開AX編集アクション、Menu本体のラベル、外部AXPress前後の証拠検査を確認。native検査コピー4ファイルは最終ソースと一致。7非機能: 文字選択・アクセシビリティ・Reduce Motionと79/81pt・0.3秒±2フレーム・0.5pt基準を維持。8テスト品質: 既存期待値・検査集合・期限の弱体化なし。今回の独立実走はcompact-test経由の配布11件・契約16件とmanaged Swift helper6ケースが成功。親実走の描画26件・外部AX10操作・Remaining4methods/6cases・79/81の保存ログも照合した。catalog全文とS1・AC1〜9を読み、現在の変更pathから4scenarioを算出。必須実機条件は削除・弱体化せず、空の実機recordsを合格と扱わない。ユーザーのsim-only指定によるdistribution接続は既存の前置文書・notes・appcast・stapler検査を保持。本passに追加hosted回帰・最終候補quality/distribution/security・公開後確認の成功は含まない。実機ジェスチャー・VoiceOver音声・ハードウェア連携、任意Markdown入力での固着不在、既知Git順序問題と状態モデル違反の解消も保証しない。"
     }
   ]
 }

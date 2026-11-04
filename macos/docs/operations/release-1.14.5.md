@@ -36,7 +36,7 @@ iOSではScrollGeometryから実際の表示領域・内容サイズ・オフセ
 
 独立レビューで、外部AX証拠のrole判定が表示文字内の`AXButton`にも一致することを指摘された。行頭の番号に続くroleだけを読み、静的テキストがボタンを名乗る入力を拒否する否定例を追加する。実操作actorは別途AXPressの公開を要求しており、実施済み操作を偽装したとの指摘ではない。
 
-最終ラベル修正後の描画suiteも26検査が成功し、公開AXの実操作10回の証拠を保存した（`simulator/design-final.xcresult`）。OSの文字サイズAX5でRemaining/RemainingInteractiveの両suiteも成功し、確認ダイアログの縦配置、取消前のAPI未実行、削除失敗、権限確認、使用量ポップオーバーの実際の上下端到達を測定した。roleの否定例と79/81ptの再検証も成功した（`simulator/scroll-final.xcresult`）。実機固有の指操作・VoiceOver音声・ハードウェア認証の成功は記録しない。
+最終ラベル修正後の描画suiteも26検査が成功し、公開AXの実操作10回の証拠を保存した（`simulator/design-final.xcresult`）。OSの文字サイズAX5でRemaining/RemainingInteractiveの両suiteも成功し、確認ダイアログの縦配置、取消前のAPI未実行、削除失敗、権限確認、使用量ポップオーバーの実際の上下端到達を測定した。79/81ptの再検証は成功した（`simulator/scroll-final.xcresult`）。同じrunで指定したrole否定例は関数名末尾の括弧が足りず0件一致だったため、成功証拠へ採用しない。正しいselectorで再実行し、実ID・1検査のstarted/passedを確認した（`simulator/parser-final.xcresult`）。実機固有の指操作・VoiceOver音声・ハードウェア認証の成功は記録しない。
 
 ## 確認した既存資料との不整合
 
@@ -46,3 +46,5 @@ iOSではScrollGeometryから実際の表示領域・内容サイズ・オフセ
 - `site-deploy-and-release.md` のdev→verify→mainは、現在のユーザー指示によるdev→mainと異なる。今回の実機を使わない公開方針は本書の明示例外で、実機成功には読み替えない。
 - delivery 0042の`completed`と本文の`in_progress`・NFR-9未達が混在する。今回のフリーズ修正を全性能要件の達成とは扱わない。
 - ADR 0045とRichMarkdownView・表テストのコメントは、存在しないdelivery 0024を参照する。
+
+最終sourceの通常hosted回帰7suite・21検査もすべて成功した。公開AX・描画・境界測定・正しいparser実走・通常回帰のログと必要な画像/実測JSONは、正本の`mac49-ios19/simulator-qa/`へSHA-256照合付きで保存した。hostedアプリはbuild 18で最終製品ソースと一致することを照合し、配布用iphoneosのbuild 19をSimulatorへ導入したとは扱わない。追加の任意Root指ドラッグ・FaceID/Gate suiteと、実回線のTailscale切断/再接続は未実施。

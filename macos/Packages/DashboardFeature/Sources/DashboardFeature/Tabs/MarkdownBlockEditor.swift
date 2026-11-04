@@ -28,6 +28,7 @@ struct MarkdownBlockEditor: View {
     @State private var selectedBlock: Int?
     @State private var selectionCrossesBlock = false
     @State private var editorRemoval = BlockEditorRemoval()
+    @State private var editorVisibility = BlockEditorVisibility()
     @State private var focusedBlock: Int?
     @AccessibilityFocusState private var accessibleBlock: Int?
     @Environment(\.locale) private var locale
@@ -58,18 +59,23 @@ struct MarkdownBlockEditor: View {
 
     var body: some View {
         let _ = onBodyEvaluation?()
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(displayBlocks.enumerated()), id: \.element.id) { index, block in
-                    blockRow(block)
-                        .accessibilityIdentifier("markdown-block-\(index)")
-                }
+        let blocks = Array(displayBlocks.enumerated())
+        List {
+            ForEach(blocks, id: \.element.id) { index, block in
+                blockRow(block)
+                    .frame(maxWidth: 660, alignment: .leading)
+                    .padding(.top, index == 0 ? 20 : 0)
+                    .padding(.bottom, index == blocks.count - 1 ? 20 : 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Listの標準セル余白8ptと合わせ、従来の本文余白32ptを保つ。
+                    .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .accessibilityIdentifier("markdown-block-\(index)")
             }
-            .frame(maxWidth: 660, alignment: .leading)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(DSColor.background)
         .background(MarkdownBlockSelectionObserver(onBoundary: { _ in }, onOutsideClick: { textView in
             guard textView.blockEditID == document.activeBlockEdit?.id else { return }
@@ -115,6 +121,13 @@ struct MarkdownBlockEditor: View {
             remove = nil
             removal?()
         }
+    }
+
+    private final class BlockEditorVisibility {
+        var id: UUID?
+        var isVisible = false
+        var hasBeenVisible = false
+        var revision = 0
     }
 
     private var displayBlocks: [MarkdownBlock] {
@@ -172,6 +185,7 @@ struct MarkdownBlockEditor: View {
             }
             .padding(.horizontal, -10)
             .padding(.vertical, 2)
+            .onViewportVisibilityChange { editorVisibilityChanged($0, editID: edit.id) }
         } else {
             let linkChanged: (URL?) -> Void = { linkHover.url = $0 }
             let content = renderedBlock(block, onLinkHover: linkChanged)
@@ -202,8 +216,9 @@ struct MarkdownBlockEditor: View {
                     .onHover(perform: hoverChanged)
                     .overlay(MarkdownBlockSelectionObserver(onBoundary: { selectionCrossesBlock = $0 },
                         prepareClick: { prepareBlockClick(block) }, isFocused: focusedBlock == block.id,
+                        canRequestFocus: { document.activeBlockEdit == nil && selectedBlock == block.id },
                         onFocus: { hasFocus in
-                            if hasFocus { focusedBlock = block.id }
+                            if hasFocus, document.activeBlockEdit == nil { focusedBlock = block.id }
                             else if focusedBlock == block.id { focusedBlock = nil }
                         }, onKey: { key in
                             switch key {
@@ -222,6 +237,36 @@ struct MarkdownBlockEditor: View {
                     .accessibilityAddTraits(isHeading(block) ? .isHeader : [])
                     .accessibilityAction(named: "編集") { beginEdit(block) }
             }
+        }
+    }
+
+    private func editorVisibilityChanged(_ isVisible: Bool, editID: UUID) {
+        guard document.activeBlockEdit?.id == editID else { return }
+        if editorVisibility.id != editID {
+            editorVisibility.id = editID
+            editorVisibility.isVisible = false
+            editorVisibility.hasBeenVisible = false
+        }
+        guard editorVisibility.isVisible != isVisible else { return }
+        editorVisibility.isVisible = isVisible
+        editorVisibility.revision += 1
+        if isVisible {
+            editorVisibility.hasBeenVisible = true
+            return
+        }
+        guard editorVisibility.hasBeenVisible else { return }
+        let revision = editorVisibility.revision
+        // レイアウト中の確定を避け、待機中に戻った編集欄や次の編集には触れない。
+        DispatchQueue.main.async {
+            guard document.activeBlockEdit?.id == editID,
+                  editorVisibility.id == editID,
+                  editorVisibility.revision == revision,
+                  !editorVisibility.isVisible else { return }
+            document.synchronizeActiveBlockEditor?()
+            guard document.commitActiveBlockEdit(id: editID) else { return }
+            selectedBlock = nil
+            focusedBlock = nil
+            accessibleBlock = nil
         }
     }
 
@@ -290,6 +335,8 @@ struct MarkdownBlockEditor: View {
     private func beginEdit(range: Range<Int>) {
         if document.beginBlockEdit(range: range) {
             selectedBlock = document.activeBlockEdit?.range.lowerBound
+            focusedBlock = nil
+            accessibleBlock = nil
             linkHover.url = nil
             selectionCrossesBlock = false
         }
@@ -300,7 +347,11 @@ struct MarkdownBlockEditor: View {
             ?? document.markdownBlocks.last?.id ?? id
         selectedBlock = restoredID
         // 確定直後の入力欄の撤去を待ち、描画ブロックへ戻す。
-        DispatchQueue.main.async { focusedBlock = restoredID; accessibleBlock = restoredID }
+        DispatchQueue.main.async {
+            guard document.activeBlockEdit == nil, selectedBlock == restoredID else { return }
+            focusedBlock = restoredID
+            accessibleBlock = restoredID
+        }
     }
 
     private func moveFocus(from id: Int, offset: Int) {
@@ -363,6 +414,7 @@ private struct MarkdownBlockHover<Content: View>: View {
 
     var body: some View {
         content(isHovered) { isHovered = $0 }
+            .onViewportVisibilityChange { if !$0 { isHovered = false } }
             .onDisappear { isHovered = false }
     }
 }
@@ -373,6 +425,7 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
     var onOutsideClick: ((CurrentLineTextView) -> Void)? = nil
     var prepareClick: (() -> ((URL?) -> Void))? = nil
     var isFocused = false
+    var canRequestFocus: (() -> Bool)? = nil
     var onFocus: ((Bool) -> Void)? = nil
     var onKey: ((UInt16) -> Bool)? = nil
     var onHoverChange: ((Bool) -> Void)? = nil
@@ -385,6 +438,7 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         view.onBoundary = onBoundary
         view.onOutsideClick = onOutsideClick
         view.prepareClick = prepareClick
+        view.canRequestFocus = canRequestFocus
         view.onFocus = onFocus
         view.onKey = onKey
         view.onHoverChange = onHoverChange
@@ -398,6 +452,7 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         var onBoundary: (Bool) -> Void
         var onOutsideClick: ((CurrentLineTextView) -> Void)?
         var prepareClick: (() -> ((URL?) -> Void))?
+        var canRequestFocus: (() -> Bool)?
         var onFocus: ((Bool) -> Void)?
         var onKey: ((UInt16) -> Bool)?
         // テスト専用（画面外計測用）。実際のホバーと同じ状態更新を使う。
@@ -426,17 +481,27 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
             guard NSApp.currentEvent?.type == .leftMouseDown,
                   !forwardingHitTest, prepareClick != nil,
                   bounds.contains(convert(point, from: superview)),
-                  let target = underlyingView(at: convert(point, from: superview)) else { return nil }
-            if let field = target as? NSTextField, field.isSelectable { return self }
-            if let editor = target as? NSTextView, editor.isFieldEditor { return self }
-            return nil
+                  underlyingView(at: convert(point, from: superview)) != nil else { return nil }
+            return self
         }
 
         private func underlyingView(at point: NSPoint) -> NSView? {
             guard let content = window?.contentView else { return nil }
             forwardingHitTest = true
             defer { forwardingHitTest = false }
-            return content.hitTest(convert(point, to: content.superview))
+            guard let target = content.hitTest(convert(point, to: content.superview)) else { return nil }
+            return selectableView(in: target, at: convert(point, to: nil)) ?? target
+        }
+
+        private func selectableView(in view: NSView, at pointInWindow: NSPoint) -> NSView? {
+            guard !view.isHiddenOrHasHiddenAncestor,
+                  view.bounds.contains(view.convert(pointInWindow, from: nil)) else { return nil }
+            for child in view.subviews.reversed() {
+                if let selectable = selectableView(in: child, at: pointInWindow) { return selectable }
+            }
+            if let field = view as? NSTextField, field.isSelectable { return field }
+            if let editor = view as? NSTextView, editor.isFieldEditor { return editor }
+            return nil
         }
 
         override func mouseDown(with event: NSEvent) {
@@ -446,7 +511,12 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
             let timer = Timer(timeInterval: 0.03, target: self, selector: #selector(updateTrackingBoundary),
                               userInfo: nil, repeats: true)
             RunLoop.main.add(timer, forMode: .eventTracking)
-            target.mouseDown(with: event)
+            // 行コンテナから再びhitTestされても、この中継へ戻さない。
+            do {
+                forwardingHitTest = true
+                defer { forwardingHitTest = false }
+                target.mouseDown(with: event)
+            }
             timer.invalidate()
             updateTrackingBoundary()
             trackingOrigin = nil
@@ -481,7 +551,8 @@ struct MarkdownBlockSelectionObserver: NSViewRepresentable {
         private func requestFocus() {
             guard requestsFocus else { return }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.requestsFocus, let window = self.window else { return }
+                guard let self, self.requestsFocus, self.canRequestFocus?() != false,
+                      let window = self.window else { return }
                 if window.firstResponder !== self { window.makeFirstResponder(self) }
             }
         }

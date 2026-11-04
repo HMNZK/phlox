@@ -14,7 +14,7 @@
 # 環境変数:
 #   SWIFT_TEST_PACKAGES         空白区切りのパッケージ名。引数が無いときの対象（既定は下記）
 #   SWIFT_TEST_SKIP             空白区切りで除外するテストスイート名（swift test --skip に渡す）
-#   SWIFT_TEST_SERIAL_PACKAGES  --no-parallel で走らせるパッケージ（既定 SessionFeature DashboardFeature）
+#   SWIFT_TEST_SERIAL_PACKAGES  --no-parallel で走らせるパッケージ（既定 SessionFeature DashboardFeature TerminalUI）
 #   SWIFT_TEST_GIT_SUITES       実 git を起動するスイート。DashboardFeature の別パスで走らせる
 #   SWIFT_TEST_OUTPUT           compact（成功時は要約）または full（全ログ）。既定 compact
 #   SWIFT_TEST_CONFIGURATION    debug または release。既定 debug。テストと資源の事前ビルドに共通。
@@ -46,8 +46,7 @@ DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature Dashboard
 
 # ── 直列実行するパッケージ ────────────────────────────────────────────────
 #
-# なぜ直列にするか（2026-08-05 に実測で確定した根本原因。詳細は
-# macos/docs/adr/0170-dashboardfeature-tests-serial-execution.md）:
+# なぜ直列にするか（2026-08-05 に実測で確定した根本原因）:
 #
 # swift-testing は DashboardFeature の約 1626 件を並列実行するが、**そのうち 639 件が
 # `@Test @MainActor`** で、これらは単一の main thread 上で直列化される。つまり並列度を上げても
@@ -82,7 +81,9 @@ DEFAULT_PACKAGES="AgentDomain DesignSystem MessageStore SessionFeature Dashboard
 #     独立レビュー（2026-08-05）が検出した。**別課題として起票済み。**
 # SessionFeature の @MainActor 時間上限テストも並列過負荷で 0.5 秒を超える。
 # 1051 件の直列実行では同じアサーションが全件成功したため、除外せず直列化する。
-SERIAL_PACKAGES="${SWIFT_TEST_SERIAL_PACKAGES-SessionFeature DashboardFeature}"
+# TerminalUI も MainActor の入力配送と期限付き PTY 受信を競合させない。
+# 全件並列で2条件失敗、同じ128件の直列対照は成功（delivery/markdown-scroll-freeze-20261103）。
+SERIAL_PACKAGES="${SWIFT_TEST_SERIAL_PACKAGES-SessionFeature DashboardFeature TerminalUI}"
 
 # ── 実 git スイートの別パス ──────────────────────────────────────────────
 #

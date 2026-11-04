@@ -42,24 +42,20 @@ public struct RichMarkdownView: View {
     @MainActor private static var themes: [String: Theme] = [:]
 
     public var body: some View {
-        let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        let content = Markdown(markdown)
-            .markdownTheme(fileOpenURL == nil
-                ? Self.theme(for: themeID, scale: scale, languageCode: languageCode, bodyColor: bodyColor)
-                : fileMarkdownTheme(hoveredLink: hoveredLink))
-            .frame(maxWidth: .infinity, alignment: .leading)
         if let fileOpenURL {
-            content
-            .textSelection(.enabled)
-            // 読み上げ要素と同じ行幅で、文字のない部分のクリックも受け取る。
-            .contentShape(Rectangle())
-            .environment(\.openURL, OpenURLAction(handler: fileOpenURL))
-            .environment(\.fileMarkdownLinkHover, { url in
-                hoveredLink = url
-                onLinkHover?(url)
-            })
+            FileMarkdownContent(markdown: markdown, hoveredLink: hoveredLink, themeID: themeID)
+                .equatable()
+                .environment(\.openURL, OpenURLAction(handler: fileOpenURL))
+                .environment(\.fileMarkdownLinkHover, { url in
+                    hoveredLink = url
+                    onLinkHover?(url)
+                })
         } else {
-            content.environment(\.openURL, OpenURLAction(handler: openChatMarkdownLink))
+            let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
+            Markdown(markdown)
+                .markdownTheme(Self.theme(for: themeID, scale: scale, languageCode: languageCode, bodyColor: bodyColor))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .environment(\.openURL, OpenURLAction(handler: openChatMarkdownLink))
         }
     }
 
@@ -77,6 +73,22 @@ public struct RichMarkdownView: View {
     static func themeCacheKey(themeID: String, scale: CGFloat, bodyColor: Color = DSColor.chatTextPrimary, languageCode: String = "") -> String {
         let role = bodyColor == DSColor.chatTextSecondary ? "secondary" : "primary"
         return "\(themeID):\(scale):\(languageCode):\(role)"
+    }
+}
+
+private struct FileMarkdownContent: View, Equatable {
+    let markdown: String
+    let hoveredLink: URL?
+    // DSColor は ThemeStore.active から色を解決するため、テーマ変更も再描画の入力に含める。
+    let themeID: String
+
+    var body: some View {
+        Markdown(markdown)
+            .markdownTheme(fileMarkdownTheme(hoveredLink: hoveredLink))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+            // 読み上げ要素と同じ行幅で、文字のない部分のクリックも受け取る。
+            .contentShape(Rectangle())
     }
 }
 

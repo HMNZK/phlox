@@ -271,6 +271,45 @@ struct MarkdownBlockClickTests {
         #expect(!document.hasUnsavedChanges)
     }
 
+    @Test("公開された編集アクションで本文を編集しEscで確定できる")
+    func accessibilityEditActionOpensEditorAndEscapeCommits() async throws {
+        let document = FileTabDocument(path: "document.md", root: "/")
+        document.draft = "編集できる本文\n"
+        await document.refreshMarkdownAnalysis()
+        let app = NSApplication.shared
+        let attribute = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previousAccessibility = app.perform(NSSelectorFromString("accessibilityAttributeValue:"), with: attribute.rawValue)?.takeUnretainedValue()
+        defer { app.accessibilitySetValue(previousAccessibility, forAttribute: attribute) }
+        let (window, view) = makeWindow(document: document, usesUndoScope: true)
+        defer { window.close() }
+        try await waitUntil {
+            view.layoutSubtreeIfNeeded()
+            return accessibilityEditAction(in: view) != nil
+        }
+
+        let action = try #require(accessibilityEditAction(in: view))
+        let handler = try #require(action.handler)
+        #expect(handler())
+        try await waitUntil {
+            view.layoutSubtreeIfNeeded()
+            let areas = accessibilityTextAreas(in: view)
+            return areas.count == 1 && window.firstResponder === areas.first
+        }
+        let editor = try #require(accessibilityTextAreas(in: view).first as? NSTextView)
+        #expect(editor.string == "編集できる本文\n")
+        #expect(window.firstResponder === editor)
+        editor.insertText("追記", replacementRange: NSRange(location: 0, length: 0))
+        window.sendEvent(try key(53, characters: "\u{001B}", in: window))
+        try await waitUntil {
+            view.layoutSubtreeIfNeeded()
+            return document.activeBlockEdit == nil && accessibilityTextAreas(in: view).isEmpty
+        }
+
+        #expect(document.draft == "追記編集できる本文\n")
+        #expect(editors(in: view).isEmpty)
+        #expect(editor.window == nil)
+    }
+
     private func key(_ code: UInt16, characters: String, flags: NSEvent.ModifierFlags = [], in window: NSWindow) throws -> NSEvent {
         try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags,
             timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
@@ -354,16 +393,47 @@ struct MarkdownBlockClickTests {
         return visit(view)
     }
 
+    private func waitUntil(_ condition: () -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !condition(), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(condition(), sourceLocation: sourceLocation)
+    }
+
+    private func accessibilityValue(_ name: String, legacyAttribute: String? = nil, of object: NSObject) -> Any? {
+        let selector = NSSelectorFromString(name)
+        if object.responds(to: selector), let result = object.perform(selector)?.takeUnretainedValue() { return result }
+        let names = NSSelectorFromString("accessibilityAttributeNames")
+        let getter = NSSelectorFromString("accessibilityAttributeValue:")
+        guard let legacyAttribute, object.responds(to: names), object.responds(to: getter),
+              let supported = object.perform(names)?.takeUnretainedValue() as? [String],
+              supported.contains(legacyAttribute) else { return nil }
+        return object.perform(getter, with: legacyAttribute)?.takeUnretainedValue()
+    }
+
+    private func accessibilityEditAction(in view: NSView) -> NSAccessibilityCustomAction? {
+        var seen = Set<ObjectIdentifier>()
+        func visit(_ object: NSObject) -> NSAccessibilityCustomAction? {
+            guard seen.insert(ObjectIdentifier(object)).inserted else { return nil }
+            let actions = accessibilityValue("accessibilityCustomActions", of: object) as? [NSAccessibilityCustomAction] ?? []
+            if let edit = actions.first(where: { $0.name == "編集" }) { return edit }
+            let children = accessibilityValue("accessibilityChildren", legacyAttribute: NSAccessibility.Attribute.children.rawValue,
+                                              of: object) as? [NSObject] ?? []
+            for child in children { if let action = visit(child) { return action } }
+            return nil
+        }
+        return visit(view)
+    }
+
     private func accessibilityTextAreas(in view: NSView) -> [NSObject] {
         var seen = Set<ObjectIdentifier>()
         func visit(_ object: NSObject) -> [NSObject] {
             guard seen.insert(ObjectIdentifier(object)).inserted else { return [] }
-            let role = NSSelectorFromString("accessibilityRole")
-            let isTextArea = object.responds(to: role)
-                && object.perform(role)?.takeUnretainedValue() as? String == NSAccessibility.Role.textArea.rawValue
-            let children = NSSelectorFromString("accessibilityChildren")
-            let descendants = object.responds(to: children)
-                ? object.perform(children)?.takeUnretainedValue() as? [NSObject] ?? [] : []
+            let isTextArea = accessibilityValue("accessibilityRole", legacyAttribute: NSAccessibility.Attribute.role.rawValue, of: object) as? String
+                == NSAccessibility.Role.textArea.rawValue
+            let descendants = accessibilityValue("accessibilityChildren", legacyAttribute: NSAccessibility.Attribute.children.rawValue,
+                                    of: object) as? [NSObject] ?? []
             // AppKit のビュー階層ではなく、読み上げに公開される子だけを辿る。
             return (isTextArea ? [object] : []) + descendants.flatMap(visit)
         }

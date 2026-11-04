@@ -478,7 +478,7 @@ def quality_worker(args):
     out, build_dir = Path(args.output), Path(args.build_dir)
     results = {}
     validate_package_scope(ROOT)
-    write_json(out / "effective-settings.json", {"packages": MACOS_PACKAGES, "serialPackages": ["SessionFeature", "DashboardFeature"], "gitSuites": ["WorktreeIsolationSpawnTests", "AcceptanceRestoreAbortNoSpawnTests", "FileTreeGitTests"], "PHLOX_E2E": "0", "session": session_name(), "key": "macos-packages-debug"})
+    write_json(out / "effective-settings.json", {"packages": MACOS_PACKAGES, "serialPackages": ["SessionFeature", "DashboardFeature", "TerminalUI"], "gitSuites": ["WorktreeIsolationSpawnTests", "AcceptanceRestoreAbortNoSpawnTests", "FileTreeGitTests"], "PHLOX_E2E": "0", "session": session_name(), "key": "macos-packages-debug"})
     command = ["env", f"SWIFT_TEST_SCRATCH_ROOT={build_dir}", "SWIFT_TEST_OUTPUT=full", f"SWIFT_TEST_EVENT_ROOT={out / 'macos-events'}", "bash", "macos/scripts/run-swift-tests.sh", *MACOS_PACKAGES]
     compact = str(Path.home() / ".agents/scripts/compact-test")
     run_stage([compact, "--full", "gate-unit", "python3", "-B", "-m", "unittest", "discover", "-s", "macos/scripts/tests", "-p", "test_verification_gate*.py"], out / "gate-unit.log", env=env)

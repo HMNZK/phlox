@@ -99,11 +99,23 @@ final class MarkdownScrollPerformanceTests: XCTestCase {
         window.contentView = host
         window.orderBack(nil)
         defer { window.contentView = nil; window.close() }
-        try await Task.sleep(for: .milliseconds(100))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        var fields: [NSTextField] = []
+        var stableLayouts = 0
+        repeat {
+            host.layoutSubtreeIfNeeded()
+            _ = try Self.image(host)
+            let current = Self.descendants(host).compactMap { $0 as? NSTextField }
+            stableLayouts = !current.isEmpty && current.map(ObjectIdentifier.init) == fields.map(ObjectIdentifier.init)
+                ? stableLayouts + 1 : 0
+            fields = current
+            if stableLayouts == 3 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        } while ContinuousClock.now < deadline
+        XCTAssertEqual(stableLayouts, 3, "初回の遅延行生成が安定してからホバーを計測する")
         let before = try Self.image(host)
         let row = try XCTUnwrap(Self.descendants(host)
             .compactMap { $0 as? MarkdownBlockSelectionObserver.SelectionView }.first { $0.onHoverChange != nil })
-        let fields = Self.descendants(host).compactMap { $0 as? NSTextField }
         XCTAssertFalse(fields.isEmpty)
         let version = document.version
         evaluations.count = 0
@@ -126,7 +138,9 @@ final class MarkdownScrollPerformanceTests: XCTestCase {
         scroll.reflectScrolledClipView(scroll.contentView)
         try await Task.sleep(for: .milliseconds(200))
         host.layoutSubtreeIfNeeded()
-        XCTAssertTrue(row.visibleRect.isEmpty, "ホバーした行を表示範囲外にする")
+        let rowIsVisible = row.window === window && !row.isHiddenOrHasHiddenAncestor
+            && row.convert(row.bounds, to: content).intersects(scroll.documentVisibleRect)
+        XCTAssertFalse(rowIsVisible, "ホバーした行を表示範囲外にする")
         scroll.contentView.scroll(to: .zero)
         scroll.reflectScrolledClipView(scroll.contentView)
         try await Task.sleep(for: .milliseconds(200))

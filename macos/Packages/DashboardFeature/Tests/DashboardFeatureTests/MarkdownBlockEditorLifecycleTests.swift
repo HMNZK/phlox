@@ -238,6 +238,128 @@ struct MarkdownBlockEditorLifecycleTests {
         #expect(document.draft == "# 見出し\n\nU本文A\n\n本文B\n")
     }
 
+    @Test("文書の中ほどに段落を挿入した後も隣の段落を再編集できUndoで原文へ戻れる")
+    func insertingParagraphsInTheMiddlePreservesNeighborEditingAndDocumentUndo() async throws {
+        let root = try makeFileTabTestRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("document.md")
+        let source = (0..<60).map { "段落\($0)\n\n" }.joined()
+        try Data(source.utf8).write(to: file)
+        let document = FileTabDocument(path: "document.md", root: root.path)
+        await document.loadIfNeeded()
+        #expect(document.setPresentation(.rendered))
+        await document.refreshMarkdownAnalysis()
+        let app = NSApplication.shared
+        let attribute = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let previousAccessibility = app.perform(NSSelectorFromString("accessibilityAttributeValue:"), with: attribute.rawValue)?.takeUnretainedValue()
+        app.accessibilitySetValue(true, forAttribute: attribute)
+        defer { app.accessibilitySetValue(previousAccessibility, forAttribute: attribute) }
+        let view = NSHostingView(rootView: FileTabUndoScope(document: document) {
+            MarkdownBlockEditor(document: document, openURL: { _ in .discarded })
+        })
+        view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
+        let window = MarkdownTrackingWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+        window.orderBack(nil)
+        defer { window.close() }
+        try await scrollTextIntoView("段落30", view: view, window: window)
+
+        try await clickText("段落30", view: view, window: window)
+        let editor = try #require(editors(in: view).first)
+        #expect(editor.string == "段落30\n\n")
+        editor.insertText("\n\n追加した段落A\n\n追加した段落B", replacementRange: NSRange(location: 4, length: 0))
+        try await escape(window: window, view: view)
+        #expect(document.activeBlockEdit == nil)
+        #expect(editors(in: view).isEmpty)
+        #expect(document.draft.contains("段落29\n\n段落30\n\n追加した段落A\n\n追加した段落B\n\n段落31\n\n段落32\n\n"))
+        try await scrollTextIntoView("段落31", view: view, window: window)
+        try await clickText("段落31", view: view, window: window)
+        let neighbor = try #require(editors(in: view).first)
+        #expect(neighbor.string == "段落31\n\n")
+        try await escape(window: window, view: view)
+        #expect(document.activeBlockEdit == nil)
+        #expect(editors(in: view).isEmpty)
+        let responder = try #require(window.firstResponder)
+        #expect(!(responder is CurrentLineTextView))
+        #expect(responder.tryToPerform(NSSelectorFromString("undo:"), with: nil))
+        #expect(document.draft == source)
+    }
+
+    @Test("段落と表のある長い文書を大きくスクロールしても表示範囲に本文が残る")
+    func largeScrollKeepsMarkdownBodyVisible() async throws {
+        let root = try makeFileTabTestRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("document.md")
+        let source = [2, 9, 3, 7, 1, 5].enumerated().map { section, length in
+            let paragraph = String(repeating: "長い説明が折り返されても、前後の文章を読み続けられます。", count: length)
+            let tableRows = (0..<(length + 2)).map {
+                "| 表本文\(section)-\($0) | セルの文章は幅に合わせて折り返し、行ごとに異なる高さを持ちます。 |\n"
+            }.joined()
+            let bullets = (0..<length).map {
+                "- 本文段落\(section)の項目\($0)には、表示幅に収まらない長さの説明を添えて折り返しを確かめます。\n"
+            }.joined()
+            let code = (0..<(length * 3)).map { "let value\(section)_\($0) = \($0)\n" }.joined()
+            let numbered = (0..<(length + 1)).map {
+                "\($0 + 1). 後続本文\(section)の手順\($0)を読み、次の項目へ進んでも本文の表示を保ちます。\n"
+            }.joined()
+            return "## 節\(section)\n\n本文段落\(section)の短文です。\n\n---\n\n"
+                + "本文段落\(section)の長文です。\(paragraph)\n\n"
+                + "| 項目 | 説明 |\n| --- | --- |\n\(tableRows)\n"
+                + "後続本文\(section)の短文です。\n\n\(bullets)\n---\n\n"
+                + "```swift\n\(code)```\n\n\(numbered)\n本文段落\(section)の結びです。\n\n"
+        }.joined() + "## 末尾\n\n本文段落の末尾です。\n\n- 後続本文の終わりです。\n"
+        try Data(source.utf8).write(to: file)
+        let document = FileTabDocument(path: "document.md", root: root.path)
+        await document.loadIfNeeded()
+        #expect(document.setPresentation(.rendered))
+        await document.refreshMarkdownAnalysis()
+        let view = NSHostingView(rootView: FileTabUndoScope(document: document) {
+            MarkdownBlockEditor(document: document, openURL: { _ in .discarded })
+        })
+        view.frame = NSRect(x: 0, y: 0, width: 640, height: 420)
+        let window = MarkdownTrackingWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+        window.orderBack(nil)
+        defer { window.close() }
+        try await waitUntil {
+            view.layoutSubtreeIfNeeded()
+            guard let scroll = scrollViews(in: view).first(where: {
+                $0.hasVerticalScroller && !($0.documentView is NSTextView)
+            }) else { return false }
+            return !visibleMarkdownBody(in: view, scroll: scroll).isEmpty
+        }
+        let scroll = try #require(scrollViews(in: view).first {
+            $0.hasVerticalScroller && !($0.documentView is NSTextView)
+        })
+        let initialBody = Set(visibleMarkdownBody(in: view, scroll: scroll))
+        let target = scroll.contentView.bounds.height * 10
+
+        try await waitUntil {
+            view.layoutSubtreeIfNeeded()
+            guard let content = scroll.documentView else { return false }
+            let maximum = max(0, content.bounds.height - scroll.contentView.bounds.height)
+            let next = scroll.contentView.bounds.minY + scroll.contentView.bounds.height / 2
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: min(target, next, maximum)))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            view.layoutSubtreeIfNeeded()
+            let visible = Set(visibleMarkdownBody(in: view, scroll: scroll))
+            return scroll.contentView.bounds.minY >= target - 1
+                && !visible.isEmpty && visible.isDisjoint(with: initialBody)
+        }
+
+        let content = try #require(scroll.documentView)
+        let visibleBody = Set(visibleMarkdownBody(in: view, scroll: scroll))
+        #expect(content.bounds.height - scroll.contentView.bounds.height > target)
+        #expect(scroll.contentView.bounds.minY >= target - 1)
+        #expect(!visibleBody.isEmpty)
+        #expect(visibleBody.isDisjoint(with: initialBody))
+        #expect(document.draft == source)
+    }
+
     // 5. 編集中のブロックを画面外へスクロール→戻す（dismantle 経路の removeBlockEditor）
     @Test func scrollEditingBlockAwayAndBack() async throws {
         let root = try makeFileTabTestRoot()
@@ -374,6 +496,43 @@ struct MarkdownBlockEditorLifecycleTests {
     }
 
     // MARK: - helpers
+
+    private func visibleMarkdownBody(in view: NSView, scroll: NSScrollView) -> [String] {
+        if let field = view as? NSTextField,
+           !field.isHiddenOrHasHiddenAncestor,
+           !field.visibleRect.isEmpty,
+           field.convert(field.bounds, to: scroll.contentView).intersects(scroll.contentView.bounds),
+           field.stringValue.hasPrefix("本文段落") || field.stringValue.hasPrefix("後続本文")
+            || field.stringValue.hasPrefix("表本文") || field.stringValue.hasPrefix("let value") {
+            return [field.stringValue]
+        }
+        return view.subviews.flatMap { visibleMarkdownBody(in: $0, scroll: scroll) }
+    }
+
+    private func scrollTextIntoView(_ text: String, view: NSView, window: NSWindow, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+        try await waitUntil({
+            view.layoutSubtreeIfNeeded()
+            guard let outer = scrollViews(in: view).first, let content = outer.documentView else { return false }
+            let maximum = max(0, content.bounds.height - outer.contentView.bounds.height)
+            var next = min(maximum, outer.contentView.bounds.minY + outer.contentView.bounds.height / 2)
+            if let frame = accessibilityFrame(in: view, text: text) {
+                let point = window.convertPoint(fromScreen: NSPoint(x: frame.midX, y: frame.midY))
+                if outer.contentView.bounds.contains(outer.contentView.convert(point, from: nil)) { return true }
+                next = min(maximum, max(0, content.convert(point, from: nil).y - outer.contentView.bounds.height / 2))
+            }
+            outer.contentView.scroll(to: NSPoint(x: 0, y: next))
+            outer.reflectScrolledClipView(outer.contentView)
+            return false
+        }, sourceLocation: sourceLocation)
+    }
+
+    private func waitUntil(_ condition: () -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+        let deadline = ContinuousClock.now + .seconds(3)
+        while !condition(), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(condition(), sourceLocation: sourceLocation)
+    }
 
     private func setUp(keyWindow: Bool = false, usesFileTab: Bool = false) async throws -> (URL, URL, FileTabDocument, NSWindow, NSView) {
         let root = try makeFileTabTestRoot()

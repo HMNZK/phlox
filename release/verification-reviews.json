@@ -894,6 +894,22 @@
         "physical-session-activity"
       ],
       "reason": "独立レビューで入力欄の幅制約、回転後の計測更新、実画面の回帰テストを確認し、correctness の欠陥を検出しなかった。iOS 26.2 の画面描画スイート25件と新規の幅縮小テストの合格結果を xcresult で照合した。隔離アプリの7条件と品質ゲートは通過した。実機検証は含まない。"
+    },
+    {
+      "baseOID": "0dec2786e5315c52cdb017aede3b7370729a3925",
+      "targetOID": "d91f01e25b6269b36d5d43af66e6086c1b632d7c",
+      "diffSHA256": "034afae45323c2ec6898bba95249e7aab627af3e6a4af1609d28b59aa6d2faa2",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent:/root/scroll_fix_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-04T03:56:56Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "正式入力の正規化差分を再計算し、指定ハッシュとの一致を確認。契約適合・正しさ・誠実性・根本原因・構造・到達性・非機能・テスト品質を確認し、correctnessと明示要件に関わる指摘は0件。List配置、クリック座標にある選択可能文字部品への転送と再入抑止、古いフォーカス要求のガード、IME同期と確定失敗時の入力保持、ファイル本文の等価比較を確認した。公開AX編集アクションの追加テストは既存アクションから入力・Esc確定まで検証し、共用AX補助も公開属性だけを辿る。既存アサーションを維持した待機・可視判定の変更と、TerminalUIの全件集合・期待値・期限を保つ直列化および設定記録の一致を確認した。親が実走した統合前のquality-20261104T031639283678/result.jsonでmacOS 5652 passed IDs・23 skipped IDs・既知問題1件、iOS 695 passed IDs、必須fake 13件を確認し、公開AXアクションの成功IDも確認した。最終List版の追加テストは依頼に従い本レビュワーでは実行していない。対象OIDの統合候補qualityは未実施であり、共通マージツールによる必須再実行が必要。macOS XCUITestは自動操作無効で未実行。本文可視テストは不採用の32件配置を確実に落とす再現回帰とは扱わず、任意入力での固着不在や巨大な単一表の費用上限も保証しない。既存資料の不整合は作業記録に明示されている。"
     }
   ]
 }

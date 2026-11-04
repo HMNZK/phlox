@@ -910,6 +910,41 @@
         "fake-session-lifecycle"
       ],
       "reason": "正式入力の正規化差分を再計算し、指定ハッシュとの一致を確認。契約適合・正しさ・誠実性・根本原因・構造・到達性・非機能・テスト品質を確認し、correctnessと明示要件に関わる指摘は0件。List配置、クリック座標にある選択可能文字部品への転送と再入抑止、古いフォーカス要求のガード、IME同期と確定失敗時の入力保持、ファイル本文の等価比較を確認した。公開AX編集アクションの追加テストは既存アクションから入力・Esc確定まで検証し、共用AX補助も公開属性だけを辿る。既存アサーションを維持した待機・可視判定の変更と、TerminalUIの全件集合・期待値・期限を保つ直列化および設定記録の一致を確認した。親が実走した統合前のquality-20261104T031639283678/result.jsonでmacOS 5652 passed IDs・23 skipped IDs・既知問題1件、iOS 695 passed IDs、必須fake 13件を確認し、公開AXアクションの成功IDも確認した。最終List版の追加テストは依頼に従い本レビュワーでは実行していない。対象OIDの統合候補qualityは未実施であり、共通マージツールによる必須再実行が必要。macOS XCUITestは自動操作無効で未実行。本文可視テストは不採用の32件配置を確実に落とす再現回帰とは扱わず、任意入力での固着不在や巨大な単一表の費用上限も保証しない。既存資料の不整合は作業記録に明示されている。"
+    },
+    {
+      "baseOID": "ec88fa8abc070df022ee14ad630c44a38ae8c8e7",
+      "targetOID": "f4f32dcead92d888a98e923532e4c12b7ccecf85",
+      "diffSHA256": "e27de026ae1f4d2ae4a9029338e8614d49b4bf6d980a3d94a1745df434940144",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent:/root/release_1145_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-04T05:16:24Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "指定diffと成功基準から8次元を独立レビューし、correctness指摘0件。正規化差分を再計算して一致。compact-test経由で契約16件、配布受入9件、品質契約10件、コンパイラコピー1件、更新の信頼1件の計37テストと標準入口fake検査が成功。固定494b98e2とtarget、両buildの2139入力manifest、全externalInputs・配布物SHA、実Mac1.14.5/build48・IPA1.0/build18とwidget、実コンパイラコピー・依存snapshotを照合した。DMG/ZIP全appファイル・実行mode・symlink一致、codesign deep/strict、appとDMGのstapler、Gatekeeper accepted、実ZIPのEd25519署名と改ざん拒否を確認。既存mainの公開鍵・更新URL・最小macOS14.0、appcastの版・URL・30381392bytes・英語先行の日英ノート・旧feed全item保持も一致。catalog本文とS1を読み、対象はfake-session-lifecycleで、シナリオと必須性の弱体化なし。実機devices/executionsは空で、physical入口が拒否することを確認。ユーザー指定のシミュレーター方針を実機合格へ読み替えない。本passはコード・配布差分に限定し、製品Swiftテスト・GUI・シミュレーター操作・実機・最終quality/distribution/security・公開の実施成功を含まない。"
+    },
+    {
+      "baseOID": "5f30f08eb1a5eb3ea39659bee3bddc87e3ba1488",
+      "targetOID": "f4f32dcead92d888a98e923532e4c12b7ccecf85",
+      "diffSHA256": "2cd8b761f946cc43dbea23978e87ccf5b84f764bf3e5f416b36910236748531f",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent:/root/release_1145_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-04T05:16:24Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation"
+      ],
+      "reason": "指定diffと成功基準から契約適合・正しさ・誠実性・根本原因・構造・到達性・非機能・テスト品質を独立確認し、correctness指摘0件。正規化差分SHAを再計算して一致。MarkdownのList配置、クリック位置の選択可能文字部品への転送と再入抑止、古いフォーカス要求のガード、画面外編集の同期・確定と失敗時保持、本文・URL・テーマによる等価比較を確認。iOS入力欄の幅制約と同期した幅更新、共有get_usage経路のskip_behaviors追加を確認。関連テストの既存期待値・対象集合・期限は弱められていない。compact-test経由の独立37テストと標準入口fake検査が成功。固定494b98e2・両build入力manifest・全externalInputs・実コンパイラコピーと依存snapshot・配布物SHA・Mac1.14.5/48・IPA1.0/18とwidgetを照合。DMG/ZIP全app内容・mode・symlink、codesign/stapler/Gatekeeper、実ZIP署名と改ざん拒否、既存更新鍵・URL、appcast版・サイズ・日英ノート・旧feed保持が一致。catalog全文とS1・AC1〜9を読み、変更pathに対応する4scenarioを確認し、必須実機5件の定義・必須性は維持。実機結果は空でphysical合格ではない。シミュレーターへのユーザー指定変更も実機成功へ読み替えない。本passに製品Swiftテスト・GUI・シミュレーター操作・実機・最終quality/distribution/security・公開の実施成功は含まない。既知Git履歴問題と状態モデルの既知違反、任意Markdown入力での固着不在は解消・保証したと扱わない。"
     }
   ]
 }

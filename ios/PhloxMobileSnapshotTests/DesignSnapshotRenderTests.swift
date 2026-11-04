@@ -809,7 +809,7 @@ struct DesignSnapshotRenderTests {
                         if scenario.showsUsagePopover {
                             try #require(usageViewModel.shouldShowRow, "Usage fixtures must provide the real usage row")
                             if variables["PHLOX_SNAPSHOT_EXTERNAL_USAGE_ACTIVATION"] == "1" {
-                                try await waitForExternalUsageActivation(window: window, output: output, sceneName: scenario.name)
+                                try await waitForExternalActivation(window: window, output: output, sceneName: scenario.name)
                             } else {
                                 let button = try await waitForSnapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint)
                                 try #require(button.accessibilityActivate(), "Usage row did not activate")
@@ -1024,6 +1024,13 @@ struct DesignSnapshotRenderTests {
         #expect(throws: SnapshotExternalAXValidationError.self) {
             try SnapshotExternalAXEvidence.validateUsageLayout(labels: columnLabels, isAccessibilitySize: true)
         }
+    }
+
+    @Test func externalControlEvidenceRequiresActionableExactLabel() {
+        #expect(SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXButton Description: 作業場所, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXStaticText Description: 作業場所, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXButton Description: 作業場所の説明, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "AXButton Description: 作業場所, Value: 新しい worktree"))
     }
 
     @Test func thinkingPreviewExpandsVerticallyAtAccessibilitySize() throws {
@@ -2059,11 +2066,18 @@ struct DesignSnapshotRenderTests {
                         model.selectHistory(entry)
                         await Task.yield()
                         window.layoutIfNeeded()
-                        try #require(snapshotAccessibilityElement(in: window, label: "選んだ履歴から再開") != nil)
+                    }
+                    let label = name == "ParityResumeAX5" ? "選んだ履歴から再開"
+                        : name == "ParityStartPoint" ? "開始地点: 今の位置（HEAD）"
+                        : name == "ParityHistory" ? "履歴から再開" : "作業場所"
+                    if ProcessInfo.processInfo.environment["PHLOX_SNAPSHOT_EXTERNAL_MENU_ACTIVATION"] == "1" {
+                        try await waitForExternalActivation(window: window, output: output, sceneName: name,
+                            requiresPopover: false, expectedControlLabel: label,
+                            requiresPresentation: name == "ParityStartPoint" || name == "ParityHistory")
+                    } else if name == "ParityResumeAX5" {
+                        try #require(snapshotAccessibilityElement(in: window, label: label) != nil)
                     } else {
                         // SwiftUIの公開AXノードは識別子を返さないため、読み上げラベルで操作する。
-                        let label = name == "ParityStartPoint" ? "開始地点: 今の位置（HEAD）"
-                            : name == "ParityHistory" ? "履歴から再開" : "作業場所"
                         let element = snapshotAccessibilityElement(in: window, label: label)
                         if element == nil {
                             let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
@@ -2248,7 +2262,8 @@ struct DesignSnapshotRenderTests {
                     }
                     if showsMoreSettings {
                         if variables["PHLOX_SNAPSHOT_EXTERNAL_MENU_ACTIVATION"] == "1" {
-                            try await waitForExternalUsageActivation(window: window, output: output, sceneName: layout.name, requiresPopover: false)
+                            try await waitForExternalActivation(window: window, output: output, sceneName: layout.name,
+                                requiresPopover: false, expectedControlLabel: "思考の強さと権限を変更")
                         } else {
                             let button = try #require(snapshotAccessibilityElement(in: window, label: "思考の強さと権限を変更"))
                             try #require(button.accessibilityActivate(), "Composer settings menu did not activate")
@@ -2938,7 +2953,9 @@ struct DesignSnapshotRenderTests {
         throw SnapshotError.bodyDidNotRender
     }
 
-    private func waitForExternalUsageActivation(window: UIWindow, output: URL, sceneName: String, requiresPopover: Bool = true) async throws {
+    private func waitForExternalActivation(window: UIWindow, output: URL, sceneName: String,
+        requiresPopover: Bool = true, expectedControlLabel: String? = nil, requiresPresentation: Bool = true
+    ) async throws {
         let readyURL = output.appendingPathComponent("\(sceneName)-external-ready.json")
         let variables = ProcessInfo.processInfo.environment
         let nonce = UUID().uuidString
@@ -2950,11 +2967,14 @@ struct DesignSnapshotRenderTests {
         func writePhase(_ phase: String) throws {
             let payload: [String: Any] = [
                 "scene": sceneName, "phase": phase,
+                "expectedControlLabel": expectedControlLabel ?? "",
+                "requiresPresentation": requiresPresentation, "requiresPopover": requiresPopover,
                 "step": sceneName, "nonce": nonce, "pid": pid, "udid": udid,
                 "windowTitle": windowTitle, "requestedAt": requestedAt,
                 "ackFile": ackURL.path, "proofFile": ackURL.path,
                 "nativeContentSizeCategory": window.traitCollection.preferredContentSizeCategory.rawValue,
-                "instruction": requiresPopover ? "使用量の詳細ボタンを開き、枠・残量・リセットの表示をAXで確認する" : "思考の強さと権限のメニューを開く",
+                "instruction": expectedControlLabel.map { requiresPresentation ? "「\($0)」を開く" : "「\($0)」の公開AXを確認する" }
+                    ?? (requiresPopover ? "使用量の詳細ボタンを開き、枠・残量・リセットの表示をAXで確認する" : "思考の強さと権限のメニューを開く"),
                 "window": [window.bounds.origin.x, window.bounds.origin.y, window.bounds.width, window.bounds.height],
                 "screen": [window.screen.bounds.origin.x, window.screen.bounds.origin.y, window.screen.bounds.width, window.screen.bounds.height],
                 "sceneActivation": window.windowScene?.activationState.rawValue ?? -1,
@@ -2964,7 +2984,7 @@ struct DesignSnapshotRenderTests {
             ]
             try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
                 .write(to: readyURL, options: .atomic)
-            FileHandle.standardError.write(Data("external usage \(phase): \(readyURL.path)\n".utf8))
+            FileHandle.standardError.write(Data("external activation \(phase): \(readyURL.path)\n".utf8))
         }
         try writePhase("awaitingCUA")
         do {
@@ -2984,7 +3004,13 @@ struct DesignSnapshotRenderTests {
             try #require(capturedAt >= requestedAt && capturedAt <= Date().timeIntervalSince1970 + 5)
             let tree = try #require(reply["rawAXTree"] as? String)
             try #require(tree.contains("Window: \"\(windowTitle)\", App: Simulator."))
-            try #require(isPresented(), "External tap did not present the real interface: \(sceneName)")
+            if let expectedControlLabel {
+                let activationTree = try #require(reply["activationAXTree"] as? String)
+                try #require(activationTree.contains("Window: \"\(windowTitle)\", App: Simulator."))
+                try #require(SnapshotExternalAXEvidence.hasExposedControl(label: expectedControlLabel, tree: activationTree),
+                    "The requested control must be exposed before external activation")
+            }
+            try #require(!requiresPresentation || isPresented(), "External tap did not present the real interface: \(sceneName)")
         } catch {
             try writePhase("failed")
             throw error
@@ -3280,6 +3306,20 @@ private struct SnapshotExternalAXEvidence: Codable {
     let windowTitle: String
     let capturedAt: TimeInterval
     let rawAXTree: String
+
+    static func hasExposedControl(label: String, tree: String) -> Bool {
+        tree.split(separator: "\n").contains { line in
+            let element = line.trimmingCharacters(in: .whitespaces)
+            guard element.first?.isNumber == true,
+                  ["AXButton", "AXPopUpButton", "AXMenuButton"].contains(where: {
+                      element.contains(" \($0) ")
+                  }) else { return false }
+            return ["Description: ", "Title: "].contains { field in
+                guard let range = element.range(of: field) else { return false }
+                return element[range.upperBound...].components(separatedBy: ", ")[0] == label
+            }
+        }
+    }
 
     func validatedLabels(for request: SnapshotExternalAXRequest, now: TimeInterval) throws -> Set<String> {
         let expectedPhase = request.phase == "awaitingCUA" ? "reviewed" : "presentedAX"

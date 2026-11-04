@@ -989,6 +989,7 @@ public struct DSInputBar: View {
                     .foregroundStyle(IOSColor.text.primary)
             } action: {}
         }
+        .accessibilityLabel("思考の強さと権限を変更")
         .disabled(settings?.isUpdatingEffort == true || settings?.isUpdatingPermission == true || settings?.isUpdatingPlanMode == true)
     }
 

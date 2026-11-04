@@ -45,6 +45,7 @@ struct ScrollFollowRuntimeAcceptanceTests {
             .first { $0.activationState == .foregroundActive })
         let previousKey = scene.windows.first { $0.isKeyWindow }
         let host = UIHostingController(rootView: content)
+        host.safeAreaRegions = []
         let window = UIWindow(windowScene: scene)
         window.frame = scene.coordinateSpace.bounds
         window.rootViewController = host
@@ -74,7 +75,14 @@ struct ScrollFollowRuntimeAcceptanceTests {
             recorder = frames; frames.start()
             try await wait { frames.isStable && scroll.contentSize.height > scroll.bounds.height + 200 }
             let inset = scroll.adjustedContentInset
-            let layout = scroll.contentLayoutGuide.layoutFrame
+            let contentViews = scroll.subviews.filter {
+                !$0.isHidden && $0.alpha > 0
+                    && abs($0.bounds.height - scroll.contentSize.height) <= 0.25
+                    && abs($0.bounds.width - scroll.contentSize.width) <= 0.25
+            }
+            try #require(contentViews.count == 1, "The actual native content must be uniquely measured")
+            let contentView = try #require(contentViews.first)
+            let layout = contentView.convert(contentView.bounds, to: scroll)
             try write("mapping-before", ["contentLayoutFrame": String(describing: layout),
                 "adjustedInsets": String(describing: inset), "scrollBounds": String(describing: scroll.bounds),
                 "nativeContentCandidates": scroll.subviews.map { view in

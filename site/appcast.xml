@@ -4,7 +4,7 @@
         <title>Phlox</title>
         <item>
             <title>1.14.5</title>
-            <pubDate>Wed, 04 Nov 2026 04:45:18 GMT</pubDate>
+            <pubDate>Wed, 04 Nov 2026 06:21:55 GMT</pubDate>
             <description xml:lang="en"><![CDATA[
 <h3>Fixed</h3>
 <ul>
@@ -19,13 +19,13 @@
   <li>Claudeの使用量を更新するときの不要な処理を減らしました。</li>
 </ul>
 ]]></description>
-            <sparkle:version>48</sparkle:version>
+            <sparkle:version>49</sparkle:version>
             <sparkle:shortVersionString>1.14.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
             <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
-            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.5.zip" length="30381392" type="application/octet-stream" sparkle:edSignature="ZKBnjHdj3wFnSII7ZImDzf4EWNyREkW2pS6Uec7wSY72AouYUODqkVFWMdFUunXIl8vHA2EmBaMFZNPbYFSyBw=="/>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.5.zip" length="30382169" type="application/octet-stream" sparkle:edSignature="vBiL8VnONAKMMVAYpO5/nWpIdXiMvYsiweC0c0Q98Q0SFS0QuT6Yd+cA/esuuDJc5BX4rt1xZkhBvE9wU+8NCg=="/>
         </item>
         <item>
             <title>1.14.4</title>

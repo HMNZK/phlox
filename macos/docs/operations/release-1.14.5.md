@@ -12,7 +12,7 @@
 
 ## 現在の状態
 
-固定ソース `494b98e2` から Mac 1.14.5/build 48 と iOS 1.0/build 18 を生成した。Mac と DMG の署名・公証・staple・Gatekeeper、更新 ZIP の署名、iOS の archive/export が成功した。方針変更前にiPhoneへbuild 18を導入・起動したが、その後の実機合格を記録しない。ユーザーの選択回答も実機成功の証拠には採用しない。シミュレーター検証・main 統合・公開は未完了。既知の Git 履歴順序の問題と状態モデルの既知の違反は今回の修正で解消したとは扱わない。
+固定ソース `c9892288` から Mac 1.14.5/build 49 と iOS 1.0/build 19 を生成した。Mac と DMG の署名・公証・staple・Gatekeeper、更新 ZIP の署名、iOS の archive/export が成功した。最終配布物と来歴は上記の `mac49-ios19/` に保存し、元ファイルとSHA-256が一致することを確認した。main 統合・公開は未完了。旧候補build 48/18は公開しない。方針変更前にiPhoneへbuild 18を導入・起動したが、ユーザーの選択回答を実機成功の証拠には採用しない。既知の Git 履歴順序の問題と状態モデルの既知の違反は今回の修正で解消したとは扱わない。
 
 ## リリース前の機能検証
 
@@ -22,7 +22,7 @@
 
 通常のReleaseがモバイル用8765番ポートを使用中のため、同じ署名済み候補を分離したデータで起動し、同じ製品MobileProxyパッケージを使った専用のTailscaleポートから候補のControlServerへ中継する。認証なしの応答が直接接続と一致し、認証済みAPIが候補へ到達することを確認した。通常利用のGUI・実行サービスと既存ペアリングトークンは入れ替えない。
 
-上のiPhone向け検査は方針変更で使用終了。iPhoneには元の接続先URLを受け渡し、以後の実機検査は行わない。分離済みのMac候補と中継は、シミュレーターの接続先として再利用する。シミュレーターで確認した結果を実機のジェスチャー・VoiceOver音声・ハードウェア連携の合格へ読み替えない。
+上のiPhone向け検査は方針変更で使用終了。iPhoneには元の接続先URLを受け渡し、以後の実機検査は行わない。分離済みのMac候補と中継は、シミュレーターの接続先として準備した。hosted UI検査ではfake APIを使用し、実ネットワークの常時接続を実証するものではない。シミュレーターで確認した結果を実機のジェスチャー・VoiceOver音声・ハードウェア連携の合格へ読み替えない。
 
 ## シミュレーターで追加検出した問題
 
@@ -37,3 +37,12 @@ iOSではScrollGeometryから実際の表示領域・内容サイズ・オフセ
 独立レビューで、外部AX証拠のrole判定が表示文字内の`AXButton`にも一致することを指摘された。行頭の番号に続くroleだけを読み、静的テキストがボタンを名乗る入力を拒否する否定例を追加する。実操作actorは別途AXPressの公開を要求しており、実施済み操作を偽装したとの指摘ではない。
 
 最終ラベル修正後の描画suiteも26検査が成功し、公開AXの実操作10回の証拠を保存した（`simulator/design-final.xcresult`）。OSの文字サイズAX5でRemaining/RemainingInteractiveの両suiteも成功し、確認ダイアログの縦配置、取消前のAPI未実行、削除失敗、権限確認、使用量ポップオーバーの実際の上下端到達を測定した。roleの否定例と79/81ptの再検証も成功した（`simulator/scroll-final.xcresult`）。実機固有の指操作・VoiceOver音声・ハードウェア認証の成功は記録しない。
+
+## 確認した既存資料との不整合
+
+- `ios/Makefile` と `ios/scripts/run-simulator.sh` の兄弟`../Phlox`前提は古く、現在は同じリポジトリの`macos/Packages`を参照する。Makefileコメントの`.github/workflows/ci.yml`も存在しない。
+- `ios/scripts/run-interactive-verification.py` はwindowTitle付き`awaitingCUA`を要求するが、Remaining/GateのreadyにはwindowTitleがなく、Remainingのスクロールは`awaitingScroll`を使う。今回の専用actorは実端末・公開AXウィンドウ・nonce・時刻を照合して操作し、テスト自身が実UIKitの結果を検査した。
+- `merge-verification-gates.md` の既存Makefileの`xcpretty`パイプに関する記述は、直接xcodebuildを実行する現在のコードと一致しない。
+- `site-deploy-and-release.md` のdev→verify→mainは、現在のユーザー指示によるdev→mainと異なる。今回の実機を使わない公開方針は本書の明示例外で、実機成功には読み替えない。
+- delivery 0042の`completed`と本文の`in_progress`・NFR-9未達が混在する。今回のフリーズ修正を全性能要件の達成とは扱わない。
+- ADR 0045とRichMarkdownView・表テストのコメントは、存在しないdelivery 0024を参照する。

@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "builds": [
     {
-      "buildID": "macos-1.14.5-48",
+      "buildID": "macos-1.14.5-49",
       "provenance": {
-        "path": "release-scroll-1.14.5-20261104/distribution/macos-build.json",
-        "sha256": "495776bcc263070479bd14ea9705ffa845aba0055b2ec44b1abe874f6420cb81"
+        "path": "release-scroll-1.14.5-20261104-final49/distribution/macos-build.json",
+        "sha256": "a351fca714531a58c73b820587772e1c852338f40ad99a7bf7edacdc8d6c912a"
       }
     },
     {
-      "buildID": "ios-1.0-18",
+      "buildID": "ios-1.0-19",
       "provenance": {
-        "path": "release-scroll-1.14.5-20261104/distribution/ios-build.json",
-        "sha256": "5a283bbb946c0a51d3749ce109001b3dc8c0adfb7287d5e21a9cc9b8fd734de3"
+        "path": "release-scroll-1.14.5-20261104-final49/distribution/ios-build.json",
+        "sha256": "1b63ae91b571f9e002603ea1d32b25cae2dc565b99286812ff138add75459e93"
       }
     }
   ],

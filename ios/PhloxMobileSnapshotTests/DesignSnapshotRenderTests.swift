@@ -14,6 +14,60 @@ import DesignSystemIOS
 @Suite(.serialized)
 @MainActor
 struct DesignSnapshotRenderTests {
+    @Test func sessionDetailFitsAfterWidthShrinks() async throws {
+        let session = Session(id: "rotation", name: "回転の確認", agent: .claudeCode,
+                              status: .running, updatedAt: Date())
+        let readiness = SessionDetailSnapshotReadiness()
+        let api = SessionDetailSnapshotAPI(
+            session: session,
+            messages: .success([.agent(id: "answer", text: "通常の日本語本文です。")]),
+            approvals: [], turnUsage: nil, readiness: readiness,
+            modelName: "Default: Opus 5.5", permission: "bypassPermissions"
+        )
+        let model = SessionDetailViewModel(session: session, api: api)
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 900, height: 956)
+        window.rootViewController = UIHostingController(rootView: NavigationStack {
+            SessionDetailView(viewModel: model, scrollToBottomOnAppear: false, onDelete: {})
+        })
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+
+        await readiness.waitForMessages()
+        let wideViews = try await settledScrollViews(in: window)
+        #expect(model.chatMessages.count == 1)
+        #expect((wideViews.compactMap { $0 as? UITextView }.first?.bounds.width ?? 0) > 800)
+        window.frame.size.width = 440
+
+        let narrowViews = try await settledScrollViews(in: window)
+        let transcript = try #require(narrowViews.first { !($0 is UITextView) })
+        let editor = try #require(narrowViews.compactMap { $0 as? UITextView }.first)
+        #expect(transcript.contentSize.width <= 440.5)
+        #expect(editor.convert(editor.bounds, to: window).maxX <= 440.5)
+    }
+
+    private func settledScrollViews(in window: UIWindow) async throws -> [UIScrollView] {
+        func views(_ root: UIView) -> [UIView] { [root] + root.subviews.flatMap(views) }
+        var previousWidths: [CGFloat] = []
+        var stableSamples = 0
+        for _ in 0..<80 {
+            window.layoutIfNeeded()
+            let scrolls = views(window).compactMap { $0 as? UIScrollView }
+            let widths = scrolls.map(\.contentSize.width)
+            stableSamples = widths == previousWidths ? stableSamples + 1 : 0
+            previousWidths = widths
+            if stableSamples >= 10 && scrolls.count >= 2 { return scrolls }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        throw NSError(domain: "UnstableScrollGeometry", code: 1)
+    }
+
     @Test(.serialized, arguments: [1, 4])
     func newChatPhotoIntakeKeepsLayoutAndEditingResponsive(count: Int) async throws {
         let suite = "PhotoIntake-\(UUID().uuidString)"
@@ -755,7 +809,7 @@ struct DesignSnapshotRenderTests {
                         if scenario.showsUsagePopover {
                             try #require(usageViewModel.shouldShowRow, "Usage fixtures must provide the real usage row")
                             if variables["PHLOX_SNAPSHOT_EXTERNAL_USAGE_ACTIVATION"] == "1" {
-                                try await waitForExternalUsageActivation(window: window, output: output, sceneName: scenario.name)
+                                try await waitForExternalActivation(window: window, output: output, sceneName: scenario.name)
                             } else {
                                 let button = try await waitForSnapshotAccessibilityElement(in: window, hint: UsageRingPresentation.rowAccessibilityHint)
                                 try #require(button.accessibilityActivate(), "Usage row did not activate")
@@ -970,6 +1024,14 @@ struct DesignSnapshotRenderTests {
         #expect(throws: SnapshotExternalAXValidationError.self) {
             try SnapshotExternalAXEvidence.validateUsageLayout(labels: columnLabels, isAccessibilitySize: true)
         }
+    }
+
+    @Test func externalControlEvidenceRequiresActionableExactLabel() {
+        #expect(SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXButton Description: 作業場所, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXStaticText Description: 作業場所, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXStaticText Description: AXButton の説明, Title: 作業場所, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXButton Description: 作業場所の説明, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "AXButton Description: 作業場所, Value: 新しい worktree"))
     }
 
     @Test func thinkingPreviewExpandsVerticallyAtAccessibilitySize() throws {
@@ -2005,11 +2067,18 @@ struct DesignSnapshotRenderTests {
                         model.selectHistory(entry)
                         await Task.yield()
                         window.layoutIfNeeded()
-                        try #require(snapshotAccessibilityElement(in: window, label: "選んだ履歴から再開") != nil)
+                    }
+                    let label = name == "ParityResumeAX5" ? "選んだ履歴から再開"
+                        : name == "ParityStartPoint" ? "開始地点: 今の位置（HEAD）"
+                        : name == "ParityHistory" ? "履歴から再開" : "作業場所"
+                    if ProcessInfo.processInfo.environment["PHLOX_SNAPSHOT_EXTERNAL_MENU_ACTIVATION"] == "1" {
+                        try await waitForExternalActivation(window: window, output: output, sceneName: name,
+                            requiresPopover: false, expectedControlLabel: label,
+                            requiresPresentation: name == "ParityStartPoint" || name == "ParityHistory")
+                    } else if name == "ParityResumeAX5" {
+                        try #require(snapshotAccessibilityElement(in: window, label: label) != nil)
                     } else {
                         // SwiftUIの公開AXノードは識別子を返さないため、読み上げラベルで操作する。
-                        let label = name == "ParityStartPoint" ? "開始地点: 今の位置（HEAD）"
-                            : name == "ParityHistory" ? "履歴から再開" : "作業場所"
                         let element = snapshotAccessibilityElement(in: window, label: label)
                         if element == nil {
                             let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
@@ -2194,7 +2263,8 @@ struct DesignSnapshotRenderTests {
                     }
                     if showsMoreSettings {
                         if variables["PHLOX_SNAPSHOT_EXTERNAL_MENU_ACTIVATION"] == "1" {
-                            try await waitForExternalUsageActivation(window: window, output: output, sceneName: layout.name, requiresPopover: false)
+                            try await waitForExternalActivation(window: window, output: output, sceneName: layout.name,
+                                requiresPopover: false, expectedControlLabel: "思考の強さと権限を変更")
                         } else {
                             let button = try #require(snapshotAccessibilityElement(in: window, label: "思考の強さと権限を変更"))
                             try #require(button.accessibilityActivate(), "Composer settings menu did not activate")
@@ -2884,7 +2954,9 @@ struct DesignSnapshotRenderTests {
         throw SnapshotError.bodyDidNotRender
     }
 
-    private func waitForExternalUsageActivation(window: UIWindow, output: URL, sceneName: String, requiresPopover: Bool = true) async throws {
+    private func waitForExternalActivation(window: UIWindow, output: URL, sceneName: String,
+        requiresPopover: Bool = true, expectedControlLabel: String? = nil, requiresPresentation: Bool = true
+    ) async throws {
         let readyURL = output.appendingPathComponent("\(sceneName)-external-ready.json")
         let variables = ProcessInfo.processInfo.environment
         let nonce = UUID().uuidString
@@ -2896,11 +2968,14 @@ struct DesignSnapshotRenderTests {
         func writePhase(_ phase: String) throws {
             let payload: [String: Any] = [
                 "scene": sceneName, "phase": phase,
+                "expectedControlLabel": expectedControlLabel ?? "",
+                "requiresPresentation": requiresPresentation, "requiresPopover": requiresPopover,
                 "step": sceneName, "nonce": nonce, "pid": pid, "udid": udid,
                 "windowTitle": windowTitle, "requestedAt": requestedAt,
                 "ackFile": ackURL.path, "proofFile": ackURL.path,
                 "nativeContentSizeCategory": window.traitCollection.preferredContentSizeCategory.rawValue,
-                "instruction": requiresPopover ? "使用量の詳細ボタンを開き、枠・残量・リセットの表示をAXで確認する" : "思考の強さと権限のメニューを開く",
+                "instruction": expectedControlLabel.map { requiresPresentation ? "「\($0)」を開く" : "「\($0)」の公開AXを確認する" }
+                    ?? (requiresPopover ? "使用量の詳細ボタンを開き、枠・残量・リセットの表示をAXで確認する" : "思考の強さと権限のメニューを開く"),
                 "window": [window.bounds.origin.x, window.bounds.origin.y, window.bounds.width, window.bounds.height],
                 "screen": [window.screen.bounds.origin.x, window.screen.bounds.origin.y, window.screen.bounds.width, window.screen.bounds.height],
                 "sceneActivation": window.windowScene?.activationState.rawValue ?? -1,
@@ -2910,7 +2985,7 @@ struct DesignSnapshotRenderTests {
             ]
             try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
                 .write(to: readyURL, options: .atomic)
-            FileHandle.standardError.write(Data("external usage \(phase): \(readyURL.path)\n".utf8))
+            FileHandle.standardError.write(Data("external activation \(phase): \(readyURL.path)\n".utf8))
         }
         try writePhase("awaitingCUA")
         do {
@@ -2930,7 +3005,13 @@ struct DesignSnapshotRenderTests {
             try #require(capturedAt >= requestedAt && capturedAt <= Date().timeIntervalSince1970 + 5)
             let tree = try #require(reply["rawAXTree"] as? String)
             try #require(tree.contains("Window: \"\(windowTitle)\", App: Simulator."))
-            try #require(isPresented(), "External tap did not present the real interface: \(sceneName)")
+            if let expectedControlLabel {
+                let activationTree = try #require(reply["activationAXTree"] as? String)
+                try #require(activationTree.contains("Window: \"\(windowTitle)\", App: Simulator."))
+                try #require(SnapshotExternalAXEvidence.hasExposedControl(label: expectedControlLabel, tree: activationTree),
+                    "The requested control must be exposed before external activation")
+            }
+            try #require(!requiresPresentation || isPresented(), "External tap did not present the real interface: \(sceneName)")
         } catch {
             try writePhase("failed")
             throw error
@@ -3226,6 +3307,19 @@ private struct SnapshotExternalAXEvidence: Codable {
     let windowTitle: String
     let capturedAt: TimeInterval
     let rawAXTree: String
+
+    static func hasExposedControl(label: String, tree: String) -> Bool {
+        tree.split(separator: "\n").contains { line in
+            let element = line.trimmingCharacters(in: .whitespaces)
+            let fields = element.split(separator: " ", maxSplits: 2)
+            guard fields.count == 3, fields[0].allSatisfy(\.isNumber),
+                  ["AXButton", "AXPopUpButton", "AXMenuButton"].contains(String(fields[1])) else { return false }
+            return ["Description: ", "Title: "].contains { field in
+                guard let range = element.range(of: field) else { return false }
+                return element[range.upperBound...].components(separatedBy: ", ")[0] == label
+            }
+        }
+    }
 
     func validatedLabels(for request: SnapshotExternalAXRequest, now: TimeInterval) throws -> Set<String> {
         let expectedPhase = request.phase == "awaitingCUA" ? "reviewed" : "presentedAX"

@@ -73,13 +73,14 @@ struct DesignSnapshotRenderTests {
             .environment(\.locale, Locale(identifier: "ja"))
             .environment(\.colorScheme, .dark)
         let window = makeSnapshotWindow(view, id: "13-bp-window-grid-auto-\(count)", width: 1920, height: 1050)
-        window.setFrame(NSRect(x: -10000, y: -10000, width: 1920, height: 1050), display: false)
         let host = try #require(window.contentView)
         defer { window.contentViewController = nil; window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(500))
+        window.setFrame(NSRect(x: -10000, y: -10000, width: 1920, height: 1050), display: false)
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(100))
         let layout = dashboard.gridLayoutForDisplay(in: viewport.size)
+        #expect(window.frame.size == CGSize(width: 1920, height: 1050))
         #expect(layout.tree.sessions.count == count)
         #expect(viewport.size == CGSize(width: 1643, height: 903))
         var measured: [String: [Double]] = [:]
@@ -212,12 +213,15 @@ struct DesignSnapshotRenderTests {
             }
             return visit(host)
         }
-        func row(_ id: SessionID) throws -> NSObject {
-            try #require(elements().first { object in
+        func findRow(_ id: SessionID) -> NSObject? {
+            elements().first { object in
                 let selector = NSSelectorFromString("accessibilityLabel")
                 guard object.responds(to: selector), let label = object.perform(selector)?.takeUnretainedValue() as? String else { return false }
                 return label.hasPrefix(names[id]! + "、")
-            })
+            }
+        }
+        func row(_ id: SessionID) throws -> NSObject {
+            try #require(findRow(id))
         }
         func action(_ name: String, on id: SessionID) throws {
             let element = try row(id)
@@ -250,7 +254,19 @@ struct DesignSnapshotRenderTests {
             #expect((try row(child) as AnyObject).accessibilityPerformPress())
             try await waitUntil { router.selectedSession == child }
             try action("展開", on: child)
-            try await Task.sleep(for: .milliseconds(150))
+            try await waitUntil {
+                host.layoutSubtreeIfNeeded()
+                guard tree.isExpanded(child),
+                      let parentRow = findRow(parent), let childRow = findRow(child),
+                      let grandchildRow = findRow(grandchild), let siblingRow = findRow(sibling) else { return false }
+                let parentFrame = (parentRow as AnyObject).accessibilityFrame()
+                let childFrame = (childRow as AnyObject).accessibilityFrame()
+                let grandchildFrame = (grandchildRow as AnyObject).accessibilityFrame()
+                let siblingFrame = (siblingRow as AnyObject).accessibilityFrame()
+                return parentFrame.minY > childFrame.minY
+                    && childFrame.minY > grandchildFrame.minY
+                    && grandchildFrame.minY > siblingFrame.minY
+            }
             host.layoutSubtreeIfNeeded()
             let parentRect = (try row(parent) as AnyObject).accessibilityFrame()
             let childRect = (try row(child) as AnyObject).accessibilityFrame()

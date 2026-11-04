@@ -3,6 +3,31 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.5</title>
+            <pubDate>Wed, 04 Nov 2026 06:21:55 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>Fixed</h3>
+<ul>
+  <li>Fixed a freeze when scrolling Markdown files in rendered view.</li>
+  <li>Reduced unnecessary processing during Claude usage updates.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>修正</h3>
+<ul>
+  <li>Markdownファイルをレンダリング表示でスクロールした際に、アプリが応答しなくなる問題を修正しました。</li>
+  <li>Claudeの使用量を更新するときの不要な処理を減らしました。</li>
+</ul>
+]]></description>
+            <sparkle:version>49</sparkle:version>
+            <sparkle:shortVersionString>1.14.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.5.zip" length="30382169" type="application/octet-stream" sparkle:edSignature="vBiL8VnONAKMMVAYpO5/nWpIdXiMvYsiweC0c0Q98Q0SFS0QuT6Yd+cA/esuuDJc5BX4rt1xZkhBvE9wU+8NCg=="/>
+        </item>
+        <item>
             <title>1.14.4</title>
             <pubDate>Mon, 02 Nov 2026 12:28:37 GMT</pubDate>
             <description xml:lang="en"><![CDATA[

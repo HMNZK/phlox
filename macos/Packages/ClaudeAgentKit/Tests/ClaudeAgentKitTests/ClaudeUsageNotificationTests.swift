@@ -101,6 +101,8 @@ private final class UsageTestTransport: LineDelimitedTransport, @unchecked Senda
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let type = try #require(object["type"] as? String)
         let id = try #require(object["request_id"] as? String)
+        let request = try #require(object["request"] as? [String: Any])
+        #expect(request["skip_behaviors"] as? Bool == true)
         lock.withLock { types.append(type) }
         let response: [String: Any] = ["type": "control_response", "response": ["subtype": "success", "request_id": id,
             "response": ["rate_limits_available": available, "rate_limits": [

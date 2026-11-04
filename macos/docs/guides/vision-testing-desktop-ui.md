@@ -19,7 +19,7 @@ last-verified: 2026-10-15
   ```bash
   open --env "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN=1" --env 'PHLOX_TEST_AGENT_BINARY_PATHS={"claudeCode":"/tmp/fake-agent.sh"}' -a "$DEBUG_APP"
   ```
-  フィクスチャ本体は `macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Fixtures/fake-agent.sh`（`--exit-after N` で N 行処理後に exit）。**この注入口での実走は未検証**（旧手順の `PHLOX_AGENTS_JSON` からの置き換えをコードで確かめただけ）。画面からはターミナルのセッションを始められない（ADR 0185）ので、フェイクのターミナルセッションは Control API・CLI の `backend: pty` で作る。
+  フィクスチャ本体は `macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/Fixtures/fake-agent.sh`（`--exit-after N` で N 行処理後に exit）。この環境変数によるCodexの注入は、2026-11-04の[Markdownスクロール調査](../delivery/markdown-scroll-freeze-20261103.md)で隔離したDebugと8件のフェイクチャットを実走した。この段落のClaude Code用 `fake-agent.sh` 経路は未再検証（旧手順からの置き換えはコードで確認）。画面からはターミナルのセッションを始められない（ADR 0185）ので、フェイクのターミナルセッションは Control API・CLI の `backend: pty` で作る。
 - **AX 操作権限**（システム設定 > プライバシー > アクセシビリティ）が必要。
 
 ## 非侵襲キャプチャ
@@ -41,6 +41,8 @@ export PHLOX_DESIGN_SNAPSHOT_FRAME_IDS="10-A1-dark-ja 11-T1-dark"
 `PHLOX_DESIGN_SNAPSHOT_FRAME_IDS` は、`比較用画像を書き出す` で描画する状態 ID を空白で区切って指定する。既存の `PHLOX_DESIGN_SNAPSHOT_SCOPE` で絞った候補から選ぶ。空文字や候補にない ID はエラーにする。未指定時は従来の範囲を描画する。結果は指定した状態の描画について報告する。
 
 新規チャットの描画は `renderStage8NewChat`、承認待ちセッションを含むタブ列の描画は `renderStage8ProjectTabs` を参照する。入口は `比較用画像を書き出す`。承認確認カード専用の画像書き出しは、このテストには未設定。
+
+タイトル付きの描画用ウィンドウは、SwiftUI のツールバー初期化でフレームが変わることがある。固定寸法の検査では、初期化後にウィンドウの寸法を設定し、ウィンドウ自体と表示領域の寸法を両方検証する。
 
 ## Phlox の UI を AX で駆動する要点
 
@@ -67,6 +69,14 @@ export PHLOX_DESIGN_SNAPSHOT_FRAME_IDS="10-A1-dark-ja 11-T1-dark"
 2. フェイクのターミナルセッションを Control API・CLI の `backend: pty` で spawn。
 3. **アプリの直接の子 PTY プロセスを終了させる**（`ps -ax -o pid,ppid,command | awk -v app=<APP_PID> '$2==app'` で特定して `kill -TERM`）。`--exit-after 0` の即時終了はアプリが exit を購読する前に消えてレースするので使わない。
 4. グリッドに**赤枠**が出れば OK（サイドバーの行の状態は図形でなく右端の文字）。生存中の別セッションが緑のままなら対照として正しい。
+
+## Markdownスクロールの固着を調べるとき
+
+- 現在のファイルだけで未再現と判定しない。FileTabDocumentは初回の読み込み内容を保持するため、障害後の変更時刻とGit履歴を照合し、障害前の候補版を隔離したfixtureへ保存する。版・バイト数・SHA-256を記録し、原本を変更しない。
+- 応答しないAXだけで原因を決めず、対象PIDのsampleとCPU・メモリ推移を採る。通常のRelease／Debugとは実行パスで区別する。
+- 小文書だけの対照にせず、表を含む障害時の版、狭い幅、大文書、チャット更新中を確認する。スクロールに伴う編集確定・文書Undoも既存の自動テストで確認する。
+
+根拠と今回の配置方式の対照は [Markdownスクロールの調査記録](../delivery/markdown-scroll-freeze-20261103.md)。
 
 ## 報告の規律
 

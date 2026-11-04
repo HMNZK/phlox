@@ -6,4 +6,6 @@
 
 操作担当者は表示されたnonce、UDID、windowTitleを照合し、指定された画面だけを操作する。同名操作が通常アプリとfixtureの両方に出る場合は、fresh AXで選ぶbuttonの近傍と対象fixtureの位置関係を見分けてから押す。操作直後にfreshなfull AX rawとcapturedAtを採取し、ready JSONと同じackFileへ、nonce・scene・step・pid・udid・windowTitle・phase=`reviewed`・confirmed=`true`・capturedAt・rawAXTreeを含むJSONを保存する。自動ACK、期限変更、期待条件の緩和は禁止。対象が一致しない場合は続行せず失敗として扱う。
 
+描画テストの外部操作で、ready JSONの`expectedControlLabel`が空でない場合は、操作前に採取したfull AX rawも`activationAXTree`として同じACKへ加える。テストは、その中に同じwindowTitleのSimulatorウィンドウがあり、行頭の番号に続くroleが`AXButton`・`AXPopUpButton`・`AXMenuButton`のいずれかで、DescriptionまたはTitleが指定ラベルと完全一致する行があることを要求する。表示文字の中の`AXButton`や、ラベルの部分一致は認めない。`requiresPresentation`が`false`の場面は公開AXの確認だけで、操作後の表示は要求しない（`ios/PhloxMobileSnapshotTests/DesignSnapshotRenderTests.swift` の `waitForExternalActivation`）。
+
 runnerは起動PIDとargv、ログ、出力先、終了コードをOWNER/STATUS JSONへ保存し、失敗時に再試行しない。readyやACKの内容を詳しく解析してから操作する運用を避け、表示された指示にすぐ対応する。UI操作が成立しなければ証拠と失敗を残して停止する。

@@ -102,6 +102,7 @@ extension ClaudeChatClient: UsageQuerying {
             "request_id": requestID,
             "request": [
                 "subtype": "get_usage",
+                "skip_behaviors": true,
             ],
         ]
         var data = try JSONSerialization.data(withJSONObject: payload, options: [])

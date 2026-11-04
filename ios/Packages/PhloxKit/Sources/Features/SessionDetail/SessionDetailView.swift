@@ -115,11 +115,15 @@ public struct SessionDetailView: View {
                         .frame(maxHeight: .infinity)
                         .scrollDismissesKeyboard(.interactively)
                         #if os(iOS)
-                        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                            geometry.contentOffset.y + geometry.contentInsets.top
-                        } action: { _, offset in
+                        .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { previous, geometry in
+                            scrollViewportHeight = geometry.containerSize.height
+                            // 新着による内容の伸長は、更新直前の追従判定を変えない。
+                            if previous.contentOffset != geometry.contentOffset || previous.containerSize != geometry.containerSize {
+                                distanceFromBottom = max(0, geometry.contentSize.height - geometry.visibleRect.maxY)
+                            }
                             guard isHistoryDragging else { return }
-                            historyPull.update(offset: offset, hasEarlierMessages: hasEarlierMessages)
+                            historyPull.update(offset: geometry.contentOffset.y + geometry.contentInsets.top,
+                                               hasEarlierMessages: hasEarlierMessages)
                         }
                         .onScrollPhaseChange { _, phase in
                             if isHistoryDragging, phase != .interacting, historyPull.finish() {
@@ -137,6 +141,7 @@ public struct SessionDetailView: View {
                         }
                         .coordinateSpace(name: Self.scrollCoordinateSpace)
                         .background(IOSColor.bg.base)
+                        #if !os(iOS)
                         .background(
                             GeometryReader { proxy in
                                 Color.clear.preference(
@@ -151,6 +156,7 @@ public struct SessionDetailView: View {
                         .onPreferenceChange(ScrollViewportHeightKey.self) { height in
                             scrollViewportHeight = height
                         }
+                        #endif
                         // 本文が初めて届いたときは必ず最下部へ寄せ、以降だけ距離で追従を判定する。
                         .onChange(of: viewModel.chatMessages) {
                             if scrollToBottomOnAppear {

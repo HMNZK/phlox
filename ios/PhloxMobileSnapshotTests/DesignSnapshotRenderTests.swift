@@ -1029,6 +1029,7 @@ struct DesignSnapshotRenderTests {
     @Test func externalControlEvidenceRequiresActionableExactLabel() {
         #expect(SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXButton Description: 作業場所, Value: 新しい worktree"))
         #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXStaticText Description: 作業場所, Value: 新しい worktree"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXStaticText Description: AXButton の説明, Title: 作業場所, Value: 新しい worktree"))
         #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXButton Description: 作業場所の説明, Value: 新しい worktree"))
         #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "AXButton Description: 作業場所, Value: 新しい worktree"))
     }
@@ -3310,10 +3311,9 @@ private struct SnapshotExternalAXEvidence: Codable {
     static func hasExposedControl(label: String, tree: String) -> Bool {
         tree.split(separator: "\n").contains { line in
             let element = line.trimmingCharacters(in: .whitespaces)
-            guard element.first?.isNumber == true,
-                  ["AXButton", "AXPopUpButton", "AXMenuButton"].contains(where: {
-                      element.contains(" \($0) ")
-                  }) else { return false }
+            let fields = element.split(separator: " ", maxSplits: 2)
+            guard fields.count == 3, fields[0].allSatisfy(\.isNumber),
+                  ["AXButton", "AXPopUpButton", "AXMenuButton"].contains(String(fields[1])) else { return false }
             return ["Description: ", "Title: "].contains { field in
                 guard let range = element.range(of: field) else { return false }
                 return element[range.upperBound...].components(separatedBy: ", ")[0] == label

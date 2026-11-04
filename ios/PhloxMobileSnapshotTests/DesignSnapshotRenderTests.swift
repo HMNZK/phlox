@@ -14,6 +14,60 @@ import DesignSystemIOS
 @Suite(.serialized)
 @MainActor
 struct DesignSnapshotRenderTests {
+    @Test func sessionDetailFitsAfterWidthShrinks() async throws {
+        let session = Session(id: "rotation", name: "回転の確認", agent: .claudeCode,
+                              status: .running, updatedAt: Date())
+        let readiness = SessionDetailSnapshotReadiness()
+        let api = SessionDetailSnapshotAPI(
+            session: session,
+            messages: .success([.agent(id: "answer", text: "通常の日本語本文です。")]),
+            approvals: [], turnUsage: nil, readiness: readiness,
+            modelName: "Default: Opus 5.5", permission: "bypassPermissions"
+        )
+        let model = SessionDetailViewModel(session: session, api: api)
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 900, height: 956)
+        window.rootViewController = UIHostingController(rootView: NavigationStack {
+            SessionDetailView(viewModel: model, scrollToBottomOnAppear: false, onDelete: {})
+        })
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+
+        await readiness.waitForMessages()
+        let wideViews = try await settledScrollViews(in: window)
+        #expect(model.chatMessages.count == 1)
+        #expect((wideViews.compactMap { $0 as? UITextView }.first?.bounds.width ?? 0) > 800)
+        window.frame.size.width = 440
+
+        let narrowViews = try await settledScrollViews(in: window)
+        let transcript = try #require(narrowViews.first { !($0 is UITextView) })
+        let editor = try #require(narrowViews.compactMap { $0 as? UITextView }.first)
+        #expect(transcript.contentSize.width <= 440.5)
+        #expect(editor.convert(editor.bounds, to: window).maxX <= 440.5)
+    }
+
+    private func settledScrollViews(in window: UIWindow) async throws -> [UIScrollView] {
+        func views(_ root: UIView) -> [UIView] { [root] + root.subviews.flatMap(views) }
+        var previousWidths: [CGFloat] = []
+        var stableSamples = 0
+        for _ in 0..<80 {
+            window.layoutIfNeeded()
+            let scrolls = views(window).compactMap { $0 as? UIScrollView }
+            let widths = scrolls.map(\.contentSize.width)
+            stableSamples = widths == previousWidths ? stableSamples + 1 : 0
+            previousWidths = widths
+            if stableSamples >= 10 && scrolls.count >= 2 { return scrolls }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        throw NSError(domain: "UnstableScrollGeometry", code: 1)
+    }
+
     @Test(.serialized, arguments: [1, 4])
     func newChatPhotoIntakeKeepsLayoutAndEditingResponsive(count: Int) async throws {
         let suite = "PhotoIntake-\(UUID().uuidString)"

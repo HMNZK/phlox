@@ -983,6 +983,23 @@
         "physical-session-activity"
       ],
       "reason": "変更全体を8次元で更新レビューし、旧48の判定・配布検査を流用せず未解決指摘0件。1契約適合: 正規化差分SHA、固定c9892288とtargetのbuild入力、両build来歴、実コンパイラコピー・依存snapshot、全外部入力・配布物SHA、Mac1.14.5/49・IPA1.0/19とwidgetが一致。2正しさ: DMG/ZIP全appファイル・mode・symlink、codesign/stapler/Gatekeeper、実ZIP署名と改ざん拒否、既存更新鍵・URL、appcast版・30382169bytes・日英ノート・旧feed byte保持が一致。3誠実性: AX役割誤認はroleトークン完全一致と否定例で修正。scroll-finalのparser0件実行を検出し、不採用の文書訂正と正しいselectorでの実ID・1件成功を確認。4根本原因: MarkdownのList配置・再解析抑止、クリック転送の再入抑止・古いfocus要求のガード、画面外編集の同期と失敗時保持、ScrollGeometryによる距離更新と内容量のみ変化時の追従意図保持を確認。5構造: 既存編集確定・可視判定・使用量要求・追従状態を利用し、共有get_usage経路へskip_behaviorsが到達する。6到達性: 入力転送、公開AX編集アクション、Menu本体のラベル、外部AXPress前後の証拠検査を確認。native検査コピー4ファイルは最終ソースと一致。7非機能: 文字選択・アクセシビリティ・Reduce Motionと79/81pt・0.3秒±2フレーム・0.5pt基準を維持。8テスト品質: 既存期待値・検査集合・期限の弱体化なし。今回の独立実走はcompact-test経由の配布11件・契約16件とmanaged Swift helper6ケースが成功。親実走の描画26件・外部AX10操作・Remaining4methods/6cases・79/81の保存ログも照合した。catalog全文とS1・AC1〜9を読み、現在の変更pathから4scenarioを算出。必須実機条件は削除・弱体化せず、空の実機recordsを合格と扱わない。ユーザーのsim-only指定によるdistribution接続は既存の前置文書・notes・appcast・stapler検査を保持。本passに追加hosted回帰・最終候補quality/distribution/security・公開後確認の成功は含まない。実機ジェスチャー・VoiceOver音声・ハードウェア連携、任意Markdown入力での固着不在、既知Git順序問題と状態モデル違反の解消も保証しない。"
+    },
+    {
+      "baseOID": "ca6969dfa24127ce0df434fe9128b1b006e5072c",
+      "targetOID": "fb41efac76d08ed0701cee11715c52828e412aca",
+      "diffSHA256": "299a319a91c886d36899cf111de9169da14935cedad9f3a6f3d8aed37edac3d2",
+      "reviewer": {
+        "kind": "ai",
+        "id": "/root/merge_independent_verifier"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-06T11:57:36Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "送信遅延修正の製品4ファイルと回帰テスト、AX観測器の保持/解放差分を独立確認。catalog・S1本文・AC1-4・必須fake13関数の集合と本体を縮小せず、受付の早期応答はsend/sendControlSkillのacceptedだけで、status/未確認完了/中断/完了通知の意味は既存snapshot適用を維持する。実アプリのbaseline/headを自ら同一24plugins×192files×32KiB素材でcompact-test経由実行し、baselineはmain-thread指紋計算検出assertのみで失敗、headは成功。両sampleで指紋計算を捕捉し、headはbackgroundに捕捉してmainでは未捕捉。通常本文はfakeへ1回だけ到達し、候補24件の指紋完成と全所有process終了を確認。固定appの製品4ソースSHA一致と両appの厳密署名検証を確認。AX観測器等Python5件も成功。独立した全quality実行はこのレビュー範囲外で共通マージ候補ゲートへ委ねる。Mac/iPhone実機ACシナリオ、実IMEと押下からのUI遅延は未実施で、main用の実機合格や改善率とは扱わない。"
     }
   ]
 }

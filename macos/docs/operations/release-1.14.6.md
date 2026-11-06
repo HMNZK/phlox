@@ -1,0 +1,23 @@
+# Phlox 1.14.6（build 50）
+
+送信ボタンを押した後、入力欄が非活性で文章が残る遅延を改善する。`003fd402` の送信修正を基に、Mac 1.14.6/build 50を作成する。日英ノートの正本は `release/notes-v1.14.6.md`。
+
+スキルのファイル調査を画面スレッドから外し、送信受付後の画面同期を次の入力の待ち条件から外した。遅れた状態通知での再ロックを防ぎ、送信失敗時は次の下書き・添付を保持して未送信内容を戻す。
+
+MacアプリとDMGをDeveloper ID署名・公証・stapleし、同じstaple済みアプリから最終Sparkle ZIPを作る。旧配布物は変更しない。配布物の来歴照合用に同じ入力からiOS 1.0/build 20も新しく作るが、iOS一般公開は対象外。
+
+既存の「実機検査は必須ではない」「実機での確認はしたくない」というユーザー方針を維持し、公開条件は共通ツールのqualityとdistributionにする。実機シナリオの定義は変えず、実機操作はnot_run。配布物照合の成功を人の実機観測へ読み替えない。
+
+送信・停止・再開・復元と状態モデルの検証は、製品コードが同一の送信修正時の記録を参照する（本体 `.verification/send-input-delay-evidence-20261106/`）。修正前の停止と修正後の送信成功を同じ大量スキル条件の隔離アプリで観測済み。今回の最終配布ビルドも署名・来歴・DMG/ZIP一致を検査する。実IMEと元セッションのクリックから送信までの時間は未測定。
+
+作業記録はworktreeの `.verification/release-send-delay-1.14.6-20261106/`、継続保管する配布物・来歴・統合記録は本体 `.verification/release-evidence/1.14.6/mac50-ios20/` に置く。作業ブランチ→dev→mainは共通マージツールを使い、検査成功後にGitHub DMG・Sparkle ZIP・appcastを公開して実ダウンロードを照合する。ユーザーの稼働中GUI/runtimeは入れ替えない。
+
+既知のGit履歴順序問題（ADR0209）と状態モデルの一時的な停止通知競合は未修正。手順書 `site-deploy-and-release.md` のdev→verify→main表記と一律実機必須の記述は、現在のdev→main運用・明示例外より古い。今回も共通ツールと設定済みdistributionを正本として実行する。
+
+## 配布候補の実測結果
+
+固定ソース `003de6776183efe9ad3e1975b6a85c41bfcd6cae` からMac 1.14.6/build 50とiOS 1.0/build 20を新しく作成した。Macはarm64/x86_64のビルド・本体/XPC署名検査4件・アプリ/DMG公証・staple・Gatekeeperを通過。同じstaple済みアプリから最終ZIPを作り、Sparkle署名を付けた。本体/XPCのdSYM UUIDも両architectureで一致。iOS archive/exportとAd Hoc署名・本体/Widgetの版照合が成功。iPhoneへのインストールは未実施。
+
+verify-phlox保守は4機能のソース照合と隔離lifecycle・中断→再開を成功し、所有process14件は全退出。送信の説明・回帰テストselectorを更新した。selectorの照合は同じ製品コードの既存成功イベントを用い、新しいSwift実走とは区別した。状態モデル保守は同期点を `003fd402` に更新。変更17行は投影/回収でモデル範囲外、意味・性質・既知一覧は不変。更新前後のhuman/anyは期待一覧と一致し、close削除変種で違反を検出した。
+
+日英ノートには、更新後も既存会話は続き、常駐側を含む全修正の適用には作業完了・保存後のMac再起動が必要なことを明記した。実機/実IME/元セッションの遅延再測定は未実施。公開前の独立レビュー・候補全品質・distributionは後続の統合ゲートで確認する。本書は統合/公開成功の記録ではなく、それらは保存先のpublication-result.jsonで実状態と照合する。

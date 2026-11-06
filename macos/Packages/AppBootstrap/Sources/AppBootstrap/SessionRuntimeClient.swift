@@ -79,6 +79,12 @@ public final class SessionRuntimeClient {
         let result = try await perform(payload, path: "command", urgent: command.isRuntimeUrgent)
         do {
             let reply = try JSONDecoder().decode(DashboardRuntimeReply.self, from: result.data)
+            switch (command, reply) {
+            case (.session(_, _, .send), .session(.accepted)),
+                 (.session(_, _, .sendControlSkill), .session(.accepted)):
+                return reply
+            default: break
+            }
             if let onCommandSnapshot {
                 let envelope = try await fetchSnapshot()
                 try await apply(envelope, using: onCommandSnapshot)

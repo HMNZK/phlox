@@ -1011,6 +1011,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// composer 本文の編集を添付へ同期する（本文から `[Image #N]` が消えたら添付も外す）。
     /// 送信によるクリアは何度発火しても添付を外さない。
     func syncAttachmentsWithDraftEdit(oldText: String, newText: String) {
+        guard !runtimeSendInFlight else { return }
         if newText.isEmpty, oldText == draftClearedForSend { return }
         draftClearedForSend = nil
         attachmentStore.removeAttachmentsMissing(fromOldText: oldText, newText: newText)
@@ -4265,7 +4266,7 @@ extension ChatSessionViewModel: ControllableSession {
                 }
             } catch {
                 runtimeConnectionError = error.localizedDescription
-                if submit { _ = restoreDraftAfterRejectedSend(text) }
+                if submit { _ = restoreDraftAfterRejectedSend(text, sentAttachments: sentAttachments) }
                 throw error
             }
             return
@@ -4449,10 +4450,17 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     @discardableResult
-    private func restoreDraftAfterRejectedSend(_ text: String) -> Bool {
+    private func restoreDraftAfterRejectedSend(_ text: String, sentAttachments: [ComposerAttachment]? = nil) -> Bool {
         guard draftClearedForSend != nil else { return false }
-        draft = text
-        draftClearedForSend = text
+        if let sentAttachments, draft != text || composerAttachments != sentAttachments {
+            let merged = ComposerAttachmentStore.mergingDrafts(text: draft, attachments: composerAttachments,
+                nextText: text, nextAttachments: sentAttachments)
+            draft = merged.text
+            attachmentStore.restore(merged.attachments)
+        } else {
+            draft = text
+        }
+        draftClearedForSend = draft
         return true
     }
 
@@ -4766,7 +4774,6 @@ extension ChatSessionViewModel {
         lastEventAt = snapshot.lastEventAt
         historySummaries = snapshot.historySummaries
         codexSubAgentError = snapshot.codexSubAgentError
-        if !runtimeSendInFlight { inFlightText = snapshot.inFlightText }
         if shouldApplyTranscript {
             transcript = snapshot.transcript
             transcriptItemIDs = Set(transcript.map(\.id))

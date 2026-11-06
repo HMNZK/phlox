@@ -6,6 +6,59 @@ import Testing
 @testable import AppBootstrap
 
 @Suite struct SessionRuntimeTransportTests {
+    @Test(arguments: [
+        DashboardRuntimeCommand.session(SessionID(), UUID(), .send(
+            text: "send-before-snapshot", submit: true, attachments: [], skill: nil)),
+        DashboardRuntimeCommand.session(SessionID(), UUID(), .sendControlSkill(
+            text: "review-before-snapshot", submit: true, attachments: [],
+            skill: .init(name: "review", path: "/skills/review/SKILL.md", runtimeFingerprint: "review-fingerprint"))),
+    ])
+    @MainActor func acceptedSendsReturnWhileSnapshotDecodeIsBlocked(command: DashboardRuntimeCommand) async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let receipt = try #require(UUID(uuidString: "134D69F2-E836-4BB6-BB3E-FC1F5875BAEF"))
+        let transport = try SessionRuntimeTransport(
+            generation: generation, storeURL: fixture.url,
+            snapshot: { .init(projects: [], sessions: [], availableAgentKinds: []) },
+            command: { _ in .session(.accepted(receipt)) }
+        )
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let endpoint = try SessionRuntimeEndpoint(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url))
+        let gate = SaturatedSnapshotDecodeGate()
+        defer { gate.release() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+            gate.started.continuation.finish()
+            gate.release()
+        }
+        let client = SessionRuntimeClient(endpoint: endpoint, snapshotDecoder: gate.decode,
+            snapshotUpdateDecoder: gate.decodeUpdate)
+        client.onCommandSnapshot = { _ in }
+        try await client.handshake()
+        var entered = gate.started.stream.makeAsyncIterator()
+        let first = Task { try await client.snapshot() }
+        let second = Task { try await client.snapshot() }
+        #expect(await entered.next() != nil)
+        #expect(await entered.next() != nil)
+
+        let reply = try await client.command(command)
+
+        #expect(!gate.isReleased, "The acceptance reply must return before snapshot decoding resumes")
+        guard case .session(.accepted(let actualReceipt)) = reply else {
+            Issue.record("The send did not return its acceptance receipt")
+            return
+        }
+        #expect(actualReceipt == receipt)
+        gate.release()
+        _ = try await first.value
+        _ = try await second.value
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
     @Test @MainActor func acceptedCommandWaitsForSaturatedSnapshotQueue() async throws {
         let fixture = try RuntimeTransportFixture()
         defer { fixture.remove() }
@@ -596,17 +649,32 @@ private actor RuntimeHeldCommands {
 private final class SaturatedSnapshotDecodeGate: @unchecked Sendable {
     let started = AsyncStream<Void>.makeStream()
     let semaphore = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var released = false
+
+    var isReleased: Bool { lock.withLock { released } }
 
     func decode(_ data: Data) throws -> SessionRuntimeSnapshotEnvelope {
         let snapshot = try JSONDecoder().decode(SessionRuntimeSnapshotEnvelope.self, from: data)
-        if snapshot.sequence <= 2 {
-            started.continuation.yield()
-            semaphore.wait()
-        }
+        waitIfNeeded(sequence: snapshot.sequence)
         return snapshot
     }
 
+    func decodeUpdate(_ data: Data) throws -> SessionRuntimeSnapshotUpdate {
+        let update = try JSONDecoder().decode(SessionRuntimeSnapshotUpdate.self, from: data)
+        waitIfNeeded(sequence: update.sequence)
+        return update
+    }
+
+    private func waitIfNeeded(sequence: UInt64) {
+        if sequence <= 2 {
+            started.continuation.yield()
+            semaphore.wait()
+        }
+    }
+
     func release() {
+        lock.withLock { released = true }
         semaphore.signal()
         semaphore.signal()
     }

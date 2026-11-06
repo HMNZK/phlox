@@ -41,7 +41,6 @@ public final class CodexSkillSelectionState {
     private let client: (any CodexSkillSelectionClient)?
     @ObservationIgnored private var runtimeRefresh: (@MainActor () async -> Void)?
     private var runtimeFingerprints: [String: String] = [:]
-    private var runtimeFingerprintGeneration: Int?
     private let sessionCWD: String
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -85,6 +84,7 @@ public final class CodexSkillSelectionState {
         errorMessage = nil
 
         do {
+            try Task.checkCancellation()
             let response = try await client.skillsList(
                 SkillsListParams(cwds: [sessionCWD], forceReload: true)
             )
@@ -93,8 +93,23 @@ public final class CodexSkillSelectionState {
                 throw StateError.missingCWD(sessionCWD)
             }
 
-            skills = Self.deduplicated(entry.skills)
-            runtimeFingerprintGeneration = nil
+            let refreshedSkills = Self.deduplicated(entry.skills)
+            let worker = Task.detached(priority: .userInitiated) { () throws -> [String: String] in
+                var cache: [String: String?] = [:]
+                return Dictionary(try refreshedSkills.compactMap { skill in
+                    try Task.checkCancellation()
+                    return CodexSkillFingerprint.read(skillPath: skill.path, cache: &cache).map { (skill.path, $0) }
+                }, uniquingKeysWith: { first, _ in first })
+            }
+            let fingerprints = try await withTaskCancellationHandler {
+                try await worker.value
+            } onCancel: {
+                worker.cancel()
+            }
+            try Task.checkCancellation()
+            guard requestGeneration == generation else { return }
+            skills = refreshedSkills
+            runtimeFingerprints = fingerprints
             filteredSkills = Self.filtered(skills, searchTerm: searchTerm)
             isLoading = false
             errorMessage = entry.errors.map(\.message).joined(separator: "\n").nilIfEmpty
@@ -102,7 +117,7 @@ public final class CodexSkillSelectionState {
             let unchanged: Bool
             if entry.errors.isEmpty, let selectedSkill, let selectedFingerprint,
                skills.contains(where: { $0 == selectedSkill && Self.isUsable($0) }) {
-                unchanged = CodexSkillFingerprint.read(skillPath: selectedSkill.path) == selectedFingerprint
+                unchanged = fingerprints[selectedSkill.path] == selectedFingerprint
             } else {
                 unchanged = false
             }
@@ -187,14 +202,7 @@ public final class CodexSkillSelectionState {
     }
 
     func makeRuntimeSnapshot() -> SessionRuntimeSkillSnapshot {
-        if runtimeRefresh == nil, runtimeFingerprintGeneration != generation {
-            var cache: [String: String?] = [:]
-            runtimeFingerprints = Dictionary(skills.compactMap { skill in
-                CodexSkillFingerprint.read(skillPath: skill.path, cache: &cache).map { (skill.path, $0) }
-            }, uniquingKeysWith: { first, _ in first })
-            runtimeFingerprintGeneration = generation
-        }
-        return SessionRuntimeSkillSnapshot(skills: skills, fingerprints: runtimeFingerprints,
+        SessionRuntimeSkillSnapshot(skills: skills, fingerprints: runtimeFingerprints,
             isLoading: isLoading, isStale: isStale, errorMessage: errorMessage)
     }
 
@@ -211,7 +219,6 @@ public final class CodexSkillSelectionState {
         isStale = snapshot.isStale
         errorMessage = snapshot.errorMessage
         generation += 1
-        runtimeFingerprintGeneration = generation
         requiresReselection = selectedSkill != nil && !unchanged
         if unchanged, selectedSkill != nil { selectionGeneration = generation }
     }

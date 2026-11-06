@@ -1000,6 +1000,39 @@
         "physical-session-activity"
       ],
       "reason": "送信遅延修正の製品4ファイルと回帰テスト、AX観測器の保持/解放差分を独立確認。catalog・S1本文・AC1-4・必須fake13関数の集合と本体を縮小せず、受付の早期応答はsend/sendControlSkillのacceptedだけで、status/未確認完了/中断/完了通知の意味は既存snapshot適用を維持する。実アプリのbaseline/headを自ら同一24plugins×192files×32KiB素材でcompact-test経由実行し、baselineはmain-thread指紋計算検出assertのみで失敗、headは成功。両sampleで指紋計算を捕捉し、headはbackgroundに捕捉してmainでは未捕捉。通常本文はfakeへ1回だけ到達し、候補24件の指紋完成と全所有process終了を確認。固定appの製品4ソースSHA一致と両appの厳密署名検証を確認。AX観測器等Python5件も成功。独立した全quality実行はこのレビュー範囲外で共通マージ候補ゲートへ委ねる。Mac/iPhone実機ACシナリオ、実IMEと押下からのUI遅延は未実施で、main用の実機合格や改善率とは扱わない。"
+    },
+    {
+      "baseOID": "003fd40294fc3b5519de200454df3312cb6cab15",
+      "targetOID": "3bc7303eb8872342d12abee14f83ac7f86c77eba",
+      "diffSHA256": "11b9c72909f7cb3a12406dd45ba62da08ee6deb20b90d30767a1b7b04e3b67e6",
+      "reviewer": {
+        "kind": "ai",
+        "id": "/root/release_1_14_6_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-06T12:44:43.310068+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "1契約適合: 正規化差分を自ら再計算し指定SHAと一致。Mac1.14.6/50・iOS1.0/20の来歴source003de677、現target、両inputManifest、全externalInputs・実コンパイラコピー・依存snapshot・成果物SHAを独立照合。2正しさ: compact-testでMac実配布物/preview3件と最終候補4件が成功。DMG/ZIP全app内容・mode・symlink、codesign deep/strict、app/DMGのstapler、Gatekeeper、実ZIPのEd25519署名をNode標準cryptoで独立検証。IPA本体/Widgetの識別子・版/build・署名・Ad Hoc profile/entitlementsを確認。3誠実性: devices/executionsは空で実機not_runを維持、必須物理シナリオは削除・弱体化しない。4根本原因: 画面snapshotから同期的な指紋計算を除き、acceptedの早期応答はsend/sendControlSkillだけ。後続拒否時は既存回収本文/添付の前後関係と画像番号を保つ。5構造: 既存世代/取消し・指紋辞書・下書き併合・定期snapshotを使い新たな通信形式を加えない。配布producerは旧版から版/出力名/所有ラベル/seed場所のみ変更、canonicalの署名公証経路を維持。6到達性: 稼働中の互換runtimeを置換しない実装を確認し、全修正には作業完了後のMac再起動が必要な日英ノートを追加済み。feedのen→ja各4項目はMarkdownと一致し、旧feedはbyte保持。7非機能: MainActor外計算と同時公開、送信直前の内容/画像/実行属性検証を維持、公開鍵・更新URL・protocol1を照合。8テスト品質: AX5件、レビュー契約16件を今回独立実走し成功、必須fake13とS1/AC1–4本文に削減なし。送信の同一製品コードでの独立baseline/head/nativeと全品質・スキル保守の保存結果も照合したが自ら再実走したとは扱わない。今回のpassは差分・シナリオ・配布物の独立レビューであり、最終共通候補のquality/distribution/securityと公開後確認は親が別途実行する。実機、実IME、元セッションのクリック遅延は未測定。既知ADR0209と状態モデルの通知競合は未修正。"
+    },
+    {
+      "baseOID": "bc2c6e215ed15f972695a4b463a039bbd5f1a456",
+      "targetOID": "3bc7303eb8872342d12abee14f83ac7f86c77eba",
+      "diffSHA256": "8adcca9d33b797b4c8b8ee1b8fcf3b05b8076e1329ad93446478f8766c20f235",
+      "reviewer": {
+        "kind": "ai",
+        "id": "/root/release_1_14_6_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-06T12:44:43.310068+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "1契約適合: 正規化差分を自ら再計算し指定SHAと一致。Mac1.14.6/50・iOS1.0/20の来歴source003de677、現target、両inputManifest、全externalInputs・実コンパイラコピー・依存snapshot・成果物SHAを独立照合。2正しさ: compact-testでMac実配布物/preview3件と最終候補4件が成功。DMG/ZIP全app内容・mode・symlink、codesign deep/strict、app/DMGのstapler、Gatekeeper、実ZIPのEd25519署名をNode標準cryptoで独立検証。IPA本体/Widgetの識別子・版/build・署名・Ad Hoc profile/entitlementsを確認。3誠実性: devices/executionsは空で実機not_runを維持、必須物理シナリオは削除・弱体化しない。4根本原因: 画面snapshotから同期的な指紋計算を除き、acceptedの早期応答はsend/sendControlSkillだけ。後続拒否時は既存回収本文/添付の前後関係と画像番号を保つ。5構造: 既存世代/取消し・指紋辞書・下書き併合・定期snapshotを使い新たな通信形式を加えない。配布producerは旧版から版/出力名/所有ラベル/seed場所のみ変更、canonicalの署名公証経路を維持。6到達性: 稼働中の互換runtimeを置換しない実装を確認し、全修正には作業完了後のMac再起動が必要な日英ノートを追加済み。feedのen→ja各4項目はMarkdownと一致し、旧feedはbyte保持。7非機能: MainActor外計算と同時公開、送信直前の内容/画像/実行属性検証を維持、公開鍵・更新URL・protocol1を照合。8テスト品質: AX5件、レビュー契約16件を今回独立実走し成功、必須fake13とS1/AC1–4本文に削減なし。送信の同一製品コードでの独立baseline/head/nativeと全品質・スキル保守の保存結果も照合したが自ら再実走したとは扱わない。今回のpassは差分・シナリオ・配布物の独立レビューであり、最終共通候補のquality/distribution/securityと公開後確認は親が別途実行する。実機、実IME、元セッションのクリック遅延は未測定。既知ADR0209と状態モデルの通知競合は未修正。"
     }
   ]
 }

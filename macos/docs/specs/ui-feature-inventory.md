@@ -131,7 +131,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | ユーザー質問カード (`UserQuestionCell`) | 質問文+選択肢(単一/複数)+自由入力、secretはマスク表示 | 選択肢クリック/入力/送信ボタン/閉じるボタン | pending→answered／expired | Codexは`ChatApprovalBroker`経由、閉じ操作もCodex/Claudeで分岐 | `UserQuestionCell.swift:16-353`, `ChatItem.swift:19-23` |
 | 承認バナー (`ApprovalBanner`) | コマンド/ファイル変更/権限の承認待ちカード | Accept/Decline/Cancelボタン | `ChatApprovalKind`: command/fileChange/permissions | 下記4.2節参照 | `ChatSessionAccessories.swift:363-423`, `ChatApprovalBroker.swift:6-225` |
 | 圧縮中インジケータ (`CompactingIndicatorCell`) | シマーテキスト+犬アニメ(6ステージ) | なし | `isCompacting`のみ | なし | `CompactingIndicatorCell.swift:22-100` |
-| Thinkingインジケータ (`ThinkingIndicatorCell`) | オーブ+活動状態ラベル、ハング時は経過時間+中断ボタン | ハング時「中断」ボタン | `AgentActivityState`、`isStalled`（無応答120秒でハング検知、Chat型のみ実装） | avatarは`agentDescriptor`依存 | `ChatMessageCells+Structured.swift:70-193`, `ChatHangPolicy.swift:19-35` |
+| Thinkingインジケータ (`ThinkingIndicatorCell`) | オーブ+活動状態ラベル、ハング時は経過時間+中断ボタン | ハング時「中断」ボタン | `AgentActivityState`、`isStalled`（無応答30分でハング検知、Chat型のみ実装） | avatarは`agentDescriptor`依存 | `ChatMessageCells+Structured.swift:70-193`, `ChatHangPolicy.swift:19-35` |
 | 接続待ちインジケータ (`ChatConnectingIndicator`) | レーダー回転アニメ(Canvas) | なし | reduceMotionで静的化 | なし | `ChatConnectingIndicator.swift:5-111` |
 | メッセージ種別ディスパッチ (`ChatItemView`) | なし | `ChatItem`のcase毎に上記各セルへ振り分け（reasoning/commandExecutionは本文・出力が空かつ非実行中ならEmptyView） | ADR 0116対応の`Equatable`実装（クロージャは比較対象外、`item`/`isRunningCommand`/`agentDescriptor`のみで同値判定） | avatarは`agentDescriptor`依存 | `ChatMessageCells.swift:5-92` |
 | Markdown本文レンダリング (`RichMarkdownView`) | リンククリック | `Markdown(markdown)`をテーマ適用して表示、テーマは`themeID:scale:languageCode:role`キーでプロセス内キャッシュ | フォントスケール・テーマ・ロケールに追従 | なし | `RichMarkdownView.swift:9-53` |
@@ -638,7 +638,7 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 | awaitingUserQuestion | UserQuestionCell表示 | single/グリッド | 4.1節 |
 | completed(exitCode) | 要注意(未読完了)ハイライト、通知バナー | サイドバー/Dock/通知 | 3章, 15章 |
 | error(message) | ErrorMessageCell、赤系背景 | single/グリッド | 4.1節 |
-| ハング(isStalled) | 経過時間+中断ボタン(無応答120秒) | single/グリッド | `ChatHangPolicy.swift:19-35` |
+| ハング(isStalled) | 経過時間+中断ボタン(無応答30分) | single/グリッド | `ChatHangPolicy.swift:19-35` |
 | フォーカス中(グリッド) | 枠線強調(太線＋内側リング) | グリッド | 5章 |
 | 要注意(requiresAttention) | 赤枠3pt、行背景`idleHighlight`、プロジェクトアイコン不透明度変化 | サイドバー/グリッド | 3章, `GridTileBorderPolicy.swift:16-27` |
 | 空状態(プロジェクト0件) | 「+」ボタンのみ | サイドバー/detail | 3章, 9章 |

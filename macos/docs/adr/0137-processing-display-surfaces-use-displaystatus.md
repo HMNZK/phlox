@@ -3,6 +3,8 @@ status: active
 last-verified: 2026-07-24
 ---
 
+> 2026-11-06: チームビューとアゴラ討論は d514fc37 で削除済み（記録: `../delivery/0037-ui-redesign-worklog.md` の「P1'」）。本文の Agora 手番・チームタイムラインの項は当時の表示面。
+
 # ADR 0137: 処理中を表す表示面は生 status ではなく displayStatus を読む
 
 > **このファイルの役割**: ADR 0064 が `showsProcessingIndicator` をチャット本体スピナーに限定導入した後も、状態を読む複数の表示面（グリッド/サイドバーのドット・アイコン、Agora 手番、チームタイムライン Thinking）が生 `SessionStatus` を直読みしていたため、背景タスク/サブエージェント継続中に「停止」と誤表示する desync が残っていた。これを表示専用の実効状態 `displayStatus` へ集約する決定。

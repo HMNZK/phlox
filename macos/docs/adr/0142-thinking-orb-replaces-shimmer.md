@@ -3,6 +3,8 @@ status: accepted
 last-verified: 2026-07-30
 ---
 
+> 2026-11-06: チームビューとアゴラ討論は d514fc37 で削除済み（記録: `../delivery/0037-ui-redesign-worklog.md` の「P1'」）。本文のアゴラ行は当時の表示面。
+
 # ADR 0142: Thinking 表示を点描 orb に置き換え、活動状態を transcript から導出する
 
 > **このファイルの役割**: 「Thinking...」のシマー表示を点描 orb（thinking-orbs の Swift 移植）へ置き換えた理由と、

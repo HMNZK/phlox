@@ -150,7 +150,7 @@ SomeCard().dsShadow(.card)   // 生 .shadow を書かない単一経路
 |---|---|---|
 | `newSessionGradient` | 紫 `#A855F7` → ピンク `#EC4899` | 設定/Usage の一部で使用（New session ボタンは撤去済。脱コーラル基調で浮くため将来再検討・ADR 0042） |
 
-> **ADR 0042 で刷新（テーマ追随化）**: 旧「テーマ非依存の白 opacity 固定」だった `border` / `separator` / `fillSubtle` / `fillSelected` / `sessionRowHover(Border)` は、**`theme.textPrimary` 由来の opacity**（前景色基準＝常に背景と対比）へ変更され、ライトテーマでも不可視化しない。選択トークンは `sessionRowSelectedBorder`=`Color.clear`（枠強調撤去）・`sessionRowSelected`=`fillSelected`（薄グレー）・`userBubble`=前景 8% のグレー面。diff 用に `diffAdded`（青）/`diffRemoved`（赤）を新設（明度追随）。`codeSyntax*` はライト/ダークの明度分岐。旧 `AppTheme.rowSelected/rowSelectedBorder` は dead 化のため除去。
+> **ADR 0042 で刷新（テーマ追随化）**: 旧「テーマ非依存の白 opacity 固定」だった `border` / `separator` / `fillSubtle` / `fillSelected` / `sessionRowHover(Border)` は、**`theme.textPrimary` 由来の opacity**（前景色基準＝常に背景と対比）へ変更され、ライトテーマでも不可視化しない。選択トークンは `sessionRowSelectedBorder`=`Color.clear`（枠強調撤去）・`sessionRowSelected`=`fillSelected`（薄グレー）・`userBubble`=前景 8% のグレー面。diff 用に `diffAdded`（緑）/`diffRemoved`（赤）を新設（明度追随）。`codeSyntax*` はライト/ダークの明度分岐。旧 `AppTheme.rowSelected/rowSelectedBorder` は dead 化のため除去。
 
 **エージェント識別（ブランドアイコンのみ）**
 

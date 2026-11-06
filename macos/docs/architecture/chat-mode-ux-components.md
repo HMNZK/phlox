@@ -57,7 +57,7 @@ last-verified: 2026-09-14
 composer 入力欄パネルは既定でコンパクト表示に戻され、**最小高は 36pt**（`ADR 0046` 参照。running インジケータ撤去済み・ADR 0044 と合わせて入力欄パネル全体は約80pxに圧縮）。
 
 入力先の表示は `ComposerDestinationLabel` が作る。単一・グリッドでは「プロジェクト / 作業名」、
-チームでは討論の開始・発言・親セッションへの送信を区別し、送信不可なら理由も表示する。表示は入力欄の
+親セッションへ送る入力では「親セッションへの送信」を区別し、送信不可なら理由も表示する。表示は入力欄の
 直前であり、送信先を決める既存分岐は変更しない。
 
 ## 回答と処理詳細の描画（ADR 0175）
@@ -182,7 +182,7 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 ## カードの装飾とファイル変更のコードビュー（chat-toolcall-view run, 2026-07-30）
 
-共通の `DisclosureCard` は**アイコンもステータスグリフも時刻も持たない**（`systemImage` / `accent` / `status` / `timestamp` 引数と `StatusGlyph` / `DisclosureRunningSpinner` / `ChatTimestampText` は削除済み。ADR 0144 → 0147）。枠・背景も持たず「見出し＋シェブロン＋展開状態」だけを担う。transcript に回転アニメーションは存在しない。ツールコール系カードの文字色は `DSColor.chatToolCallText`（半透明・無彩色）で、色の選択は純粋関数 `DisclosureCardPalette.title(isToolCall:)` / `.subtitle(isToolCall:)` に集約する。`AvatarMessageRow` はブランドアイコンを描かず本文を左端へ詰める（**チームビュー `TeamTimelineView` とアゴラの発言者行のアイコンは従来どおり**）。時刻はカードごとには出さず、**ホバーで現れるコピーボタン（`MessageCopyButton`。背景は透明、ホバー時のみ背景が付く）の右**に出す。Reasoning は見出しと本文（trim 後）が一致するとき `DisclosureCard` を使わず、半透明グレーの折りたためない 1 行として描く。
+共通の `DisclosureCard` は**アイコンもステータスグリフも時刻も持たない**（`systemImage` / `accent` / `status` / `timestamp` 引数と `StatusGlyph` / `DisclosureRunningSpinner` / `ChatTimestampText` は削除済み。ADR 0144 → 0147）。枠・背景も持たず「見出し＋シェブロン＋展開状態」だけを担う。transcript に回転アニメーションは存在しない。ツールコール系カードの文字色は `DSColor.chatToolCallText`（半透明・無彩色）で、色の選択は純粋関数 `DisclosureCardPalette.title(isToolCall:)` / `.subtitle(isToolCall:)` に集約する。`AvatarMessageRow` はブランドアイコンを描かず本文を左端へ詰める。時刻はカードごとには出さず、**ホバーで現れるコピーボタン（`MessageCopyButton`。背景は透明、ホバー時のみ背景が付く）の右**に出す。Reasoning は見出しと本文（trim 後）が一致するとき `DisclosureCard` を使わず、半透明グレーの折りたためない 1 行として描く。
 
 枠線・背景・角丸・`clipShape`・ホバー・右上のコピーボタンは共通コンポーネント **`ChatCodeCard<Header, Content>`**（`ChatCodeCard.swift`）が持ち、diff とコマンド実行の両方がこの器に入る（`DSColor.chatCard` / `DSColor.border` / `DSRadius.m`。`clipShape` は `overlay(strokeBorder)` より前）。markdown の fenced code block（`CodeBlockView`）は同じトークンを使うが独立したままで、挙動は不変（`ChatCodeBlockTests` で固定）。
 

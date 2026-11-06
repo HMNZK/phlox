@@ -121,7 +121,7 @@ public enum SessionDisplayState: Sendable, Equatable {
 
     /// - Parameters:
     ///   - hasUnseenCompletion: ターン完了をまだ見ていない（完了の未読）。
-    ///   - isStalled: 実行中のまま 120 秒反応がない（チャット型のみ。判定は呼び出し側）。
+    ///   - isStalled: 実行中のまま 30 分反応がない（チャット型のみ。判定は呼び出し側）。
     public static func resolve(
         _ status: SessionStatus,
         hasUnseenCompletion: Bool = false,

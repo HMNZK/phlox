@@ -86,7 +86,7 @@ last-verified: 2026-10-24
 | 0147 | [コードビューを枠線付きカードへ 1 本化し、見出しの重複・時刻・件数を落とす](0147-chat-code-card-and-header-dedup.md) | accepted |
 | 0146 | [ファイル変更をコードビューで描く（行番号は推測しない）](0146-diff-code-view.md) | accepted |
 | 0145 | [ツール実行グループの見出しを recap にし、開閉トグルを右端へ移す](0145-tool-group-recap-header.md) | accepted |
-| 0144 | [チャットの装飾を落とす（カードのアイコン・ステータスグリフ・アバターの撤去）](0144-quiet-chat-chrome.md) | accepted |
+| 0144 | [チャットの装飾を落とす（カードのアイコン・ステータスグリフ・アバターの撤去）](0144-quiet-chat-chrome.md) | accepted（エージェント状態カードの中に限り 0227 で置換） |
 | 0143 | [活動状態のラベルにシマーを戻し、帯の純関数を共有モデルへ1本化する](0143-activity-label-keeps-shimmer.md) | accepted |
 | 0142 | [Thinking 表示を点描 orb に置き換え、活動状態を transcript から導出する](0142-thinking-orb-replaces-shimmer.md) | accepted |
 | 0141 | [spawn の projectId をワイヤに載せ、未知のプロジェクトは 422 で拒否する](0141-spawn-project-id-wire.md) | accepted |

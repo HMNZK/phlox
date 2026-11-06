@@ -6,6 +6,43 @@ import Testing
 @Suite("Codex skill content freshness")
 @MainActor
 struct CodexSkillFingerprintTests {
+    @Test("画面には更新完了時の候補を返し、その後の欠損は次の更新で反映する")
+    func snapshotKeepsRefreshedContentUntilNextRefresh() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let state = CodexSkillSelectionState(client: fixture.client, sessionCWD: fixture.root.path)
+        await state.refresh()
+
+        try FileManager.default.removeItem(at: fixture.skill)
+        let projection = CodexSkillSelectionState(projection: state.makeRuntimeSnapshot(),
+            sessionCWD: fixture.root.path, refresh: {})
+
+        #expect(projection.select(name: "review", path: fixture.skill.path))
+        let selection = try #require(projection.runtimeSelectionIdentity)
+        #expect(state.nativeInputs(for: "確認してください", skill: selection) == nil)
+
+        await state.refresh()
+        projection.applyRuntimeSnapshot(state.makeRuntimeSnapshot())
+
+        #expect(projection.requiresReselection)
+        #expect(!projection.canSendSelectedSkill)
+    }
+
+    @Test("取消し済みの更新は候補を公開しない")
+    func cancelledRefreshDoesNotPublishCandidates() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let state = CodexSkillSelectionState(client: fixture.client, sessionCWD: fixture.root.path)
+        let refresh = Task { await state.refresh() }
+        refresh.cancel()
+
+        await refresh.value
+
+        #expect(state.skills.isEmpty)
+        #expect(!state.isLoading)
+        #expect(state.isStale)
+    }
+
     @Test("入れ子や独自の配置でもプラグイン全体の変更を検出する", arguments: ["skills/category/review", "custom-skills/review"])
     func alternateSkillLocations(directory: String) throws {
         let fixture = try Fixture()

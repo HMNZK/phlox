@@ -15,6 +15,7 @@ enum CodexSkillFingerprint {
         var candidate = root
         var foundManifest = false
         while candidate.path != "/" {
+            guard !Task.isCancelled else { return nil }
             if FileManager.default.fileExists(atPath: candidate.appendingPathComponent("plugin.json").path)
                 || FileManager.default.fileExists(atPath: candidate.appendingPathComponent(".codex-plugin/plugin.json").path) {
                 guard !foundManifest else { return nil }
@@ -41,13 +42,14 @@ enum CodexSkillFingerprint {
         else { return nil }
         var paths: [URL] = []
         for case let path as URL in enumerator {
-            guard paths.count < 4_096 else { return nil }
+            guard !Task.isCancelled, paths.count < 4_096 else { return nil }
             paths.append(path)
         }
         guard !enumerationFailed else { return nil }
         do {
             var hash = SHA256()
             for path in paths.sorted(by: { $0.path < $1.path }) {
+                try Task.checkCancellation()
                 let values = try path.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey])
                 guard values.isSymbolicLink != true else { return nil }
                 let name = String(path.path.dropFirst(root.path.count))
@@ -67,6 +69,7 @@ enum CodexSkillFingerprint {
                         var bytesRead: UInt64 = 0
                         // 読んだかたまりを 1 回ごとに解放する（多数のファイルを続けて読むと溜まる）。
                         while let chunk = try autoreleasepool(invoking: { try handle.read(upToCount: 65_536) }), !chunk.isEmpty {
+                            try Task.checkCancellation()
                             bytesRead += UInt64(chunk.count)
                             if bytesRead > size { break }
                             hash.update(data: chunk)

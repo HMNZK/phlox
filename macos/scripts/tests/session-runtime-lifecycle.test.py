@@ -237,6 +237,8 @@ def accessibility_window_state(identity, expected_text=None):
     foundation.CFStringGetCString.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_long, ctypes.c_uint32]
     foundation.CFStringGetCString.restype = ctypes.c_bool
     foundation.CFRelease.argtypes = [ctypes.c_void_p]
+    foundation.CFRetain.argtypes = [ctypes.c_void_p]
+    foundation.CFRetain.restype = ctypes.c_void_p
     app = framework.AXUIElementCreateApplication(identity.pid)
     key = foundation.CFStringCreateWithCString(None, b"AXWindows", 0x08000100)
     windows = ctypes.c_void_p()
@@ -250,6 +252,7 @@ def accessibility_window_state(identity, expected_text=None):
                 keys = {name: foundation.CFStringCreateWithCString(None, name.encode(), 0x08000100)
                         for name in ("AXTitle", "AXDescription", "AXValue", "AXChildren")}
                 visited = set()
+                retained = []
                 texts = []
                 deadline = time.monotonic() + 5
 
@@ -257,6 +260,8 @@ def accessibility_window_state(identity, expected_text=None):
                     if element in visited or len(visited) >= 2000 or time.monotonic() >= deadline:
                         return False
                     visited.add(element)
+                    foundation.CFRetain(element)
+                    retained.append(element)
                     for name, attribute in keys.items():
                         value = ctypes.c_void_p()
                         copied = framework.AXUIElementCopyAttributeValue(element, attribute, ctypes.byref(value))
@@ -286,6 +291,8 @@ def accessibility_window_state(identity, expected_text=None):
                     result["axNodesRead"] = len(visited)
                     result["visibleTexts"] = texts
                 finally:
+                    for element in retained:
+                        foundation.CFRelease(element)
                     for attribute in keys.values():
                         foundation.CFRelease(attribute)
         return result

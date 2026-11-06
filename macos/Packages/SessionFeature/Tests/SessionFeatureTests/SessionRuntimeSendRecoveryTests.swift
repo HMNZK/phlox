@@ -90,6 +90,76 @@ private actor RuntimeSkillGateClient: StructuredAgentClient, CodexSkillSelection
 
 @MainActor
 struct SessionRuntimeSendRecoveryTests {
+    @Test func rejectingNextSendPreservesPreviouslyRecoveredText() async throws {
+        let projection = try await recoverBeforeRejectingNextSend(
+            firstText: "first failed request", firstAttachments: [],
+            nextText: "second rejected request", nextAttachments: [])
+
+        #expect(projection.draft == "first failed request\n\nsecond rejected request")
+    }
+
+    @Test func rejectingNextImageSendPreservesRecoveredImagesAndReferences() async throws {
+        let png = try #require(Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="))
+        let first = ComposerAttachment(number: 1, data: png, mediaType: "image/png", filename: "first.png")
+        let next = ComposerAttachment(number: 1, data: png, mediaType: "image/png", filename: "second.png")
+        let projection = try await recoverBeforeRejectingNextSend(
+            firstText: "first failed image [Image #1]", firstAttachments: [first],
+            nextText: "second rejected image [Image #1]", nextAttachments: [next])
+
+        #expect(projection.draft == "first failed image [Image #1]\n\nsecond rejected image [Image #2]")
+        #expect(projection.composerAttachments.map(\.id) == [first.id, next.id])
+        #expect(projection.composerAttachments.map(\.number) == [1, 2])
+        #expect(projection.composerAttachments.map(\.filename) == ["first.png", "second.png"])
+        #expect(projection.composerAttachments.map(\.data) == [png, png])
+    }
+
+    @Test func reconnectingDuringProviderStartKeepsTheComposerEditable() throws {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: Date(),
+            agentRef: .builtin(.cursor), workingDirectory: nil)
+        snapshot.inFlightText = "request already retained by runtime"
+        let projection = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        projection.draft = "draft after reconnect"
+
+        #expect(projection.consumeDraftForSend() == "draft after reconnect")
+    }
+
+    @Test func acceptedSendKeepsTheNextDraftEditableWhileProviderStartIsPending() async throws {
+        let client = RuntimeSendGateClient()
+        let owned = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.cursor),
+            client: client, approvalBroker: ChatApprovalBroker(), workingDirectory: nil)
+        let projection = ChatSessionViewModel(projection: owned.makeRuntimeSnapshot()) { executionID, command in
+            try await owned.performRuntimeCommand(command, expectedExecutionID: executionID)
+        }
+        let watchdog = Task {
+            do { try await Task.sleep(for: .seconds(5)) }
+            catch { return }
+            await client.release()
+        }
+        do {
+            projection.draft = "retained first request"
+            let text = try #require(projection.consumeDraftForSend())
+            try await projection.sendText(text, submit: true)
+            var sends = client.sends.makeAsyncIterator()
+            #expect(await sends.next() != nil)
+            let pending = owned.makeRuntimeSnapshot()
+            #expect(pending.inFlightText == "retained first request")
+
+            try projection.applyRuntimeSnapshot(pending)
+            projection.draft = "next local draft"
+            try projection.applyRuntimeSnapshot(pending)
+
+            #expect(projection.consumeDraftForSend() == "next local draft")
+            #expect(await client.isReleased == false)
+            watchdog.cancel()
+            await owned.terminate()
+        } catch {
+            watchdog.cancel()
+            await owned.terminate()
+            throw error
+        }
+    }
+
     @Test func runtimeAcknowledgesRetainedSendBeforeTheProviderTurnCompletes() async throws {
         let client = RuntimeSendGateClient()
         let viewModel = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.cursor),
@@ -270,6 +340,66 @@ struct SessionRuntimeSendRecoveryTests {
         #expect(acknowledgements == 2)
         #expect(projection.draft == "local edit after recovery")
     }
+}
+
+@MainActor
+private func recoverBeforeRejectingNextSend(
+    firstText: String, firstAttachments: [ComposerAttachment],
+    nextText: String, nextAttachments: [ComposerAttachment]
+) async throws -> ChatSessionViewModel {
+    let entered = AsyncStream<Void>.makeStream()
+    let rejected = AsyncStream<Void>.makeStream()
+    let recovered = AsyncStream<Void>.makeStream()
+    var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+        agentRef: .builtin(.cursor), workingDirectory: nil)
+    var requests = 0
+    let projection = ChatSessionViewModel(projection: snapshot) { _, command in
+        switch command {
+        case .send:
+            requests += 1
+            if requests == 1 { return .accepted(UUID()) }
+            entered.continuation.yield(())
+            var rejection = rejected.stream.makeAsyncIterator()
+            _ = await rejection.next()
+            throw RuntimeSendTestError.rejected
+        case .recoverLaunchDraft:
+            return .draft(text: firstText, attachments: firstAttachments)
+        case .acknowledgeRecoveredDraft:
+            recovered.continuation.yield(())
+            return .none
+        default: throw SessionRuntimeProjectionError.unsupportedCommand
+        }
+    }
+    let watchdog = Task {
+        do { try await Task.sleep(for: .seconds(5)) }
+        catch { return }
+        entered.continuation.finish()
+        recovered.continuation.finish()
+        rejected.continuation.finish()
+    }
+    defer {
+        watchdog.cancel()
+        entered.continuation.finish()
+        recovered.continuation.finish()
+        rejected.continuation.finish()
+    }
+    projection.restoreLaunchDraft(firstText, attachments: firstAttachments)
+    let first = try #require(projection.consumeDraftForSend())
+    try await projection.sendText(first, submit: true)
+    projection.restoreLaunchDraft(nextText, attachments: nextAttachments)
+    let next = try #require(projection.consumeDraftForSend())
+    let sending = Task { try await projection.sendText(next, submit: true) }
+    var enteredEvents = entered.stream.makeAsyncIterator()
+    _ = try #require(await enteredEvents.next())
+
+    snapshot.draftRecoveryID = UUID()
+    try projection.applyRuntimeSnapshot(snapshot)
+    var recoveredEvents = recovered.stream.makeAsyncIterator()
+    _ = try #require(await recoveredEvents.next())
+    projection.syncAttachmentsWithDraftEdit(oldText: "", newText: projection.draft)
+    rejected.continuation.yield(())
+    await #expect(throws: RuntimeSendTestError.self) { try await sending.value }
+    return projection
 }
 
 extension RuntimeSendGateClient {

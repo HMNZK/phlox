@@ -12,6 +12,8 @@ last-verified: 2026-10-24
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0227 | [エージェント状態カードの中に限り、作業のアイコンとタスクの完了印を戻す](0227-status-card-icons-inside-card-only.md) | accepted（0144 をカード内に限り置換） |
+| 0226 | [エージェント状態カードは会話ログから組み立て、タスクの登録は強制しない](0226-agent-status-card-derived-from-transcript.md) | accepted（保存方式は暫定） |
 | 0225 | [送信の受付を画面同期から切り離す](0225-send-acceptance-without-snapshot-wait.md) | accepted（送信受付の分離と指紋計算の非同期化を検証） |
 | 0224 | [既知の履歴を共有して状態の変更部分を転送する](0224-incremental-runtime-snapshots.md) | accepted（転送削減と内容保持を検証。実IME・キー遅延は未計測） |
 | 0223 | [状態同期のメイン処理と不変本文の費用を抑える](0223-runtime-snapshot-main-actor-budget.md) | accepted（GUI本文の不変時省略と質問日付cacheのみ統合。encodeの別actor移動は撤回） |

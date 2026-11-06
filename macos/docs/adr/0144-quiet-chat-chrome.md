@@ -3,6 +3,10 @@ status: accepted
 last-verified: 2026-07-31
 ---
 
+> 2026-11-06: チームビューとアゴラ討論は d514fc37 で削除済み（記録: `../delivery/0037-ui-redesign-worklog.md` の「P1'」）。本文のチームビュー・アゴラのアイコン存置は当時の扱い。
+
+> 2026-11-06: エージェント状態カード（[ADR 0227](0227-status-card-icons-inside-card-only.md)）の中に限り、作業のアイコンとタスクの完了印を戻す。カードは `DisclosureCard` を使わない別の部品で作り、本 ADR の決定（`DisclosureCard` にアイコン引数を持たせない）はカードの外で有効なまま。
+
 # ADR 0144: チャットの装飾を落とす（カードのアイコン・ステータスグリフ・アバターの撤去）
 
 > **このファイルの役割**: transcript の各カードから SF Symbol アイコン・実行中スピナー・完了チェック・

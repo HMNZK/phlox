@@ -51,8 +51,8 @@ enum TranscriptBlockSource: Equatable {
     /// 状態カードの会話では、窓の終端を入力の直前に合わせる（カードを区間の途中で切らない。ADR 0228 §6）。
     /// 古い側へ合わせるときは先頭のブロックを残し、区切りが無ければそのまま返す。
     func inputBoundary(atOrBefore index: Int, in blocks: [ChatTranscriptBlock]) -> Int {
-        guard case .statusCards = self, index > 1 else { return index }
-        return (1...index).last { Self.isInput(blocks[$0]) } ?? index
+        guard case .statusCards = self, index > 1, blocks.count > 1 else { return index }
+        return (1...min(index, blocks.count - 1)).last { Self.isInput(blocks[$0]) } ?? index
     }
 
     func inputBoundary(atOrAfter index: Int, in blocks: [ChatTranscriptBlock]) -> Int {
@@ -190,9 +190,18 @@ struct TranscriptWindow: Equatable {
             budget: TranscriptRenderBudget.defaultUnits * (Self.maxStages - 1),
             maxCount: maxLimit - contextDefaultLimit
         )
-        let end = source.inputBoundary(atOrAfter: target + count, in: blocks)
         limit = maxLimit
-        lastItemID = end < blocks.count ? Self.itemID(before: blocks[end], in: items) : nil
+        // 状態カードの会話では終端を入力の区切りへ合わせるが、伸ばした分で飛び先が押し出されるなら手前の区切りへ、
+        // それも無ければ区切りに合わせない（飛び先を描くことを優先する）。
+        let ends = [
+            source.inputBoundary(atOrAfter: target + count, in: blocks),
+            source.inputBoundary(atOrBefore: target + count, in: blocks),
+            target + count
+        ]
+        for end in ends where end > target {
+            lastItemID = end < blocks.count ? Self.itemID(before: blocks[end], in: items) : nil
+            if slice(of: items, source: source).blocks.contains(where: { $0.content.contains(itemID: itemID) }) { break }
+        }
         return true
     }
 

@@ -229,6 +229,27 @@ struct TranscriptWindowBoundedTests {
         }
     }
 
+    /// 入力・作業 1 件・返答（カードの下に出る）の区間。
+    private static func cardSegment(_ index: Int, replyLength: Int) -> [ChatItem] {
+        [
+            .userMessage(id: "u\(index)", text: "入力 \(index)", timestamp: timestamp),
+            .commandExecution(id: "c\(index)", command: "ls", output: "out", timestamp: timestamp),
+            .agentMessage(id: "a\(index)", text: String(repeating: "あ", count: replyLength), timestamp: timestamp),
+        ]
+    }
+
+    /// 区切りへ伸ばした先の区間が重くても、飛び先は窓から押し出されない（独立レビューの再現例）。
+    @Test(arguments: 49...58, [true, false])
+    func 状態カードの会話で区切りへ伸ばした分が重くても飛び先が描画される(lightSegments: Int, trailing: Bool) {
+        let items = (0..<lightSegments).flatMap { Self.cardSegment($0, replyLength: 200) }
+            + Self.cardSegment(lightSegments, replyLength: 4_000)
+            + (trailing ? Self.cardSegment(lightSegments + 1, replyLength: 10) : [])
+        var window = TranscriptWindow()
+        let changed = window.reveal(itemID: "u0", in: items, source: Self.cards)
+        #expect(changed)
+        #expect(window.slice(of: items, source: Self.cards).blocks.contains { $0.content.contains(itemID: "u0") })
+    }
+
     @Test func 最新へとセッション切替で末尾に戻る() {
         let items = Self.messages(1_000)
         var window = TranscriptWindow()

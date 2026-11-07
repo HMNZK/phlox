@@ -1101,6 +1101,23 @@
         "fake-session-lifecycle"
       ],
       "reason": "差分 dev..4028a575 は 10 件で、すべて macos/Packages 配下にあり fake-session-lifecycle に当たる。分類されないパスは無く、ほかの 5 シナリオには当たらない。状態カードの組み立ては、作業の無い文章を元の位置に見出しの無い行として出し、描画の予算に数える形に変わったが、会話の描画の中で閉じており、送信・停止・終了・保存・復元の経路と保存形式は変わらない。Claude の起動環境への CLAUDE_CODE_ENABLE_TODO_TOOLS=1 の追加、Codex の app-server の起動引数への -c tools.update_plan.enabled=true の追加、tool_use_result の読み取りは、道具を使えるようにするだけで、偽 CLI は追加の環境変数と引数を無視するので、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。SessionFeature の 1500 件が 4028a575 で合格している。requirement の参照先（e2e-test-design.md#S1）と verification-scenarios.json は差分で変わっていない。"
+    },
+    {
+      "baseOID": "c7faec39f6c11ffdf8f244dbfbb1800dcf9d4def",
+      "targetOID": "dc0105cb17a697279c2cca2896ce654b4a6ad6f1",
+      "diffSHA256": "07a5f8bd05bd664e0fc636a90676b2e2a3912126a4b9a4ee141cd6e28b615c75",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/transcript-history-perf-review8"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T19:25:45Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation"
+      ],
+      "reason": "dev(c7faec39)...dc0105cb の差分全体（正規化差分 15 パスと ADR 0229 などの文書。中心は TranscriptWindow・ChatTranscriptView・ChatAutoFollow）を読み、review-input を自分で再実行して diffSHA256 の一致を確かめた。verification-scenarios.json の codePaths と fnmatchcase で照合すると、fake-session-lifecycle に macos/Packages と macos/scripts の 15 パスすべてが、physical-activity-presentation に DesignSystem の HistoryLoadingIndicator.swift が当たり、ほかの 4 シナリオには当たらない。requirement の参照先（e2e-test-design.md#S1、session-activity-parity.md#AC-6）と verification-scenarios.json は差分で変わっていない。fake-session-lifecycle は、変更が会話画面の表示窓の計算と画面への接続の中で閉じ、送信・停止・終了・保存・復元の経路と保存形式が変わらないので、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。verification-gate.py の変更は PHLOX_TRANSCRIPT_BENCH があるときだけ走る計測テスト 2 件を任意の skip に足しただけで必須範囲は減らない。physical-activity-presentation は HistoryLoadingIndicator がラベルを既定値付きの引数で受けるようになっただけで、iOS の SessionDetailView.swift:137 は引数なしで呼び識別子も変わらないので AC-6 の観察条件は変わらない。7 回目の指摘（固定と処理の終了が 1 回の描画に重なると固定が残る）は、ChatTranscriptView の onChange が「固定中で新しい側が無い」状態を見る形で直っていることを確かめた。末尾追従中は値が常に false で状態を書かず、true になると followTail で false に戻って収まり、初回表示とセッション切替では lastItemID が nil なので誤って動かず、スクロール量・可視領域・計測値を参照しないので ADR 0030 に反しない。compact-test 経由で窓関連 5 スイート 51 件が合格し、追加された 2 件の画面テストも名前指定で合格した（修正前に落ちることは 7 回目の担当の記録を引用）。前の担当が試していない入力として、1 回の描画に 1〜3 個の操作（遡る・引く・処理中の切替・末尾への追加・途中への挿入・除去・置換・末尾の除去・ジャンプ）を重ねるファズを seed 8 個×単一表示とグリッド×カードの有無で各 400 回描画し、窓が全体の連続した一部で中身が同じ・件数の合計が合う・上限を超えない・固定中は新しい側が 1 以上であることが毎回保たれた。テストの削除は reveal(index:) などの API 削除に伴うもので性質は TranscriptWindowBoundedTests が引き継ぎ、fixture の 63→57 は 8 段の上限から出る値で、弱体化は無い。SessionFeature の全件・DashboardFeature・DesignSystem のテストと quality ゲートは実装者の証跡に依拠し、実アプリ・Instruments・XCUITest・実機・性能計測は実行していない。同じモデルの別コンテキストによるレビューで、ローカルの dev 統合に向けた差分レビューの判定であり、push・main・リリースを承認するものではない。"
     }
   ]
 }

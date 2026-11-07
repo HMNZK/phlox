@@ -419,6 +419,8 @@ struct AppRoot: View {
                         router.present(.deleteConfirmation(id: session.id, cascadeCount: count))
                     }
                 )
+                // 通知タップで同じ深さの詳細を別セッションへ置き換えると、NavigationStack は画面を使い回し @State の ViewModel が前のセッションのまま残る。
+                .id(id)
                 .toolbar(.hidden, for: .tabBar)
             } else {
                 Text("セッションが見つかりません")

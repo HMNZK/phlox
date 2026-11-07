@@ -101,7 +101,8 @@ struct DSInputBarLayoutTests {
 
         #expect(layout.mergesSettings)
         #expect(layout.keepsStrongPermissionVisible)
-        #expect(layout.wrapsSecondRow)
+        #expect(layout.showsStrongPermissionIconOnly)
+        #expect(!layout.wrapsSecondRow)
     }
 
     @Test("428pt の強い権限は赤いチップを保つ")
@@ -175,6 +176,7 @@ struct DSInputBarLayoutTests {
 
         #expect(layout.mergesSettings)
         #expect(layout.keepsStrongPermissionVisible)
+        #expect(layout.showsStrongPermissionIconOnly)
         #expect(!layout.wrapsSecondRow)
     }
 

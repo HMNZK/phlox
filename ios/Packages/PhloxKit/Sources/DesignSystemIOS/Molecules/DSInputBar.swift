@@ -112,6 +112,7 @@ struct DSInputBarActionState: Equatable {
 struct DSInputBarLayout: Equatable {
     let mergesSettings: Bool
     let showsProjectIconOnly: Bool
+    let showsStrongPermissionIconOnly: Bool
     let wrapsSecondRow: Bool
     let keepsStrongPermissionVisible: Bool
 
@@ -153,7 +154,7 @@ struct DSInputBarLayout: Equatable {
                 if hasPermission { result += metrics.controlGap + permissionWidth }
             } else if isStrongPermission {
                 if hasEffort { result += metrics.controlGap + metrics.buttonWidth }
-                if hasPermission { result += metrics.controlGap + permissionWidth }
+                if hasPermission { result += metrics.controlGap + (level >= 3 ? metrics.buttonWidth : permissionWidth) }
             } else if hasEffort || hasPermission {
                 result += metrics.controlGap + metrics.buttonWidth
             }
@@ -176,12 +177,15 @@ struct DSInputBarLayout: Equatable {
             return result
         }
 
+        // 文字拡大時だけ折り返しを残す。それ以外は 1 行に収め、入りきらない分はモデル名の省略で吸収する。
         var level = isAccessibilitySize ? 1 : 0
-        while level < 2 && widthAt(level) > innerWidth { level += 1 }
+        let lastLevel = isAccessibilitySize ? 2 : 3
+        while level < lastLevel && widthAt(level) > innerWidth { level += 1 }
         return Self(
             mergesSettings: level >= 1,
             showsProjectIconOnly: isDraft && hasProject && level >= 2,
-            wrapsSecondRow: widthAt(level) > innerWidth,
+            showsStrongPermissionIconOnly: isStrongPermission && hasPermission && level >= 3,
+            wrapsSecondRow: isAccessibilitySize && widthAt(level) > innerWidth,
             keepsStrongPermissionVisible: isStrongPermission && hasPermission
         )
     }
@@ -839,7 +843,7 @@ public struct DSInputBar: View {
     ) -> some View {
         HStack(spacing: controlSpacing) {
             photoPickerButton
-            if let model { modelChip(model) }
+            if let model { modelChip(model, compressible: !layout.wrapsSecondRow) }
             if layout.mergesSettings {
                 if !movesSettingsMenuToWrappedRow,
                    showsEffortChip || (showsPermissionChip && !isStrongPermissionSelected) {
@@ -868,13 +872,14 @@ public struct DSInputBar: View {
         }
     }
 
-    private func modelChip(_ model: (kind: AgentKind, displayName: String)) -> some View {
-        smallControlButton(label: "モデル、\(model.displayName)", fill: IOSColor.bg.chip) {
+    private func modelChip(_ model: (kind: AgentKind, displayName: String), compressible: Bool) -> some View {
+        smallControlButton(label: "モデル、\(model.displayName)", fill: IOSColor.bg.chip, compressible: compressible) {
             HStack(spacing: 4) {
                 DSAgentBrandIcon(kind: model.kind, size: dynamicTypeSize.isAccessibilitySize ? 26 : 15)
                 Text(model.displayName)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: !compressible, vertical: false)
                     .layoutPriority(1)
                 Image(systemName: "chevron.down")
                     .font(DSFont.inputBar(.chevron, for: dynamicTypeSize).weight(.semibold))
@@ -960,7 +965,8 @@ public struct DSInputBar: View {
                     ? "権限、\(currentPermissionName)。確認なしで全部を許可しています"
                     : "権限、\(currentPermissionName)",
                 isUpdating: settings?.isUpdatingPermission == true || settings?.isUpdatingPlanMode == true,
-                isDanger: isStrongPermissionSelected
+                isDanger: isStrongPermissionSelected,
+                showsTitle: !(isStrongPermissionSelected && layout.showsStrongPermissionIconOnly)
             )
         }
         .disabled(settings?.isUpdatingEffort == true || settings?.isUpdatingPermission == true || settings?.isUpdatingPlanMode == true)
@@ -1150,7 +1156,8 @@ public struct DSInputBar: View {
         title: String,
         label: String,
         isUpdating: Bool,
-        isDanger: Bool = false
+        isDanger: Bool = false,
+        showsTitle: Bool = true
     ) -> some View {
         smallControlButton(label: label, fill: DSColor.fillSubtle) {
             HStack(spacing: 4) {
@@ -1162,9 +1169,11 @@ public struct DSInputBar: View {
                     Image(systemName: symbol)
                         .font(DSFont.inputBar(.chipSymbol, for: dynamicTypeSize).weight(.medium))
                 }
-                Text(title)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                if showsTitle {
+                    Text(title)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
             .font(DSFont.inputBar(.chip, for: dynamicTypeSize).weight(.medium))
             .foregroundStyle(isDanger ? IOSColor.status.error : IOSColor.text.primary)
@@ -1174,12 +1183,13 @@ public struct DSInputBar: View {
     private func smallControlButton<Label: View>(
         label: String,
         fill: Color,
+        compressible: Bool = false,
         @ViewBuilder content: () -> Label,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             content()
-                .fixedSize()
+                .fixedSize(horizontal: !compressible, vertical: true)
                 .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 12 : 7)
                 .frame(height: dynamicTypeSize.isAccessibilitySize ? 58 : 34)
                 .background(fill, in: Capsule())
@@ -1187,7 +1197,7 @@ public struct DSInputBar: View {
                     minWidth: dynamicTypeSize.isAccessibilitySize ? 58 : 34,
                     minHeight: dynamicTypeSize.isAccessibilitySize ? 58 : 34
                 )
-                .fixedSize()
+                .fixedSize(horizontal: !compressible, vertical: true)
                 .contentShape(Rectangle().inset(by: -5))
         }
         .buttonStyle(DSPressFeedbackStyle())
@@ -1266,6 +1276,7 @@ public struct DSInputBar: View {
         #endif
         guard Self.canSubmit(text: text, isLoading: isLoading) else { return }
         onSubmit()
+        isFocused = false
     }
 
     private func openPhotoPicker() {

@@ -47,6 +47,8 @@ OPTIONAL_SKIPS = {
     "DashboardFeatureTests.LargeFilePerformanceTests/measureDocumentAndSwiftUIUpdates()",
     "DashboardFeatureTests.RealClaudeReadinessE2ETests/realClaude_inputAcceptedAfterSessionStartHook()",
     "DashboardFeatureTests.ThemeRenderingTests/CodeSyntaxPerformanceTests/measureEditorInputAndHighlightCompletion()",
+    "SessionFeatureTests.TranscriptHistoryScrollBenchmark/expandStages()",
+    "SessionFeatureTests.TranscriptHistoryScrollBenchmark/jumpToEarliestInput()",
 } | {f"DashboardFeatureTests.{suite}/{name}()" for suite, names in FAKE_TESTS.items() for name in names}
 OPTIONAL_XCTEST_SKIP = "-[DashboardFeatureTests.MarkdownScrollPerformanceTests testScrollFrames]"
 

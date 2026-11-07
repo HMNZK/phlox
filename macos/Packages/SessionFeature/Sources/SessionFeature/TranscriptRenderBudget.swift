@@ -126,7 +126,7 @@ enum TranscriptRenderBudget {
         return result.overflow ? Int.max : result.partialValue
     }
 
-    private static func countWithinBudget(
+    static func countWithinBudget(
         _ blocks: ArraySlice<ChatTranscriptBlock>,
         budget: Int
     ) -> Int {

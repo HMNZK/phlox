@@ -39,15 +39,4 @@ struct ChatTranscriptBlockWindowWhiteboxTests {
             }
         }
     }
-
-    @Test func blockIndexは隠れたコマンドを含むブロックの位置を返す() {
-        let items =
-            (0..<60).map { blockWindowAgent("agent-\($0)") } +
-            (0..<500).map { blockWindowCommand("command-\($0)") }
-
-        #expect(ChatTranscriptGrouping.blockCount(of: items) == 61)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "agent-0", in: items) == 0)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "command-499", in: items) == 60)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "missing", in: items) == nil)
-    }
 }

@@ -12,6 +12,7 @@ last-verified: 2026-10-24
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0228 | [チャットの表示窓に上限を設け、上限を超えて遡るときは新しい側を外す](0228-transcript-window-bounded-at-both-ends.md) | accepted（0139 §3・0217 を一部置換） |
 | 0227 | [エージェント状態カードの中に限り、作業のアイコンとタスクの完了印を戻す](0227-status-card-icons-inside-card-only.md) | accepted（0144 をカード内に限り置換） |
 | 0228 | [Claude と Codex のタスクの道具を有効にして起動する（使用は強制しない）](0228-enable-agent-task-tools-without-forcing.md) | accepted（0226 を補う） |
 | 0226 | [エージェント状態カードは会話ログから組み立て、タスクの登録は強制しない](0226-agent-status-card-derived-from-transcript.md) | accepted（保存方式は暫定） |

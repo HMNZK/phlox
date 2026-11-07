@@ -16,7 +16,6 @@
 //   }
 //   enum ChatTranscriptGrouping {
 //       static func blockCount(of items: [ChatItem]) -> Int
-//       static func blockIndex(ofItemWithID itemID: String, in items: [ChatItem]) -> Int?
 //       static func visibleSlice(from items: [ChatItem], blockLimit: Int) -> ChatTranscriptSlice
 //   }
 //
@@ -202,36 +201,19 @@ struct AcceptanceBlockWindowTests {
         #expect(before.blocks.map(\.id) == after.blocks.map(\.id))
     }
 
-    // === reveal 用の item→block 翻訳（SC6） ===
+    // === ジャンプ先の可視化（SC6・ADR 0228） ===
 
-    @Test func blockIndexはitemが属するブロックの位置を返す() {
-        let items = agents("m", 3) + cmds("c", 10) + agents("n", 2)
-        // ブロック: m0(0), m1(1), m2(2), [c0..c9](3), n0(4), n1(5)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "m0", in: items) == 0)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "m2", in: items) == 2)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "c0", in: items) == 3)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "c9", in: items) == 3)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "n1", in: items) == 5)
-        #expect(ChatTranscriptGrouping.blockIndex(ofItemWithID: "missing", in: items) == nil)
-    }
-
-    @Test func 隠れ域のitemはblockIndexとwindowRevealで可視化できる() {
+    @Test func 隠れ域のitemはwindowRevealで可視化できる() {
         let items = agents("m", 60) + cmds("c", 500)
         let blockCount = ChatTranscriptGrouping.blockCount(of: items)  // 60 + 1 = 61
         #expect(blockCount == 61)
-
-        guard let targetBlockIndex = ChatTranscriptGrouping.blockIndex(ofItemWithID: "m0", in: items) else {
-            Issue.record("blockIndex が nil を返した")
-            return
-        }
-        #expect(targetBlockIndex == 0)
 
         var window = TranscriptWindow(context: .single)
         // 既定 50 ブロックでは先頭 11 ブロックが隠れ域
         #expect(window.visibleRange(totalCount: blockCount).startIndex == 11)
 
-        window.reveal(index: targetBlockIndex, totalCount: blockCount)
-        let revealed = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
-        #expect(revealed.blocks.contains { $0.id == "m0" })
+        let changed = window.reveal(itemID: "m0", in: items)
+        #expect(changed)
+        #expect(window.slice(of: items).blocks.contains { $0.id == "m0" })
     }
 }

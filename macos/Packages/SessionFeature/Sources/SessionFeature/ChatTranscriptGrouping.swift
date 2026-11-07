@@ -17,6 +17,17 @@ enum ChatTranscriptBlock: Identifiable, Equatable {
         }
     }
 
+    func contains(itemID: String) -> Bool {
+        switch self {
+        case .single(let item):
+            item.id == itemID
+        case .commandGroup(_, let items):
+            items.contains { $0.id == itemID }
+        case .statusCard(let card):
+            card.contains(itemID: itemID)
+        }
+    }
+
     var typographyRole: TranscriptTypography.BlockRole {
         switch self {
         case .commandGroup, .statusCard:
@@ -37,11 +48,7 @@ enum ChatTranscriptBlock: Identifiable, Equatable {
 }
 
 enum ChatTranscriptGrouping {
-    static func blocks(from items: [ChatItem]) -> [ChatTranscriptBlock] {
-        makeBlocks(from: items)
-    }
-
-    private static func makeBlocks<Items: Sequence>(from items: Items) -> [ChatTranscriptBlock]
+    static func blocks<Items: Sequence>(from items: Items) -> [ChatTranscriptBlock]
     where Items.Element == ChatItem {
         var blocks: [ChatTranscriptBlock] = []
         var pendingCommands: [ChatItem] = []
@@ -74,7 +81,7 @@ enum ChatTranscriptGrouping {
     }
 
     static func scrollTargetID(containing itemID: String, inBlocks blocks: [ChatTranscriptBlock]) -> String {
-        for block in blocks where contains(block, itemID: itemID) {
+        for block in blocks where block.contains(itemID: itemID) {
             return block.id
         }
 
@@ -82,30 +89,30 @@ enum ChatTranscriptGrouping {
         return itemID
     }
 
-    static func blockCount(of items: [ChatItem]) -> Int {
-        blocks(from: items).count
-    }
-
-    static func blockIndex(ofItemWithID itemID: String, in items: [ChatItem]) -> Int? {
-        blockIndex(ofItemWithID: itemID, inBlocks: blocks(from: items))
-    }
-
     static func blockIndex(ofItemWithID itemID: String, inBlocks blocks: [ChatTranscriptBlock]) -> Int? {
-        blocks.firstIndex { contains($0, itemID: itemID) }
+        blocks.firstIndex { $0.contains(itemID: itemID) }
     }
 
-    private static func contains(_ block: ChatTranscriptBlock, itemID: String) -> Bool {
-        switch block {
-        case .single(let item):
-            item.id == itemID
-        case .commandGroup(_, let groupedItems):
-            groupedItems.contains { $0.id == itemID }
-        case .statusCard(let card):
-            card.contains(itemID: itemID)
+    static func blockCount<Items: Sequence>(of items: Items) -> Int where Items.Element == ChatItem {
+        var count = 0
+        var isInCommandGroup = false
+        for item in items {
+            if case .commandExecution = item {
+                if !isInCommandGroup { count += 1 }
+                isInCommandGroup = true
+            } else {
+                count += 1
+                isInCommandGroup = false
+            }
         }
+        return count
     }
 
     static func visibleSlice(from items: [ChatItem], blockLimit: Int) -> ChatTranscriptSlice {
+        visibleSlice(from: items[...], blockLimit: blockLimit)
+    }
+
+    static func visibleSlice(from items: ArraySlice<ChatItem>, blockLimit: Int) -> ChatTranscriptSlice {
         let limit = max(0, blockLimit)
         var visibleBlocks: [ChatTranscriptVisibleBlock] = []
         visibleBlocks.reserveCapacity(min(items.count, limit))
@@ -140,7 +147,7 @@ enum ChatTranscriptGrouping {
 
     /// 既にブロック化済みの配列からスライスを作る。
     /// 呼び出し側が表示件数の決定（`TranscriptRenderBudget`）のために blocks を先に必要とするとき、
-    /// この overload を使って `makeBlocks` の二度手間を避ける（body 評価ごとに全 item を
+    /// この overload を使って `blocks(from:)` の二度手間を避ける（body 評価ごとに全 item を
     /// 2 回走査するのは、まさにここで削ろうとしている切替コストに乗る）。
     static func visibleSlice(fromBlocks allBlocks: [ChatTranscriptBlock], blockLimit: Int) -> ChatTranscriptSlice {
         let visibleCount = min(allBlocks.count, max(0, blockLimit))
@@ -162,5 +169,8 @@ struct ChatTranscriptVisibleBlock: Identifiable, Equatable {
 
 struct ChatTranscriptSlice: Equatable {
     let blocks: [ChatTranscriptVisibleBlock]
+    /// 窓より古い側で描画していないブロック数。
     let hiddenBlockCount: Int
+    /// 窓より新しい側で描画していないブロック数（ADR 0228）。
+    var hiddenNewerBlockCount = 0
 }

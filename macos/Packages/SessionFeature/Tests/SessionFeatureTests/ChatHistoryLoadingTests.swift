@@ -69,6 +69,107 @@ struct ChatHistoryLoadingTests {
         #expect(requests == 2)
     }
 
+    @Test func bottomPullRequiresHiddenNewerAndKeepsDetached() throws {
+        _ = NSApplication.shared
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
+        let document = FlippedHistoryDocument(frame: NSRect(x: 0, y: 0, width: 300, height: 1_000))
+        scroll.documentView = document
+        let window = makeWindow(scroll)
+        defer { window.close() }
+        let controller = ChatAutoFollowController()
+        controller.userInitiatedJump()
+        var tops = 0
+        var bottoms = 0
+        var releases = 0
+        let bridge = ChatAutoFollowScrollEventBridge(
+            controller: controller, onScrollPastTop: { tops += 1 }, onScrollPastBottom: { bottoms += 1 },
+            onScrollReleased: { releases += 1 }, hasNewerHidden: false
+        )
+        bridge.attach(to: scroll)
+        defer { bridge.detach() }
+        let event = HistoryWheelEvent()
+        event.testWindow = window
+        event.testLocation = NSPoint(x: 150, y: 100)
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: 800))
+        NotificationCenter.default.post(name: NSView.boundsDidChangeNotification, object: scroll.contentView)
+        #expect(controller.isFollowing, "新しい側が隠れていなければ最下部で追従に戻る")
+        event.testPhase = .began
+        event.delta = -70
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 0, "新しい側が隠れていなければ下端では読み込まない")
+
+        controller.userInitiatedJump()
+        bridge.update(
+            controller: controller, onViewportCenterChanged: { _ in }, onScrollPastTop: { tops += 1 },
+            onScrollPastBottom: { bottoms += 1 }, onScrollReleased: { releases += 1 }, hasNewerHidden: true
+        )
+        NotificationCenter.default.post(name: NSView.boundsDidChangeNotification, object: scroll.contentView)
+        #expect(!controller.isFollowing, "新しい側が隠れている間は最下部でも追従に戻らない")
+        event.testPhase = .began
+        event.delta = -10
+        bridge.handleScrollWheel(event)
+        event.testPhase = .changed
+        event.delta = -49
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 0, "下端での追加スクロールが59ptなら表示しない")
+        event.delta = 20
+        bridge.handleScrollWheel(event)
+        event.delta = -20
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 0, "上向きに戻した分は差し引く")
+        event.delta = -1
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 1, "60ptで初めてローダーを表示する")
+        event.delta = -60
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 1, "同じジェスチャーでは1回だけ")
+        #expect(releases == 0, "スクロール中は読み込まない")
+        event.testPhase = .ended
+        bridge.handleScrollWheel(event)
+        #expect(releases == 1, "指を離したときに1回だけ読み込む")
+        event.testPhase = .began
+        event.delta = -70
+        bridge.handleScrollWheel(event)
+        event.testPhase = .cancelled
+        bridge.handleScrollWheel(event)
+        event.testPhase = .ended
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 2)
+        #expect(releases == 1, "取り消したジェスチャーでは読み込まない")
+        #expect(tops == 0)
+    }
+
+    @Test func historyBeyondCapHidesNewerAndLoadsItBack() async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let many = (0..<300).map { ChatItem.userMessage(id: "many-\($0)", text: "メッセージ \($0)", timestamp: .distantPast) }
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: makeModel(), transcript: many, presentationContext: .gridTile))
+        let window = makeWindow(host)
+        defer { window.close() }
+        let cap = TranscriptWindow.maxStages * TranscriptWindow.gridTileDefaultLimit
+        try await wait(host) { hiddenCount(host) == 300 - 16 }
+        for _ in 0..<3 { try loadEarlier(host) }
+        try await wait(host, stage: "上限まで遡る") { hiddenCount(host) == 300 - cap }
+        #expect(hiddenNewerCount(host) == 0, "上限までは新しい側を外さない")
+        try loadEarlier(host)
+        try await wait(host, stage: "上限を超えて遡る") { hiddenCount(host) == 300 - cap - 16 }
+        #expect(hiddenNewerCount(host) == 16, "上限を超えて遡った分だけ新しい側を外す")
+        #expect(element(host, "ChatTranscript.jumpToLatest") != nil, "新しい側を外している間は最新へ戻るボタンを出す")
+
+        try loadNewer(host)
+        try await wait(host, stage: "新しい側を読み込む") { hiddenNewerCount(host) == 0 }
+        #expect(hiddenCount(host) == 300 - cap)
+
+        try loadEarlier(host)
+        try await wait(host) { hiddenNewerCount(host) == 16 }
+        let jump = try #require(element(host, "ChatTranscript.jumpToLatest"))
+        let pressed = jump.accessibilityPerformPress()
+        #expect(pressed)
+        try await wait(host, stage: "最新へ") {
+            hiddenNewerCount(host) == 0 && scrollViews(host).first.map(ChatAutoFollowGeometry.isAtBottom) == true
+        }
+    }
+
     @Test(arguments: [false, true])
     func loaderPrecedesExpansionAndKeepsAnchor(grid: Bool) async throws {
         let restoreAccessibility = enableAccessibility()
@@ -373,14 +474,29 @@ struct ChatHistoryLoadingTests {
     private func hiddenCount(_ root: NSView) -> Int? {
         guard let history = element(root, "ChatTranscript.history"),
               let value = attribute(history, "accessibilityLabel") as? String else { return nil }
-        return value.split(separator: " ").compactMap { Int($0) }.first
+        return value.replacingOccurrences(of: ",", with: "").split(separator: " ").compactMap { Int($0) }.first
     }
 
     private func loadEarlier(_ root: NSView) throws {
+        try performHistoryAction(root, "以前のメッセージを読み込む")
+    }
+
+    private func loadNewer(_ root: NSView) throws {
+        try performHistoryAction(root, "以後のメッセージを読み込む")
+    }
+
+    private func performHistoryAction(_ root: NSView, _ name: String) throws {
         let history = try #require(element(root, "ChatTranscript.history"))
         let actions = try #require(attribute(history, "accessibilityCustomActions") as? [NSAccessibilityCustomAction])
-        let action = try #require(actions.first { $0.name == "以前のメッセージを読み込む" })
+        let action = try #require(actions.first { $0.name == name })
         try #require(action.handler?() == true)
+    }
+
+    private func hiddenNewerCount(_ root: NSView) -> Int? {
+        guard let history = element(root, "ChatTranscript.history"),
+              let value = attribute(history, "accessibilityLabel") as? String else { return nil }
+        guard let range = value.range(of: "以後のメッセージ: ") else { return 0 }
+        return value[range.upperBound...].split(separator: " ").first.flatMap { Int($0.replacingOccurrences(of: ",", with: "")) }
     }
 
     private func startHistoryPull(_ host: NSView) throws -> HistoryWheelEvent {

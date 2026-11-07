@@ -1,16 +1,19 @@
 import SwiftUI
 
-/// 過去の会話を展開する間だけ表示する、Mac・iOS共通のリング。
+/// 会話を読み込む間だけ表示する、Mac・iOS共通のリング。
 public struct HistoryLoadingIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let label: String
 
-    public init() {}
+    public init(label: String = "以前のメッセージを読み込み中") {
+        self.label = label
+    }
 
     public var body: some View {
-        ProgressView("以前のメッセージを読み込み中")
+        ProgressView(label)
             .progressViewStyle(CometStyle(reduceMotion: reduceMotion))
             .frame(width: 22, height: 22)
-            .accessibilityLabel("以前のメッセージを読み込み中")
+            .accessibilityLabel(label)
             .accessibilityIdentifier("ChatTranscript.historyLoading")
     }
 

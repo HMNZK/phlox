@@ -114,3 +114,5 @@ Release ビルド・実データ 4 セッションを Instruments Time Profiler 
   file section のコピーボタンは実機で押して、クリップボードに diff 全文が入ることを確認した。
 
 > 追記（2026-10-25）: 「以前のメッセージを表示」ボタンは [ADR 0217](0217-transcript-scroll-to-load-history.md) で廃止し、最上部からさらにスクロールして離す操作に置き換えた。
+
+> 追記（2026-11-07）: 予算の段は上限 8 段までになり、§3 の「末尾（最新）は常に含まれる」は上限を超えて遡った間は成り立たない（[ADR 0228](0228-transcript-window-bounded-at-both-ends.md)）。

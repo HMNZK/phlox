@@ -98,12 +98,17 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
     /// 追従を外しているか。スクロールの通知ごとに今の値を渡す（受け手は変化したときだけ書く）。
     private var onDetachedChanged: (Bool) -> Void
     private var onScrollPastTop: () -> Void
-    private var onScrollAwayFromTop: () -> Void
+    private var onScrollPastBottom: () -> Void
+    private var onScrollAwayFromEdge: () -> Void
     private var onScrollReleased: () -> Void
+    /// 窓が新しい側を外しているか（ADR 0228）。外している間は下端で引けて、最下部でも追従に戻らない。
+    private var hasNewerHidden: Bool
     private var scrollMonitor: Any?
-    private var requestedEarlierInGesture = false
+    /// このジェスチャーで読み込みを要求した端。
+    private var armedEdge: VerticalEdge?
     private var hasGestureBegan = false
     private var topPullDistance: CGFloat = 0
+    private var bottomPullDistance: CGFloat = 0
     private var discreteScrollEndTask: Task<Void, Never>?
     private static let historyPullThreshold: CGFloat = 60
     private weak var scrollView: NSScrollView?
@@ -114,15 +119,19 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         onViewportCenterChanged: @escaping (CGFloat) -> Void = { _ in },
         onDetachedChanged: @escaping (Bool) -> Void = { _ in },
         onScrollPastTop: @escaping () -> Void = {},
-        onScrollAwayFromTop: @escaping () -> Void = {},
-        onScrollReleased: @escaping () -> Void = {}
+        onScrollPastBottom: @escaping () -> Void = {},
+        onScrollAwayFromEdge: @escaping () -> Void = {},
+        onScrollReleased: @escaping () -> Void = {},
+        hasNewerHidden: Bool = false
     ) {
         self.controller = controller
         self.onViewportCenterChanged = onViewportCenterChanged
         self.onDetachedChanged = onDetachedChanged
         self.onScrollPastTop = onScrollPastTop
-        self.onScrollAwayFromTop = onScrollAwayFromTop
+        self.onScrollPastBottom = onScrollPastBottom
+        self.onScrollAwayFromEdge = onScrollAwayFromEdge
         self.onScrollReleased = onScrollReleased
+        self.hasNewerHidden = hasNewerHidden
     }
 
     func update(
@@ -130,15 +139,19 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         onViewportCenterChanged: @escaping (CGFloat) -> Void,
         onDetachedChanged: @escaping (Bool) -> Void = { _ in },
         onScrollPastTop: @escaping () -> Void = {},
-        onScrollAwayFromTop: @escaping () -> Void = {},
-        onScrollReleased: @escaping () -> Void = {}
+        onScrollPastBottom: @escaping () -> Void = {},
+        onScrollAwayFromEdge: @escaping () -> Void = {},
+        onScrollReleased: @escaping () -> Void = {},
+        hasNewerHidden: Bool = false
     ) {
         self.controller = controller
         self.onViewportCenterChanged = onViewportCenterChanged
         self.onDetachedChanged = onDetachedChanged
         self.onScrollPastTop = onScrollPastTop
-        self.onScrollAwayFromTop = onScrollAwayFromTop
+        self.onScrollPastBottom = onScrollPastBottom
+        self.onScrollAwayFromEdge = onScrollAwayFromEdge
         self.onScrollReleased = onScrollReleased
+        self.hasNewerHidden = hasNewerHidden
     }
 
     private func reportDetachedIfChanged() {
@@ -217,7 +230,7 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         if event.phase.contains(.cancelled) {
             resetHistoryPull()
             hasGestureBegan = false
-            onScrollAwayFromTop()
+            onScrollAwayFromEdge()
             return
         }
         if event.phase.contains(.ended) {
@@ -229,22 +242,27 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         let hit = contentView.hitTest(point)
         guard (hit as? NSScrollView ?? hit?.enclosingScrollView) === scrollView else { return }
         if event.phase.contains(.began) {
-            if requestedEarlierInGesture { onScrollAwayFromTop() }
+            if armedEdge != nil { onScrollAwayFromEdge() }
             resetHistoryPull()
             hasGestureBegan = true
         }
         guard event.phase.isEmpty || hasGestureBegan else { return }
-        guard let document = scrollView.documentView,
-              scrollView.documentVisibleRect.minY <= document.frame.minY + 1 else {
+        guard let edges = pullableEdges(scrollView), !edges.isEmpty,
+              armedEdge.map(edges.contains) ?? true else {
             resetHistoryPull()
-            onScrollAwayFromTop()
+            onScrollAwayFromEdge()
             return
         }
         let unit = event.hasPreciseScrollingDeltas ? 1 : scrollView.verticalLineScroll
-        topPullDistance = max(0, topPullDistance + event.scrollingDeltaY * unit)
-        if !requestedEarlierInGesture, topPullDistance >= Self.historyPullThreshold {
-            requestedEarlierInGesture = true
+        let delta = event.scrollingDeltaY * unit
+        topPullDistance = edges.contains(.top) ? max(0, topPullDistance + delta) : 0
+        bottomPullDistance = edges.contains(.bottom) ? max(0, bottomPullDistance - delta) : 0
+        if armedEdge == nil, topPullDistance >= Self.historyPullThreshold {
+            armedEdge = .top
             onScrollPastTop()
+        } else if armedEdge == nil, bottomPullDistance >= Self.historyPullThreshold {
+            armedEdge = .bottom
+            onScrollPastBottom()
         }
         if event.phase.isEmpty {
             discreteScrollEndTask?.cancel()
@@ -257,15 +275,30 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
         }
     }
 
+    /// いまビューポートが接している、引いて読み込める端。下端は新しい側を外しているときだけ。
+    private func pullableEdges(_ scrollView: NSScrollView) -> Set<VerticalEdge>? {
+        guard let document = scrollView.documentView else { return nil }
+        let visible = scrollView.documentVisibleRect
+        var edges: Set<VerticalEdge> = []
+        if visible.minY <= document.frame.minY + 1 { edges.insert(.top) }
+        if hasNewerHidden, visible.maxY >= document.frame.maxY - 1 { edges.insert(.bottom) }
+        return edges
+    }
+
+    private func isFollowableBottom(_ scrollView: NSScrollView) -> Bool {
+        !hasNewerHidden && ChatAutoFollowGeometry.isAtBottom(scrollView)
+    }
+
     private func resetHistoryPull() {
         discreteScrollEndTask?.cancel()
         discreteScrollEndTask = nil
         topPullDistance = 0
-        requestedEarlierInGesture = false
+        bottomPullDistance = 0
+        armedEdge = nil
     }
 
     private func finishHistoryPull() {
-        let shouldLoad = requestedEarlierInGesture
+        let shouldLoad = armedEdge != nil
         resetHistoryPull()
         hasGestureBegan = false
         if shouldLoad { onScrollReleased() }
@@ -278,7 +311,7 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
     @objc private func didEndLiveScroll(_ notification: Notification) {
         guard let scrollView else { return }
         finishHistoryPull()
-        let isAtBottom = ChatAutoFollowGeometry.isAtBottom(scrollView)
+        let isAtBottom = isFollowableBottom(scrollView)
         controller.userScrollEnded(isAtBottom: isAtBottom && !controller.isDetached)
         reportDetachedIfChanged()
         onViewportCenterChanged(scrollView.documentVisibleRect.midY)
@@ -286,13 +319,12 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
 
     @objc private func boundsDidChange(_ notification: Notification) {
         guard let scrollView else { return }
-        if let document = scrollView.documentView,
-           scrollView.documentVisibleRect.minY > document.frame.minY + 1 {
+        if let edges = pullableEdges(scrollView), !(armedEdge.map(edges.contains) ?? !edges.isEmpty) {
             resetHistoryPull()
-            onScrollAwayFromTop()
+            onScrollAwayFromEdge()
         }
-        let isAtBottom = ChatAutoFollowGeometry.isAtBottom(scrollView)
-        if !requestedEarlierInGesture {
+        let isAtBottom = isFollowableBottom(scrollView)
+        if armedEdge == nil {
             controller.scrollPositionChanged(isAtBottom: isAtBottom)
         }
         reportDetachedIfChanged()
@@ -311,8 +343,10 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
     var onViewportCenterChanged: (CGFloat) -> Void = { _ in }
     var onDetachedChanged: (Bool) -> Void = { _ in }
     var onScrollPastTop: () -> Void = {}
-    var onScrollAwayFromTop: () -> Void = {}
+    var onScrollPastBottom: () -> Void = {}
+    var onScrollAwayFromEdge: () -> Void = {}
     var onScrollReleased: () -> Void = {}
+    var hasNewerHidden = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -320,8 +354,10 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
             onViewportCenterChanged: onViewportCenterChanged,
             onDetachedChanged: onDetachedChanged,
             onScrollPastTop: onScrollPastTop,
-            onScrollAwayFromTop: onScrollAwayFromTop,
-            onScrollReleased: onScrollReleased
+            onScrollPastBottom: onScrollPastBottom,
+            onScrollAwayFromEdge: onScrollAwayFromEdge,
+            onScrollReleased: onScrollReleased,
+            hasNewerHidden: hasNewerHidden
         )
     }
 
@@ -339,8 +375,10 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
             onViewportCenterChanged: onViewportCenterChanged,
             onDetachedChanged: onDetachedChanged,
             onScrollPastTop: onScrollPastTop,
-            onScrollAwayFromTop: onScrollAwayFromTop,
-            onScrollReleased: onScrollReleased
+            onScrollPastBottom: onScrollPastBottom,
+            onScrollAwayFromEdge: onScrollAwayFromEdge,
+            onScrollReleased: onScrollReleased,
+            hasNewerHidden: hasNewerHidden
         )
         nsView.onResolve = { [weak coordinator = context.coordinator] view in
             coordinator?.resolve(from: view)
@@ -361,16 +399,20 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
             onViewportCenterChanged: @escaping (CGFloat) -> Void,
             onDetachedChanged: @escaping (Bool) -> Void,
             onScrollPastTop: @escaping () -> Void,
-            onScrollAwayFromTop: @escaping () -> Void,
-            onScrollReleased: @escaping () -> Void
+            onScrollPastBottom: @escaping () -> Void,
+            onScrollAwayFromEdge: @escaping () -> Void,
+            onScrollReleased: @escaping () -> Void,
+            hasNewerHidden: Bool
         ) {
             bridge = ChatAutoFollowScrollEventBridge(
                 controller: controller,
                 onViewportCenterChanged: onViewportCenterChanged,
                 onDetachedChanged: onDetachedChanged,
                 onScrollPastTop: onScrollPastTop,
-                onScrollAwayFromTop: onScrollAwayFromTop,
-                onScrollReleased: onScrollReleased
+                onScrollPastBottom: onScrollPastBottom,
+                onScrollAwayFromEdge: onScrollAwayFromEdge,
+                onScrollReleased: onScrollReleased,
+                hasNewerHidden: hasNewerHidden
             )
         }
 
@@ -379,16 +421,20 @@ struct ChatAutoFollowScrollObserver: NSViewRepresentable {
             onViewportCenterChanged: @escaping (CGFloat) -> Void,
             onDetachedChanged: @escaping (Bool) -> Void,
             onScrollPastTop: @escaping () -> Void,
-            onScrollAwayFromTop: @escaping () -> Void,
-            onScrollReleased: @escaping () -> Void
+            onScrollPastBottom: @escaping () -> Void,
+            onScrollAwayFromEdge: @escaping () -> Void,
+            onScrollReleased: @escaping () -> Void,
+            hasNewerHidden: Bool
         ) {
             bridge.update(
                 controller: controller,
                 onViewportCenterChanged: onViewportCenterChanged,
                 onDetachedChanged: onDetachedChanged,
                 onScrollPastTop: onScrollPastTop,
-                onScrollAwayFromTop: onScrollAwayFromTop,
-                onScrollReleased: onScrollReleased
+                onScrollPastBottom: onScrollPastBottom,
+                onScrollAwayFromEdge: onScrollAwayFromEdge,
+                onScrollReleased: onScrollReleased,
+                hasNewerHidden: hasNewerHidden
             )
         }
 

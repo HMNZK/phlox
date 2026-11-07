@@ -120,11 +120,10 @@ struct SidebarTranscriptFixtureTests {
         let canonical = entries.map { "\($0.id)\t\($0.kind)\t\($0.text)\n" }.joined()
         #expect(SidebarTranscriptFixture.record(id: "fixture", kind: "all", text: canonical).sha256
                 == "b0f42f5ad8ed79e03ec13bd05cc766a3fdb98ff1e7ea2f02527a4696f6d566b3")
-        #expect([0, 1, 4, 8].map { SidebarTranscriptFixture.allowed(expansions: $0) } == [9, 21, 39, 63])
-        var window = TranscriptWindow()
-        window.reveal(index: 0, totalCount: blocks.count)
+        // 8 回目の拡張は窓の上限（8 段。ADR 0228）で止まるので、7 回と同じ件数になる。
+        #expect([0, 1, 4, 8].map { SidebarTranscriptFixture.allowed(expansions: $0) } == [9, 21, 39, 57])
         #expect(TranscriptRenderBudget.allowedBlockCount(
-            blocks: blocks, requestedLimit: window.limit, defaultLimit: 50, minimumBlocks: 550
+            blocks: blocks, requestedLimit: blocks.count + TranscriptWindow.expandStep, defaultLimit: 50, minimumBlocks: 550
         ) == 500)
         for item in SidebarTranscriptFixture.changeCards {
             guard case .fileChange(_, let changes, _, _) = item else { Issue.record("not a change card"); continue }

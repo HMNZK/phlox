@@ -27,6 +27,8 @@ struct AgentStatusCardDisclosure: Equatable {
         case .task(let task):
             return task.state == .inProgress
         case .outside(let group):
+            // 作業の無い行（文章だけ）は見出しを持たず、いつも出る。開閉の対象ではない。
+            guard !row.isTextOnly else { return false }
             let hasTask = card.rows.contains { if case .task = $0 { true } else { false } }
             let hasRunningAction = group.entries.contains {
                 if case .action(let action) = $0 { action.isRunning } else { false }
@@ -103,14 +105,23 @@ extension AgentStatusRow {
     }
 
     /// 開ける行か。作業の無いタスク（未着手など）は開けない。
-    var isExpandable: Bool { !entries.isEmpty }
+    var isExpandable: Bool { !entries.isEmpty && !isTextOnly }
+
+    /// 作業を含まないタスク外の行（途中の文章だけ）。「タスク外の作業 · 0 件」の見出しは付けず、
+    /// 文章だけを元の位置に出す。終わったカードでも出る（閉じるのはタスクだけ。FR-8）。
+    var isTextOnly: Bool {
+        guard case .outside(let group) = self else { return false }
+        return !group.entries.contains { if case .action = $0 { true } else { false } }
+    }
 }
 
 extension AgentStatusCard {
     /// 描画の予算に数える、開いている作業の行の数（自動で開く行だけ。手で開いた分は View の状態なので数えない）。
     var openEntryCount: Int {
         rows.reduce(0) { total, row in
-            AgentStatusCardDisclosure.isAutoExpanded(row, in: self)
+            // 文章だけの行は見出し無しでいつも出るので、全件を数える。
+            if row.isTextOnly { return total + row.entries.count }
+            return AgentStatusCardDisclosure.isAutoExpanded(row, in: self)
                 ? total + min(row.entries.count, AgentStatusCardDisclosure.initialEntryLimit)
                 : total
         }

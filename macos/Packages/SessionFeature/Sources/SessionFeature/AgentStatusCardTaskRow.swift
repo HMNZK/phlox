@@ -98,9 +98,14 @@ struct AgentStatusTaskRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            if isExpanded, row.isExpandable {
+            if row.isTextOnly {
+                // 作業の無い行は見出しを付けず、文章だけを元の位置に出す（開閉しない）。
                 entries
+            } else {
+                header
+                if isExpanded, row.isExpandable {
+                    entries
+                }
             }
         }
         // 印の中心を 1pt の線でつなぐ。開いた作業の行の横も通す（見本「縦の線」）。
@@ -110,7 +115,7 @@ struct AgentStatusTaskRow: View {
                     .fill(DSColor.border)
                     .frame(width: 1)
                     .padding(.leading, AgentStatusCardLayout.connectorX)
-                    .padding(.top, AgentStatusCardLayout.connectorTop)
+                    .padding(.top, row.isTextOnly ? 0 : AgentStatusCardLayout.connectorTop)
                     .padding(.bottom, -AgentStatusCardLayout.connectorOverlap)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)

@@ -22,8 +22,6 @@ struct AgentStatusCard: Identifiable, Equatable {
     let header: AgentStatusHeader
     /// タスクの行とタスク外の作業の行。タスクは最新のスナップショットの順、タスク外は時系列の位置。
     let rows: [AgentStatusRow]
-    /// 作業を含まない文章など。行の外に、タスクの一覧の後ろへ出す（作業が 0 件の「タスク外の作業」の行は作らない）。
-    let trailing: [ChatItem]
 }
 
 /// 見出し（1 行目）。経過は表示側が `startedAt` と今の時刻から数える（実行中でないカードは時刻で変わらない）。
@@ -538,14 +536,9 @@ enum AgentStatusCardBuilder {
         }
 
         var rows: [AgentStatusRow] = []
-        var trailing: [ChatItem] = []
         for position in 0...shown.count {
             if let entries = outsideEntries[position] {
-                if entries.contains(where: { if case .action = $0 { true } else { false } }) {
-                    rows.append(.outside(AgentStatusOutsideGroup(id: "outside-\(entries[0].id)", entries: entries)))
-                } else {
-                    trailing += entries.compactMap { if case .item(let item) = $0 { item } else { nil } }
-                }
+                rows.append(.outside(AgentStatusOutsideGroup(id: "outside-\(entries[0].id)", entries: entries)))
             }
             if position < shown.count {
                 let task = shown[position]
@@ -562,8 +555,7 @@ enum AgentStatusCardBuilder {
                 current: lastWorkID.flatMap { lastAction(containing: $0, in: rows) }.flatMap { $0.isRunning ? $0.label : nil },
                 startedAt: startedAt, turnEnd: turnEnd, running: running, liveState: liveState
             ),
-            rows: rows,
-            trailing: trailing
+            rows: rows
         )
         return ChatTranscriptGrouping.blocks(from: [segment[segment.startIndex]] + plan.above.map { body[$0] })
             + [.statusCard(card)]
@@ -855,7 +847,7 @@ extension AgentStatusCard {
         for row in rows {
             if let entry = row.entries.first(where: { $0.contains(itemID: itemID) }) { return entry.id }
         }
-        return trailing.first { $0.id == itemID }?.id
+        return nil
     }
 }
 

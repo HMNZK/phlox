@@ -690,8 +690,8 @@ struct AgentStatusCardHeaderTests {
         #expect(found?.title(locale: ja) == "考え中…")
     }
 
-    @Test("後の作業が終わっても、まだ実行中の作業があればそれを今の作業にする")
-    func runningHeaderShowsRunningActionAfterFinishedOne() {
+    @Test("先の作業が完了、後の作業が実行中なら、後の作業を今の作業にする")
+    func runningHeaderShowsLaterRunningActionAfterFinishedOne() {
         let items = [
             user("u1", at: 0),
             command("c1", "Read /p/client.go", at: 1, done: 2),
@@ -718,6 +718,20 @@ struct AgentStatusCardHeaderTests {
             liveState: live(processing: true)
         )
         #expect(latest?.title(locale: ja) == "Wait for the long job…")
+    }
+
+    @Test("先の作業が実行中、後の作業が完了なら、今の作業は出さない（最後の作業だけを見る）")
+    func runningHeaderIgnoresEarlierRunningActionWhenLastFinished() {
+        let items = [
+            user("u1", at: 0),
+            edit("e1", "/p/api.swift", at: 1),
+            command("c1", "ls", at: 2, done: 3),
+        ]
+
+        let found = onlyCard(items, live(processing: true, activity: .thinking))?.header
+
+        #expect(found?.current == nil)
+        #expect(found?.title(locale: ja) == "考え中…")
     }
 
     @Test("承認・質問待ちの間は「待機中…」")
@@ -1085,19 +1099,19 @@ struct AgentStatusCardAfterAllTasksTests {
         agent("a1", "完了しました"),
     ]
 
-    @Test("作業が 0 件のタスク外の行は作らず、返答は行の外（タスクの一覧の後ろ）に出す")
-    func replyAfterAllTasksIsNotAnOutsideRow() throws {
+    @Test("作業が 0 件の文章は、見出しの無い文章として元の位置（ここでは一覧の末尾）に出す")
+    func replyAfterAllTasksIsTextOnlyAtTheEnd() throws {
         let card = try #require(onlyCard(items, live(processing: true)))
 
-        #expect(rowShape(card) == ["o:c1,c2", "t:A"])
-        #expect(card.trailing.map(\.id) == ["a1"])
+        #expect(rowShape(card) == ["o:c1,c2", "t:A", "o:a1"])
+        #expect(card.rows.map(\.isTextOnly) == [false, false, true])
         #expect(card.entryID(containing: "a1") == "a1")
     }
 
     @Test("前のタスク外の行は、タスクがある間は開き直さない。実行中の作業を含む行と進行中のタスクだけ開く")
     func autoExpansionDoesNotReopenEarlierOutsideRow() throws {
         let done = try #require(onlyCard(items, live(processing: true)))
-        #expect(done.rows.map { AgentStatusCardDisclosure.isAutoExpanded($0, in: done) } == [false, false])
+        #expect(done.rows.map { AgentStatusCardDisclosure.isAutoExpanded($0, in: done) } == [false, false, false])
 
         let running = try #require(onlyCard(
             Array(items.dropLast()) + [command("c3", "sleep 9", at: 9)], live(processing: true)
@@ -1117,6 +1131,59 @@ struct AgentStatusCardAfterAllTasksTests {
         #expect(AgentStatusCardDisclosure.isAutoExpanded(card.rows[0], in: card))
     }
 
+    @Test("タスクとタスクの合間の文章は、その位置に出す（時系列を保つ）")
+    func textBetweenTasksKeepsChronology() throws {
+        let between = [
+            user("u1", at: 0),
+            snapshot("s1", [("A", "調べる", .inProgress), ("B", "直す", .pending)], at: 1),
+            edit("e1", "/p/a.swift", at: 2, done: 3),
+            snapshot("s2", [("A", "調べる", .completed), ("B", "直す", .pending)], at: 4),
+            agent("t1", "次に直します"),
+            snapshot("s3", [("A", "調べる", .completed), ("B", "直す", .inProgress)], at: 6),
+            edit("e2", "/p/b.swift", at: 7, done: 8),
+            snapshot("s4", [("A", "調べる", .completed), ("B", "直す", .completed)], at: 9),
+        ]
+
+        let card = try #require(onlyCard(between, live(processing: true)))
+
+        #expect(rowShape(card) == ["t:A", "o:t1", "t:B"])
+        #expect(card.rows.map(\.isTextOnly) == [false, true, false])
+    }
+
+    @Test("タスク登録の直後（最初のタスクが始まる前）の文章は、タスクの一覧より前に出る")
+    func textBeforeFirstTaskStartsKeepsChronology() throws {
+        let before = [
+            user("u1", at: 0),
+            snapshot("s1", [("A", "調べる", .pending), ("B", "直す", .pending)], at: 3),
+            agent("t1", "始めます"),
+            snapshot("s2", [("A", "調べる", .inProgress), ("B", "直す", .pending)], at: 5),
+            edit("e1", "/p/a.swift", at: 6),
+        ]
+
+        let card = try #require(onlyCard(before, live(processing: true)))
+        let order = card.rows.map { row -> String in
+            switch row {
+            case .task(let task): "t:\(task.id)"
+            case .outside: "o"
+            }
+        }
+
+        #expect(order == ["o", "t:A", "t:B"], "タスクの一覧の後ろへ移っていない。rows=\(rowShape(card))")
+        #expect(card.entryID(containing: "t1") != nil)
+        #expect(card.rows.first?.isTextOnly == true)
+    }
+
+    @Test("文章だけの行の分は、描画の予算に足す")
+    func textOnlyRowsAreCountedInTheRenderBudget() throws {
+        let card = try #require(onlyCard(items, live(processing: true)))
+        #expect(card.rows.map(\.isTextOnly) == [false, false, true])
+
+        #expect(TranscriptRenderBudget.weight(of: .statusCard(card))
+            == TranscriptRenderBudget.otherBlockUnits
+            + 3 * TranscriptRenderBudget.statusCardRowUnits
+            + 1 * TranscriptRenderBudget.statusCardEntryUnits)
+    }
+
     @Test("終わった後は、返答がカードの下へ移る（今の動きのまま）")
     func finishedCardMovesReplyBelow() throws {
         var finished = items
@@ -1125,7 +1192,6 @@ struct AgentStatusCardAfterAllTasksTests {
 
         #expect(blockShape(blocks) == ["u1", "card", "a1"])
         let card = try #require(cards(blocks).first)
-        #expect(card.trailing.isEmpty)
         #expect(rowShape(card) == ["o:c1,c2", "t:A"])
     }
 }

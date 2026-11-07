@@ -156,9 +156,16 @@ struct TranscriptWindow: Equatable {
             return top.id
         }
         let blocks = current.blocks.map(\.content)
-        let keep = source.inputBoundary(atOrBefore: blocks.count - stageCount(blocks.reversed()), in: blocks)
-        if let pin = Self.itemID(before: blocks[keep], in: items) {
-            lastItemID = pin
+        var drop = stageCount(blocks.reversed())
+        while true {
+            let keep = source.inputBoundary(atOrBefore: blocks.count - drop, in: blocks)
+            if let pin = Self.itemID(before: blocks[keep], in: items) {
+                lastItemID = pin
+            }
+            // 予算に収まらない重いブロックが古い側に続くと、外した分だけ描画数が減って先頭が動かない。
+            // 古い側が現れるまで外す範囲を広げる（ADR 0228 §2）。
+            guard drop < blocks.count, slice(of: items, source: source).hiddenBlockCount >= current.hiddenBlockCount else { break }
+            drop += 1
         }
         return top.id
     }

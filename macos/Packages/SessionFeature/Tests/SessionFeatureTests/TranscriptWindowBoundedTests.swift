@@ -250,6 +250,85 @@ struct TranscriptWindowBoundedTests {
         #expect(window.slice(of: items, source: Self.cards).blocks.contains { $0.content.contains(itemID: "u0") })
     }
 
+    /// 重い返答の混ざった会話でも、上限で遡るたびに古い側が現れる（独立レビューの再現例。重みは字数の 5 倍）。
+    @Test func 重いブロックが混ざっても上限で遡るたびに古い側が現れる() {
+        let weights = [50, 50, 50, 20000, 50, 50, 80000, 50, 5000, 50, 50, 5000, 50, 50, 80000, 5000, 80000, 50, 50, 5000,
+                       5000, 80000, 5000, 50, 80000, 50, 50, 20000, 20000, 80000, 5000, 80000, 80000, 5000, 50, 50, 20000, 50, 50, 50,
+                       50, 50, 50, 50, 50, 50, 50, 5000, 5000, 5000]
+        let items = weights.enumerated().map {
+            ChatItem.agentMessage(id: "m\($0.offset)", text: String(repeating: "あ", count: $0.element / 5), timestamp: Self.timestamp)
+        }
+        var window = TranscriptWindow()
+        var previousTop = window.slice(of: items).hiddenBlockCount
+        while window.loadEarlier(in: items) != nil {
+            let top = window.slice(of: items).hiddenBlockCount
+            #expect(top < previousTop, "遡っても古い側が出てこない（limit=\(window.limit)）")
+            previousTop = top
+        }
+        #expect(previousTop == 0)
+    }
+
+    private struct SeededRandom {
+        var state: UInt64
+        mutating func next(_ bound: Int) -> Int {
+            state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            return Int((state >> 33) % UInt64(bound))
+        }
+    }
+
+    /// 区間ごとに作業 0〜6 件・途中の考えと文章・返答 0〜3 件（ときどき数千字）。先頭に入力より前の項目も置く。
+    private static func randomConversation(seed: UInt64, segments: Int) -> [ChatItem] {
+        var random = SeededRandom(state: seed)
+        var items: [ChatItem] = (0..<random.next(4)).map { .agentMessage(id: "p\($0)", text: "前置き", timestamp: timestamp) }
+        for segment in 0..<segments {
+            let inputLength = 1 + random.next(random.next(10) == 0 ? 3_000 : 50)
+            items.append(.userMessage(id: "u\(segment)", text: String(repeating: "入", count: inputLength), timestamp: timestamp))
+            for work in 0..<random.next(7) {
+                if random.next(3) == 0 { items.append(.reasoning(id: "r\(segment)-\(work)", text: "考え", timestamp: timestamp)) }
+                items.append(.commandExecution(id: "c\(segment)-\(work)", command: "ls", output: String(repeating: "o", count: random.next(500)), timestamp: timestamp))
+                if random.next(4) == 0 {
+                    items.append(.agentMessage(id: "m\(segment)-\(work)", text: String(repeating: "中", count: random.next(800)), timestamp: timestamp))
+                }
+            }
+            for reply in 0..<random.next(4) {
+                let length = random.next(8) == 0 ? 3_000 + random.next(6_000) : random.next(400)
+                items.append(.agentMessage(id: "a\(segment)-\(reply)", text: String(repeating: "あ", count: length), timestamp: timestamp))
+            }
+        }
+        return items
+    }
+
+    @Test(arguments: Array(UInt64(100)...UInt64(103)), [0, 1, 2])
+    func 重みの混ざった会話で遡りと引き戻しが毎回進む(seed: UInt64, mode: Int) {
+        let items = Self.randomConversation(seed: seed, segments: 120)
+        let source: TranscriptBlockSource = switch mode {
+        case 0: .grouped
+        default: .statusCards(AgentStatusLiveState(isProcessing: mode == 2, activityState: .thinking, hangAssessment: nil, isAwaitingReply: false))
+        }
+        for context in [TranscriptPresentationContext.single, .gridTile] {
+            var window = TranscriptWindow(context: context)
+            var previousTop = Int.max
+            while let anchor = window.loadEarlier(in: items, source: source) {
+                let slice = window.slice(of: items, source: source)
+                #expect(slice.blocks.contains { $0.id == anchor }, "遡る前の先頭が描画から外れた")
+                #expect(slice.hiddenBlockCount < previousTop, "遡っても古い側が出てこない")
+                previousTop = slice.hiddenBlockCount
+            }
+            #expect(window.slice(of: items, source: source).hiddenBlockCount == 0, "最古まで遡れない")
+            var previousNewer = Int.max
+            var loads = 0
+            while window.lastItemID != nil, loads < 500 {
+                let anchor = window.loadNewer(in: items, source: source)
+                let slice = window.slice(of: items, source: source)
+                #expect(anchor.map { id in slice.blocks.contains { $0.id == id } } == true, "引く前の最後が描画から外れた")
+                #expect(slice.hiddenNewerBlockCount < previousNewer, "引いても新しい側が出てこない")
+                previousNewer = slice.hiddenNewerBlockCount
+                loads += 1
+            }
+            #expect(window.lastItemID == nil, "末尾に戻らない")
+        }
+    }
+
     @Test func 最新へとセッション切替で末尾に戻る() {
         let items = Self.messages(1_000)
         var window = TranscriptWindow()

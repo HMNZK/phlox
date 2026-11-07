@@ -65,7 +65,7 @@ ChatTranscriptView → AgentStatusCardView（新規の部品。DisclosureCard �
 
 - `ChatItem.swift`: `==` / `init(from:)` / `encode(to:)` / `withTimestamp`
 - `SF/TranscriptDelta.swift` の `contentFields`
-- `SF/SessionRuntimeSnapshotUpdate.swift` の `sameChatItem`（別ウィンドウ・リモートへの差分配信。入れ忘れると新フィールドだけの変化を捨てる）
+- `AppBootstrap/Sources/AppBootstrap/SessionRuntimeSnapshotUpdate.swift` の `sameChatItem`（別ウィンドウ・リモートへの差分配信。入れ忘れると新フィールドだけの変化を捨てる）
 - `AppBootstrap/.../ControlActionHandler.swift:~1027` のモバイル DTO（2 段目で値を載せる。1 段目は今のまま送る）
 
 ### 2.4 互換
@@ -99,7 +99,7 @@ ChatTranscriptView → AgentStatusCardView（新規の部品。DisclosureCard �
 
 ### 3.4 ターンの終わりを記録する
 
-`.turnCompleted` / `.turnInterrupted` / `.error` / `.processExited` の処理（`CVM:2731-2780`、Codex は `:3049-3060`）で、その時点で実行中だった入力の `userMessage` に `turnEnd` を書く。どの入力かは「最後の `userMessage`」で決まる。`.processExited` は、利用者が止めた・閉じた（`isTerminating`）なら `.interrupted`、それ以外は `.error` にする。既に `turnEnd` がある入力には書かない。実行中に次の入力を送ったときは、送信の処理で、`client.turnStart` が成功してから、前の入力の `userMessage` に `turnEnd(.superseded, at: 送信時刻)` を書く（送信に失敗したら書かない）。
+`.turnCompleted` / `.turnInterrupted` / `.error` / `.processExited` の処理（`CVM:2731-2780`、Codex は `:3049-3060`）で、その時点で実行中だった入力の `userMessage` に `turnEnd` を書く。どの入力かは、終わりを待っている入力（下の「書く先」）で決まる。`.processExited` は、利用者が止めた・閉じた（`isTerminating`）なら `.interrupted`、それ以外は `.error` にする。既に `turnEnd` がある入力には書かない。実行中に次の入力を送ったときは、送信の処理で、`client.turnStart` が成功してから、前の入力の `userMessage` に `turnEnd(.superseded, at: 送信時刻)` を書く（送信に失敗したら書かない）。
 
 実装で足した規則（2026-11-07）:
 

@@ -165,7 +165,7 @@ struct LongUserMessageTests {
         try record("restoreSeconds", since: restoring)
         #expect(vm.restoreState == .restored)
         #expect(vm.transcript.map(\.id) == ["huge-user", "error-1", "error-2", "error-3"])
-        guard case .userMessage(_, let restoredText, _, _) = try #require(vm.transcript.first) else {
+        guard case .userMessage(_, let restoredText, _, _, _) = try #require(vm.transcript.first) else {
             Issue.record("Restoration must keep the user message")
             await vm.terminate()
             return

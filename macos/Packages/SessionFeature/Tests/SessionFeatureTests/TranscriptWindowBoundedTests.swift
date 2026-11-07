@@ -1,4 +1,5 @@
 import Foundation
+import StructuredChatKit
 import Testing
 @testable import SessionFeature
 
@@ -378,6 +379,36 @@ struct TranscriptWindowBoundedTests {
             loads += 1
         }
         #expect(window.lastItemID == nil)
+    }
+
+    /// タスクだけ更新して長く答える区間。カードはタスクの行だけで、会話の項目を含まない。
+    private static func tasksOnlySegment(_ index: Int, replyLength: Int) -> [ChatItem] {
+        [
+            .userMessage(id: "u\(index)", text: "入力", timestamp: timestamp),
+            .taskList(id: "tl\(index)", tasks: [AgentTaskItem(id: "T\(index)", title: "計画", status: .inProgress)], timestamp: timestamp),
+            .agentMessage(id: "a\(index)", text: String(repeating: "あ", count: replyLength), timestamp: timestamp),
+        ]
+    }
+
+    /// 項目を含まないカードが終端になっても、下端で引くたびに新しい側が現れる（独立レビューの再現例）。
+    @Test(arguments: [1_900, 2_800], [TranscriptPresentationContext.single, .gridTile])
+    func タスクだけの区間が混ざった会話でも下端で引くたびに新しい側が現れる(replyLength: Int, context: TranscriptPresentationContext) throws {
+        let items = (0..<200).flatMap { $0 % 4 == 0 ? Self.tasksOnlySegment($0, replyLength: replyLength) : Self.cardSegment($0, replyLength: 2) }
+        let full = Self.cards.blocks(items)
+        var window = TranscriptWindow(context: context)
+        while window.loadEarlier(in: items, source: Self.cards) != nil {}
+        var previousNewer = Int.max
+        var loads = 0
+        while window.lastItemID != nil, loads < 400 {
+            let anchor = window.loadNewer(in: items, source: Self.cards)
+            let slice = window.slice(of: items, source: Self.cards)
+            #expect(anchor.map { id in slice.blocks.contains { $0.id == id } } == true, "引く前の最後が描画から外れた")
+            #expect(slice.hiddenNewerBlockCount < previousNewer, "引いても新しい側が出てこない")
+            try Self.expectWholeSegments(window, items, full)
+            previousNewer = slice.hiddenNewerBlockCount
+            loads += 1
+        }
+        #expect(window.lastItemID == nil, "末尾に戻らない")
     }
 
     @Test func 最新へとセッション切替で末尾に戻る() {

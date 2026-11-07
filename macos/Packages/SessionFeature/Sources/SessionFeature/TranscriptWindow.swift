@@ -235,12 +235,14 @@ struct TranscriptWindow: Equatable {
     }
 
     /// `blocks`（全体の組み立ての連続した一部）の最後のブロックを窓の終端にする。
-    /// 項目を含まないブロック（作業の無い実行中のカード）は終端にできないので手前へ寄せる。
+    /// 項目は終端の区間を探すのに使うので、項目を含まないカード（タスクだけの区間など）では、手前のブロックの項目を使う。
+    /// カードの手前には必ず同じ区間の入力があるので、同じ区間に収まる。
     private mutating func pin(to blocks: ArraySlice<ChatTranscriptBlock>, in items: [ChatItem]) {
+        guard let last = blocks.last else { return }
         for block in blocks.reversed() {
             guard let item = items.last(where: { block.contains(itemID: $0.id) }) else { continue }
             lastItemID = item.id
-            lastBlockID = block.id
+            lastBlockID = last.id
             return
         }
     }

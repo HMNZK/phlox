@@ -4,7 +4,7 @@ import Foundation
 // 非 Lazy VStack を維持したまま「末尾 N 件のみ描画」の件数制限を担う純粋な値型。
 // - items ≤ limit なら全件、超過時は末尾 limit 件＋隠れ件数。
 // - expand() はユーザーの追加スクロールまたはアクセシビリティ操作で呼ばれ、limit が step 分増える。
-//   増えるのは上限（maxStages 段）まで。上限を超えて遡ると、新しい側を外して窓をずらす（ADR 0228）。
+//   増えるのは上限（maxStages 段）まで。上限を超えて遡ると、新しい側を外して窓をずらす（ADR 0229）。
 // - reset() はセッション切替時に既定へ戻す。
 //
 // 設計の一線（ADR 0030 再入禁止）: この型はスクロール量・可視領域・GeometryReader 計測を
@@ -41,14 +41,14 @@ enum TranscriptBlockSource: Equatable {
         visibleSlice(items, blockLimit: 0).hiddenBlockCount
     }
 
-    /// 窓の終端より新しい区間があるので、窓の最後の区間は実行中として組み立てない（ADR 0228 §6）。
+    /// 窓の終端より新しい区間があるので、窓の最後の区間は実行中として組み立てない（ADR 0229 §6）。
     var pinned: Self {
         guard case .statusCards(var live) = self else { return self }
         live.isProcessing = false
         return .statusCards(live)
     }
 
-    /// 状態カードの会話では、窓の終端を入力の直前に合わせる（カードを区間の途中で切らない。ADR 0228 §6）。
+    /// 状態カードの会話では、窓の終端を入力の直前に合わせる（カードを区間の途中で切らない。ADR 0229 §6）。
     /// 古い側へ合わせるときは先頭のブロックを残し、区切りが無ければそのまま返す。
     func inputBoundary(atOrBefore index: Int, in blocks: [ChatTranscriptBlock]) -> Int {
         guard case .statusCards = self, index > 1, blocks.count > 1 else { return index }
@@ -76,7 +76,7 @@ struct TranscriptWindow: Equatable {
     static let gridTileDefaultLimit: Int = 16
     /// 履歴追加1回あたりの拡張幅（50 以上の定数）。
     static let expandStep: Int = 50
-    /// 窓の段数の上限（ADR 0228）。遡った後の 1 件追加が 50ms 前後に収まるよう計測から選んだ較正値。
+    /// 窓の段数の上限（ADR 0229）。遡った後の 1 件追加が 50ms 前後に収まるよう計測から選んだ較正値。
     static let maxStages = 8
 
     private let presentationContext: TranscriptPresentationContext
@@ -146,7 +146,7 @@ struct TranscriptWindow: Equatable {
         )
     }
 
-    /// 上端で遡る（ADR 0217・0228）。上限未満なら段を足し、上限なら窓を 1 段分古い側へずらす。
+    /// 上端で遡る（ADR 0217・0229）。上限未満なら段を足し、上限なら窓を 1 段分古い側へずらす。
     /// 戻り値は遡る前の先頭ブロックの id（位置を保つ目印）。遡る履歴がなければ何もせず nil。
     mutating func loadEarlier(in items: [ChatItem], source: TranscriptBlockSource = .grouped) -> String? {
         let current = slice(of: items, source: source)
@@ -163,14 +163,14 @@ struct TranscriptWindow: Equatable {
                 lastItemID = pin
             }
             // 予算に収まらない重いブロックが古い側に続くと、外した分だけ描画数が減って先頭が動かない。
-            // 古い側が現れるまで外す範囲を広げる（ADR 0228 §2）。
+            // 古い側が現れるまで外す範囲を広げる（ADR 0229 §2）。
             guard drop < blocks.count, slice(of: items, source: source).hiddenBlockCount >= current.hiddenBlockCount else { break }
             drop += 1
         }
         return top.id
     }
 
-    /// 下端で引く（ADR 0228）。窓を 1 段分新しい側へずらし、末尾に届いたら追従に戻す。
+    /// 下端で引く（ADR 0229）。窓を 1 段分新しい側へずらし、末尾に届いたら追従に戻す。
     /// 戻り値は引く前の最後のブロックの id（位置を保つ目印）。新しい側を外していなければ nil。
     mutating func loadNewer(in items: [ChatItem], source: TranscriptBlockSource = .grouped) -> String? {
         guard lastItemID != nil else { return nil }
@@ -180,12 +180,14 @@ struct TranscriptWindow: Equatable {
             followTail()
             return nil
         }
-        let end = source.inputBoundary(atOrAfter: last + 1 + stageCount(blocks[(last + 1)...]), in: blocks)
-        lastItemID = end < blocks.count ? Self.itemID(before: blocks[end], in: items) : nil
+        let end = last + 1 + stageCount(blocks[(last + 1)...])
+        pinEnd(trying: [source.inputBoundary(atOrAfter: end, in: blocks), end], blocks: blocks, items: items, source: source) {
+            $0.id == bottom
+        }
         return bottom
     }
 
-    /// 飛び先が窓の外なら、飛び先から新しい側へ上限より 1 段少ない分を描く窓にする（ADR 0228）。
+    /// 飛び先が窓の外なら、飛び先から新しい側へ上限より 1 段少ない分を描く窓にする（ADR 0229）。
     /// 件数と予算の両方で数えるので飛び先は必ず窓に入り、末尾追従になっても 1 段分の追加までは押し出されない。
     /// 窓を変えたら true。
     mutating func reveal(itemID: String, in items: [ChatItem], source: TranscriptBlockSource = .grouped) -> Bool {
@@ -198,18 +200,28 @@ struct TranscriptWindow: Equatable {
             maxCount: maxLimit - contextDefaultLimit
         )
         limit = maxLimit
-        // 状態カードの会話では終端を入力の区切りへ合わせるが、伸ばした分で飛び先が押し出されるなら手前の区切りへ、
-        // それも無ければ区切りに合わせない（飛び先を描くことを優先する）。
-        let ends = [
-            source.inputBoundary(atOrAfter: target + count, in: blocks),
-            source.inputBoundary(atOrBefore: target + count, in: blocks),
-            target + count
-        ]
-        for end in ends where end > target {
-            lastItemID = end < blocks.count ? Self.itemID(before: blocks[end], in: items) : nil
-            if slice(of: items, source: source).blocks.contains(where: { $0.content.contains(itemID: itemID) }) { break }
+        let end = target + count
+        let ends = [source.inputBoundary(atOrAfter: end, in: blocks), source.inputBoundary(atOrBefore: end, in: blocks), end]
+        pinEnd(trying: ends.filter { $0 > target }, blocks: blocks, items: items, source: source) {
+            $0.content.contains(itemID: itemID)
         }
         return true
+    }
+
+    /// 終端の候補を順に試し、`keeps` に当たるブロックが描画に残る最初の候補で止める。
+    /// 状態カードの会話では終端を入力の区切りへ広げるが、広げた区間が重いと予算で目印が押し出される。
+    /// そのときは手前の候補へ下がる（目印を描くことを区切りより優先する。ADR 0229 §6）。
+    private mutating func pinEnd(
+        trying ends: [Int],
+        blocks: [ChatTranscriptBlock],
+        items: [ChatItem],
+        source: TranscriptBlockSource,
+        keeps: (ChatTranscriptVisibleBlock) -> Bool
+    ) {
+        for end in ends {
+            lastItemID = end < blocks.count ? Self.itemID(before: blocks[end], in: items) : nil
+            if slice(of: items, source: source).blocks.contains(where: keeps) { return }
+        }
     }
 
     /// ブロックの最初の項目の 1 つ前の項目 id（窓の終端にする）。

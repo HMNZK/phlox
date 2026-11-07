@@ -101,7 +101,7 @@ final class ChatAutoFollowScrollEventBridge: NSObject {
     private var onScrollPastBottom: () -> Void
     private var onScrollAwayFromEdge: () -> Void
     private var onScrollReleased: () -> Void
-    /// 窓が新しい側を外しているか（ADR 0228）。外している間は下端で引けて、最下部でも追従に戻らない。
+    /// 窓が新しい側を外しているか（ADR 0229）。外している間は下端で引けて、最下部でも追従に戻らない。
     private var hasNewerHidden: Bool
     private var scrollMonitor: Any?
     /// このジェスチャーで読み込みを要求した端。

@@ -171,6 +171,6 @@ struct ChatTranscriptSlice: Equatable {
     let blocks: [ChatTranscriptVisibleBlock]
     /// 窓より古い側で描画していないブロック数。
     let hiddenBlockCount: Int
-    /// 窓より新しい側で描画していないブロック数（ADR 0228）。
+    /// 窓より新しい側で描画していないブロック数（ADR 0229）。
     var hiddenNewerBlockCount = 0
 }

@@ -19,4 +19,4 @@ last-verified: 2026-07-18
 
 > 追記（2026-10-25）: 「以前のメッセージを表示」ボタンは [ADR 0217](0217-transcript-scroll-to-load-history.md) で廃止し、最上部からさらにスクロールして離す操作に置き換えた。
 
-> 追記（2026-11-07）: 窓は上限 8 段（`TranscriptWindow.maxStages`）で止まり、上限を超えて遡ると新しい側を外してずれるため、「expand は単調で縮まない」は成り立たない。隠れ域へのジャンプは `reveal(index:totalCount:)` ではなく `reveal(itemID:in:)` が飛び先から上限分を描く窓にする（[ADR 0228](0228-transcript-window-bounded-at-both-ends.md)）。
+> 追記（2026-11-07）: 窓は上限 8 段（`TranscriptWindow.maxStages`）で止まり、上限を超えて遡ると新しい側を外してずれるため、「expand は単調で縮まない」は成り立たない。隠れ域へのジャンプは `reveal(index:totalCount:)` ではなく `reveal(itemID:in:)` が飛び先から上限分を描く窓にする（[ADR 0229](0229-transcript-window-bounded-at-both-ends.md)）。

@@ -4,7 +4,7 @@ import Testing
 @testable import SessionFeature
 
 /// TranscriptWindow（トランスクリプトの末尾 N 件表示・隠れ件数・expand・reset）の純ロジック。
-/// ジャンプと上限でずれる窓（ADR 0228）は SessionFeature の TranscriptWindowBoundedTests が担う。
+/// ジャンプと上限でずれる窓（ADR 0229）は SessionFeature の TranscriptWindowBoundedTests が担う。
 /// 名指しハザードの「off-by-one（start と hidden とスライス表示件数の整合）」と
 /// 「window 拡張の単調性・末尾追従」を内部不変条件として符号化する。
 /// AutoFollow 等の view 挙動は ChatAutoFollowAcceptanceTests が担う。
@@ -57,7 +57,7 @@ struct TranscriptWindowTests {
         #expect(final.startIndex == 0)
     }
 
-    // expand は limit を上限（maxStages 段。ADR 0228）まで単調増加させ、上限で止まる。
+    // expand は limit を上限（maxStages 段。ADR 0229）まで単調増加させ、上限で止まる。
     // 隠れ件数は単調減少（0 で下げ止まり）する。
     @Test
     func expand_isMonotonicUntilStageCapAndClampsAtZero() {

@@ -201,7 +201,7 @@ struct AcceptanceBlockWindowTests {
         #expect(before.blocks.map(\.id) == after.blocks.map(\.id))
     }
 
-    // === ジャンプ先の可視化（SC6・ADR 0228） ===
+    // === ジャンプ先の可視化（SC6・ADR 0229） ===
 
     @Test func 隠れ域のitemはwindowRevealで可視化できる() {
         let items = agents("m", 60) + cmds("c", 500)

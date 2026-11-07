@@ -18,7 +18,7 @@ struct ChatTranscriptView: View {
     private let onLaunchFailureClose: (() -> Void)?
     private let presentationContext: TranscriptPresentationContext
     @State private var autoFollow = ChatAutoFollowController()
-    // 表示窓（ADR 0030:22・0228）。view-local な @State に住み、body 評価中には書かない。
+    // 表示窓（ADR 0030:22・0229）。view-local な @State に住み、body 評価中には書かない。
     // 動かすのは明示スクロール入力・ジャンプ・セッション切替のイベントだけ（ADR 0010）。
     @State private var window: TranscriptWindow
     // 遅延 scrollTo の世代トークン。ジャンプごと・セッション切替ごと・展開ごとに増やし、pending 遅延
@@ -235,7 +235,7 @@ struct ChatTranscriptView: View {
                     .id(block.id)
                     .background(userMessagePositionProbe(id: block.id, isTracked: role == .user))
             }
-            // 接続中・圧縮中・考え中などは末尾に属する。新しい側を外している間は古い内容の直下に出さない（ADR 0228）。
+            // 接続中・圧縮中・考え中などは末尾に属する。新しい側を外している間は古い内容の直下に出さない（ADR 0229）。
             if visibleSlice.hiddenNewerBlockCount == 0 {
                 if transcript == nil {
                     CodexSessionSurface(viewModel: viewModel)
@@ -492,7 +492,7 @@ struct ChatTranscriptView: View {
     }
 
     /// 「↓ 最新へ」・End。最下部へ寄せて追従を戻す。新しい側を外していたら末尾に戻し、
-    /// 描画が確定してから寄せる（外したままの下端へ寄せない。ADR 0228）。
+    /// 描画が確定してから寄せる（外したままの下端へ寄せない。ADR 0229）。
     private func jumpToLatest(_ proxy: ScrollViewProxy) {
         loadingEdge = nil
         autoFollow.scrollPositionChanged(isAtBottom: true)
@@ -513,7 +513,7 @@ struct ChatTranscriptView: View {
     }
 
     /// ユーザー起点のジャンプ（入力スクラバー・実行中バックグラウンドタスク・sub-agent 等への飛び先）。
-    /// 飛び先が窓の外なら、飛び先を含む上限分の窓にしてから scrollTo する（ADR 0228）。
+    /// 飛び先が窓の外なら、飛び先を含む上限分の窓にしてから scrollTo する（ADR 0229）。
     /// 集約された command の個別 id は折りたたみ中のビュー階層に存在しないため、全 transcript 上で
     /// 安定した block id（group は先頭 item.id）へ解決してから scrollTo する。
     /// これはユーザー操作起点であり、スクロール量・可視領域の観測連動ではない（ADR 0030 非該当）。

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import SessionFeature
 
-/// ADR 0228: 表示窓は上限で止まり、上限を超えて遡ると新しい側を外してずれる。
+/// ADR 0229: 表示窓は上限で止まり、上限を超えて遡ると新しい側を外してずれる。
 @Suite("上限付きの表示窓")
 struct TranscriptWindowBoundedTests {
     private static let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
@@ -170,7 +170,7 @@ struct TranscriptWindowBoundedTests {
         #expect(window == before)
     }
 
-    /// 状態カードの会話（ADR 0228 §6）。最後の区間を実行中にして、固定した窓の最後の区間が実行中にならないことも見る。
+    /// 状態カードの会話（ADR 0229 §6）。最後の区間を実行中にして、固定した窓の最後の区間が実行中にならないことも見る。
     private static let cards = TranscriptBlockSource.statusCards(
         AgentStatusLiveState(isProcessing: true, activityState: .thinking, hangAssessment: nil, isAwaitingReply: false)
     )
@@ -327,6 +327,32 @@ struct TranscriptWindowBoundedTests {
             }
             #expect(window.lastItemID == nil, "末尾に戻らない")
         }
+    }
+
+    /// 1 段を超える大きな区間があっても、下端で引く前の最後は描画に残る（独立レビューの再現例）。
+    @Test func 状態カードの会話で大きな区間を下端で引いても引く前の最後が残る() {
+        func segment(_ index: Int, above: Int) -> [ChatItem] {
+            [.userMessage(id: "u\(index)", text: "入力", timestamp: Self.timestamp)]
+                + (0..<above).map { k in
+                    k % 2 == 0
+                        ? ChatItem.reasoning(id: "r\(index)-\(k)", text: "考え", timestamp: Self.timestamp)
+                        : ChatItem.agentMessage(id: "t\(index)-\(k)", text: String(repeating: "あ", count: 2_000), timestamp: Self.timestamp)
+                }
+                + [
+                    .commandExecution(id: "c\(index)", command: "ls", output: "o", timestamp: Self.timestamp),
+                    .agentMessage(id: "a\(index)", text: "返答", timestamp: Self.timestamp),
+                ]
+        }
+        let items = (0..<150).flatMap { segment($0, above: 2) } + segment(150, above: 60) + (151..<300).flatMap { segment($0, above: 2) }
+        var window = TranscriptWindow()
+        while window.loadEarlier(in: items, source: Self.cards) != nil {}
+        var loads = 0
+        while window.lastItemID != nil, loads < 500 {
+            let anchor = window.loadNewer(in: items, source: Self.cards)
+            #expect(anchor.map { id in window.slice(of: items, source: Self.cards).blocks.contains { $0.id == id } } == true, "引く前の最後が描画から外れた")
+            loads += 1
+        }
+        #expect(window.lastItemID == nil)
     }
 
     @Test func 最新へとセッション切替で末尾に戻る() {

@@ -18,7 +18,8 @@ struct AgentStatusCardDisclosure: Equatable {
 
     // MARK: - 開閉
 
-    /// 手の開閉が無いときの開閉。実行中のカードで、進行中のタスクと、今の作業があるタスク外の行だけ開く。
+    /// 手の開閉が無いときの開閉。実行中のカードで、進行中のタスクと、実行中の作業があるタスク外の行だけ開く。
+    /// タスクがまだ 1 件も無い間は、タスク外の行を開く。タスクがある間に、前のタスク外の行を開き直さない。
     /// 終わったカードは全部閉じる（FR-8）。
     static func isAutoExpanded(_ row: AgentStatusRow, in card: AgentStatusCard) -> Bool {
         guard card.header.isLive else { return false }
@@ -26,13 +27,11 @@ struct AgentStatusCardDisclosure: Equatable {
         case .task(let task):
             return task.state == .inProgress
         case .outside(let group):
-            let hasInProgressTask = card.rows.contains {
-                if case .task(let task) = $0 { task.state == .inProgress } else { false }
-            }
+            let hasTask = card.rows.contains { if case .task = $0 { true } else { false } }
             let hasRunningAction = group.entries.contains {
                 if case .action(let action) = $0 { action.isRunning } else { false }
             }
-            return !hasInProgressTask || hasRunningAction
+            return !hasTask || hasRunningAction
         }
     }
 

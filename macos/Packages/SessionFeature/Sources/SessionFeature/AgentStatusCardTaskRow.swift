@@ -280,7 +280,7 @@ struct AgentStatusTaskRow: View {
 }
 
 /// 作業の行の間に並ぶ、文章・思考・そのほかの item（回答済みの質問・エラーなど）。
-private struct AgentStatusItemEntry: View {
+struct AgentStatusItemEntry: View {
     let item: ChatItem
     let scale: CGFloat
     let makeItemView: (ChatItem) -> ChatItemView

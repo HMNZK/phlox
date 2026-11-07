@@ -701,6 +701,25 @@ struct AgentStatusCardHeaderTests {
         #expect(onlyCard(items, live(processing: true))?.header.title(locale: ja) == "api.swift を編集中")
     }
 
+    @Test("作業の説明（Bash の description）は、日本語なら「中」、日本語の文字で終わらなければ「…」を付ける")
+    func runningRunIntentSuffix() {
+        func title(_ intent: String) -> String? {
+            onlyCard([user("u1", at: 0), command("c1", "sleep 9", at: 1, intent: intent)], live(processing: true))?
+                .header.title(locale: ja)
+        }
+
+        #expect(title("ビルドが通るか確認") == "ビルドが通るか確認中")
+        #expect(title("テストを実行する") == "テストを実行する中")
+        #expect(title("Wait for the long job") == "Wait for the long job…")
+        #expect(title("calc.py を実行 (3)") == "calc.py を実行 (3)…")
+        // 小さいタイルの状態の行は、最新のカードの見出しの同じ `title` を表示する。
+        let latest = AgentStatusCardBuilder.latestHeader(
+            items: [user("u1", at: 0), command("c1", "sleep 9", at: 1, intent: "Wait for the long job")],
+            liveState: live(processing: true)
+        )
+        #expect(latest?.title(locale: ja) == "Wait for the long job…")
+    }
+
     @Test("承認・質問待ちの間は「待機中…」")
     func awaitingReplyHeader() {
         let found = header(nil, live(processing: true, awaiting: true))
@@ -815,6 +834,16 @@ struct AgentStatusCardActionTextTests {
 
         #expect(texts([single, double]) == ["tail -n 5 todo.txt 2>/dev/null || true", "sed -n '1,200p' notes.md"])
         #expect(texts([command("c1", "/bin/zsh -lc 'ls'", at: 1)], live(processing: true)) == ["ls を実行中"])
+    }
+
+    @Test("引用が連結された中身（実 CLI の例）は、引用を解いて元のコマンドとして出す")
+    func concatenatedQuotesAreResolved() {
+        // `live/logs/s2-after1.json` の実例。`"` で始まり `'` で終わる（シェルの引用の連結）。
+        let wrapped = #"/bin/zsh -lc "sed -n '1,240p' /p/SKILL.md && printf '\\n--- status ---\\n' && git status --short && for f in notes.md todo.txt; do echo \"["'$f]"; sed -n '"'1,200p' \""'$f"; done'"#
+        let original = #"sed -n '1,240p' /p/SKILL.md && printf '\n--- status ---\n' && git status --short && for f in notes.md todo.txt; do echo "[$f]"; sed -n '1,200p' "$f"; done"#
+
+        #expect(texts([command("c1", wrapped, at: 1, done: 2)]) == [original])
+        #expect(texts([command("c1", "bash -c ls", at: 1, done: 2)]) == ["ls"])
     }
 
     @Test("包みでないコマンドは、そのまま出す")
@@ -1042,6 +1071,64 @@ private let legacyConversation: [ChatItem] = [
     user("u2", at: 10), command("c2", "Read /p/b.swift", at: 11), command("c3", "Bash make", at: 12), agent("a2", "通りました"),
     user("u3", at: 20), agent("a3", "OK"),
 ]
+
+@Suite("状態カード: 全タスク完了後の返答（実画面の確認）")
+struct AgentStatusCardAfterAllTasksTests {
+    /// タスク登録前の作業 2 件 → タスク 1 件を進行中 → 完了 → 返答を書いている間。
+    private let items = [
+        user("u1", at: 0),
+        command("c1", "Read /p/a.swift", at: 1, done: 2),
+        command("c2", "ls", at: 3, done: 4),
+        snapshot("s1", [("A", "実装する", .inProgress)], at: 5),
+        edit("e1", "/p/b.swift", at: 6, done: 7),
+        snapshot("s2", [("A", "実装する", .completed)], at: 8),
+        agent("a1", "完了しました"),
+    ]
+
+    @Test("作業が 0 件のタスク外の行は作らず、返答は行の外（タスクの一覧の後ろ）に出す")
+    func replyAfterAllTasksIsNotAnOutsideRow() throws {
+        let card = try #require(onlyCard(items, live(processing: true)))
+
+        #expect(rowShape(card) == ["o:c1,c2", "t:A"])
+        #expect(card.trailing.map(\.id) == ["a1"])
+        #expect(card.entryID(containing: "a1") == "a1")
+    }
+
+    @Test("前のタスク外の行は、タスクがある間は開き直さない。実行中の作業を含む行と進行中のタスクだけ開く")
+    func autoExpansionDoesNotReopenEarlierOutsideRow() throws {
+        let done = try #require(onlyCard(items, live(processing: true)))
+        #expect(done.rows.map { AgentStatusCardDisclosure.isAutoExpanded($0, in: done) } == [false, false])
+
+        let running = try #require(onlyCard(
+            Array(items.dropLast()) + [command("c3", "sleep 9", at: 9)], live(processing: true)
+        ))
+        #expect(rowShape(running) == ["o:c1,c2", "t:A", "o:c3"])
+        #expect(running.rows.map { AgentStatusCardDisclosure.isAutoExpanded($0, in: running) } == [false, false, true])
+
+        let inProgress = try #require(onlyCard(Array(items[..<5]), live(processing: true)))
+        #expect(inProgress.rows.map { AgentStatusCardDisclosure.isAutoExpanded($0, in: inProgress) } == [false, true])
+    }
+
+    @Test("タスクがまだ無い間は、タスク外の行を開く")
+    func outsideRowIsOpenBeforeAnyTask() throws {
+        let card = try #require(onlyCard(Array(items[..<3]), live(processing: true)))
+
+        #expect(rowShape(card) == ["o:c1,c2"])
+        #expect(AgentStatusCardDisclosure.isAutoExpanded(card.rows[0], in: card))
+    }
+
+    @Test("終わった後は、返答がカードの下へ移る（今の動きのまま）")
+    func finishedCardMovesReplyBelow() throws {
+        var finished = items
+        finished[0] = user("u1", at: 0, end: ended(.completed, at: 9))
+        let blocks = AgentStatusCardBuilder.build(items: finished, liveState: idle)
+
+        #expect(blockShape(blocks) == ["u1", "card", "a1"])
+        let card = try #require(cards(blocks).first)
+        #expect(card.trailing.isEmpty)
+        #expect(rowShape(card) == ["o:c1,c2", "t:A"])
+    }
+}
 
 @Suite("状態カード: 表示する窓の分だけ組み立てる（B3 指摘 2）")
 struct AgentStatusCardWindowTests {

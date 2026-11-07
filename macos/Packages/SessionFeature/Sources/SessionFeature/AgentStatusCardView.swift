@@ -129,7 +129,7 @@ struct AgentStatusCardView: View, Equatable {
                 hangAssessment: hangAssessment,
                 onInterrupt: onInterrupt
             )
-            if !card.rows.isEmpty {
+            if !card.rows.isEmpty || !card.trailing.isEmpty {
                 Rectangle().fill(DSColor.separator).frame(height: 1)
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(card.rows.enumerated()), id: \.element.id) { index, row in
@@ -148,6 +148,10 @@ struct AgentStatusCardView: View, Equatable {
                             onToggle: { disclosure.toggle(row, in: card) },
                             onShowMore: { disclosure.showMore(row, in: card) }
                         )
+                    }
+                    // 作業を含まない文章は、行の外（タスクの一覧の後ろ）に出す。
+                    ForEach(card.trailing, id: \.id) { item in
+                        AgentStatusItemEntry(item: item, scale: scale, makeItemView: itemView)
                     }
                 }
                 .padding(AgentStatusCardLayout.bodyPadding(isNarrow: isNarrow))

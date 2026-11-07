@@ -22,6 +22,8 @@ struct AgentStatusCard: Identifiable, Equatable {
     let header: AgentStatusHeader
     /// タスクの行とタスク外の作業の行。タスクは最新のスナップショットの順、タスク外は時系列の位置。
     let rows: [AgentStatusRow]
+    /// 作業を含まない文章など。行の外に、タスクの一覧の後ろへ出す（作業が 0 件の「タスク外の作業」の行は作らない）。
+    let trailing: [ChatItem]
 }
 
 /// 見出し（1 行目）。経過は表示側が `startedAt` と今の時刻から数える（実行中でないカードは時刻で変わらない）。
@@ -153,6 +155,14 @@ struct AgentStatusAction: Identifiable, Equatable {
         case tool(String)
         case subAgent(description: String, type: String, status: SubAgentStatus)
 
+        private static func endsWithJapanese(_ text: String) -> Bool {
+            guard let scalar = text.unicodeScalars.last else { return false }
+            switch scalar.value {
+            case 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xFF66...0xFF9F: return true
+            default: return false
+            }
+        }
+
         func text(running: Bool, locale: Locale, bundle: Bundle = .main) -> String {
             func format(_ key: String, _ arguments: CVarArg...) -> String {
                 String(format: AppLocalizedString.string(key, locale: locale, bundle: bundle), arguments: arguments)
@@ -173,7 +183,8 @@ struct AgentStatusAction: Identifiable, Equatable {
             case .write(let file):
                 return format(running ? "%@ に書き込み中" : "%@ に書き込み", file)
             case .run(let intent):
-                return running ? format("%@中", intent) : intent
+                // 「中」は日本語の説明にだけ付ける。英語などの説明には英語の表記と同じ「…」を付ける。
+                return running ? (Self.endsWithJapanese(intent) ? format("%@中", intent) : intent + "…") : intent
             case .command(let command):
                 let shown = command.isEmpty
                     ? UIWording.text(.missingCommand, languageCode: locale.language.languageCode?.identifier ?? "ja")
@@ -527,9 +538,14 @@ enum AgentStatusCardBuilder {
         }
 
         var rows: [AgentStatusRow] = []
+        var trailing: [ChatItem] = []
         for position in 0...shown.count {
             if let entries = outsideEntries[position] {
-                rows.append(.outside(AgentStatusOutsideGroup(id: "outside-\(entries[0].id)", entries: entries)))
+                if entries.contains(where: { if case .action = $0 { true } else { false } }) {
+                    rows.append(.outside(AgentStatusOutsideGroup(id: "outside-\(entries[0].id)", entries: entries)))
+                } else {
+                    trailing += entries.compactMap { if case .item(let item) = $0 { item } else { nil } }
+                }
             }
             if position < shown.count {
                 let task = shown[position]
@@ -546,7 +562,8 @@ enum AgentStatusCardBuilder {
                 current: lastWorkID.flatMap { lastAction(containing: $0, in: rows) }.flatMap { $0.isRunning ? $0.label : nil },
                 startedAt: startedAt, turnEnd: turnEnd, running: running, liveState: liveState
             ),
-            rows: rows
+            rows: rows,
+            trailing: trailing
         )
         return ChatTranscriptGrouping.blocks(from: [segment[segment.startIndex]] + plan.above.map { body[$0] })
             + [.statusCard(card)]
@@ -750,17 +767,58 @@ enum AgentStatusCardBuilder {
         return lines.filter { line in !notes.contains { line.hasPrefix($0) } }.count
     }
 
-    /// Codex のコマンドは `/bin/zsh -lc '…'` の包みごと届く。包みを外して中身だけ出す。
-    /// ponytail: 外側の引用符を外すだけ。中の `\"` や `'"'"'` の引用の解除はしない。
+    /// Codex のコマンドは `/bin/zsh -lc '…'` の包みごと届く。包みを外して、中身を元のコマンドとして読める形で出す。
+    /// 中身は 1 つのシェルの語（引用の連結を含む。`"…"'…'"…"`）なので、引用を解く。
+    /// 1 語として読めない（引用が閉じない・引用の外に空白がある）ときは、元のまま出す。
     private static func unwrappingShell(_ command: String) -> String {
         let parts = command.split(maxSplits: 2, whereSeparator: \.isWhitespace)
         guard parts.count == 3,
               ["zsh", "bash", "sh"].contains((String(parts[0]) as NSString).lastPathComponent),
               ["-c", "-lc"].contains(String(parts[1])),
-              let quote = parts[2].first, quote == "'" || quote == "\"",
-              parts[2].count >= 2, parts[2].last == quote
+              let word = unquotedShellWord(parts[2].trimmingCharacters(in: .whitespacesAndNewlines))
         else { return command }
-        return String(parts[2].dropFirst().dropLast())
+        return word
+    }
+
+    /// POSIX シェルの 1 語の引用を解く。単引用符は中身そのまま、二重引用符の中の `\` は `$` `` ` `` `"` `\` の前だけ外す。
+    /// ponytail: 展開（`$`・`` ` ``）は評価しない。
+    private static func unquotedShellWord(_ text: String) -> String? {
+        let chars = Array(text)
+        var result = ""
+        var index = 0
+        while index < chars.count {
+            let char = chars[index]
+            index += 1
+            switch char {
+            case "'":
+                guard let close = chars[index...].firstIndex(of: "'") else { return nil }
+                result.append(contentsOf: chars[index..<close])
+                index = close + 1
+            case "\"":
+                var closed = false
+                while index < chars.count {
+                    let inner = chars[index]
+                    index += 1
+                    if inner == "\"" { closed = true; break }
+                    if inner == "\\", index < chars.count, "$`\"\\".contains(chars[index]) {
+                        result.append(chars[index])
+                        index += 1
+                    } else {
+                        result.append(inner)
+                    }
+                }
+                if !closed { return nil }
+            case "\\":
+                guard index < chars.count else { return nil }
+                result.append(chars[index])
+                index += 1
+            case _ where char.isWhitespace:
+                return nil
+            default:
+                result.append(char)
+            }
+        }
+        return result.isEmpty ? nil : result
     }
 
     private static func fileName(_ path: String) -> String {
@@ -797,7 +855,7 @@ extension AgentStatusCard {
         for row in rows {
             if let entry = row.entries.first(where: { $0.contains(itemID: itemID) }) { return entry.id }
         }
-        return nil
+        return trailing.first { $0.id == itemID }?.id
     }
 }
 

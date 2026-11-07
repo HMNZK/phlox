@@ -162,6 +162,22 @@ struct DSInputBarLayoutTests {
         #expect(layout.wrapsSecondRow)
     }
 
+    @Test("強い権限が入らない幅でも 2 段目を折り返さない")
+    func strongPermissionStaysOnOneRowWhenCompressed() {
+        let layout = resolve(
+            width: 380,
+            mode: .session,
+            modelName: "Default: Opus 5.5",
+            effort: "高",
+            permission: "Bypass Permissions",
+            isStrongPermission: true
+        )
+
+        #expect(layout.mergesSettings)
+        #expect(layout.keepsStrongPermissionVisible)
+        #expect(!layout.wrapsSecondRow)
+    }
+
     private func resolve(
         width: CGFloat,
         mode: DSInputBarMode,

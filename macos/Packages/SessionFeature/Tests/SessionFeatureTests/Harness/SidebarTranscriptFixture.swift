@@ -85,7 +85,7 @@ enum SidebarTranscriptFixture {
 
     static var manifest: [Record] {
         entries.map { record(id: $0.id, kind: $0.kind, text: $0.text) } + changeCards.flatMap { item in
-            guard case .fileChange(let id, let changes, _) = item else { return [Record]() }
+            guard case .fileChange(let id, let changes, _, _) = item else { return [Record]() }
             return changes.map { record(id: id, kind: "change-card", text: $0.diff) }
         }
     }
@@ -127,7 +127,7 @@ struct SidebarTranscriptFixtureTests {
             blocks: blocks, requestedLimit: window.limit, defaultLimit: 50, minimumBlocks: 550
         ) == 500)
         for item in SidebarTranscriptFixture.changeCards {
-            guard case .fileChange(_, let changes, _) = item else { Issue.record("not a change card"); continue }
+            guard case .fileChange(_, let changes, _, _) = item else { Issue.record("not a change card"); continue }
             let lines = changes[0].diff.components(separatedBy: "\n")
             #expect(lines.count == 30)
             #expect(lines.allSatisfy { $0.count == 80 })

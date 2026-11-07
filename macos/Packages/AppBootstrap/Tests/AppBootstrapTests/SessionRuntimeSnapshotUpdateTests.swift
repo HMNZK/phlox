@@ -201,6 +201,45 @@ import Testing
         }
     }
 
+    /// エージェント状態カードが読む省略可能フィールドだけが変わった item も、差分として配信される。
+    @Test(arguments: [
+        (
+            ChatItem.commandExecution(id: "c", command: "ls", output: "a", timestamp: Date(timeIntervalSince1970: 0)),
+            ChatItem.commandExecution(
+                id: "c", command: "ls", output: "a", timestamp: Date(timeIntervalSince1970: 0),
+                completedAt: Date(timeIntervalSince1970: 7), intent: "一覧を見る"
+            )
+        ),
+        (
+            ChatItem.fileChange(
+                id: "f", changes: [FilePatchChange(path: "api.swift", diff: "+x", kind: nil)],
+                timestamp: Date(timeIntervalSince1970: 0)
+            ),
+            ChatItem.fileChange(
+                id: "f", changes: [FilePatchChange(path: "api.swift", diff: "+x", kind: nil)],
+                timestamp: Date(timeIntervalSince1970: 0), completedAt: Date(timeIntervalSince1970: 7)
+            )
+        ),
+        (
+            ChatItem.userMessage(id: "u", text: "直して", timestamp: Date(timeIntervalSince1970: 0), attachments: []),
+            ChatItem.userMessage(
+                id: "u", text: "直して", timestamp: Date(timeIntervalSince1970: 0), attachments: [],
+                turnEnd: ChatTurnEnd(outcome: .completed, at: Date(timeIntervalSince1970: 7))
+            )
+        ),
+    ])
+    func changeInOnlyAStatusCardFieldIsDeliveredAsAnUpdate(before: ChatItem, after: ChatItem) throws {
+        var initial = chat()
+        initial.transcript = [before]
+        let first = try prepare(initial, sequence: 1)
+        var changed = initial
+        changed.transcript = [after]
+
+        let next = try prepare(changed, sequence: 2, base: first.baseline)
+
+        #expect(try canonical(next.update.restoring(base: first.baseline).envelope.snapshot) == canonical(snapshot(changed)))
+    }
+
     @Test func normalizationEquivalentTextKeepsItsOriginalUTF8Bytes() throws {
         for (before, after) in [("\u{e9}", "e\u{301}"), ("a\u{301}\u{323}", "a\u{323}\u{301}")] {
             #expect(before == after)

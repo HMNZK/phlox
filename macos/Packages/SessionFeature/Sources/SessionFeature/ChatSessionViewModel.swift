@@ -201,7 +201,7 @@ public final class ChatSessionViewModel: Identifiable {
             text = firstTurnInput.text
             mergeFailedFirstTurnDraft(text, attachments: firstTurnInput.attachments)
             setTranscript(transcript.filter { $0.id != firstTurnInput.itemID })
-        } else if case .userMessage(_, let pendingText, _, _) = pendingFirstMessage {
+        } else if case .userMessage(_, let pendingText, _, _, _) = pendingFirstMessage {
             text = pendingText
         } else {
             text = ""
@@ -969,7 +969,7 @@ public final class ChatSessionViewModel: Identifiable {
     func recallInputHistory(_ direction: InputHistoryCursor.Direction) -> Bool {
         guard attachmentStore.attachments.isEmpty else { return false }
         let entries = transcript.compactMap { item -> String? in
-            guard case let .userMessage(_, text, _, attachments) = item, attachments.isEmpty,
+            guard case let .userMessage(_, text, _, attachments, _) = item, attachments.isEmpty,
                   text.range(of: #"\[Image #\d+\]"#, options: .regularExpression) == nil
             else { return nil }
             return text
@@ -1601,10 +1601,10 @@ public final class ChatSessionViewModel: Identifiable {
         guard status != .running else { return nil }
 
         guard let index = transcript.firstIndex(where: { item in
-            if case .userMessage(let itemID, _, _, _) = item { return itemID == id }
+            if case .userMessage(let itemID, _, _, _, _) = item { return itemID == id }
             return false
         }) else { return nil }
-        guard case .userMessage(_, let userText, _, _) = transcript[index] else { return nil }
+        guard case .userMessage(_, let userText, _, _, _) = transcript[index] else { return nil }
         await expireAllPendingUserQuestions()
 
         // 該当メッセージ自身と以降を除去し、直前までを保持転写とする。
@@ -2695,13 +2695,16 @@ public final class ChatSessionViewModel: Identifiable {
         case .rateLimitsUpdated:
             break // 上で会話状態へ影響させず処理済み。
         case .taskListUpdated(let tasks):
-            appendOrReplace(.taskList(id: "task-list", tasks: tasks, timestamp: eventDate))
+            appendTaskListSnapshot(tasks, at: eventDate)
             touchOutput()
-        case .commandExecution(let itemId, let command, let delta):
+        case .commandExecution(let itemId, let command, let delta, let intent):
             markRunningEventReceived(at: eventDate)
             if let command, !command.isEmpty {
-                appendCommandExecution(itemId: itemId, command: command, outputDelta: delta)
+                appendCommandExecution(itemId: itemId, command: command, outputDelta: delta, intent: intent)
             }
+        case .itemCompleted(let itemId):
+            markRunningEventReceived(at: eventDate)
+            markItemCompleted(id: itemId, at: eventDate)
         case .fileChange(let itemId, let changes):
             markRunningEventReceived(at: eventDate)
             appendOrReplace(.fileChange(id: itemId, changes: changes, timestamp: eventDate))
@@ -2745,6 +2748,7 @@ public final class ChatSessionViewModel: Identifiable {
             }
             await expireAllPendingUserQuestions(preservingAsync: true)
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
+            recordTurnEnd(.completed, at: eventDate)
             guard !isTerminating else { return }
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
@@ -2768,6 +2772,7 @@ public final class ChatSessionViewModel: Identifiable {
                 codexEventTurnId = nil
             }
             await expireAllPendingUserQuestions()
+            recordTurnEnd(.interrupted, at: eventDate)
             guard !isTerminating else { return }
             isCompacting = false
             clearRunningTurn()
@@ -2795,6 +2800,7 @@ public final class ChatSessionViewModel: Identifiable {
             clearRunningTurn()
             if !launchFailed {
                 appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
+                if hadActiveTurn { recordTurnEnd(.error, at: eventDate) }
             }
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
@@ -2816,6 +2822,10 @@ public final class ChatSessionViewModel: Identifiable {
             pendingApprovals.removeAll()
             await expireAllPendingUserQuestions()
             await approvalBroker.cancelAll()
+            // 利用者が止めた・閉じた終了は中断、それ以外はエラー。閉じる途中でも入力の記録は残す。
+            if !launchFailed, turnStartedAt != nil {
+                recordTurnEnd(isTerminating ? .interrupted : .error, at: eventDate)
+            }
             guard !isTerminating else { return }
             isCompacting = false
             let previousStatus = status
@@ -3026,7 +3036,7 @@ public final class ChatSessionViewModel: Identifiable {
         case .reasoningDelta(let itemId, let delta):
             transcriptStreamCoalescer.enqueue(itemId: itemId, kind: .reasoning, delta: delta, rawEvent: rawEvent)
             return true
-        case .commandExecution(let itemId, let command, let delta) where command?.isEmpty != false:
+        case .commandExecution(let itemId, let command, let delta, _) where command?.isEmpty != false:
             transcriptStreamCoalescer.enqueue(itemId: itemId, kind: .command, delta: delta, rawEvent: rawEvent)
             return true
         case .subAgentActivity(let toolUseId, let kind, let itemId, let text)
@@ -3124,6 +3134,7 @@ public final class ChatSessionViewModel: Identifiable {
                 appendOrReplace(chatItem)
                 adoptTitleFromThreadItem(item, chatItem: chatItem)
                 if case .itemCompleted = event {
+                    markItemCompleted(id: chatItem.id, at: Date())
                     enqueueTranscriptSnapshot()
                 }
                 touchOutput()
@@ -3495,12 +3506,14 @@ public final class ChatSessionViewModel: Identifiable {
                 case (.reasoning, .reasoning(let id, let text, let timestamp)):
                     transcript[index] = .reasoning(id: id, text: text + pending.delta, timestamp: timestamp)
                     didChange = true
-                case (.command, .commandExecution(let id, let command, let output, let timestamp)):
+                case (.command, .commandExecution(let id, let command, let output, let timestamp, let completedAt, let intent)):
                     transcript[index] = .commandExecution(
                         id: id,
                         command: command,
                         output: output + pending.delta,
-                        timestamp: timestamp
+                        timestamp: timestamp,
+                        completedAt: completedAt,
+                        intent: intent
                     )
                     didChange = true
                 default:
@@ -3545,25 +3558,69 @@ public final class ChatSessionViewModel: Identifiable {
         lastOutputAt = batch.latestEventAt
     }
 
-    private func appendCommandExecution(itemId: String, command: String, outputDelta: String) {
+    private func appendCommandExecution(itemId: String, command: String, outputDelta: String, intent: String?) {
         if let index = transcriptIndexByID[itemId],
-           case .commandExecution(let id, let existingCommand, let output, let timestamp) = transcript[index] {
+           case .commandExecution(let id, let existingCommand, let output, let timestamp, let completedAt, let existingIntent) = transcript[index] {
             transcript[index] = .commandExecution(
                 id: id,
                 command: command.isEmpty ? existingCommand : command,
                 output: output + outputDelta,
-                timestamp: timestamp
+                timestamp: timestamp,
+                completedAt: completedAt,
+                intent: intent ?? existingIntent
             )
         } else {
             appendToTranscript(.commandExecution(
                 id: itemId,
                 command: command,
                 output: outputDelta,
-                timestamp: Date()
+                timestamp: Date(),
+                intent: intent
             ))
         }
         markTranscriptChanged()
         touchOutput()
+    }
+
+    /// タスクリストのスナップショットを、一意の id で追記する（上書きしない。ADR 0226）。
+    /// 同じ入力の中で直前のスナップショットと内容が同じなら追記しない。
+    private func appendTaskListSnapshot(_ tasks: [AgentTaskItem], at date: Date) {
+        for item in transcript.reversed() {
+            if case .userMessage = item { break }
+            if case .taskList(_, let previous, _) = item {
+                if previous == tasks { return }
+                break
+            }
+        }
+        appendOrReplace(.taskList(id: "task-list-\(UUID().uuidString)", tasks: tasks, timestamp: date))
+    }
+
+    /// 作業の結果が届いた時刻を書く。最初の 1 回だけ（開始時刻と合わせて所要時間になる）。
+    private func markItemCompleted(id: String, at date: Date) {
+        guard let index = transcriptIndexByID[id] else { return }
+        switch transcript[index] {
+        case .commandExecution(let id, let command, let output, let timestamp, nil, let intent):
+            transcript[index] = .commandExecution(
+                id: id, command: command, output: output, timestamp: timestamp, completedAt: date, intent: intent
+            )
+        case .fileChange(let id, let changes, let timestamp, nil):
+            transcript[index] = .fileChange(id: id, changes: changes, timestamp: timestamp, completedAt: date)
+        default:
+            return
+        }
+        markTranscriptChanged()
+    }
+
+    /// 最後の入力（userMessage）に終わり方を書く。既にあれば書かない。
+    private func recordTurnEnd(_ outcome: ChatTurnEnd.Outcome, at date: Date) {
+        guard let index = transcript.lastIndex(where: { if case .userMessage = $0 { true } else { false } }),
+              case .userMessage(let id, let text, let timestamp, let attachments, nil) = transcript[index]
+        else { return }
+        transcript[index] = .userMessage(
+            id: id, text: text, timestamp: timestamp, attachments: attachments,
+            turnEnd: ChatTurnEnd(outcome: outcome, at: date)
+        )
+        markTranscriptChanged()
     }
 
     private func appendOrReplace(_ item: ChatItem) {
@@ -3727,7 +3784,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func shouldStoreInTranscript(_ item: ChatItem) -> Bool {
         switch item {
-        case .userMessage(_, let text, _, let attachments):
+        case .userMessage(_, let text, _, let attachments, _):
             !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
         case .agentMessage(_, let text, _), .reasoning(_, let text, _):
             !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -3896,7 +3953,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     private func adoptTitleFromThreadItem(_ item: ThreadItem, chatItem: ChatItem) {
         guard titleState.source == .flower else { return }
-        guard case .userMessage(let id, _, _, _) = chatItem else { return }
+        guard case .userMessage(let id, _, _, _, _) = chatItem else { return }
         let original = localOriginalUserTextByID[id] ?? identifiableOriginalText(from: item)
         guard let original else { return }
         titleState = titleState.receivingUserMessage(original)
@@ -4348,6 +4405,8 @@ extension ChatSessionViewModel: ControllableSession {
                 }
             }
             submitBaselineTurnSeq = completedTurnSeq
+            // 実行中に次の入力を送った。前の入力は「次の入力へ続く」で閉じる。
+            if turnStartedAt != nil { recordTurnEnd(.superseded, at: Date()) }
             clearRunningTurn()
             pendingInput = ""
             let sentAttachments = attachmentStore.attachments

@@ -466,17 +466,17 @@ struct AcceptanceHistoryTitleSourcesTests {
         let items = ClaudeSessionTranscriptLoader().load(fileURL: file, maxItems: 10)
         try assertUnchanged(before, env.root)
         try #require(items.count == 4)
-        if case .userMessage(_, let text, _, _) = items[0] {
+        if case .userMessage(_, let text, _, _, _) = items[0] {
             #expect(text == Self.reviewLogin)
         } else {
             Issue.record("items[0] should be userMessage: \(items[0])")
         }
-        if case .userMessage(_, let text, _, _) = items[1] {
+        if case .userMessage(_, let text, _, _, _) = items[1] {
             #expect(text == Self.metaBody)
         } else {
             Issue.record("items[1] should be userMessage: \(items[1])")
         }
-        if case .userMessage(_, let text, _, _) = items[2] {
+        if case .userMessage(_, let text, _, _, _) = items[2] {
             #expect(text == Self.pasteBody)
         } else {
             Issue.record("items[2] should be userMessage: \(items[2])")

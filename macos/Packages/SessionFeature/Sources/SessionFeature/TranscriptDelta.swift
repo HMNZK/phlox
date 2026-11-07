@@ -82,26 +82,37 @@ enum TranscriptDeltaCursor {
         }
     }
 
+    private static func dateField(_ date: Date?) -> String {
+        date.map { String($0.timeIntervalSinceReferenceDate) } ?? ""
+    }
+
     /// クライアント観測内容を、順序が意味を持つフィールド列に分解する。ChatItem.Equatable が比較する
     /// id＋内容フィールドを含み、timestamp は含めない（in-place 編集は text/output/message 等の変化で
     /// 必ず捕捉される）。Optional は「値」と「存在フラグ」の2フィールドで nil と空文字を弁別する。
     private static func contentFields(_ item: ChatItem) -> [String] {
         switch item {
-        case let .userMessage(id, text, _, attachments):
+        case let .userMessage(id, text, _, attachments, turnEnd):
             var fields = ["u", id, text, String(attachments.count)]
             for attachment in attachments {
                 fields.append(attachment.mediaType)
                 fields.append(attachment.filename ?? "")
                 fields.append(attachment.filename == nil ? "0" : "1")
             }
+            fields.append(turnEnd?.outcome.rawValue ?? "")
+            fields.append(dateField(turnEnd?.at))
+            fields.append(turnEnd == nil ? "0" : "1")
             return fields
         case let .agentMessage(id, text, _):
             return ["a", id, text]
         case let .reasoning(id, text, _):
             return ["r", id, text]
-        case let .commandExecution(id, command, output, _):
-            return ["c", id, command ?? "", command == nil ? "0" : "1", output]
-        case let .fileChange(id, changes, _):
+        case let .commandExecution(id, command, output, _, completedAt, intent):
+            return [
+                "c", id, command ?? "", command == nil ? "0" : "1", output,
+                dateField(completedAt), completedAt == nil ? "0" : "1",
+                intent ?? "", intent == nil ? "0" : "1",
+            ]
+        case let .fileChange(id, changes, _, completedAt):
             var fields = ["f", id, String(changes.count)]
             for change in changes {
                 fields.append(change.path)
@@ -109,6 +120,8 @@ enum TranscriptDeltaCursor {
                 fields.append(change.kind ?? "")
                 fields.append(change.kind == nil ? "0" : "1")
             }
+            fields.append(dateField(completedAt))
+            fields.append(completedAt == nil ? "0" : "1")
             return fields
         case let .error(id, message, _):
             return ["e", id, message]

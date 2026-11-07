@@ -21,7 +21,7 @@ struct EscapeRevertPolicy {
     static func replayContext(from items: [ChatItem]) -> String? {
         let lines: [String] = items.compactMap { item in
             switch item {
-            case .userMessage(_, let text, _, _):
+            case .userMessage(_, let text, _, _, _):
                 return "User: \(text)"
             case .agentMessage(_, let text, _):
                 return "Assistant: \(text)"

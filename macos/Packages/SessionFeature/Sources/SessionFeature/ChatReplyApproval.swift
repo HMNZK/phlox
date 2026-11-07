@@ -231,7 +231,7 @@ extension ChatSessionViewModel {
         case .fileChange:
             // ファイルの一覧は同じ item の変更（会話に届いている fileChange）から引く。
             let changes = transcript.lazy.compactMap { item -> [FilePatchChange]? in
-                if case .fileChange(let id, let changes, _) = item, id == request.itemId { return changes }
+                if case .fileChange(let id, let changes, _, _) = item, id == request.itemId { return changes }
                 return nil
             }.first ?? []
             return ReplyApproval(

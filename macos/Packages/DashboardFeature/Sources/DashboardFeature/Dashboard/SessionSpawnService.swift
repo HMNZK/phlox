@@ -938,7 +938,7 @@ final class SessionSpawnService {
         } catch {
             if keepsRowOnLaunchFailure, let vm = createdChatVM {
                 let text: String
-                if case .userMessage(_, let pendingText, _, _) = vm.pendingFirstMessage { text = pendingText }
+                if case .userMessage(_, let pendingText, _, _, _) = vm.pendingFirstMessage { text = pendingText }
                 else { text = vm.draft }
                 vm.markLaunchFailed((error as? ChatLaunchError) ?? .processFailed(error.localizedDescription), restoringDraft: text)
                 return AppServerSpawnResult(vm: vm, codexThreadId: nil, chatNativeSessionId: nil,

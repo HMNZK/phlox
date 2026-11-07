@@ -115,7 +115,7 @@ public enum ChatTranscriptExporter {
         options: ChatTranscriptExportOptions
     ) -> [String]? {
         switch item {
-        case .userMessage(_, let text, let timestamp, let attachments):
+        case .userMessage(_, let text, let timestamp, let attachments, _):
             var lines = [heading("👤 ユーザー", timestamp: timestamp, options: options), "", text]
             if !attachments.isEmpty {
                 lines.append("")
@@ -132,7 +132,7 @@ public enum ChatTranscriptExporter {
             let quoted = text.split(separator: "\n", omittingEmptySubsequences: false).map { "> \($0)" }
             return [heading("💭 思考", timestamp: timestamp, options: options), ""] + quoted
 
-        case .commandExecution(_, let command, let output, let timestamp):
+        case .commandExecution(_, let command, let output, let timestamp, _, _):
             var lines = [heading("⌘ コマンド実行", timestamp: timestamp, options: options), ""]
             if let command, !command.isEmpty {
                 lines += ["```sh", command, "```"]
@@ -142,7 +142,7 @@ public enum ChatTranscriptExporter {
             }
             return lines
 
-        case .fileChange(_, let changes, let timestamp):
+        case .fileChange(_, let changes, let timestamp, _):
             var lines = [heading("📝 ファイル変更", timestamp: timestamp, options: options), ""]
             for change in changes {
                 lines.append("- `\(change.path)`\(change.kind.map { "（\($0)）" } ?? "")")

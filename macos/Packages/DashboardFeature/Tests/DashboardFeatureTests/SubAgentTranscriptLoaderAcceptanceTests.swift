@@ -27,7 +27,7 @@ struct SubAgentTranscriptLoaderAcceptanceTests {
 
         // 子のプロンプト（user）が userMessage として出る。
         #expect(items.contains {
-            if case .userMessage(_, let text, _, _) = $0 { return text.contains("Output three lines") }
+            if case .userMessage(_, let text, _, _, _) = $0 { return text.contains("Output three lines") }
             return false
         })
         // thinking が reasoning として出る。
@@ -52,7 +52,7 @@ struct SubAgentTranscriptLoaderAcceptanceTests {
         """
         let items = SubAgentTranscriptLoader.parse(jsonl: jsonl)
         #expect(items.contains {
-            if case .commandExecution(_, _, let out, _) = $0 { return out.contains("file.txt") }
+            if case .commandExecution(_, _, let out, _, _, _) = $0 { return out.contains("file.txt") }
             return false
         })
     }

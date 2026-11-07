@@ -415,7 +415,7 @@ public final class FileTabDocument {
         var latest: (date: Date, name: String)?
         for node in sessions where node.id != sessionID {
             guard case .appServer(let chat) = node else { continue }
-            for case .fileChange(_, let changes, let timestamp) in chat.transcript
+            for case .fileChange(_, let changes, let timestamp, _) in chat.transcript
             where timestamp > baselineAt && timestamp > (latest?.date ?? .distantPast)
                 && changes.contains(where: { Self.canonical($0.path, relativeTo: node.rawWorkspacePath) == target }) {
                 latest = (timestamp, "\(node.displayName) · \(node.agentDescriptor.displayName)")

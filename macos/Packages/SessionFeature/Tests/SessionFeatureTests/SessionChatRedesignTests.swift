@@ -167,12 +167,12 @@ struct SessionChatRedesignTests {
     """
     let items = SubAgentTranscriptLoader.parse(jsonl: jsonl)
     let texts = items.compactMap { item -> String? in
-        if case .userMessage(_, let text, _, _) = item { return text }
+        if case .userMessage(_, let text, _, _, _) = item { return text }
         return nil
     }
     #expect(texts == ["見出しを列挙"])
     #expect(items.contains {
-        if case .commandExecution(_, let command, _, _) = $0 { return command == "Read /r/README.md" }
+        if case .commandExecution(_, let command, _, _, _, _) = $0 { return command == "Read /r/README.md" }
         return false
     })
 }

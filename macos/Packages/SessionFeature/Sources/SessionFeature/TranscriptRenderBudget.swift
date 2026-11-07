@@ -79,14 +79,14 @@ enum TranscriptRenderBudget {
         case .single(let item):
             switch item {
             case .agentMessage(_, let text, _),
-                 .userMessage(_, let text, _, _),
+                 .userMessage(_, let text, _, _, _),
                  .reasoning(_, let text, _):
                 return max(otherBlockUnits, saturatedProduct(text.count, textCharacterUnits))
 
             case .error(_, let message, _):
                 return max(otherBlockUnits, saturatedProduct(message.count, textCharacterUnits))
 
-            case .fileChange(_, let changes, _):
+            case .fileChange(_, let changes, _, _):
                 let totalLineCount = changes.reduce(into: 0) { count, change in
                     count = saturatedSum(count, ChatMessageRenderCache.diffLines(change.diff).count)
                 }

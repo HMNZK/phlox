@@ -392,11 +392,11 @@ final class ChatSubAgentModel {
         let existing = subAgentTranscripts[toolUseId, default: []].first { $0.id == stableId }
         let item: ChatItem
         switch (kind, existing) {
-        case (.tool, .commandExecution(_, _, let existingOutput, let timestamp)):
+        case (.tool, .commandExecution(_, _, let existingOutput, let timestamp, _, _)):
             item = .commandExecution(id: stableId, command: text, output: existingOutput, timestamp: timestamp)
         case (.tool, _):
             item = .commandExecution(id: stableId, command: text, output: "", timestamp: Date())
-        case (.toolResult, .commandExecution(_, let existingCommand, let existingOutput, let timestamp)):
+        case (.toolResult, .commandExecution(_, let existingCommand, let existingOutput, let timestamp, _, _)):
             item = .commandExecution(
                 id: stableId,
                 command: existingCommand,

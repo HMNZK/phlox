@@ -48,7 +48,7 @@ private func encodeJSONLine(_ object: [String: Any]) -> Data {
 
 private func commandOutput(in events: [NormalizedChatEvent]) -> String? {
     for event in events {
-        if case .commandExecution(_, _, let outputDelta) = event {
+        if case .commandExecution(_, _, let outputDelta, _) = event {
             return outputDelta
         }
     }
@@ -57,7 +57,7 @@ private func commandOutput(in events: [NormalizedChatEvent]) -> String? {
 
 private func commandLabel(in events: [NormalizedChatEvent]) -> String? {
     for event in events {
-        if case .commandExecution(_, let command, _) = event {
+        if case .commandExecution(_, let command, _, _) = event {
             return command
         }
     }

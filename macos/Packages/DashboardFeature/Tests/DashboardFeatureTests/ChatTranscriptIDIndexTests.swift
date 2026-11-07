@@ -70,7 +70,7 @@ struct ChatTranscriptIDIndexTests {
 
         // revert（切詰め）: 2番目の userMessage 以降が消える。
         let userIDs = vm.transcript.compactMap { item -> String? in
-            if case .userMessage(let id, _, _, _) = item { id } else { nil }
+            if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
         }
         #expect(userIDs.count == 2)
         _ = await vm.revert(toUserMessageID: userIDs[1])
@@ -147,7 +147,7 @@ struct ChatTranscriptIDIndexTests {
 
         client.yield(.commandExecution(itemId: "wb-cmd1", command: "ls", outputDelta: "b.txt\n"))
         try await waitUntil {
-            if case .commandExecution(_, _, let output, _) = vm.transcript.first(where: { $0.id == "wb-cmd1" }) {
+            if case .commandExecution(_, _, let output, _, _, _) = vm.transcript.first(where: { $0.id == "wb-cmd1" }) {
                 return output.contains("b.txt")
             }
             return false

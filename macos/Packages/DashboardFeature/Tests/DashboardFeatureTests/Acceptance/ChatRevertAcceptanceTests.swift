@@ -74,7 +74,7 @@ func revert_truncatesTranscriptAndStore_resetsConversation_andReplaysContextOnNe
     try await completeTurn(vm, client: client, userText: "二番目の依頼", agentItemID: "a2", agentReply: "応答2")
 
     let userIDs = vm.transcript.compactMap { item in
-        if case .userMessage(let id, _, _, _) = item { id } else { nil }
+        if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
     }
     try #require(userIDs.count == 2)
 
@@ -104,7 +104,7 @@ func revert_truncatesTranscriptAndStore_resetsConversation_andReplaysContextOnNe
     #expect(lastTurn.contains("編集後の依頼"))
     #expect(lastTurn.contains("最初の依頼"), "保持分の文脈リプレイが含まれていない")
     let newUserTexts = vm.transcript.compactMap { item in
-        if case .userMessage(_, let text, _, _) = item { text } else { nil }
+        if case .userMessage(_, let text, _, _, _) = item { text } else { nil }
     }
     #expect(newUserTexts.contains("編集後の依頼"))
     #expect(!newUserTexts.contains { $0.contains("最初の依頼") && $0.contains("編集後の依頼") }, "プリアンブルが transcript に混入している")
@@ -126,7 +126,7 @@ func revert_toFirstMessage_startsPlainNewConversationWithoutPreamble() async thr
     try await completeTurn(vm, client: client, userText: "唯一の依頼", agentItemID: "a1", agentReply: "応答")
 
     let firstUserID = try #require(vm.transcript.compactMap { item -> String? in
-        if case .userMessage(let id, _, _, _) = item { id } else { nil }
+        if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
     }.first)
 
     let restored = await vm.revert(toUserMessageID: firstUserID)
@@ -148,7 +148,7 @@ func revert_whileRunning_isRefusedAndChangesNothing() async throws {
     try await vm.sendText("実行中ターン", submit: true) // turnCompleted を流さない = running のまま
 
     let firstUserID = try #require(vm.transcript.compactMap { item -> String? in
-        if case .userMessage(let id, _, _, _) = item { id } else { nil }
+        if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
     }.first)
     let countBefore = vm.transcript.count
 

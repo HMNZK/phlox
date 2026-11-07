@@ -815,7 +815,7 @@ private func writeExpandedStatePNGs(
         return ""
     }()
     let filePatches: [FilePatchChange] = {
-        if case .fileChange(_, let changes, _) = GateBFixture.fileChange {
+        if case .fileChange(_, let changes, _, _) = GateBFixture.fileChange {
             return changes
         }
         return []

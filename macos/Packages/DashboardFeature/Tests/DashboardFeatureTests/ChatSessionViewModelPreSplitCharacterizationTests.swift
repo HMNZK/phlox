@@ -191,7 +191,7 @@ func characterization_transcriptRevert_waitsForInFlightSnapshot() async throws {
     try await waitUntil { await store.startedSnapshots.count == 1 }
 
     let userID = try #require(vm.transcript.compactMap { item -> String? in
-        if case .userMessage(let id, _, _, _) = item { id } else { nil }
+        if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
     }.first)
     let restoredText = await vm.revert(toUserMessageID: userID)
     #expect(restoredText == "first turn")

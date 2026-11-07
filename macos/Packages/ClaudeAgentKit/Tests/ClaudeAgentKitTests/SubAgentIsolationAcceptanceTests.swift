@@ -174,7 +174,7 @@ struct SubAgentIsolationAcceptanceTests {
         switch event {
         case .agentMessageDelta(_, let text), .reasoningDelta(_, let text):
             return text
-        case .commandExecution(_, let command, let output):
+        case .commandExecution(_, let command, let output, _):
             return (command ?? "") + "\n" + output
         case .fileChange(_, let changes):
             return changes.map { $0.diff }.joined(separator: "\n")

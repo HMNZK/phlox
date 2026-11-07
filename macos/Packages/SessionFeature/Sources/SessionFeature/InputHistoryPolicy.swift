@@ -12,7 +12,7 @@ public enum InputHistoryPolicy {
     /// transcript からユーザー入力を入力順で抽出する。
     public static func entries(from transcript: [ChatItem]) -> [InputHistoryEntry] {
         transcript.compactMap { item in
-            guard case let .userMessage(id, text, _, _) = item else { return nil }
+            guard case let .userMessage(id, text, _, _, _) = item else { return nil }
             return InputHistoryEntry(id: id, text: text)
         }
     }

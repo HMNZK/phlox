@@ -414,7 +414,7 @@ private func jsonString(_ value: String) -> String {
 @MainActor
 private func firstUserMessageID(_ vm: ChatSessionViewModel) -> String? {
     for item in vm.transcript {
-        if case .userMessage(let id, _, _, _) = item {
+        if case .userMessage(let id, _, _, _, _) = item {
             return id
         }
     }
@@ -424,7 +424,7 @@ private func firstUserMessageID(_ vm: ChatSessionViewModel) -> String? {
 @MainActor
 private func userMessageText(_ vm: ChatSessionViewModel, id: String) -> String? {
     for item in vm.transcript {
-        if case .userMessage(id, let text, _, _) = item {
+        if case .userMessage(id, let text, _, _, _) = item {
             return text
         }
     }

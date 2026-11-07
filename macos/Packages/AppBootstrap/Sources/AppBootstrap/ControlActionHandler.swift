@@ -981,7 +981,7 @@ private struct ChatMessageDTO: Encodable {
     /// DashboardFeature の表示モデル `ChatItem` を wire DTO へ写像する。
     static func from(_ item: ChatItem) -> ChatMessageDTO {
         switch item {
-        case let .userMessage(id, text, timestamp, _):
+        case let .userMessage(id, text, timestamp, _, _):
             ChatMessageDTO(
                 id: id,
                 type: "user",
@@ -997,9 +997,9 @@ private struct ChatMessageDTO: Encodable {
             )
         case let .reasoning(id, text, _):
             ChatMessageDTO(id: id, type: "reasoning", text: text)
-        case let .commandExecution(id, command, output, _):
+        case let .commandExecution(id, command, output, _, _, _):
             ChatMessageDTO(id: id, type: "command", command: command, output: output)
-        case let .fileChange(id, changes, _):
+        case let .fileChange(id, changes, _, _):
             ChatMessageDTO(
                 id: id,
                 type: "fileChange",

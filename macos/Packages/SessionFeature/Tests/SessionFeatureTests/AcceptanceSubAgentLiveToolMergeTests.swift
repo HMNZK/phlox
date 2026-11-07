@@ -72,7 +72,7 @@ private func makeLiveToolMergeVM() -> (ChatSessionViewModel, LiveToolMergeFakeCl
 
 private func commandCells(_ items: [ChatItem]) -> [(command: String?, output: String)] {
     items.compactMap { item in
-        if case .commandExecution(_, let command, let output, _) = item {
+        if case .commandExecution(_, let command, let output, _, _, _) = item {
             return (command, output)
         }
         return nil

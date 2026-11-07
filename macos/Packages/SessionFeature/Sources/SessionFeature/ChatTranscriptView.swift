@@ -401,14 +401,14 @@ struct ChatTranscriptView: View {
 
     private func lastContentLength(for item: ChatItem) -> Int {
         switch item {
-        case .userMessage(_, let text, _, _),
+        case .userMessage(_, let text, _, _, _),
              .agentMessage(_, let text, _),
              .reasoning(_, let text, _),
              .error(_, let text, _):
             text.utf8.count
-        case .commandExecution(_, let command, let output, _):
+        case .commandExecution(_, let command, let output, _, _, _):
             (command?.utf8.count ?? 0) + output.utf8.count
-        case .fileChange(_, let changes, _):
+        case .fileChange(_, let changes, _, _):
             changes.reduce(0) { partial, change in
                 partial + change.path.utf8.count + change.diff.utf8.count
             }

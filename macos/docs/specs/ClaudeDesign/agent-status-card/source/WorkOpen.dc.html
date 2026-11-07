@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>作業の行を開く</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="card.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="pc dark" style="width: 720px; height: 900px; padding: 32px 40px 28px; display: flex; flex-direction: column; gap: 14px">
+<div class="log" style="width: 100%">
+<div class="um">429 が返ったら指数バックオフ＋ジッターで最大 5 回まで再試行するようにして。Retry-After があればそれを優先して</div>
+
+<section class="asc" aria-label="実行中。テストを追加中。経過 2 分 41 秒">
+<div class="ash">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span>
+<span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="tx">client_test.go を編集中</span></span>
+<span class="el">2:41</span>
+</div>
+<div class="asb">
+<div class="tl">
+
+<div class="ti">
+<button class="tr done" aria-expanded="false" aria-label="完了。backoff の純関数を追加。31 秒"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">backoff の純関数を追加</span><span class="du">0:31</span></button>
+</div>
+<div class="ti">
+<button class="tr done" aria-expanded="false" aria-label="完了。Retry-After を秒数と日付の両方で読む。38 秒"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">Retry-After を秒数と日付の両方で読む</span><span class="du">0:38</span></button>
+</div>
+
+<div class="ti">
+<button class="tr" aria-expanded="true" aria-label="進行中。Do を包んで 429 と 503 を再試行。1 分 12 秒"><span class="chev open"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mrun" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="tn">Do を包んで 429 と 503 を再試行</span><span class="du">1:12</span></button>
+<div class="wl">
+<button class="wr" aria-label="サブエージェント：呼び出し元の洗い出し、Explore、完了、14 秒"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5" cy="5" r="2"></circle><circle cx="11" cy="11" r="2"></circle><path d="M6.4 6.4l3.2 3.2"></path></svg></span><span class="wx">サブエージェント：呼び出し元の洗い出し <span style="color: var(--t3)">· Explore · 完了</span></span><span class="du">14s</span></button>
+
+<button class="wr open" aria-expanded="true"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx"><span class="f">client.go</span> を編集</span><span class="du">0.6s</span></button>
+<div class="wd">
+<div class="wh"><span class="mono">internal/httpclient/client.go</span><span>+9 −2</span><span class="sp"></span><button>コピー</button></div>
+<div class="diff">
+<div><span class="n">41</span><span>func (c *Client) Do(req *http.Request) (*http.Response, error) {</span></div>
+<div class="d"><span class="n">42</span><span>	return c.hc.Do(req)</span></div>
+<div class="a"><span class="n">42</span><span class="s">	for attempt := 0; ; attempt++ {</span></div>
+<div class="a"><span class="n">43</span><span class="s">		res, err := c.hc.Do(req)</span></div>
+<div class="a"><span class="n">44</span><span class="s">		if !retryable(res, err) || attempt == maxRetries {</span></div>
+<div class="a"><span class="n">45</span><span class="s">			return res, err</span></div>
+<div class="a"><span class="n">46</span><span class="s">		}</span></div>
+<div class="a"><span class="n">47</span><span class="s">		time.Sleep(wait(res, attempt))</span></div>
+<div class="a"><span class="n">48</span><span class="s">	}</span></div>
+<div><span class="n">49</span><span>}</span></div>
+</div>
+</div>
+
+<button class="wr open" aria-expanded="true"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx">再試行のテストを実行</span><span class="du">4.8s</span></button>
+<div class="wd">
+<div class="wh"><span class="mono">$ go test ./internal/httpclient/... -run TestRetry -count=1</span><span class="sp"></span><span>exit 0</span></div>
+<div class="out">=== RUN   TestRetry429_RespectsRetryAfter
+--- PASS: TestRetry429_RespectsRetryAfter (0.31s)
+=== RUN   TestRetry503_Jitter
+--- PASS: TestRetry503_Jitter (0.12s)
+ok  	ledger/internal/httpclient	1.204s</div>
+</div>
+
+<button class="wr run"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx"><span class="f">client_test.go</span> を編集中</span><span class="du"></span></button>
+</div>
+</div>
+
+<div class="ti">
+<button class="tr todo" disabled="{{ true }}" aria-label="未着手。テストを追加して通す"><span class="chev none"></span><span class="mk"><span class="mtodo"></span></span><span class="tn">テストを追加して通す</span><span class="du"></span></button>
+</div>
+
+</div>
+</div>
+</section>
+</div>
+<div style="flex: 1"></div>
+<div class="cmp">入力欄（現行のまま）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

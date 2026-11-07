@@ -7,7 +7,7 @@ last-verified: 2026-11-06
 
 > **このファイルの役割**: チャットの会話ログで、入力 1 回ごとのエージェントの動きを「タスクと作業」に整理して見せるカードの要件、受け入れ基準、範囲。
 > **書かないもの**: 実装の設計（→ [agent-status-card-design.md](agent-status-card-design.md)）、なぜこの方式か（→ [ADR 0226](../adr/0226-agent-status-card-derived-from-transcript.md)・[ADR 0227](../adr/0227-status-card-icons-inside-card-only.md)）。用語の定義は [glossary.md](glossary.md)。
-> **デザインの見本**: 未作成。ユーザーが Claude Design で作る（依頼文は `macos/Design/claude-design-prompts.md` の「14」）。参考はユーザーの手描きスケッチ [ClaudeDesign/agent-status-card-sketch.png](ClaudeDesign/agent-status-card-sketch.png) と、Elia (@eliakuratli) の「Agent status component」動画（2026-10-23、https://x.com/eliakuratli/status/2113618712066711970 。第三者の動画なのでリポジトリには入れない）。実装は見本と見比べてから完了とする。
+> **デザインの見本**: [Claude Design の10画面と部品・全状態の対応表](ClaudeDesign/agent-status-card/index.html)（[全状態・寸法・色・VoiceOver](ClaudeDesign/agent-status-card/boards/10-Anatomy.html)、[PDF](ClaudeDesign/agent-status-card/pdf/phlox-agent-status-card.pdf)、編集用データは `ClaudeDesign/agent-status-card/source/`）。ユーザー作成の見本を2026-11-07に取り込んだ（依頼文は `macos/Design/claude-design-prompts.md` の「14」）。参考はユーザーの手描きスケッチ [ClaudeDesign/agent-status-card-sketch.png](ClaudeDesign/agent-status-card-sketch.png) と、Elia (@eliakuratli) の「Agent status component」動画（2026-10-23、https://x.com/eliakuratli/status/2113618712066711970 。第三者の動画なのでリポジトリには入れない）。実装は見本と見比べてから完了とする。
 > **状態**: 要件確定（2026-11-06 のインタビュー）。未実装。
 
 ## 1. 解決したい問題

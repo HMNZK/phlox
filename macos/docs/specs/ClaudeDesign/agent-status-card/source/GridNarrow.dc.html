@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>グリッドの狭い列とタイルの状態の行</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="card.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1040px; height: 900px; box-sizing: border-box; padding: 40px; background: #E9E9EC; display: flex; gap: 48px; align-items: flex-start; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+
+<div style="display: flex; flex-direction: column; gap: 12px; width: 360px">
+<p style="margin: 0; font-size: 13px; font-weight: 600; color: #1D1D1F">グリッドの列 · 幅 360pt · ライト</p>
+<div class="pc" style="width: 360px; height: 520px; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,.12); padding: 16px 12px; display: flex; flex-direction: column; gap: 10px; overflow: hidden">
+<div class="um" style="max-width: 92%; font-size: 12.5px">429 が返ったら指数バックオフで最大 5 回まで再試行して</div>
+<section class="asc" aria-label="実行中。retry_after.go を編集中。経過 1 分 12 秒">
+<div class="ash" style="padding: 0 10px 0 9px; gap: 8px">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span>
+<span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="tx">internal/httpclient/retry_after.go を編集中</span></span>
+<span class="el">1:12</span>
+</div>
+<div class="asb" style="padding: 6px 8px 10px 6px">
+<div class="tl">
+<div class="ti">
+<button class="tr done"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">backoff の純関数を追加</span><span class="du">0:31</span></button>
+</div>
+<div class="ti">
+<button class="tr" aria-expanded="true"><span class="chev open"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mrun" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="tn">Retry-After を秒数と日付の両方で読む</span><span class="du">0:24</span></button>
+<div class="wl" style="padding-left: 36px">
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2l3.6 3.6"></path></svg></span><span class="wx">「Retry-After」を検索 · 4 件</span><span class="du">0.4s</span></button>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M4 1.8h5.2L12 4.6v9.6H4z"></path><path d="M9 1.8v3h3"></path></svg></span><span class="wx"><span class="f">client.go</span> ほか 1 ファイルを読み込み</span><span class="du">0.9s</span></button>
+<button class="wr run"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx"><span class="f">retry_after.go</span> を編集中</span><span class="du"></span></button>
+</div>
+</div>
+<div class="ti">
+<button class="tr todo" disabled="{{ true }}"><span class="chev none"></span><span class="mk"><span class="mtodo"></span></span><span class="tn">Do を包んで 429 と 503 を再試行</span><span class="du"></span></button>
+</div>
+<div class="ti">
+<button class="tr todo" disabled="{{ true }}"><span class="chev none"></span><span class="mk"><span class="mtodo"></span></span><span class="tn">テストを追加して通す</span><span class="du"></span></button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<p style="margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #1D1D1F">小さいタイルの状態の行（会話を出さないとき）</p>
+<div class="pc" style="width: 240px; height: 160px; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,.12); display: flex; flex-direction: column; overflow: hidden">
+<div style="height: 30px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: var(--t3); border-bottom: 1px solid var(--line)">タイルの見出し（現行のまま）</div>
+<div style="flex: 1"></div>
+<div class="ash" style="height: 34px; padding: 0 10px 0 8px; gap: 7px; border-top: 1px solid var(--line); font-size: 12px" aria-label="実行中。retry_after.go を編集中。経過 1 分 12 秒">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span>
+<span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="tx">retry_after.go を編集中</span></span>
+<span class="el">1:12</span>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; width: 360px">
+<p style="margin: 0; font-size: 13px; font-weight: 600; color: #1D1D1F">グリッドの列 · 幅 360pt · ダーク · 完了</p>
+<div class="pc dark" style="width: 360px; height: 520px; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); padding: 16px 12px; display: flex; flex-direction: column; gap: 10px; overflow: hidden">
+<div class="um" style="max-width: 92%; font-size: 12.5px">README のセットアップ手順を、今の Makefile のターゲットに合わせて直して</div>
+<section class="asc" aria-label="完了。所要 13 秒">
+<div class="ash" style="padding: 0 10px 0 9px; gap: 8px">
+<span class="lead" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.4l3.2 3.1L13 4.6"></path></svg></span>
+<span class="now"><span class="tx">完了</span></span>
+<span class="el">0:13</span>
+</div>
+<div class="asb" style="padding: 6px 8px 10px 6px">
+<div class="tl">
+<div class="ti">
+<button class="tr done"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">Makefile のターゲットを確認</span><span class="du">0:04</span></button>
+</div>
+<div class="ti">
+<button class="tr done"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">README の手順を書き換え</span><span class="du">0:07</span></button>
+</div>
+</div>
+</div>
+</section>
+<div class="am" style="font-size: 12.5px"><p><code>make setup</code> は <code>make deps</code> と <code>make db-up</code> に分かれていたので、「はじめに」の手順を 4 行に直しました。</p></div>
+<div class="cost">$0.04</div>
+</div>
+<p style="margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #1D1D1F">小さいタイルの状態の行 · ダーク · 無応答</p>
+<div class="pc dark" style="width: 240px; height: 160px; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); display: flex; flex-direction: column; overflow: hidden">
+<div style="height: 30px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: var(--t3); border-bottom: 1px solid var(--line)">タイルの見出し（現行のまま）</div>
+<div style="flex: 1"></div>
+<div class="ash" style="height: 34px; padding: 0 8px 0 8px; gap: 7px; border-top: 1px solid var(--line); font-size: 12px" aria-label="応答がありません。terraform plan を実行中。無応答 1 分 30 秒">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span>
+<span class="now"><span class="tx mono" style="font-size: 11px">terraform plan</span></span>
+<span class="el"><b>無応答 1:30</b></span>
+<button class="sbtn" style="height: 22px; padding: 0 4px" aria-label="中断（esc）"><span class="kc" style="margin: 0">esc</span></button>
+</div>
+</div>
+</div>
+
+<div style="flex: 1; display: flex; flex-direction: column; gap: 10px; padding-top: 30px; font-size: 12.5px; line-height: 1.6; color: #3C3C43">
+<b style="font-size: 13px; color: #1D1D1F">狭い列での決まり</b>
+<span>見出しは 1 行で、今の作業の文言を末尾で省略。経過時間と無応答の表示は省略しない。</span>
+<span>タスク名・作業の文言は 1 行で省略し、右端の所要時間は残す。</span>
+<span>左右の余白を 14 → 10pt、作業の行の字下げを 40 → 36pt に詰める。</span>
+<span>小さいタイルは会話を出さず、カードの見出しと同じ 1 行だけを下端に出す。無応答のときは中断ボタンを「esc」だけに縮める。</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

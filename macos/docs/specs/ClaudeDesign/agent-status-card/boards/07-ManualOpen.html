@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>完了したタスクを手で開く</title>
+<link rel="stylesheet" href="card.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</head>
+<body>
+<div class="pc" style="width: 720px; height: 780px; padding: 32px 40px 28px; display: flex; flex-direction: column; gap: 14px">
+<div class="log" style="width: 100%">
+<div class="um">429 が返ったら指数バックオフ＋ジッターで最大 5 回まで再試行するようにして。Retry-After があればそれを優先して</div>
+
+<section class="asc" aria-label="実行中。retry_after.go を編集中。経過 1 分 20 秒">
+<div class="ash">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span>
+<span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="tx">retry_after.go を編集中</span></span>
+<span class="el">1:20</span>
+</div>
+<div class="asb">
+<div class="tl">
+
+<div class="ti">
+<button class="tr out" aria-expanded="false" aria-label="タスク外の作業、2 件"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mout"></span></span><span class="tn">タスク外の作業 · 2 件</span><span class="du"></span></button>
+</div>
+
+<div class="ti">
+<button class="tr done hov" aria-expanded="true" aria-label="完了。backoff の純関数を追加。31 秒。手で開いています"><span class="chev open"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">backoff の純関数を追加</span><span class="du">0:31</span></button>
+<div class="wl">
+<div class="wt th">思考 · 6 秒</div>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx"><span class="f">backoff.go</span> ほか 2 ファイルを編集</span><span class="du">1.1s</span></button>
+<div class="wt">ジッターは上限の半分から上限までの一様乱数にしました。<code>attempt</code> が大きいときの桁あふれも上限で止めます。</div>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx">go vet で確認</span><span class="du">1.4s</span></button>
+</div>
+</div>
+
+<div class="ti">
+<button class="tr" aria-expanded="true" aria-label="進行中。Retry-After を秒数と日付の両方で読む。32 秒"><span class="chev open"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mrun" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="tn">Retry-After を秒数と日付の両方で読む</span><span class="du">0:32</span></button>
+<div class="wl">
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2l3.6 3.6"></path></svg></span><span class="wx">「Retry-After」を検索 · 4 件</span><span class="du">0.4s</span></button>
+<button class="wr run"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx"><span class="f">retry_after.go</span> を編集中</span><span class="du"></span></button>
+</div>
+</div>
+
+<div class="ti">
+<button class="tr todo" disabled aria-label="未着手。Do を包んで 429 と 503 を再試行"><span class="chev none"></span><span class="mk"><span class="mtodo"></span></span><span class="tn">Do を包んで 429 と 503 を再試行</span><span class="du"></span></button>
+</div>
+<div class="ti">
+<button class="tr todo" disabled aria-label="未着手。テストを追加して通す"><span class="chev none"></span><span class="mk"><span class="mtodo"></span></span><span class="tn">テストを追加して通す</span><span class="du"></span></button>
+</div>
+
+</div>
+</div>
+</section>
+</div>
+<div style="flex: 1"></div>
+<div class="cmp">入力欄（現行のまま）</div>
+</div>
+</body>
+</html>

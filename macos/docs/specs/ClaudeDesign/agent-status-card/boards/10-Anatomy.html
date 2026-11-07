@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>部品と全状態の対応表</title>
+<link rel="stylesheet" href="card.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.sp-t{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.55;color:#3C3C43}
+.sp-t th{text-align:left;font-size:11.5px;font-weight:600;color:#5E5E66;padding:0 12px 8px 0;border-bottom:1px solid #D2D2D7}
+.sp-t td{padding:8px 12px 8px 0;border-bottom:1px solid #EBEBEF;vertical-align:middle}
+.sp-t td.k{font-weight:600;color:#1D1D1F;white-space:nowrap}
+.panel{background:#fff;border-radius:12px;box-shadow:0 0 0 1px rgba(0,0,0,.08);padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.panel h2{margin:0;font-size:15px;font-weight:700;color:#1D1D1F}
+.sw{border:1px solid rgba(0,0,0,.09);border-radius:10px;background:#FBFBFC;overflow:hidden}
+</style>
+</head>
+<body>
+<div style="width: 2400px; height: 1260px; box-sizing: border-box; padding: 40px; background: #E9E9EC; display: grid; grid-template-columns: 900px 820px minmax(0, 1fr); gap: 32px; align-items: start; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+
+<div class="panel">
+<h2>見出し（1 行目）の全状態 · §4.2</h2>
+<table class="sp-t">
+<thead><tr><th style="width: 160px">状態</th><th style="width: 420px">見出し</th><th>決まり</th></tr></thead>
+<tbody>
+<tr><td class="k">実行中 · タスク登録前</td><td><div class="pc sw"><div class="ash"><span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span><span class="now"><span class="tx quiet">考え中…</span></span><span class="el">0:09</span></div></div></td><td>中央は今の AgentActivityState の語（考え中・検索中・実行中・編集中・書いています・待っています）</td></tr>
+<tr><td class="k">実行中 · 作業あり</td><td><div class="pc sw"><div class="ash"><span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span><span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="tx">api.swift を編集中</span></span><span class="el">0:13</span></div></div></td><td>今の作業の種類のアイコン＋作業の行と同じ文言（「〜中」）</td></tr>
+<tr><td class="k">応答なし</td><td><div class="pc sw"><div class="ash"><span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span><span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="tx">テストを実行中</span></span><span class="el"><b>無応答 1:30</b></span><button class="sbtn">中断<span class="kc">esc</span></button></div></div></td><td>経過の代わりに「無応答」と太字の時間。中断ボタンはこの状態だけ</td></tr>
+<tr><td class="k">承認・質問待ち</td><td><div class="pc sw"><div class="ash"><span class="dots wait" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span><span class="now"><span class="tx quiet">待機中…</span></span><span class="el">0:47</span></div></div></td><td>点描は止めて薄くする。承認・質問そのものは入力欄の上（現行）</td></tr>
+<tr><td class="k">完了</td><td><div class="pc sw"><div class="ash"><span class="lead" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.4l3.2 3.1L13 4.6"></path></svg></span><span class="now"><span class="tx">完了</span></span><span class="el">0:13</span></div></div></td><td>✓ は文字と同じ半透明グレー。右は所要時間</td></tr>
+<tr><td class="k">中断</td><td><div class="pc sw"><div class="ash"><span class="lead" aria-hidden="true"><span class="mstop" style="width: 15px; height: 15px"><i></i></span></span><span class="now"><span class="tx">中断</span></span><span class="el">0:42</span></div></div></td><td>進行中だったタスクにも中断の印</td></tr>
+<tr><td class="k">エラー</td><td><div class="pc sw"><div class="ash"><span class="lead" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 2.2L14.2 13H1.8z"></path><path d="M8 6.4v3.2M8 11.2v.2"></path></svg></span><span class="now"><span class="tx">エラー</span></span><span class="el">0:21</span></div></div></td><td>エラーの本文はカードの中、起きた位置（FR-17）</td></tr>
+<tr><td class="k">次の入力へ続く</td><td><div class="pc sw"><div class="ash"><span class="lead" aria-hidden="true"><span class="mstop" style="width: 15px; height: 15px"><i></i></span></span><span class="now"><span class="tx">次の入力へ続く</span></span><span class="el">0:36</span></div></div></td><td>実行中に次の入力を送ったとき。次の入力から新しいカード（FR-3）</td></tr>
+<tr><td class="k">終了</td><td><div class="pc sw"><div class="ash"><span class="lead" aria-hidden="true"></span><span class="now"><span class="tx quiet">終了</span></span><span class="el"></span></div></div></td><td>終わり方の記録が無い（古い会話・異常終了）。印も時間も出さない</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 32px">
+<div class="panel">
+<h2>タスクの行 · §4.3</h2>
+<div class="pc sw" style="padding: 8px 12px 8px 10px">
+<div class="tl">
+<div class="ti"><button class="tr out"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mout"></span></span><span class="tn">タスク外の作業 · 2 件</span><span class="du"></span></button></div>
+<div class="ti"><button class="tr done"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">完了：✓・取り消し線・薄い文字</span><span class="du">0:31</span></button></div>
+<div class="ti"><button class="tr"><span class="chev open"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mrun" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="tn">進行中：小さい点描・自動で開く</span><span class="du">0:24</span></button></div>
+<div class="ti"><button class="tr"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mstop"><i></i></span></span><span class="tn">中断：中断の印・通常の文字</span><span class="du">0:12</span></button></div>
+<div class="ti"><button class="tr todo" disabled><span class="chev none"></span><span class="mk"><span class="mtodo"></span></span><span class="tn">未着手：○・薄い文字・開けない</span><span class="du"></span></button></div>
+</div>
+</div>
+<table class="sp-t"><tbody>
+<tr><td class="k">縦の線</td><td>印の中心を 1pt の線でつなぐ（スケッチの ○―○―○）。開いたタスクの作業の行の横も通す</td></tr>
+<tr><td class="k">開閉</td><td>左のシェブロン。進行中が完了したら自動で閉じ、次の進行中を開く。手で開いたものは自動で閉じない。作業が終わったら全部閉じる</td></tr>
+<tr><td class="k">所要時間</td><td>進行中になってから完了するまで。進行中は数え続ける。未着手は出さない</td></tr>
+<tr><td class="k">タスク外の作業</td><td>破線の丸。登録前の作業はタスクの上、それ以外は時系列の位置。所要時間の代わりに件数</td></tr>
+</tbody></table>
+</div>
+
+<div class="panel">
+<h2>作業の行 · §4.4</h2>
+<div class="pc sw" style="padding: 6px 10px">
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M4 1.8h5.2L12 4.6v9.6H4z"></path><path d="M9 1.8v3h3"></path></svg></span><span class="wx">読み込み：<span class="f">client.go</span> ほか 1 ファイルを読み込み</span><span class="du">0.9s</span></button>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2l3.6 3.6"></path></svg></span><span class="wx">検索：「Retry-After」を検索 · 4 件</span><span class="du">0.4s</span></button>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx">編集（続けてまとめる）：5 ファイルを編集</span><span class="du">1.9s</span></button>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx">Claude のコマンド：説明（description）を使う — 再試行のテストを実行</span><span class="du">4.8s</span></button>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx">Codex のコマンド：<span class="mono" style="font-size: 12px">go test ./... -count=1</span></span><span class="du">6.2s</span></button>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5" cy="5" r="2"></circle><circle cx="11" cy="11" r="2"></circle><path d="M6.4 6.4l3.2 3.2"></path></svg></span><span class="wx">サブエージェント：呼び出し元の洗い出し <span style="color: var(--t3)">· Explore · 完了</span>（開けない）</span><span class="du">14s</span></button>
+<button class="wr run"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx">進行中：薄い文字で「<span class="f">client_test.go</span> を編集中」、時間なし</span><span class="du"></span></button>
+<div class="wt th">思考 · 6 秒</div>
+<div class="wt">途中の文章は、タスクの下に作業と並べて小さめの文字で出す。</div>
+<button class="more">さらに表示（古い作業 18 件）</button>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 32px">
+<div class="panel">
+<h2>寸法と色</h2>
+<table class="sp-t"><tbody>
+<tr><td class="k">カード</td><td>角丸 12 · 1pt の線 · 面は会話の面より 1 段だけ明るい / 暗い</td></tr>
+<tr><td class="k">見出し</td><td>高さ 40 · 左右 14 · 点描 18 · アイコン 14 · 文字 13 · 時間 12（等幅数字）</td></tr>
+<tr><td class="k">タスクの行</td><td>高さ 28 · シェブロン 14 · 印 18（丸 12〜14）· 縦の線 1pt</td></tr>
+<tr><td class="k">作業の行</td><td>高さ 24 · 字下げ 40（狭い列 36）· アイコン 13 · 文字 12.5</td></tr>
+<tr><td class="k">色</td><td>アイコン・✓・印はすべて文字と同じ色の半透明（ライト 50% / ダーク 52%）。緑・状態の色・アクセントの色は使わない</td></tr>
+<tr><td class="k">時間の書き方</td><td>m:ss、1 時間以上は h:mm:ss。作業は 1.9s のように秒で</td></tr>
+</tbody></table>
+</div>
+<div class="panel">
+<h2>動き · VoiceOver</h2>
+<table class="sp-t"><tbody>
+<tr><td class="k">動くもの</td><td>見出しの点描と、進行中タスクの小さい点描だけ。作業の行にスピナーは出さない</td></tr>
+<tr><td class="k">動きを減らす</td><td>点描を止め、点を同じ濃さで並べた静止表示にする</td></tr>
+<tr><td class="k">見出し</td><td>「実行中。api.swift を編集中。経過 13 秒」と 1 つのラベルで読む</td></tr>
+<tr><td class="k">タスクの行</td><td>「完了。backoff の純関数を追加。31 秒。折りたたみ済み」</td></tr>
+<tr><td class="k">作業の行</td><td>「編集。client.go。0.6 秒。展開できます」</td></tr>
+</tbody></table>
+</div>
+<div class="panel">
+<h2>カードの外に置くもの</h2>
+<table class="sp-t"><tbody>
+<tr><td class="k">上</td><td>最初の作業・タスク登録より前の文章と思考（FR-16）</td></tr>
+<tr><td class="k">下</td><td>作業が終わった後の最後の返答とターンの使用量。終わった時点で一度だけ下へ移す（FR-18）</td></tr>
+<tr><td class="k">入力欄の上</td><td>承認待ちと未回答の質問（現行のまま · FR-19）</td></tr>
+</tbody></table>
+</div>
+</div>
+
+</div>
+</body>
+</html>

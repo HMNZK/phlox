@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>無応答のカード</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="card.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="pc dark" style="width: 720px; height: 440px; padding: 32px 40px 28px; display: flex; flex-direction: column; gap: 14px">
+<div class="log" style="width: 100%">
+<div class="um">infra-terraform の plan を取って、差分を種類ごとに整理して</div>
+
+<section class="asc" aria-label="応答がありません。terraform plan を実行中。無応答 1 分 30 秒。esc で中断">
+<div class="ash">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span>
+<span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="tx mono" style="font-size: 12px">terraform plan -out=tfplan</span></span>
+<span class="el"><b>無応答 1:30</b></span>
+<button class="sbtn" aria-label="中断（esc）">中断<span class="kc">esc</span></button>
+</div>
+<div class="asb">
+<div class="tl">
+<div class="ti">
+<button class="tr" aria-expanded="true" aria-label="進行中。plan を取る。1 分 52 秒"><span class="chev open"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mrun" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="tn">plan を取る</span><span class="du">1:52</span></button>
+<div class="wl">
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx mono" style="font-size: 12px">terraform init -upgrade</span><span class="du">6.2s</span></button>
+<button class="wr run"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx mono" style="font-size: 12px">terraform plan -out=tfplan -lock-timeout=60s</span><span class="du"></span></button>
+</div>
+</div>
+<div class="ti">
+<button class="tr todo" disabled="{{ true }}" aria-label="未着手。差分を種類ごとにまとめる"><span class="chev none"></span><span class="mk"><span class="mtodo"></span></span><span class="tn">差分を種類ごとにまとめる</span><span class="du"></span></button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div style="flex: 1"></div>
+<div class="cmp">入力欄（現行のまま）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":440}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>完了したカード</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="card.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="pc dark" style="width: 720px; height: 640px; padding: 32px 40px 28px; display: flex; flex-direction: column; gap: 14px">
+<div class="log" style="width: 100%">
+<div class="um">README のセットアップ手順を、今の Makefile のターゲットに合わせて直して</div>
+<div class="am"><p>Makefile を確かめてから README を直します。</p></div>
+
+<section class="asc" aria-label="完了。所要 13 秒。タスク 2 件">
+<div class="ash">
+<span class="lead" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.4l3.2 3.1L13 4.6"></path></svg></span>
+<span class="now"><span class="tx">完了</span></span>
+<span class="el">0:13</span>
+</div>
+<div class="asb">
+<div class="tl">
+<div class="ti">
+<button class="tr done" aria-expanded="false" aria-label="完了。Makefile のターゲットを確認。4 秒"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">Makefile のターゲットを確認</span><span class="du">0:04</span></button>
+</div>
+<div class="ti">
+<button class="tr done" aria-expanded="false" aria-label="完了。README の手順を書き換え。7 秒"><span class="chev"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mdone"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.5 5.2l2.2 2.2L8.5 2.6"></path></svg></span></span><span class="tn">README の手順を書き換え</span><span class="du">0:07</span></button>
+</div>
+</div>
+</div>
+</section>
+
+<div class="am"><p><code>make setup</code> は無くなり、<code>make deps</code> と <code>make db-up</code> に分かれていたので、README の「はじめに」の手順を 3 行から 4 行に直しました。<code>make run</code> の説明は今のままで合っています。</p><p>ローカルの Postgres を Docker で立てる前提を、手順の先頭に 1 文足しています。</p></div>
+<div class="cost">$0.04</div>
+</div>
+<div style="flex: 1"></div>
+<div class="cmp">入力欄（現行のまま）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

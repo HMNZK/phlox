@@ -150,7 +150,8 @@ struct AgentStatusHeaderView: View {
             )))
             .accessibilityIdentifier("AgentStatusCard.header")
             if state == .stalled, let onInterrupt {
-                interruptButton(onInterrupt)
+                // 長い作業名に押されて「esc」が欠けないよう、右側を先に確保する。
+                interruptButton(onInterrupt).fixedSize().layoutPriority(1)
             }
         }
         .padding(.leading, AgentStatusCardLayout.headerLeading(isNarrow: isNarrow))
@@ -233,6 +234,7 @@ struct AgentStatusHeaderView: View {
                 .font(.system(size: 12 * scale))
                 .monospacedDigit()
                 .foregroundStyle(DSColor.chatTextSecondary)
+                .fixedSize()
         case .stalled(let seconds):
             Text(verbatim: String(
                 format: AppLocalizedString.string("無応答 %@", locale: locale, bundle: bundle),
@@ -241,6 +243,7 @@ struct AgentStatusHeaderView: View {
             .font(.system(size: 12 * scale, weight: .semibold))
             .monospacedDigit()
             .foregroundStyle(DSColor.chatTextPrimary)
+            .fixedSize()
             .accessibilityIdentifier("ChatHang.status")
         }
     }

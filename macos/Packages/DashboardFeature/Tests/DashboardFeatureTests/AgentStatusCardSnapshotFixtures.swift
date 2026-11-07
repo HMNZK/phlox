@@ -51,6 +51,7 @@ struct AgentStatusCardSnapshotLog: View {
                         agentDescriptor: descriptor,
                         isNarrow: scene.isNarrow,
                         hangAssessment: scene.hang.map { hang in { _ in hang } },
+                        onInterrupt: scene.hang == nil ? nil : {},
                         disclosure: toggled(card),
                         openActionIDs: scene.openActionIDs
                     )

@@ -750,9 +750,15 @@ private func writeCellPNGs(
             AnyView(wrap(ChatItemView(item: GateBFixture.fileChange, isRunningCommand: false, agentDescriptor: descriptor))),
             true
         ),
+        // Claude・Codex のタスクは状態カードに出る（TaskListCell は削除した）。実行中と完了後の 2 枚。
         (
-            "cell-task-list-w720-s1.0-phlox-light.png",
-            AnyView(wrap(ChatItemView(item: GateBFixture.taskList, isRunningCommand: false, agentDescriptor: descriptor))),
+            "cell-status-card-running-w720-s1.0-phlox-light.png",
+            AnyView(wrap(AgentStatusCardView(card: GateBFixture.statusCard(isRunning: true), agentDescriptor: descriptor))),
+            false
+        ),
+        (
+            "cell-status-card-done-w720-s1.0-phlox-light.png",
+            AnyView(wrap(AgentStatusCardView(card: GateBFixture.statusCard(isRunning: false), agentDescriptor: descriptor))),
             false
         ),
         (
@@ -1222,6 +1228,43 @@ private enum GateBFixture {
         ],
         timestamp: time
     )
+
+    /// 状態カードのセル画像用。タスク 3 件（完了・進行中・未着手）と、進行中のタスクの下の作業 1 件。
+    static func statusCard(isRunning: Bool) -> AgentStatusCard {
+        let items: [ChatItem] = [
+            .userMessage(
+                id: "card-u", text: "状態カードの見た目を確認したい。", timestamp: time, attachments: [],
+                turnEnd: isRunning ? nil : ChatTurnEnd(outcome: .completed, at: time.addingTimeInterval(73))
+            ),
+            .taskList(
+                id: "task-list-1",
+                tasks: [
+                    AgentTaskItem(id: "task-done", title: "完了した項目は取り消し線と補助色", status: .inProgress),
+                    AgentTaskItem(id: "task-running", title: "進行中の項目は小さい点描と所要時間", status: .pending),
+                    AgentTaskItem(id: "task-pending", title: "未着手の項目は薄い丸で開けない", status: .pending),
+                ],
+                timestamp: time.addingTimeInterval(2)
+            ),
+            .taskList(
+                id: "task-list-2",
+                tasks: [
+                    AgentTaskItem(id: "task-done", title: "完了した項目は取り消し線と補助色", status: .completed),
+                    AgentTaskItem(id: "task-running", title: "進行中の項目は小さい点描と所要時間", status: .inProgress),
+                    AgentTaskItem(id: "task-pending", title: "未着手の項目は薄い丸で開けない", status: .pending),
+                ],
+                timestamp: time.addingTimeInterval(30)
+            ),
+            .commandExecution(
+                id: "card-cmd", command: "swift test --filter AgentStatusCard", output: "ok",
+                timestamp: time.addingTimeInterval(31), completedAt: time.addingTimeInterval(36), intent: "状態カードのテストを実行"
+            ),
+        ]
+        let live = AgentStatusLiveState(
+            isProcessing: isRunning, activityState: .thinking, hangAssessment: nil, isAwaitingReply: false
+        )
+        for case .statusCard(let card) in AgentStatusCardBuilder.build(items: items, liveState: live) { return card }
+        preconditionFailure("状態カードが組み立てられなかった")
+    }
 
     static let fileChange = ChatItem.fileChange(
         id: "file-1",

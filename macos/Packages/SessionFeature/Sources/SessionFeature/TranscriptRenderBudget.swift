@@ -18,6 +18,11 @@ enum TranscriptRenderBudget {
     static let textCharacterUnits = 5
     /// セル骨格など、内容量に比例しない 1 ブロックの最低較正重み。
     static let otherBlockUnits = 50
+    /// エージェント状態カードの、タスク・タスク外の行 1 本あたりの重み。実測していない見積り
+    /// （1 行は本文セルの骨格より軽い）。較正するときは他の係数と同じ手順で実データを測る。
+    static let statusCardRowUnits = 10
+    /// 同、開いている作業の行 1 本あたりの重み（同じく見積り）。
+    static let statusCardEntryUnits = 20
     /// 200ms（目標）- 107ms（骨格固定費）= 93ms。
     static let defaultUnits = 9_300
     /// 最新の会話文脈を失わないために、予算超過時も描画する既定の最低件数。
@@ -73,8 +78,15 @@ enum TranscriptRenderBudget {
     /// 1 ブロックの描画コスト重みを返す。すべてのブロックに最低骨格費を課す。
     static func weight(of block: ChatTranscriptBlock) -> Int {
         switch block {
-        case .commandGroup, .statusCard:
+        case .commandGroup:
             return otherBlockUnits
+
+        case .statusCard(let card):
+            // 重みは開いている作業の行の数に比例させる（手で開いた行は View の状態なので数えない）。
+            return saturatedSum(
+                saturatedSum(otherBlockUnits, saturatedProduct(card.rows.count, statusCardRowUnits)),
+                saturatedProduct(card.openEntryCount, statusCardEntryUnits)
+            )
 
         case .single(let item):
             switch item {

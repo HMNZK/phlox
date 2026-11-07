@@ -133,7 +133,6 @@ struct AcceptanceCodexProductionReachabilityTests {
                     let elements = axElements(in: app)
                     let expectedIdentifiers = [
                         "CodexSessionSurface",
-                        "CodexPlanTaskList",
                         "SubAgentStrip",
                         "SubAgentStrip.row",
                     ]
@@ -143,13 +142,15 @@ struct AcceptanceCodexProductionReachabilityTests {
                             "実ランタイムAXツリーに identifier がない: \(identifier)"
                         )
                     }
+                    // 計画（update_plan）はエージェント状態カードに出る。surface には出さない（設計 §3.6・§7.2）。
+                    #expect(elements.contains { $0.identifier == "CodexPlanTaskList" } == false)
                     // 停止・✕ はポインタを置いた時だけ出る（常時は出さない）。停止は行の AX アクション側。
                     #expect(elements.contains { $0.identifier == "SubAgentStrip.stop" } == false)
                     #expect(elements.contains { $0.identifier == "SubAgentStrip.dismiss" } == false)
                     #expect(elements.contains { $0.identifier == "CodexSubAgent.\(child.id)" } == false)
                     #expect(elements.contains { $0.identifier?.hasPrefix("CodexBackgroundTerminal.") == true } == false)
                     let displayedText = Set(elements.flatMap { [$0.title, $0.value, $0.description].compactMap { $0 } })
-                    #expect(displayedText.contains { $0.contains("0 / 2 完了") })
+                    #expect(!displayedText.contains { $0.contains("0 / 2 完了") })
                     #expect(displayedText.contains { $0.contains("test failure investigation") })
                     // 子の中身は見せない（右パネルは無い）。
                     #expect(!displayedText.contains { $0.contains("child-new detail") })

@@ -3,7 +3,7 @@ import DesignSystem
 enum ChatTranscriptBlock: Identifiable, Equatable {
     case single(ChatItem)
     case commandGroup(id: String, items: [ChatItem])
-    /// エージェント状態カード（AgentStatusCardBuilder が組み立てる。描画は未接続）。
+    /// エージェント状態カード（AgentStatusCardBuilder が組み立て、AgentStatusCardView が描く。Claude と Codex だけ）。
     case statusCard(AgentStatusCard)
 
     var id: String {
@@ -68,17 +68,14 @@ enum ChatTranscriptGrouping {
 
     /// 個別 item のジャンプ先を、実際にトップレベルへ描画される block identity に解決する。
     /// commandGroup 内の item は先頭 item.id に解決するため、折りたたみ中も scrollTo が空振りしない。
+    /// 状態カードの中の item はカードの id に解決する。
     static func scrollTargetID(containing itemID: String, in items: [ChatItem]) -> String {
-        for block in blocks(from: items) {
-            switch block {
-            case .single(let item) where item.id == itemID:
-                return block.id
-            case .commandGroup(let id, let groupedItems)
-                where groupedItems.contains(where: { $0.id == itemID }):
-                return id
-            default:
-                continue
-            }
+        scrollTargetID(containing: itemID, inBlocks: blocks(from: items))
+    }
+
+    static func scrollTargetID(containing itemID: String, inBlocks blocks: [ChatTranscriptBlock]) -> String {
+        for block in blocks where contains(block, itemID: itemID) {
+            return block.id
         }
 
         // transcript 外の既存アンカー（例: chat-bottom）に対する従来の挙動を維持する。
@@ -90,17 +87,22 @@ enum ChatTranscriptGrouping {
     }
 
     static func blockIndex(ofItemWithID itemID: String, in items: [ChatItem]) -> Int? {
-        for (index, block) in blocks(from: items).enumerated() {
-            switch block {
-            case .single(let item) where item.id == itemID:
-                return index
-            case .commandGroup(_, let groupedItems) where groupedItems.contains(where: { $0.id == itemID }):
-                return index
-            default:
-                continue
-            }
+        blockIndex(ofItemWithID: itemID, inBlocks: blocks(from: items))
+    }
+
+    static func blockIndex(ofItemWithID itemID: String, inBlocks blocks: [ChatTranscriptBlock]) -> Int? {
+        blocks.firstIndex { contains($0, itemID: itemID) }
+    }
+
+    private static func contains(_ block: ChatTranscriptBlock, itemID: String) -> Bool {
+        switch block {
+        case .single(let item):
+            item.id == itemID
+        case .commandGroup(_, let groupedItems):
+            groupedItems.contains { $0.id == itemID }
+        case .statusCard(let card):
+            card.contains(itemID: itemID)
         }
-        return nil
     }
 
     static func visibleSlice(from items: [ChatItem], blockLimit: Int) -> ChatTranscriptSlice {

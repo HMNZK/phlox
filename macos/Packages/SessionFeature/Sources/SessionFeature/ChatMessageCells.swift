@@ -103,8 +103,9 @@ public struct ChatItemView: View, Equatable {
                 description: description,
                 status: status
             )
-        case .taskList(_, let tasks, let timestamp):
-            TaskListCell(tasks: tasks, timestamp: timestamp)
+        case .taskList:
+            // タスクはエージェント状態カードに出す（Claude・Codex）。Cursor は taskList を持たない。
+            EmptyView()
         case .turnCost(_, let costUSD, let timestamp):
             TurnCostCell(costUSD: costUSD, timestamp: timestamp, usage: turnUsage)
         case .userQuestion(_, _, _, _, .pending, _) where onRespondToUserQuestion != nil:

@@ -50,6 +50,21 @@ struct AgentStatusHeader: Equatable {
     /// 無応答の長さ（`.stalled` のときだけ）。
     let silence: TimeInterval?
 
+    /// 実行中の見出し（動く点描・経過を数える）。
+    var isLive: Bool { state == .running || state == .stalled || state == .awaitingReply }
+
+    /// 点描の種類。今の作業があればその種類、無ければ状態語の元の活動状態。
+    var orbState: AgentActivityState {
+        if state == .awaitingReply { return .waiting }
+        guard let current else { return activityState ?? .thinking }
+        switch current {
+        case .read, .search, .searches: return .searching
+        case .edit, .editFiles: return .editing
+        case .write: return .writing
+        case .run, .command, .tool, .subAgent: return .running
+        }
+    }
+
     /// 見出しの中央の文言。
     func title(locale: Locale, bundle: Bundle = .main) -> String {
         switch state {
@@ -207,6 +222,21 @@ enum AgentStatusDurationFormat {
     }
 }
 
+extension AgentStatusDurationFormat {
+    /// VoiceOver 用。13 秒、1 分 20 秒、1 時間 2 分。
+    /// `fractional`: 10 秒未満を 0.6 秒のように小数で読む（作業の行）。
+    static func spoken(_ seconds: TimeInterval, locale: Locale, bundle: Bundle = .main, fractional: Bool = false) -> String {
+        func format(_ key: String, _ arguments: CVarArg...) -> String {
+            String(format: AppLocalizedString.string(key, locale: locale, bundle: bundle), arguments: arguments)
+        }
+        if fractional, seconds < 10 { return format("%.1f 秒", max(0, seconds)) }
+        let total = Int(max(0, seconds))
+        if total >= 3600 { return format("%1$lld 時間 %2$lld 分", total / 3600, total % 3600 / 60) }
+        if total >= 60 { return format("%1$lld 分 %2$lld 秒", total / 60, total % 60) }
+        return format("%lld 秒", total)
+    }
+}
+
 enum AgentStatusText {
     /// 既存の日本語キーと英語が衝突する文言は、識別子のキーで引き、訳が無ければ日本語を返す。
     static func keyed(_ key: String, japanese: String, locale: Locale, bundle: Bundle) -> String {
@@ -239,6 +269,16 @@ enum AgentStatusCardBuilder {
         return blocks
     }
 
+    /// 最新のカードの見出し（グリッドの小さいタイルが使う）。最後の入力の区間と、その直前のタスクの
+    /// スナップショット（基準）だけで組み立てるので、長い会話でも全件を走査しない。
+    static func latestHeader(items: [ChatItem], liveState: AgentStatusLiveState) -> AgentStatusHeader? {
+        guard let start = items.lastIndex(where: { if case .userMessage = $0 { true } else { false } }) else { return nil }
+        let baseline = items[..<start].last(where: { Snapshot($0) != nil })
+        let tail = (baseline.map { [$0] } ?? []) + items[start...]
+        for case .statusCard(let card) in build(items: tail, liveState: liveState) { return card.header }
+        return nil
+    }
+
     // MARK: - 区間
 
     private struct Snapshot {
@@ -266,7 +306,8 @@ enum AgentStatusCardBuilder {
         _ segment: [ChatItem], baseline: Snapshot?, isRunning running: Bool, liveState: AgentStatusLiveState
     ) -> [ChatTranscriptBlock] {
         guard case .userMessage(let userID, _, let startedAt, _, let turnEnd) = segment[0] else { return [] }
-        let body = Array(segment.dropFirst())
+        // 変更が空の fileChange は作業として数えない（「0 ファイルを編集」にしない）。カードが出ない区間では今のまま出る。
+        let body = segment.dropFirst().filter { !isEmptyFileChange($0) }
         let snapshots = body.compactMap(Snapshot.init)
 
         // 基準（区間に入る直前のスナップショット）と一度でも違ったタスクだけを出す（D8）。
@@ -433,6 +474,10 @@ enum AgentStatusCardBuilder {
         }
     }
 
+    private static func isEmptyFileChange(_ item: ChatItem) -> Bool {
+        if case .fileChange(_, let changes, _, _) = item { changes.isEmpty } else { false }
+    }
+
     /// まとめてよい種類（読み込み・検索・編集）。それ以外は nil（実行・書き込み・その他はまとめない）。
     private enum MergeKind { case read, search, edit }
 
@@ -533,5 +578,50 @@ enum AgentStatusCardBuilder {
     private static func fileName(_ path: String) -> String {
         let name = (path as NSString).lastPathComponent
         return name.isEmpty ? path : name
+    }
+}
+
+/// どの会話でカードを使うか、使う会話のブロック列をどう作るか（設計 §4.1「適用範囲」）。
+/// Claude と Codex だけがカードの組み立てを使い、Cursor は今の `ChatTranscriptGrouping.blocks` のまま（AC-14）。
+enum AgentStatusCardRouting {
+    static func usesStatusCard(_ agent: AgentKind) -> Bool {
+        switch agent {
+        case .claudeCode, .codex: true
+        case .cursor: false
+        }
+    }
+
+    static func blocks(items: [ChatItem], agent: AgentKind, liveState: AgentStatusLiveState) -> [ChatTranscriptBlock] {
+        usesStatusCard(agent)
+            ? AgentStatusCardBuilder.build(items: items, liveState: liveState)
+            : ChatTranscriptGrouping.blocks(from: items)
+    }
+}
+
+extension AgentStatusCard {
+    /// カードの中にこの id の item があるか（ジャンプ先をカードの id へ解決するため）。
+    func contains(itemID: String) -> Bool {
+        rows.contains { row in
+            row.entries.contains { entry in
+                switch entry {
+                case .action(let action): action.items.contains { $0.id == itemID }
+                case .item(let item): item.id == itemID
+                }
+            }
+        }
+    }
+}
+
+extension ChatSessionViewModel {
+    /// 組み立てへ渡す実行中の状態。承認・質問待ちも、今の処理中表示と同じく実行中に数える。
+    /// 無応答の判定は時刻で変わるので渡さない（見出しが表示の時計から決める）。
+    var statusCardLiveState: AgentStatusLiveState {
+        let activity = activityState
+        return AgentStatusLiveState(
+            isProcessing: showsProcessingIndicator || activity == .waiting,
+            activityState: activity ?? .thinking,
+            hangAssessment: nil,
+            isAwaitingReply: activity == .waiting
+        )
     }
 }

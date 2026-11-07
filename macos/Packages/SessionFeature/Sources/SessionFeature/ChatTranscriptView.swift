@@ -17,6 +17,7 @@ struct ChatTranscriptView: View {
     private let isLaunchFailureRestarting: Bool
     private let onLaunchFailureClose: (() -> Void)?
     private let defaultWindowLimit: Int
+    private let presentationContext: TranscriptPresentationContext
     @State private var autoFollow = ChatAutoFollowController()
     // 表示件数制限（末尾 N 件のみ描画。ADR 0030:22）。view-local な @State に住み、
     // body 評価中には書かない（visibleRange は読み取りのみ）。expand は明示スクロール入力、
@@ -70,6 +71,7 @@ struct ChatTranscriptView: View {
         self.isLaunchFailureRestarting = isLaunchFailureRestarting
         self.onLaunchFailureClose = onLaunchFailureClose
         _window = State(initialValue: TranscriptWindow(context: presentationContext))
+        self.presentationContext = presentationContext
         defaultWindowLimit = TranscriptWindow.defaultLimit(for: presentationContext)
     }
 
@@ -250,7 +252,8 @@ struct ChatTranscriptView: View {
                    showsThinkingIndicator: showsThinkingIndicator,
                    showsProcessingIndicator: viewModel.showsProcessingIndicator,
                    isCompacting: viewModel.isCompacting,
-                   isAwaitingUser: activityState == .waiting
+                   isAwaitingUser: activityState == .waiting,
+                   usesStatusCard: AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind)
                ) {
                 ThinkingIndicatorCell(
                     descriptor: agentDescriptor,
@@ -290,8 +293,18 @@ struct ChatTranscriptView: View {
         }
     }
 
+    /// 表示するブロック列。Claude と Codex はカードの組み立て、Cursor は今のまま（AC-14）。
+    private func blocks(from items: [ChatItem]) -> [ChatTranscriptBlock] {
+        AgentStatusCardRouting.blocks(items: items, agent: viewModel.agentRef.builtinKind, liveState: viewModel.statusCardLiveState)
+    }
+
     private func budgetedSlice(from items: [ChatItem]) -> ChatTranscriptSlice {
-        let candidate = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
+        let candidate: ChatTranscriptSlice
+        if AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind) {
+            candidate = ChatTranscriptGrouping.visibleSlice(fromBlocks: blocks(from: items), blockLimit: window.limit)
+        } else {
+            candidate = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
+        }
         let blockLimit = renderBlockLimit(for: candidate.blocks.map(\.content))
         return ChatTranscriptSlice(
             blocks: Array(candidate.blocks.suffix(blockLimit)),
@@ -322,33 +335,37 @@ struct ChatTranscriptView: View {
         }
     }
 
+    private func chatItemView(for item: ChatItem, lastTranscriptID: String?) -> ChatItemView {
+        ChatItemView(
+            item: item,
+            isRunningCommand: isRunningCommand(item, lastTranscriptID: lastTranscriptID),
+            agentDescriptor: agentDescriptor,
+            onRespondToUserQuestion: { requestId, answers in
+                await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
+            },
+            onDismissUserQuestion: {
+                Task {
+                    if case .userQuestion(_, let requestId, _, _, _, _) = item {
+                        await viewModel.dismissUserQuestion(requestId: requestId)
+                    }
+                }
+            },
+            turnUsage: viewModel.turnUsageByItemID[item.id],
+            onLaunchFailureRestart: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureRestart : nil,
+            isLaunchFailureRestarting: isLaunchFailureRestarting,
+            onLaunchFailureClose: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureClose : nil
+        )
+    }
+
     @ViewBuilder
     private func transcriptBlock(_ block: ChatTranscriptBlock, lastTranscriptID: String?) -> some View {
         switch block {
         case .single(let item):
-            ChatItemView(
-                item: item,
-                isRunningCommand: isRunningCommand(item, lastTranscriptID: lastTranscriptID),
-                agentDescriptor: agentDescriptor,
-                onRespondToUserQuestion: { requestId, answers in
-                    await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
-                },
-                onDismissUserQuestion: {
-                    Task {
-                        if case .userQuestion(_, let requestId, _, _, _, _) = item {
-                            await viewModel.dismissUserQuestion(requestId: requestId)
-                        }
-                    }
-                },
-                turnUsage: viewModel.turnUsageByItemID[item.id],
-                onLaunchFailureRestart: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureRestart : nil,
-                isLaunchFailureRestarting: isLaunchFailureRestarting,
-                onLaunchFailureClose: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureClose : nil
-            )
-            // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が
-            // @Observable の依存になっており、1行の更新でもこのビュー全体が無効化されるため、
-            // ここで止めないと窓内の全行（グリッドは最大 40 件×9 タイル）が毎 tick 再評価される。
-            .equatable()
+            chatItemView(for: item, lastTranscriptID: lastTranscriptID)
+                // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が
+                // @Observable の依存になっており、1行の更新でもこのビュー全体が無効化されるため、
+                // ここで止めないと窓内の全行（グリッドは最大 40 件×9 タイル）が毎 tick 再評価される。
+                .equatable()
         case .commandGroup(_, let items):
             CommandGroupCell(
                 items: items,
@@ -356,9 +373,19 @@ struct ChatTranscriptView: View {
                 isTurnRunning: viewModel.status.isRunning
             )
             .equatable()
-        case .statusCard:
-            // 組み立てはまだ画面へつないでいない（描画は段5）。
-            EmptyView()
+        case .statusCard(let card):
+            AgentStatusCardView(
+                card: card,
+                agentDescriptor: agentDescriptor,
+                // 圧縮中・接続待ちの間は、実行中のカードの点描を止める。
+                isStill: card.header.isLive && (viewModel.isCompacting || viewModel.shouldShowConnectingIndicator),
+                isNarrow: presentationContext == .gridTile,
+                isLaunchFailureRestarting: isLaunchFailureRestarting,
+                hangAssessment: { viewModel.hangAssessment(now: $0) },
+                onInterrupt: { await viewModel.turnInterrupt() },
+                makeItemView: { chatItemView(for: $0, lastTranscriptID: lastTranscriptID) }
+            )
+            .equatable()
         }
     }
 
@@ -491,12 +518,12 @@ struct ChatTranscriptView: View {
         jumpGeneration += 1
         let generation = jumpGeneration
         let currentItems = transcriptItems
-        let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, in: currentItems)
         // 対象が現セッションの items にあり、かつ隠れ域なら reveal してから遅延 scrollTo。
-        let blocks = ChatTranscriptGrouping.blocks(from: currentItems)
-        let blockCount = blocks.count
-        if let blockIndex = ChatTranscriptGrouping.blockIndex(ofItemWithID: target, in: currentItems) {
-            let start = max(0, blockCount - renderBlockLimit(for: blocks))
+        let allBlocks = blocks(from: currentItems)
+        let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, inBlocks: allBlocks)
+        let blockCount = allBlocks.count
+        if let blockIndex = ChatTranscriptGrouping.blockIndex(ofItemWithID: target, inBlocks: allBlocks) {
+            let start = max(0, blockCount - renderBlockLimit(for: allBlocks))
             if blockIndex < start {
                 window.reveal(index: blockIndex, totalCount: blockCount)
                 // reveal はユーザーが明示的に見に行った要求なので予算より優先する。

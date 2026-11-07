@@ -409,6 +409,48 @@ struct AgentStatusCardPlacementTests {
         #expect(blockShape(blocks) == ["u1", "card", "k1"])
         #expect(cards(blocks).map(rowShape) == [["o:c1"]])
     }
+
+    @Test("終わり方の記録が無い入力でも、実行中でなければ最後の返答と使用量を下に出す（B2 のユーザー決定）")
+    func inputWithoutTurnEndMovesReplyBelow() {
+        let items = [
+            user("u1", at: 0),
+            command("c1", "Read /p/a.swift", at: 1, done: 2),
+            agent("a1", "直しました"),
+            cost("k1"),
+        ]
+
+        let blocks = AgentStatusCardBuilder.build(items: items, liveState: idle)
+
+        #expect(blockShape(blocks) == ["u1", "card", "a1", "k1"])
+        #expect(cards(blocks).map(rowShape) == [["o:c1"]])
+    }
+
+    @Test("固定 id の古い会話でも、最後の返答をカードの下に出す（B2 のユーザー決定）")
+    func legacyConversationMovesReplyBelow() {
+        let items = [
+            user("u1", at: 0),
+            snapshot("task-list", [("1", "設計", .completed)], at: 1),
+            command("c1", "Read /p/a.swift", at: 2),
+            agent("a1", "直しました"),
+        ]
+
+        let blocks = AgentStatusCardBuilder.build(items: items, liveState: idle)
+
+        #expect(blockShape(blocks) == ["u1", "card", "a1"])
+        #expect(cards(blocks).map(rowShape) == [["t:1", "o:c1"]])
+    }
+
+    @Test("終わり方の記録が無い前の入力は、次の入力が実行中でも最後の返答を下に出す")
+    func olderInputWithoutTurnEndMovesReplyBelowWhileNextRuns() {
+        let items = [
+            user("u1", at: 0), command("c1", "Read /p/a.swift", at: 1, done: 2), agent("a1", "直しました"),
+            user("u2", at: 10), command("c2", "Read /p/b.swift", at: 11), agent("a2", "見ています"),
+        ]
+
+        let blocks = AgentStatusCardBuilder.build(items: items, liveState: live(processing: true))
+
+        #expect(blockShape(blocks) == ["u1", "card", "a1", "u2", "card"])
+    }
 }
 
 // MARK: - 所要時間

@@ -295,9 +295,10 @@ enum AgentStatusCardBuilder {
             }
         }
 
-        // 下: 終わったカードの、末尾の使用量と、その直前の最後の返答（FR-18）。
+        // 下: 実行中でないカードの、末尾の使用量と、その直前の最後の返答（FR-18）。終わり方の記録が
+        // 無い入力（古い会話・アプリの終了）でも同じ（2026-11-07 ユーザー決定。返答を閉じたカードに隠さない）。
         var belowStart = body.endIndex
-        if !running, turnEnd != nil {
+        if !running {
             while belowStart > boundary, case .turnCost = body[belowStart - 1] { belowStart -= 1 }
             if belowStart > boundary, case .agentMessage = body[belowStart - 1] { belowStart -= 1 }
         }

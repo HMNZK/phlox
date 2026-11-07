@@ -200,7 +200,7 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 ## タスクリストカード（agent-grid-jank run, 2026-07-24）
 
-Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を `TaskListCell`（`ChatMessageCells+TaskList.swift`・DisclosureCard ベース・accessibilityIdentifier `ChatMessage.taskList`）で描画。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `ClaudeTaskListEventTests`・`TaskListCardTests`。
+Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を保存の正本として持ち、描画は `AgentStatusCardBuilder` が作るエージェント状態カード（`AgentStatusCardView`。ADR 0226・0227）が受け持つ（`TaskListCell` は削除した）。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `ClaudeTaskListEventTests`。
 
 ## スラッシュコマンドのサジェスト＝セッションの提供一覧が正本（ADR 0120, 2026-07-26）
 

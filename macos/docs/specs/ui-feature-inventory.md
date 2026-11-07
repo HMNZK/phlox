@@ -127,7 +127,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | エラー (`ErrorMessageCell`) | 赤系背景、警告アイコン+本文 | なし（表示のみ） | なし | なし | `ChatMessageCells+Basic.swift:207-243` |
 | サブエージェントマーカー (`SubAgentMarkerCell`) | 説明文+`subagentType · status`、状態アイコン | クリックでサブエージェント選択 | running→completed／failed | 自由文字列、汎エージェント共通 | `ChatMessageCells+Structured.swift:7-68`, `SubAgentModel.swift:3-7` |
 | ターンコスト (`TurnCostCell`) | 右寄せ淡色USD金額 | なし | なし | なし | `ChatMessageCells+Basic.swift:148-185` |
-| タスクリスト (`TaskListCell`) | `DisclosureCard`、各行にステータスアイコン | 開閉トグルのみ | pending→inProgress→completed | なし | `ChatMessageCells+TaskList.swift:10-91` |
+| エージェント状態カード (`AgentStatusCardView`) | 見出し（状態・今の作業・経過）＋タスクの行＋作業の行。`DisclosureCard` は使わない | タスク・作業の行の開閉（手の開閉は表示中だけ保持）、無応答時の中断ボタン | pending→inProgress→completed／中断 | Claude・Codex のみ（Cursor は従来の並び） | `AgentStatusCardView.swift` ほか `AgentStatusCard*.swift` |
 | ユーザー質問カード (`UserQuestionCell`) | 質問文+選択肢(単一/複数)+自由入力、secretはマスク表示 | 選択肢クリック/入力/送信ボタン/閉じるボタン | pending→answered／expired | Codexは`ChatApprovalBroker`経由、閉じ操作もCodex/Claudeで分岐 | `UserQuestionCell.swift:16-353`, `ChatItem.swift:19-23` |
 | 承認バナー (`ApprovalBanner`) | コマンド/ファイル変更/権限の承認待ちカード | Accept/Decline/Cancelボタン | `ChatApprovalKind`: command/fileChange/permissions | 下記4.2節参照 | `ChatSessionAccessories.swift:363-423`, `ChatApprovalBroker.swift:6-225` |
 | 圧縮中インジケータ (`CompactingIndicatorCell`) | シマーテキスト+犬アニメ(6ステージ) | なし | `isCompacting`のみ | なし | `CompactingIndicatorCell.swift:22-100` |
@@ -136,7 +136,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | メッセージ種別ディスパッチ (`ChatItemView`) | なし | `ChatItem`のcase毎に上記各セルへ振り分け（reasoning/commandExecutionは本文・出力が空かつ非実行中ならEmptyView） | ADR 0116対応の`Equatable`実装（クロージャは比較対象外、`item`/`isRunningCommand`/`agentDescriptor`のみで同値判定） | avatarは`agentDescriptor`依存 | `ChatMessageCells.swift:5-92` |
 | Markdown本文レンダリング (`RichMarkdownView`) | リンククリック | `Markdown(markdown)`をテーマ適用して表示、テーマは`themeID:scale:languageCode:role`キーでプロセス内キャッシュ | フォントスケール・テーマ・ロケールに追従 | なし | `RichMarkdownView.swift:9-53` |
 | 圧縮中インジケータの演出詳細（6ステージのご当地ストーリー：海→川→砂漠→火山→氷山→宇宙） | なし（自動再生） | 犬は画面固定X=40ptで世界側がスクロール、1ステージ14.2秒（走行11.0秒＋イベント2回）、装備獲得演出、5ステージ踏破後にゴール演出 | `TimelineView`が渡す日時のみを入力とする純関数で状態導出（Timer/repeatForever禁止、ADR 0010） | なし | `CompactingDogAnimation.swift:16-59` |
-| Codexのプラン表示 (`CodexSessionSurface`) | なし（押せない） | プランタスクリスト(`TaskListCell`再利用)、子エージェントのエラー表示。子エージェント自体は共通の札の帯・マーカーで出す（名前と状態だけ。押しても開かない） | — | Codex専用（`viewModel.agentRef == .builtin(.codex)`以外は非表示） | `CodexSessionSurface.swift:17-93` |
+| Codexの子エージェントのエラー表示 (`CodexSessionSurface`) | なし（押せない） | 子エージェントのエラー表示（プランは状態カードに出す）。子エージェント自体は共通の札の帯・マーカーで出す（名前と状態だけ。押しても開かない） | — | Codex専用（`viewModel.agentRef == .builtin(.codex)`以外は非表示） | `CodexSessionSurface.swift` |
 
 その他の関連機能: メッセージ単位コピー（ホバー時checkmark）`ChatMessageCopyButton.swift:12-70`／コードブロックコピー`ChatCodeCard.swift:4-41`／トランスクリプトMarkdownエクスポート（推論・出力・タイムスタンプのON/OFFオプション付）`ChatTranscriptExport.swift:5-211`／コマンド連続グルーピング`ChatTranscriptGrouping.swift:3-132`／最上部からさらにスクロールして離すと以前の履歴を追加表示（ボタンなし、VoiceOver 操作「以前のメッセージを読み込む」、ADR 0217）`ChatTranscriptView.swift:289-291`。
 
@@ -245,7 +245,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | タイルを閉じる | ヘッダの×ボタン | `onRemove`呼び出し（呼び出し元でDashboardView側の削除確認ダイアログへ） | — | なし | `PaneLayoutView.swift:369-377` |
 | タイルヘッダの表示縮退 | タイル幅が240pt未満 | ステータスラベル・セカンダリ名・プロジェクト名を省略しコンパクト表示 | `isCompact` | なし | `PaneLayoutView.swift:329-367` |
 | 要注意/停止ハイライト | — | `SessionAttentionPolicy.requiresAttention`が真の間、背景・枠を強調色に（赤枠3pt/フォーカス2pt/通常1pt、`GridTileBorderPolicy`） | — | なし | `PaneLayoutView.swift:278-320`, `GridTileBorderPolicy.swift:16-27` |
-| タイル本文 | — | `.pty`はSwiftTerm(`TerminalView`)埋め込み、`.appServer`は`GridChatColumn`（承認バナー＋トランスクリプト＋コンポーザ＋Codex子スレッド表示を内包） | — | `CodexSessionSurface`はCodexのプランと子エージェントのエラー表示 | `PaneLayoutView.swift:254-266`, `GridChatColumn.swift:10-95` |
+| タイル本文 | — | `.pty`はSwiftTerm(`TerminalView`)埋め込み、`.appServer`は`GridChatColumn`（承認バナー＋トランスクリプト＋コンポーザ＋Codex子スレッド表示を内包） | — | `CodexSessionSurface`はCodexの子エージェントのエラー表示（プランは状態カード） | `PaneLayoutView.swift:254-266`, `GridChatColumn.swift:10-95` |
 | グリッドタイル内送信/中断 | 送信ボタン/Enter・中断ボタン | `viewModel.sendText`/`turnInterrupt()` | — | なし | `GridChatColumn.swift:133-148` |
 | グリッドタイルでのライブリサイズ中レイアウト凍結 | ウィンドウリサイズ中 | `stableWidth`で凍結 | isLiveResizing | なし | `GridChatColumn.swift:19-30,96-118` |
 | グリッドタイル内Codexスキル/スラッシュ候補 | `/`入力 | `updateCodexSkillSuggestions()` | — | Codex限定 | `GridChatColumn.swift:275,351-375` |

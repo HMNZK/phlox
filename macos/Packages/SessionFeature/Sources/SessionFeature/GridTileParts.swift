@@ -432,7 +432,7 @@ struct GridTileStatusLine: View {
             HStack(spacing: 8) {
                 if let current = header?.current {
                     Image(systemName: current.symbolName)
-                        .font(.system(size: 11))
+                        .font(DSFont.meta)
                         .foregroundStyle(DSColor.textTertiary)
                         .accessibilityHidden(true)
                 }

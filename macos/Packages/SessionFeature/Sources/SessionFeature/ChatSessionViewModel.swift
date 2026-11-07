@@ -432,6 +432,10 @@ public final class ChatSessionViewModel: Identifiable {
     /// 通知はターンを識別できない（Claude）か、識別しても対応する入力を持たない（Codex）ので、
     /// 届いた順に「前の入力の終わり」として吸収し、新しい入力には書かない。
     private var pendingSupersededEnds = 0
+    /// 終わり方をまだ書いていない入力の id。このセッションで送った最後の入力、または復元時に
+    /// 実行中だった最後の入力。終わり方（完了・中断・エラー）はこの入力に書く。nil なら誰にも書かない
+    /// （この機能より前の復元済みの入力に、後から届いた終了を書かないため）。
+    private var openInputID: String?
     private var isAwaitingLocallyStartedTurnEvent = false
     private var activeInterruptTask: Task<Void, Never>?
     private var activeInterruptID: UUID?
@@ -2513,6 +2517,7 @@ public final class ChatSessionViewModel: Identifiable {
     private func applyRestoredThreadStatus(_ restoredStatus: SessionStatus) {
         status = restoredStatus
         guard restoredStatus == .running else { return }
+        openInputID = transcript.last(where: { if case .userMessage = $0 { true } else { false } })?.id
         turnStartedAt = Date()
         turnIsRestoredInference = true
         lastEventAt = nil
@@ -2806,7 +2811,9 @@ public final class ChatSessionViewModel: Identifiable {
             clearRunningTurn()
             if !launchFailed {
                 appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
-                if hadActiveTurn, !absorbSupersededEnd() { recordTurnEnd(.error, at: eventDate) }
+                // 今の `.error` は、実行中の状態を必ず終える（clearRunningTurn・status = .error）ので、
+                // ターンの終わりとして数える。吸収の件数は実行中のターンの有無に関わらず減らす。
+                if !absorbSupersededEnd() { recordTurnEnd(.error, at: eventDate) }
             }
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
@@ -2829,7 +2836,7 @@ public final class ChatSessionViewModel: Identifiable {
             await expireAllPendingUserQuestions()
             await approvalBroker.cancelAll()
             // 利用者が止めた・閉じた終了は中断、それ以外はエラー。閉じる途中でも入力の記録は残す。
-            if !launchFailed, turnStartedAt != nil {
+            if !launchFailed {
                 recordTurnEnd(isTerminating ? .interrupted : .error, at: eventDate)
             }
             guard !isTerminating else { return }
@@ -3624,16 +3631,18 @@ public final class ChatSessionViewModel: Identifiable {
         return true
     }
 
-    /// 最後の入力（userMessage）に終わり方を書く。既にあれば書かない。書いたら true。
+    /// 入力（既定は終わりを待っている入力 `openInputID`）に終わり方を書く。既にあれば書かない。書いたら true。
     @discardableResult
-    private func recordTurnEnd(_ outcome: ChatTurnEnd.Outcome, at date: Date) -> Bool {
-        guard let index = transcript.lastIndex(where: { if case .userMessage = $0 { true } else { false } }),
+    private func recordTurnEnd(_ outcome: ChatTurnEnd.Outcome, at date: Date, forInputID target: String? = nil) -> Bool {
+        guard let inputID = target ?? openInputID,
+              let index = transcriptIndexByID[inputID],
               case .userMessage(let id, let text, let timestamp, let attachments, nil) = transcript[index]
         else { return false }
         transcript[index] = .userMessage(
             id: id, text: text, timestamp: timestamp, attachments: attachments,
             turnEnd: ChatTurnEnd(outcome: outcome, at: date)
         )
+        if openInputID == inputID { openInputID = nil }
         markTranscriptChanged()
         return true
     }
@@ -4420,8 +4429,8 @@ extension ChatSessionViewModel: ControllableSession {
                 }
             }
             submitBaselineTurnSeq = completedTurnSeq
-            // 実行中に次の入力を送った。前の入力は「次の入力へ続く」で閉じる。
-            if turnStartedAt != nil, recordTurnEnd(.superseded, at: Date()) { pendingSupersededEnds += 1 }
+            // 実行中に次の入力を送ったかどうか。前の入力を「次の入力へ続く」で閉じるのは、送信が成功した後。
+            let supersededInputID = turnStartedAt != nil ? openInputID : nil
             clearRunningTurn()
             pendingInput = ""
             let sentAttachments = attachmentStore.attachments
@@ -4471,6 +4480,11 @@ extension ChatSessionViewModel: ControllableSession {
                 } else {
                     try await client.turnStart(sendInputs)
                 }
+                if let supersededInputID,
+                   recordTurnEnd(.superseded, at: Date(), forInputID: supersededInputID) {
+                    pendingSupersededEnds += 1
+                }
+                openInputID = item.id
             } catch {
                 if Task.isCancelled {
                     clearRunningTurn()

@@ -21,12 +21,19 @@ private final class StatusFakeClient: StructuredAgentClient, @unchecked Sendable
     }
 
     func start() async {}
-    func turnStart(_ input: [ChatInput]) async throws {}
+    func turnStart(_ input: [ChatInput]) async throws {
+        if failTurnStart { throw StatusFakeError.sendFailed }
+    }
     func resume(sessionRef: String) async throws {}
     func interrupt() async throws {}
     func close() async { continuation.finish() }
     func yield(_ event: NormalizedChatEvent) { continuation.yield(event) }
+
+    /// 次の送信を失敗させる（CLI へ書き込めなかった状況）。
+    var failTurnStart = false
 }
+
+private enum StatusFakeError: Error { case sendFailed }
 
 private enum WaitError: Error { case timedOut }
 
@@ -84,6 +91,12 @@ private func snapshots(_ vm: ChatSessionViewModel) -> [(id: String, titles: [Str
         if case .taskList(let id, let tasks, _) = $0 { return (id, tasks.map(\.title)) }
         return nil
     }
+}
+
+/// `.warning(message: "barrier")` を流した後、それまでの通知が処理済みだと分かる印。
+@MainActor
+private func hasBarrier(_ vm: ChatSessionViewModel) -> Bool {
+    vm.transcript.contains { if case .error(_, "barrier", _) = $0 { true } else { false } }
 }
 
 private func tasks(_ titles: String...) -> [AgentTaskItem] {
@@ -237,6 +250,7 @@ func errorMarksTheInputError() async throws {
 
     client.yield(.error(message: "boom"))
     try await waitUntil { turnEnds(vm) == ["error"] }
+    #expect(vm.status == .error(message: "boom"), "今の `.error` は実行中の状態を終える。だからターンの終わりとして数える")
 }
 
 @Test @MainActor
@@ -248,17 +262,51 @@ func processExitDuringATurnMarksTheInputError() async throws {
     try await waitUntil { turnEnds(vm) == ["error"] }
 }
 
+private struct LegacyTranscriptStore: TranscriptStore {
+    let items: [ChatItem]
+    func loadSessionTotalCost(for sessionID: SessionID) async throws -> SessionTotalCost? { nil }
+    func loadTranscript(for sessionID: SessionID) async throws -> [ChatItem] { items }
+    func upsertTranscriptItems(_ items: [ChatItem], for sessionID: SessionID) async throws {}
+    func replaceTranscript(for sessionID: SessionID, with items: [ChatItem]) async throws {}
+    func saveTurnUsageSnapshot(_ usage: TurnUsage, for sessionID: SessionID) async throws {}
+}
+
+/// この機能より前に保存された会話（`turnEnd` が無い入力）を復元した直後。
+@MainActor
+private func restoredLegacyViewModel() async -> (ChatSessionViewModel, StatusFakeClient) {
+    let client = StatusFakeClient()
+    let legacy: [ChatItem] = [
+        .userMessage(id: "u1", text: "昔の入力", timestamp: Date(timeIntervalSince1970: 1_700_000_000), attachments: []),
+        .agentMessage(id: "a1", text: "はい", timestamp: Date(timeIntervalSince1970: 1_700_000_001)),
+    ]
+    let vm = ChatSessionViewModel(
+        id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+        approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/phlox-agent-status-event-test",
+        transcriptStore: LegacyTranscriptStore(items: legacy)
+    )
+    await vm.restore(threadId: "thread", approvalPolicy: .named("on-request"), sandbox: .named("workspace-write"))
+    return (vm, client)
+}
+
 @Test @MainActor
-func processExitWhileIdleLeavesAnInputWithoutAnEndUntouched() async throws {
-    let (vm, client) = makeViewModel()
-    try await vm.sendText("直して", submit: true)
-    await vm.turnInterrupt()
-    #expect(turnEnds(vm) == ["none"], "割り込み操作だけでは終わり方を書かない（届いた通知が書く）")
+func processExitDoesNotStampARestoredInputThatWasNotRunning() async throws {
+    let (vm, client) = await restoredLegacyViewModel()
+    #expect(turnEnds(vm) == ["none"])
 
     client.yield(.processExited(exitCode: 1))
     try await waitUntil { vm.processExit != nil }
 
-    #expect(turnEnds(vm) == ["none"], "実行中でない入力を、後から届いた終了でエラーにしない")
+    #expect(turnEnds(vm) == ["none"], "この機能より前の入力を、後から届いた終了でエラーにしない")
+}
+
+@Test @MainActor
+func errorDoesNotStampARestoredInputThatWasNotRunning() async throws {
+    let (vm, client) = await restoredLegacyViewModel()
+
+    client.yield(.error(message: "boom"))
+    try await waitUntil { vm.status == .error(message: "boom") }
+
+    #expect(turnEnds(vm) == ["none"])
 }
 
 @Test @MainActor
@@ -420,6 +468,97 @@ func lateInterruptionOfASupersededCodexInputDoesNotEndTheNewInput() async throws
 
     client.continuation.yield(.normalized(.turnCompleted(nativeSessionId: "thread")))
     try await waitUntil { turnEnds(vm) == ["superseded", "completed"] }
+    await vm.terminate()
+}
+
+@Test @MainActor
+func errorAfterAnAbsorbedCompletionEndsTheNewInputWithError() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    client.yield(.error(message: "boom"))
+    try await waitUntil { turnEnds(vm) == ["superseded", "error"] }
+}
+
+@Test @MainActor
+func processExitAfterAnAbsorbedCompletionEndsTheNewInputWithError() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    client.yield(.processExited(exitCode: 137))
+    try await waitUntil { turnEnds(vm) == ["superseded", "error"] }
+}
+
+@Test @MainActor
+func eachEndOfASupersededInputIsAbsorbedEvenWhenTheTurnWasAlreadyCleared() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("一", submit: true)
+    try await vm.sendText("二", submit: true)
+    try await vm.sendText("三", submit: true)
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    client.yield(.error(message: "boom"))
+    client.yield(.warning(message: "barrier"))
+    try await waitUntil { hasBarrier(vm) }
+    #expect(turnEnds(vm) == ["superseded", "superseded", "none"], "一の完了と二のエラーは、それぞれの入力の終わりとして吸収する")
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    try await waitUntil { turnEnds(vm) == ["superseded", "superseded", "completed"] }
+}
+
+// MARK: - 送信に失敗したとき
+
+@Test @MainActor
+func failedSendDoesNotMarkThePreviousInputSuperseded() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+
+    client.failTurnStart = true
+    await #expect(throws: StatusFakeError.self) { try await vm.sendText("次", submit: true) }
+
+    #expect(turnEnds(vm) == ["none", "none"], "届かなかった入力に続くとは言わない")
+    client.failTurnStart = false
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    try await waitUntil { turnEnds(vm) == ["completed", "none"] }
+}
+
+// MARK: - Codex の計画（AC-13）
+
+@Test @MainActor
+func codexPlanAppearsAsTasksOfTheStatusCard() async throws {
+    let client = CodexStatusClient()
+    let vm = ChatSessionViewModel(
+        id: SessionID(), agentRef: .builtin(.codex), client: client,
+        approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/phlox-agent-status-event-test"
+    )
+    await vm.restore(threadId: "thread", approvalPolicy: .named("never"), sandbox: .named("workspace-write"))
+    try await vm.sendText("直して", submit: true)
+    let plan = ThreadEvent.planUpdated(
+        threadId: "thread", turnId: "turn",
+        plan: [
+            TurnPlanStep(step: "調査する", status: .completed),
+            TurnPlanStep(step: "実装する", status: .inProgress),
+            TurnPlanStep(step: "検証する", status: .pending),
+        ],
+        explanation: nil
+    )
+    let normalized = try #require(CodexStructuredAgentClient.normalizedEvent(from: plan))
+
+    client.continuation.yield(.normalized(normalized))
+    try await waitUntil { vm.transcript.contains { if case .taskList = $0 { true } else { false } } }
+
+    let cards = AgentStatusCardBuilder.build(
+        items: vm.transcript,
+        liveState: AgentStatusLiveState(isProcessing: true, activityState: .thinking, hangAssessment: nil, isAwaitingReply: false)
+    ).compactMap { block -> AgentStatusCard? in if case .statusCard(let card) = block { card } else { nil } }
+    let tasks = cards.flatMap(\.rows).compactMap { row -> AgentStatusTask? in if case .task(let task) = row { task } else { nil } }
+    #expect(cards.count == 1)
+    #expect(tasks.map(\.title) == ["調査する", "実装する", "検証する"])
+    #expect(tasks.map(\.state) == [.completed, .inProgress, .pending])
     await vm.terminate()
 }
 

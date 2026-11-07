@@ -55,6 +55,7 @@ private func flatten(_ slice: ChatTranscriptSlice) -> [ChatItem] {
         switch visible.content {
         case .single(let item): [item]
         case .commandGroup(_, let items): items
+        case .statusCard: []
         }
     }
 }

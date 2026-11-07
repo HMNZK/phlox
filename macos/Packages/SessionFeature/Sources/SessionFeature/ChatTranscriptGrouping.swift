@@ -3,6 +3,8 @@ import DesignSystem
 enum ChatTranscriptBlock: Identifiable, Equatable {
     case single(ChatItem)
     case commandGroup(id: String, items: [ChatItem])
+    /// エージェント状態カード（AgentStatusCardBuilder が組み立てる。描画は未接続）。
+    case statusCard(AgentStatusCard)
 
     var id: String {
         switch self {
@@ -10,12 +12,14 @@ enum ChatTranscriptBlock: Identifiable, Equatable {
             item.id
         case .commandGroup(let id, _):
             id
+        case .statusCard(let card):
+            card.id
         }
     }
 
     var typographyRole: TranscriptTypography.BlockRole {
         switch self {
-        case .commandGroup:
+        case .commandGroup, .statusCard:
             .process
         case .single(let item):
             switch item {

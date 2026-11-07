@@ -73,7 +73,7 @@ enum TranscriptRenderBudget {
     /// 1 ブロックの描画コスト重みを返す。すべてのブロックに最低骨格費を課す。
     static func weight(of block: ChatTranscriptBlock) -> Int {
         switch block {
-        case .commandGroup:
+        case .commandGroup, .statusCard:
             return otherBlockUnits
 
         case .single(let item):

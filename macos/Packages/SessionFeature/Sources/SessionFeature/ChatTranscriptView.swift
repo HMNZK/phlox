@@ -356,6 +356,9 @@ struct ChatTranscriptView: View {
                 isTurnRunning: viewModel.status.isRunning
             )
             .equatable()
+        case .statusCard:
+            // 組み立てはまだ画面へつないでいない（描画は段5）。
+            EmptyView()
         }
     }
 

@@ -1,6 +1,205 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "%@ を読み込み": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read %@"
+          }
+        }
+      }
+    },
+    "%1$@ ほか %2$lld ファイルを読み込み": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read %1$@ and %2$lld more file(s)"
+          }
+        }
+      }
+    },
+    "%1$@ ほか %2$lld ファイルを読み込み中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading %1$@ and %2$lld more file(s)"
+          }
+        }
+      }
+    },
+    "「%@」を検索中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Searching for “%@”"
+          }
+        }
+      }
+    },
+    "「%1$@」を検索 · %2$lld 件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Searched for “%1$@” · %2$lld results"
+          }
+        }
+      }
+    },
+    "%lld 回検索中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Searching (%lld times)"
+          }
+        }
+      }
+    },
+    "%1$lld 回検索 · %2$lld 件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Searched %1$lld times · %2$lld results"
+          }
+        }
+      }
+    },
+    "%@ を編集": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edited %@"
+          }
+        }
+      }
+    },
+    "%lld ファイルを編集": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edited %lld files"
+          }
+        }
+      }
+    },
+    "%lld ファイルを編集中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editing %lld files"
+          }
+        }
+      }
+    },
+    "%@ に書き込み": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrote %@"
+          }
+        }
+      }
+    },
+    "%@ に書き込み中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writing %@"
+          }
+        }
+      }
+    },
+    "%@中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@…"
+          }
+        }
+      }
+    },
+    "%@ を実行": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ran %@"
+          }
+        }
+      }
+    },
+    "次の入力へ続く": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continued in next message"
+          }
+        }
+      }
+    },
+    "statusCard.interrupted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupted"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中断"
+          }
+        }
+      }
+    },
+    "statusCard.ended": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ended"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終了"
+          }
+        }
+      }
+    },
     "直前のカスタムに戻す": {
       "extractionState": "manual",
       "localizations": {

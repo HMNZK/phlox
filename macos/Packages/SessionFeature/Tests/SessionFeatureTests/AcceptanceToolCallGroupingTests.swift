@@ -35,6 +35,7 @@ private func flatten(_ blocks: [ChatTranscriptBlock]) -> [ChatItem] {
         switch block {
         case .single(let item): [item]
         case .commandGroup(_, let items): items
+        case .statusCard: []
         }
     }
 }

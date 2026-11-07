@@ -177,6 +177,12 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 
 あるタスクが最初に進行中として現れたスナップショットの時刻から、最初に完了として現れたスナップショットの時刻までを所要時間とする。古い会話のスナップショットは 1 枚しかないので、所要時間は出ない。
 
+### 3.7 タスクの道具を有効にして起動する（実画面の確認で判明。ADR 0228）
+
+- **Claude の作成結果**: 本物の CLI は TaskCreate の結果を、イベントの `tool_use_result`（スネークケース）に載せる。`resolveCreatedTaskIfNeeded` は `toolUseResult` を読んでいたため、作成が確定せず、後の TaskUpdate も捨てられていた。`tool_use_result.task.id` を読む。Claude の stream-json のほかの読み取りは、本物のログと突き合わせて確認した（`modelUsage`・`multiSelect`・`resetsAt` などのキャメルケースは本物の CLI がそう送る）。
+- **Claude の起動**: `ClaudeChatClient.spawn` が子プロセスへ渡す環境に `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` を足す（呼び出し側が同じ変数を指定していればそちらを優先）。`-p` の Claude は既定ではタスクの道具を持たない。使うようには指示しない。
+- **Codex の起動**: app-server の引数（`AppEnvironment.codexAppServerProcessArguments`）に `-c tools.update_plan.enabled=true` を足す。計画は `turn/plan/updated` → `.planUpdated` → `.taskListUpdated` の既存の経路で届く想定（実画面で確認する）。
+
 ### 4.7 作業の行の文言
 
 - **種類の判定**: 今の分類（`AgentActivityClassifier.state(forCommand:)`、`ChatCommandToolLabel.derive`）を使い、読み込み・検索・編集・書き込み・実行・その他に分ける。
@@ -184,12 +190,13 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 - **時制**: カードが実行中で `completedAt` が無ければ「〜中」、それ以外は見本どおり体言止め（「go.mod を編集」。2026-11-07 ユーザー決定 D20）。古い会話は実行中でないので体言止めになる。
 - **検索の件数**: 結果の空でない行数。ただしツールの見出し行は数えない（「No … found」は 0 件、「Found N …」は N 件）。
 - **まとめ**: 連続する同じ種類（読み込み・検索・編集）は 1 行にまとめる。コマンドの実行はまとめない。
+- **シェルの包み**: Codex のコマンドは `/bin/zsh -lc '…'` の包みごと届くので、行の文言では外側の包みと引用符を外して中身だけ出す（`AgentStatusCardBuilder.unwrappingShell`）。
 - **文字列**: xcstrings に置く。
 
 ### 4.8 見出し
 
 - **状態**: 最新のカードでは `isProcessing` を `turnEnd` より優先する（ターンが終わってもバックグラウンドタスクやサブエージェントが動く間は実行中。ADR 0064）。それ以外は `turnEnd` から決め、`turnEnd` が無ければ「終了」（印なし・所要時間なし。この機能より前の会話や、プロセスの異常終了・アプリの終了で終わった入力）にする（要件 §4.2 の表）。
-- **今の作業**: 区間の最後の作業。
+- **今の作業**: 区間の最後の作業。ただし実行中（`isRunning`）のときだけ。終わっていれば出さず、今の活動状態の語（「考え中…」など）にする。
 - **窓の分だけ作る**: 画面の再描画では、末尾から区間を遡り、表示する窓（single=50、grid=16 ブロック）に入る区間だけカードを作る（`AgentStatusCardBuilder.visibleSlice`）。結果は全件を作ってから窓で切った場合と一致する。入力 300 回・item 6,000 件の合成会話で 1 回 release 1.13 ms（窓 50）／0.73 ms（窓 16）、dev の窓の処理は 0.28 ms（2026-11-07 計測）。
 - **残すもの**: `ChatRecap.summary`・`thinkingRecap(now:)`・`hangAssessment(now:)` は、通知（`CVM:~2480`）とグリッドの小さいタイル（`GridTileParts.swift:277/292`）が使っているので残す。
 

@@ -542,7 +542,8 @@ enum AgentStatusCardBuilder {
         let card = AgentStatusCard(
             id: "status-card-\(userID)",
             header: makeHeader(
-                current: lastWorkID.flatMap { lastAction(containing: $0, in: rows) }?.label,
+                // 今の作業は、実行中の作業があるときだけ。終わった作業を「〜中」で出し続けない（見本 10-Anatomy）。
+                current: lastWorkID.flatMap { lastAction(containing: $0, in: rows) }.flatMap { $0.isRunning ? $0.label : nil },
                 startedAt: startedAt, turnEnd: turnEnd, running: running, liveState: liveState
             ),
             rows: rows
@@ -725,7 +726,7 @@ enum AgentStatusCardBuilder {
                 }
                 return items.count == 1 ? .search(query: body, hits: hits) : .searches(times: items.count, hits: hits)
             case .edit, nil:
-                return tool == "Bash" ? .command(body) : .tool(tool)
+                return tool == "Bash" ? .command(unwrappingShell(body)) : .tool(tool)
             }
         default:
             return .command("")
@@ -747,6 +748,19 @@ enum AgentStatusCardBuilder {
         }
         let notes = ["[Showing results with pagination", "(Results are truncated", "[result-id:"]
         return lines.filter { line in !notes.contains { line.hasPrefix($0) } }.count
+    }
+
+    /// Codex のコマンドは `/bin/zsh -lc '…'` の包みごと届く。包みを外して中身だけ出す。
+    /// ponytail: 外側の引用符を外すだけ。中の `\"` や `'"'"'` の引用の解除はしない。
+    private static func unwrappingShell(_ command: String) -> String {
+        let parts = command.split(maxSplits: 2, whereSeparator: \.isWhitespace)
+        guard parts.count == 3,
+              ["zsh", "bash", "sh"].contains((String(parts[0]) as NSString).lastPathComponent),
+              ["-c", "-lc"].contains(String(parts[1])),
+              let quote = parts[2].first, quote == "'" || quote == "\"",
+              parts[2].count >= 2, parts[2].last == quote
+        else { return command }
+        return String(parts[2].dropFirst().dropLast())
     }
 
     private static func fileName(_ path: String) -> String {

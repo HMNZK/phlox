@@ -675,6 +675,32 @@ struct AgentStatusCardHeaderTests {
         #expect(found?.title(locale: ja) == "api.swift を編集中")
     }
 
+    @Test("作業の合間は、終わった作業を「〜中」で出さず、今の活動状態の語にする")
+    func runningHeaderDoesNotShowFinishedAction() {
+        let items = [
+            user("u1", at: 0),
+            command("c1", "Read /p/client.go", at: 1, done: 2),
+            edit("e1", "/p/api.swift", at: 3, done: 4),
+        ]
+
+        let found = onlyCard(items, live(processing: true, activity: .thinking))?.header
+
+        #expect(found?.state == .running)
+        #expect(found?.current == nil)
+        #expect(found?.title(locale: ja) == "考え中…")
+    }
+
+    @Test("後の作業が終わっても、まだ実行中の作業があればそれを今の作業にする")
+    func runningHeaderShowsRunningActionAfterFinishedOne() {
+        let items = [
+            user("u1", at: 0),
+            command("c1", "Read /p/client.go", at: 1, done: 2),
+            edit("e1", "/p/api.swift", at: 3),
+        ]
+
+        #expect(onlyCard(items, live(processing: true))?.header.title(locale: ja) == "api.swift を編集中")
+    }
+
     @Test("承認・質問待ちの間は「待機中…」")
     func awaitingReplyHeader() {
         let found = header(nil, live(processing: true, awaiting: true))
@@ -687,7 +713,10 @@ struct AgentStatusCardHeaderTests {
     func stalledHeader() {
         let hang = ChatHangAssessment(elapsed: 2_000, silence: 1_850, isStalled: true)
 
-        let found = header(nil, live(processing: true, hang: hang))
+        // 今の作業は実行中の作業だけ。結果の届いていない読み込みを置く。
+        let found = onlyCard(
+            [user("u1", at: 0), command("c1", "Read /p/a.swift", at: 1)], live(processing: true, hang: hang)
+        )?.header
 
         #expect(found?.state == .stalled)
         #expect(found?.silence == 1_850)
@@ -777,6 +806,26 @@ struct AgentStatusCardActionTextTests {
     func readUsesFileName() {
         #expect(texts([command("c1", "Read /p/src/client.go", at: 1, done: 2)]) == ["client.go を読み込み"])
         #expect(texts([command("c1", "Read /p/src/client.go", at: 1)], live(processing: true)) == ["client.go を読み込み中"])
+    }
+
+    @Test("Codex のコマンドの `/bin/zsh -lc '…'` の包みは外して、中身だけ出す（実 CLI の形）")
+    func shellWrapperIsRemoved() {
+        let single = command("c1", "/bin/zsh -lc 'tail -n 5 todo.txt 2>/dev/null || true'", at: 1, done: 2)
+        let double = command("c2", #"/bin/zsh -lc "sed -n '1,200p' notes.md""#, at: 3, done: 4)
+
+        #expect(texts([single, double]) == ["tail -n 5 todo.txt 2>/dev/null || true", "sed -n '1,200p' notes.md"])
+        #expect(texts([command("c1", "/bin/zsh -lc 'ls'", at: 1)], live(processing: true)) == ["ls を実行中"])
+    }
+
+    @Test("包みでないコマンドは、そのまま出す")
+    func nonWrapperCommandIsKept() {
+        let work = [
+            command("c1", "ls -la", at: 1, done: 2),
+            command("c2", "bash -c echo hi", at: 3, done: 4),
+            command("c3", "zsh -lc 'unterminated", at: 5, done: 6),
+        ]
+
+        #expect(texts(work) == ["ls -la", "bash -c echo hi", "zsh -lc 'unterminated"])
     }
 
     @Test("続けて読んだファイルは 1 行にまとめる")

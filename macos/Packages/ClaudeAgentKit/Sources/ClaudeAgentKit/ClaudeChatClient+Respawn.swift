@@ -36,7 +36,10 @@ extension ClaudeChatClient {
         }
 
         let arguments = buildArguments(sessionArgument: sessionArgument)
-        let nextTransport = transportFactory(command, arguments, environment, workingDirectory)
+        // `-p`（stream-json）の Claude は既定でタスクの道具（TaskCreate など）を持たない。道具を使えるようにするだけで、使用は強制しない（ADR 0228）。
+        // 呼び出し側が同じ変数を指定していればそちらを優先する。
+        let launchEnvironment = ["CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"].merging(environment) { _, caller in caller }
+        let nextTransport = transportFactory(command, arguments, launchEnvironment, workingDirectory)
         try nextTransport.start()
         transport = nextTransport
         activeSpawnArgument = sessionArgument

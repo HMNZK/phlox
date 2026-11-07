@@ -236,8 +236,12 @@ public struct AppEnvironment: Sendable {
 
     /// Codex `app-server` 子プロセス起動時の arguments。
     /// `model_reasoning_summary=detailed` を config override で渡し、Reasoning サマリを有効化する。
+    /// `tools.update_plan.enabled=true` で計画の道具 `update_plan` を使えるようにする（使用は強制しない。ADR 0228）。
     static func codexAppServerProcessArguments() -> [String] {
-        ["app-server", "-c", "model_reasoning_summary=detailed", "-c", "features.default_mode_request_user_input=true"]
+        [
+            "app-server", "-c", "model_reasoning_summary=detailed", "-c", "features.default_mode_request_user_input=true",
+            "-c", "tools.update_plan.enabled=true",
+        ]
     }
 
     private static func defaultStructuredClientFactory(

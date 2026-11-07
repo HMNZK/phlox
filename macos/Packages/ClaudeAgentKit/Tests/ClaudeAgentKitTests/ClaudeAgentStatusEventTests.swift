@@ -128,7 +128,7 @@ private let bashResult = #"{"type":"user","message":{"role":"user","content":[{"
     try await client.start()
     let first = try #require(list.transports.first)
     first.receive(#"{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"tool_use","id":"create-1","name":"TaskCreate","input":{"subject":"実装する"}}]},"parent_tool_use_id":null,"session_id":"S1"}"#)
-    first.receive(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"create-1","content":"Task #42 created"}]},"toolUseResult":{"task":{"id":"42","subject":"実装する"}}}"#)
+    first.receive(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"create-1","content":"Task #42 created"}]},"parent_tool_use_id":null,"session_id":"S1","tool_use_result":{"task":{"id":"42","subject":"実装する"}}}"#)
     let beforeReset = await events(upTo: { if case .taskListUpdated = $0 { true } else { false } }, from: client)
     #expect(beforeReset.count == 1, "巻き戻し前に 1 件のタスクが作られる")
 

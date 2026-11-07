@@ -1,5 +1,6 @@
 import AgentDomain
 import AppKit
+import StructuredChatKit
 import SwiftUI
 import Testing
 @testable import SessionFeature
@@ -168,6 +169,38 @@ struct ChatHistoryLoadingTests {
         try await wait(host, stage: "最新へ") {
             hiddenNewerCount(host) == 0 && scrollViews(host).first.map(ChatAutoFollowGeometry.isAtBottom) == true
         }
+    }
+
+    /// 実行中の見出しだけのカードを外して固定している間に処理が終わると、項目は変わらずにカードだけが消える。
+    /// そのとき末尾追従に戻らないと、次に送った入力が窓の外に積まれて描画されない（独立レビュー 6 回目）。
+    @Test func pinnedWindowFollowsTailWhenProcessingEndsWithoutNewItems() async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let client = HistoryFakeAgentClient()
+        let model = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+                                         approvalBroker: ChatApprovalBroker(), workingDirectory: "/unused-history-test")
+        client.yield(.turnStarted)
+        try await wait(NSView(), stage: "実行中") { model.status == .running }
+        var items = (0..<300).flatMap { index -> [ChatItem] in
+            [.userMessage(id: "u\(index)", text: "入力", timestamp: .distantPast),
+             .agentMessage(id: "a\(index)", text: "返答", timestamp: .distantPast)]
+        }
+        // 1 段の予算を超える最後の入力。作業も返答もまだ無いので、見出しだけのカードが続く。
+        items.append(.userMessage(id: "uT", text: String(repeating: "長", count: 2_000), timestamp: .distantPast))
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: model, transcript: items, presentationContext: .gridTile))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { hiddenCount(host) != nil }
+        for _ in 0..<4 { try loadEarlier(host) }
+        try await wait(host, stage: "見出しだけのカードを外す") { hiddenNewerCount(host) == 1 }
+
+        client.yield(.turnInterrupted(nativeSessionId: nil))
+        try await wait(host, stage: "処理の終了で末尾追従に戻る") { model.status != .running && hiddenNewerCount(host) == 0 }
+        items.append(.userMessage(id: "uN", text: "やり直し", timestamp: .distantPast))
+        host.rootView = ChatTranscriptView(viewModel: model, transcript: items, presentationContext: .gridTile)
+        // 固定したままなら、送った入力が新しい側に 1 件外れる。
+        try await Task.sleep(for: .milliseconds(200))
+        try await wait(host, stage: "送った入力を描く") { hiddenNewerCount(host) == 0 }
     }
 
     @Test(arguments: [false, true])
@@ -596,4 +629,25 @@ private final class HistoryWheelEvent: NSEvent {
     override var scrollingDeltaY: CGFloat { delta }
     override var phase: NSEvent.Phase { testPhase }
     override var momentumPhase: NSEvent.Phase { testMomentumPhase }
+}
+
+private final class HistoryFakeAgentClient: StructuredAgentClient, @unchecked Sendable {
+    let events: AsyncStream<NormalizedChatEvent>
+    private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
+
+    init() {
+        var captured: AsyncStream<NormalizedChatEvent>.Continuation?
+        events = AsyncStream { captured = $0 }
+        continuation = captured!
+    }
+
+    func start() async {}
+    func turnStart(_ input: [ChatInput]) async throws {}
+    func resume(sessionRef: String) async throws {}
+    func interrupt() async throws {}
+    func close() async { continuation.finish() }
+
+    func yield(_ event: NormalizedChatEvent) {
+        continuation.yield(event)
+    }
 }

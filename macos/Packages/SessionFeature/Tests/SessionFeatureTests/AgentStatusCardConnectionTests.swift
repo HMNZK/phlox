@@ -219,6 +219,74 @@ struct AgentStatusCardDisclosureTests {
         #expect(!disclosure.isExpanded(row(finished, 0), in: finished))
     }
 
+    /// 終わったカード。タスク A（完了）に検索 c1 と編集 e1、タスク B（完了、作業なし）。全部閉じている。
+    private func finishedCardWithClosedTask() -> AgentStatusCard {
+        var items = runningItems()
+        items.append(snapshot("task-list-2", [("A", "Retry-After を読む", .completed), ("B", "テストを足す", .completed)], at: 9))
+        items[0] = user("u1", end: ended(.completed, at: 30))
+        return card(items, live(processing: false))!
+    }
+
+    @Test("作業への移動: 閉じたタスクの中の作業なら、そのタスクの行を手で開く（ほかの行は変えない）")
+    func revealOpensTheClosedTaskHoldingTheItem() {
+        let card = finishedCardWithClosedTask()
+        var disclosure = AgentStatusCardDisclosure()
+        #expect(!disclosure.isExpanded(row(card, 0), in: card))
+
+        disclosure.reveal(itemID: "c1", in: card)
+
+        #expect(disclosure.isExpanded(row(card, 0), in: card))
+        #expect(!disclosure.isExpanded(row(card, 1), in: card))
+        #expect(disclosure.isManuallyOpened(row(card, 0), in: card))
+        #expect(card.entryID(containing: "c1") != nil)
+        #expect(card.entryID(containing: "missing") == nil)
+    }
+
+    @Test("作業への移動: 終わったカードのタスク外の作業の行も開く。別のカードには効かない")
+    func revealOpensTheOutsideGroupOnlyForThatCard() {
+        let items = [user("u1", end: ended(.completed, at: 9)), command("c1", "go mod tidy", at: 1, done: 2)]
+        let other = [user("u2", end: ended(.completed, at: 9)), command("c2", "go build", at: 1, done: 2)]
+        let target = card(items, live(processing: false))!
+        let untouched = card(other, live(processing: false))!
+        var disclosure = AgentStatusCardDisclosure()
+
+        disclosure.reveal(itemID: "c1", in: target)
+
+        #expect(disclosure.isExpanded(row(target, 0), in: target))
+        #expect(!disclosure.isExpanded(row(untouched, 0), in: untouched))
+    }
+
+    @Test("作業への移動: 「さらに表示」の外にある作業は件数を足して見える位置に入れ、窓の中なら件数を変えない")
+    func revealWidensTheWindowOnlyWhenTheItemIsOutside() {
+        var items: [ChatItem] = [user("u1", end: ended(.completed, at: 99))]
+        for number in 0..<45 { items.append(command("c\(number)", "echo \(number)", at: Double(number), done: Double(number) + 0.5)) }
+        let card = card(items, live(processing: false))!
+        let outside = row(card, 0)
+        var disclosure = AgentStatusCardDisclosure()
+
+        disclosure.reveal(itemID: "c40", in: card)
+        #expect(disclosure.entryLimit(outside, in: card) == AgentStatusCardDisclosure.initialEntryLimit)
+
+        disclosure.reveal(itemID: "c0", in: card)
+        let window = AgentStatusCardDisclosure.window(outside.entries, limit: disclosure.entryLimit(outside, in: card))
+        #expect(window.visible.contains { $0.id == card.entryID(containing: "c0") })
+        #expect(window.hidden == 0)
+    }
+
+    @Test("作業への移動の要求は、等価性に含む（変わったカードだけ作り直される）")
+    @MainActor
+    func revealRequestIsPartOfEquality() {
+        let card = finishedCardWithClosedTask()
+        let descriptor = AgentRegistry.descriptor(for: .claudeCode)
+        let plain = AgentStatusCardView(card: card, agentDescriptor: descriptor)
+        let asked = AgentStatusCardView(card: card, agentDescriptor: descriptor, revealRequest: AgentStatusRevealRequest(itemID: "c1", serial: 1))
+        let askedAgain = AgentStatusCardView(card: card, agentDescriptor: descriptor, revealRequest: AgentStatusRevealRequest(itemID: "c1", serial: 2))
+
+        #expect(plain != asked)
+        #expect(asked != askedAgain)
+        #expect(asked == AgentStatusCardView(card: card, agentDescriptor: descriptor, revealRequest: AgentStatusRevealRequest(itemID: "c1", serial: 1)))
+    }
+
     @Test("作業が 30 件を超える行は、新しい 30 件だけ出し、古い側の件数を数える。「さらに表示」でもう 30 件")
     func windowShowsLatestThirtyThenMore() {
         var items: [ChatItem] = [user("u1")]

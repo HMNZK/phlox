@@ -775,14 +775,15 @@ enum AgentStatusCardRouting {
 extension AgentStatusCard {
     /// カードの中にこの id の item があるか（ジャンプ先をカードの id へ解決するため）。
     func contains(itemID: String) -> Bool {
-        rows.contains { row in
-            row.entries.contains { entry in
-                switch entry {
-                case .action(let action): action.items.contains { $0.id == itemID }
-                case .item(let item): item.id == itemID
-                }
-            }
+        entryID(containing: itemID) != nil
+    }
+
+    /// この item を含む作業の行（または item）の id。開いた行の中のその位置へ移動するために使う。
+    func entryID(containing itemID: String) -> String? {
+        for row in rows {
+            if let entry = row.entries.first(where: { $0.contains(itemID: itemID) }) { return entry.id }
         }
+        return nil
     }
 }
 

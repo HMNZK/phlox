@@ -45,6 +45,17 @@ struct AgentStatusCardDisclosure: Equatable {
         overrides[Key(cardID: card.id, rowID: row.id)] == true
     }
 
+    /// バックグラウンド作業の一覧などからの移動: その作業を含む行を手で開き、「さらに表示」の外なら件数も足す。
+    /// 移動先の作業が見える状態にするだけで、位置の移動は呼び出し側（既存のジャンプ）が行う。
+    mutating func reveal(itemID: String, in card: AgentStatusCard) {
+        for row in card.rows {
+            guard let index = row.entries.firstIndex(where: { $0.contains(itemID: itemID) }) else { continue }
+            let key = Key(cardID: card.id, rowID: row.id)
+            overrides[key] = true
+            limits[key] = max(entryLimit(row, in: card), row.entries.count - index)
+        }
+    }
+
     /// 今の見た目と反対にして、手の状態として覚える。
     mutating func toggle(_ row: AgentStatusRow, in card: AgentStatusCard) {
         overrides[Key(cardID: card.id, rowID: row.id)] = !isExpanded(row, in: card)
@@ -66,6 +77,21 @@ struct AgentStatusCardDisclosure: Equatable {
     static func window(_ entries: [AgentStatusEntry], limit: Int) -> (visible: [AgentStatusEntry], hidden: Int) {
         let visible = entries.suffix(max(0, limit))
         return (Array(visible), entries.count - visible.count)
+    }
+}
+
+/// 「この item の作業を開いて見せて」という 1 回の要求。`serial` が変わるたびに新しい要求として扱う。
+struct AgentStatusRevealRequest: Equatable {
+    let itemID: String
+    let serial: Int
+}
+
+extension AgentStatusEntry {
+    func contains(itemID: String) -> Bool {
+        switch self {
+        case .action(let action): action.items.contains { $0.id == itemID }
+        case .item(let item): item.id == itemID
+        }
     }
 }
 

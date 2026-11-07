@@ -48,6 +48,8 @@ struct AgentStatusCardView: View, Equatable {
     /// グリッドの狭い列。作業の行の字下げが 36 になり、進行中の小さい点描は止める。
     var isNarrow = false
     var isLaunchFailureRestarting = false
+    /// 作業への移動の要求。変わったときに、その作業を含む行を開く（比較に含める）。
+    var revealRequest: AgentStatusRevealRequest? = nil
 
     // 以下は比較に含めない（毎回作り直されるクロージャ。ADR 0116）。
     /// 無応答の判定。時刻で変わるので、見出しが毎秒この関数から決める。
@@ -59,6 +61,7 @@ struct AgentStatusCardView: View, Equatable {
     @State private var disclosure: AgentStatusCardDisclosure
     /// 最初から開いている作業の行（画面外の描画で「作業を開いた」状態を作るために使う）。
     private let openActionIDs: Set<String>
+    @State private var handledReveal: AgentStatusRevealRequest?
     @State private var isInViewHierarchy = false
     @State private var isInViewport = false
     @Environment(\.scenePhase) private var scenePhase
@@ -71,6 +74,7 @@ struct AgentStatusCardView: View, Equatable {
         isStill: Bool = false,
         isNarrow: Bool = false,
         isLaunchFailureRestarting: Bool = false,
+        revealRequest: AgentStatusRevealRequest? = nil,
         hangAssessment: ((Date) -> ChatHangAssessment?)? = nil,
         onInterrupt: (() async -> Void)? = nil,
         makeItemView: ((ChatItem) -> ChatItemView)? = nil,
@@ -82,6 +86,7 @@ struct AgentStatusCardView: View, Equatable {
         self.isStill = isStill
         self.isNarrow = isNarrow
         self.isLaunchFailureRestarting = isLaunchFailureRestarting
+        self.revealRequest = revealRequest
         self.hangAssessment = hangAssessment
         self.onInterrupt = onInterrupt
         self.makeItemView = makeItemView
@@ -96,6 +101,7 @@ struct AgentStatusCardView: View, Equatable {
             && lhs.isStill == rhs.isStill
             && lhs.isNarrow == rhs.isNarrow
             && lhs.isLaunchFailureRestarting == rhs.isLaunchFailureRestarting
+            && lhs.revealRequest == rhs.revealRequest
     }
 
     /// 既存の処理中表示と同じ条件（表示されていて、画面内にあり、バックグラウンドでない）。
@@ -159,5 +165,11 @@ struct AgentStatusCardView: View, Equatable {
         .onAppear { isInViewHierarchy = true }
         .onDisappear { isInViewHierarchy = false }
         .onViewportVisibilityChange { isInViewport = $0 }
+        .onChange(of: revealRequest, initial: true) { _, request in
+            // 窓の外から現れたカードにも届くよう、初回の値も見る。同じ要求は 1 度だけ。
+            guard let request, request != handledReveal else { return }
+            handledReveal = request
+            disclosure.reveal(itemID: request.itemID, in: card)
+        }
     }
 }

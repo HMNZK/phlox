@@ -28,6 +28,8 @@ struct ChatTranscriptView: View {
     // 遅延 scrollTo の世代トークン。ジャンプごと・セッション切替ごと・展開ごとに増やし、pending 遅延
     // Task は捕捉した世代が現在値と一致するときだけ scrollTo する（stale/後続操作時の誤スクロール防止）。
     @State private var jumpGeneration = 0
+    /// 作業への移動のとき、その作業を含む行をカードに開かせる要求（移動のたびに作り直す）。
+    @State private var statusCardRevealRequest: AgentStatusRevealRequest?
     // 履歴追加前の先頭可視 item の id を捕捉して置く一時アンカー。
     // 展開後にビューポートが履歴の先頭へ飛ぶのを防ぎ、押下時に見えていた位置へ留めるための単発シグナル
     // （requestedScrollTarget と同じ @State ワンショット方式・ScrollViewReader レベルの onChange で処理）。
@@ -384,6 +386,7 @@ struct ChatTranscriptView: View {
                 isStill: card.header.isLive && (viewModel.isCompacting || viewModel.shouldShowConnectingIndicator),
                 isNarrow: presentationContext == .gridTile,
                 isLaunchFailureRestarting: isLaunchFailureRestarting,
+                revealRequest: statusCardRevealRequest.flatMap { card.contains(itemID: $0.itemID) ? $0 : nil },
                 hangAssessment: { viewModel.hangAssessment(now: $0) },
                 onInterrupt: { await viewModel.turnInterrupt() },
                 makeItemView: { chatItemView(for: $0, lastTranscriptID: lastTranscriptID) }
@@ -525,6 +528,21 @@ struct ChatTranscriptView: View {
         let allBlocks = blocks(from: currentItems)
         let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, inBlocks: allBlocks)
         let blockCount = allBlocks.count
+        // 対象の作業が状態カードの中にあるなら、その行を開かせ、開いた後にその作業の位置へ寄せ直す。
+        let entryID = allBlocks.lazy.compactMap { block -> String? in
+            if case .statusCard(let card) = block { card.entryID(containing: target) } else { nil }
+        }.first
+        statusCardRevealRequest = entryID == nil ? nil : AgentStatusRevealRequest(itemID: target, serial: generation)
+        func scroll() {
+            proxy.scrollTo(scrollTarget, anchor: .center)
+            guard let entryID else { return }
+            // 行が開いて描かれた後（次の MainActor ターン）に、作業そのものへ。
+            Task { @MainActor in
+                guard generation == jumpGeneration else { return }
+                proxy.scrollTo(entryID, anchor: .center)
+                statusCardRevealRequest = nil
+            }
+        }
         if let blockIndex = ChatTranscriptGrouping.blockIndex(ofItemWithID: target, inBlocks: allBlocks) {
             let start = max(0, blockCount - renderBlockLimit(for: allBlocks))
             if blockIndex < start {
@@ -539,13 +557,13 @@ struct ChatTranscriptView: View {
                 // 遅延中に後続ジャンプ・セッション切替（reset）が来たら世代不一致で何もしない。
                 Task { @MainActor in
                     guard generation == jumpGeneration else { return }
-                    proxy.scrollTo(scrollTarget, anchor: .center)
+                    scroll()
                 }
                 return
             }
         }
         // 可視域 or items に存在しない別セッション id: 従来どおり即 scrollTo（no-op を含む）。
-        proxy.scrollTo(scrollTarget, anchor: .center)
+        scroll()
     }
 
     private func scrollToBottomIfNeeded(

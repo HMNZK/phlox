@@ -1050,6 +1050,22 @@
         "physical-activity-presentation"
       ],
       "reason": "StatusBadge.swiftはisStalledのdocコメントを120秒から30分へ直した1行のみで、ChatHangPolicy.defaultWarnAfter（30*60）と一致し挙動は不変。codePathsで該当するfake-session-lifecycle・physical-activity-presentationの手順・期待結果・前提・適用範囲・method・required・testIDsは不変で、requirementのe2e-test-design.md#S1とsession-activity-parity.md#AC-6も差分に含まれない。claude-design-prompts.mdの節14追記とスケッチ画像はどのシナリオにも該当しない。"
+    },
+    {
+      "baseOID": "780c3dc6345ddff09a3fe21f358b002a2c861269",
+      "targetOID": "39d20ec5a1b4e1b28bb8fa377830850b9f806f92",
+      "diffSHA256": "e7fee3906bec88268e81e129876f1d2a7df4b19003b655b684fb1cb8cfb28e5f",
+      "reviewer": {
+        "kind": "ai",
+        "id": "/root/merge_independent_verifier"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T06:56:37.991411Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "全5ファイル差分を独立に読み、表示だけを4096 Unicode scalarと32個目の改行直前で制限し、保存・復元・通常コピーと全文コピーが元のtextを保持することを呼出元と共有コピー処理まで確認した。追加9回帰テストの境界、Unicode、実ボタンのコピー結果、実物store/ViewModelによる全文保持のassertionを確認し、既存qualityの生result.jsonに9テストと必須fake13関数の成功IDがあることを照合した。verification-scenarios.jsonのcodePathsとS1要件を照合し、対象はfake-session-lifecycleのみで、必須範囲・期待値・skipの削減はない。自身でreview-inputを実行した。退避ソースのbase/head一致、両アプリのstrict署名、head実行ファイル3個の既存SHA一致を確認し、隔離した同じネイティブ受入をbaseline/headへ自らcompact-test経由で実行した。baselineは省略案内判定より前のAX会話名取得で失敗し、AX -25204、CPU97.2%、sampleはUserBubbleWidth.sizeThatFitsとCoreTextへ集中した。headはexit 0でcold restore、省略案内と全文コピーボタンのAX、別会話へのAX切替、GUI再接続、496万文字の保存本文SHA一致を確認した。所有PID9件の終了を再確認し使い捨て複製と合成データをゴミ箱へ移した。制約として全quality・9単体の再実行、実アプリでのコピーボタン押下、実CLI、実機、XCUITest、デザイン画像の再比較は今回行っていない。コード上のコピー保持と既存実操作回帰テストの成功証跡を確認した範囲を超えて実行成功とは扱わない。既存Markdown編集テストの初回一時失敗の原因は未確定だが、対象差分はその製品・テスト・期待値を変更せず、最終quality成功を既存証跡で確認した。同一モデルの別コンテキストであり異種モデル評価ではない。ローカルdev統合の差分レビュー判定で、push/main/リリースを承認するものではない。"
     }
   ]
 }

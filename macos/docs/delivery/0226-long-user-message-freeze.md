@@ -59,7 +59,7 @@ last-verified: 2026-11-07
 | セルのレイアウト・描画・PNG保存 | 96.4 ms | 34.9〜114.7 ms |
 | flush | 15.2 ms | 14.9〜16.4 ms |
 
-この描画時間はPNG保存を含むため、下の縮小再現のレイアウト時間と同一指標ではない。5回とも復元本文の既知SHA-256と保存ファイルの前後SHA-256を確認した。個別の`metrics.json`、`owner.json`、`long-user.png`、`short-user.png`は`.verification/long-user-message-freeze/tests/`にある。集計は同`phase-summary.json`。
+この描画時間はPNG保存を含むため、下の縮小再現のレイアウト時間と同一指標ではない。5回とも復元本文の既知SHA-256と保存ファイルの前後SHA-256を確認した。個別の`metrics.json`、`owner.json`、`long-user.png`、`short-user.png`は`.verification/long-user-message-freeze/tests/`にある。集計は`.verification/long-user-message-freeze/phase-summary.json`。
 
 縮小したネイティブ再現を修正前後で5回ずつ交互に実行した。周辺の色、時刻、コピー部品を代替した最適化ビルドであり、製品全体の速度改善率には使わない。CPU数12、初期負荷平均12.77を記録し、同時に動く利用者の作業は止めなかった。CoreTextに入るまでとレイアウト完了を別ログで確認し、JSONの往復一致と正常終了も検査した。
 
@@ -104,7 +104,7 @@ last-verified: 2026-11-07
   --app <固有bundle-IDの署名済みアプリ> --work-dir "$PWD/.verification/<新しい受入名>"
 ```
 
-全体品質ゲートは`python3 -B macos/scripts/verification-gate.py quality`。macOS専用lintと独立した静的解析は未設定。Swiftコンパイルをそれらの代替とは扱わない。最終候補でのゲートは2026-11-07 12:34:35 JSTにexit 0で完了した。入力SHA-256は`02421c2f515d00b1436baab5c0190b6523896c60f69d7ac7911f3fa9be61c20e`。証跡は`.verification/long-user-message-freeze/quality-20261107T032046754832/`、短い集計は同`verification-summary.json`。
+全体品質ゲートは`python3 -B macos/scripts/verification-gate.py quality`。macOS専用lintと独立した静的解析は未設定。Swiftコンパイルをそれらの代替とは扱わない。最終候補でのゲートは2026-11-07 12:34:35 JSTにexit 0で完了した。入力SHA-256は`02421c2f515d00b1436baab5c0190b6523896c60f69d7ac7911f3fa9be61c20e`。証跡は`.verification/long-user-message-freeze/quality-20261107T032046754832/`、短い集計は`.verification/long-user-message-freeze/verification-summary.json`。
 
 - macOSの19パッケージを全数検査した。通常検査の既定の除外23件には、後段で実施する必須fake 13件を含む。実CLIや性能計測の任意検査10件は未実施。既存のGit履歴の利用順に関する既知問題1件はゲートで許容されている。今回その扱いを変更していない。
 - SessionFeatureは新規9テストを含む1334テストが成功した。iOSはlint、695テスト、generic iOS Simulator向けアプリのコンパイル・リンクが成功した。

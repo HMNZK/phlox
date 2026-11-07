@@ -1,13 +1,13 @@
 ---
 status: active
-last-verified: 2026-11-06
+last-verified: 2026-11-07
 ---
 
 # エージェント状態カード（設計書）
 
 > **このファイルの役割**: [agent-status-card.md](agent-status-card.md)（要件）を満たす実装の設計。保存形式の変更、イベントの流れ、カードの組み立て規則、描画、テスト、実装の順番。
 > **書かないもの**: 何を満たすべきか（→ 要件書）、なぜこの方式か（→ [ADR 0226](../adr/0226-agent-status-card-derived-from-transcript.md)・[ADR 0227](../adr/0227-status-card-icons-inside-card-only.md)）。実装後の構成は architecture/ へ移す。
-> **状態**: 未実装。2026-11-06 時点のコード（17cb2cae）を読んで書いた。行番号はその時点のもので、dev（393baf94）では数行ずれている。実装前に照合し直す。
+> **状態**: 1 段目（Mac）を実装済み（2026-11-07、ブランチ `agent-status-card`）。2 段目（iOS）は未実装。行番号は 17cb2cae 時点のもので、実装後はずれている。実装で決めた規則は各節に反映した。
 
 パスは `macos/Packages/` からの相対。略称:
 
@@ -65,13 +65,14 @@ ChatTranscriptView → AgentStatusCardView（新規の部品。DisclosureCard �
 
 - `ChatItem.swift`: `==` / `init(from:)` / `encode(to:)` / `withTimestamp`
 - `SF/TranscriptDelta.swift` の `contentFields`
+- `SF/SessionRuntimeSnapshotUpdate.swift` の `sameChatItem`（別ウィンドウ・リモートへの差分配信。入れ忘れると新フィールドだけの変化を捨てる）
 - `AppBootstrap/.../ControlActionHandler.swift:~1027` のモバイル DTO（2 段目で値を載せる。1 段目は今のまま送る）
 
 ### 2.4 互換
 
 | 読む側 \ 書いた側 | 旧版 | 新版 |
 |---|---|---|
-| 旧版 | — | 読める。タスクの更新は、組み立てで 1 枚のカードにまとまる（`TaskListCell` は削除済み。要件 AC-12） |
+| 旧版 | — | 読める。旧版には組み立てが無いので、タスクのカードは旧版の `TaskListCell` が更新の回数だけ並ぶ（要件 AC-12 で許容。新版では `TaskListCell` を削除した） |
 | 新版 | 読める。固定 id `task-list` の 1 枚は、その位置にある最後の状態のスナップショットとして扱う。所要時間は出さない（FR-22） | — |
 
 ## 3. イベントの流れの変更
@@ -98,7 +99,14 @@ ChatTranscriptView → AgentStatusCardView（新規の部品。DisclosureCard �
 
 ### 3.4 ターンの終わりを記録する
 
-`.turnCompleted` / `.turnInterrupted` / `.error` / `.processExited` の処理（`CVM:2731-2780`、Codex は `:3049-3060`）で、その時点で実行中だった入力の `userMessage` に `turnEnd` を書く。どの入力かは「最後の `userMessage`」で決まる。`.processExited` は、利用者が止めた・閉じた（`isTerminating`）なら `.interrupted`、それ以外は `.error` にする。既に `turnEnd` がある入力には書かない。実行中に次の入力を送ったときは、送信の処理（`CVM:4284-4376`）で、前の入力の `userMessage` に `turnEnd(.superseded, at: 送信時刻)` を書く。
+`.turnCompleted` / `.turnInterrupted` / `.error` / `.processExited` の処理（`CVM:2731-2780`、Codex は `:3049-3060`）で、その時点で実行中だった入力の `userMessage` に `turnEnd` を書く。どの入力かは「最後の `userMessage`」で決まる。`.processExited` は、利用者が止めた・閉じた（`isTerminating`）なら `.interrupted`、それ以外は `.error` にする。既に `turnEnd` がある入力には書かない。実行中に次の入力を送ったときは、送信の処理で、`client.turnStart` が成功してから、前の入力の `userMessage` に `turnEnd(.superseded, at: 送信時刻)` を書く（送信に失敗したら書かない）。
+
+実装で足した規則（2026-11-07）:
+
+- **書く先**: 「最後の `userMessage`」ではなく、終わりを待っている入力（CVM の `openInputID`）に書く。復元した古い入力は待っていないので、後から届く終了で書かれない。
+- **遅れて届く終了の吸収**: `superseded` を書いた数を CVM の `pendingSupersededEnds` で数える。完了・中断・エラーが届いたとき、件数が 1 以上なら前の入力の終わりとして 1 つ減らして捨て、0 なら待っている入力に書く。`.processExited` は吸収せず、待っている入力に書く。利用者の中断（`turnInterrupt`）は件数を 0 に戻す。
+- **`.error`**: 今の CVM は `.error`（起動失敗を除く）で必ず実行中の状態を終えるので、ターンの終わりとして扱う。
+- **未確認**: Claude の CLI が実行中に送った入力を前のターンに合流させ、結果を 1 件しか返さない場合、Codex が実行中の `turn/start` を合流させる場合は、新しい入力の終わりが吸収されて記録が残らず、見出しは「終了」になる（実機の CLI での確認は費用がかかるため 1 段目では見送った。§9）。
 
 ### 3.5 巻き戻しでタスクの記憶を消す（既存の不具合の修正を含む）
 
@@ -156,12 +164,13 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 - `appendOrReplace` は書き換えても開始時刻を保つ。
 - `subAgentMarker` の timestamp は `.distantPast` 固定である。
 
-この規則なら、古い会話（固定 id の 1 枚だけ）でも自然に「全部タスク外」になる。
+古い会話（固定 id `task-list` の 1 枚だけ）のスナップショットは、表示（最後の状態）には使うが、振り分けと所要時間には使わない。最後の状態で進行中が 1 件でも、作業は全部タスク外になる（FR-22）。基準で進行中のタスクがこの入力のカードに出ないときも、その作業はタスク外にする。
 
 ### 4.5 カードの上・中・下
 
 1. **カードの上**: 区間の先頭から、最初の作業・スナップショット・サブエージェントの直前までにある `agentMessage` と `reasoning`。
-2. **カードの下**: 区間に `turnEnd` があるとき、区間の末尾から `turnCost` を除いた最後の item が `agentMessage` なら、それと `turnCost` をカードの下に出す（`.turnCompleted` は `turnEnd` より先に `turnCost` を追記するため、末尾は `turnCost` になる）。
+2. **カードの下**: 実行中でなければ（`turnEnd` が無い入力も含む。2026-11-07 ユーザー決定 D21）、区間の末尾から `turnCost` を除いた最後の item が `agentMessage` なら、それと `turnCost` をカードの下に出す（`.turnCompleted` は `turnEnd` より先に `turnCost` を追記するため、末尾は `turnCost` になる）。末尾が返答でなくても、末尾の `turnCost` は下に出す。最初の作業より前には遡らない。
+   - 区間の先頭（最初の作業・返答より前）にある `turnCost` は、`superseded` で閉じた前の入力の使用量なので、カードの中に入れず、カードの外の上に出す。
 3. **カードの中**: それ以外の全部。作業、タスクの進行中の文章と思考、回答済みの `userQuestion`、`error`。
 
 ### 4.6 タスクの所要時間
@@ -172,7 +181,8 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 
 - **種類の判定**: 今の分類（`AgentActivityClassifier.state(forCommand:)`、`ChatCommandToolLabel.derive`）を使い、読み込み・検索・編集・書き込み・実行・その他に分ける。
 - **文言**: 「対象＋動詞」にする。ファイル操作はファイル名、検索は結果の行数から「N 件」。実行は `intent` があればそれ、無ければコマンド。
-- **時制**: `completedAt` の有無で「〜中」と「〜した」を切り替える。
+- **時制**: カードが実行中で `completedAt` が無ければ「〜中」、それ以外は見本どおり体言止め（「go.mod を編集」。2026-11-07 ユーザー決定 D20）。古い会話は実行中でないので体言止めになる。
+- **検索の件数**: 結果の空でない行数。ただしツールの見出し行は数えない（「No … found」は 0 件、「Found N …」は N 件）。
 - **まとめ**: 連続する同じ種類（読み込み・検索・編集）は 1 行にまとめる。コマンドの実行はまとめない。
 - **文字列**: xcstrings に置く。
 
@@ -180,6 +190,7 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 
 - **状態**: 最新のカードでは `isProcessing` を `turnEnd` より優先する（ターンが終わってもバックグラウンドタスクやサブエージェントが動く間は実行中。ADR 0064）。それ以外は `turnEnd` から決め、`turnEnd` が無ければ「終了」（印なし・所要時間なし。この機能より前の会話や、プロセスの異常終了・アプリの終了で終わった入力）にする（要件 §4.2 の表）。
 - **今の作業**: 区間の最後の作業。
+- **窓の分だけ作る**: 画面の再描画では、末尾から区間を遡り、表示する窓（single=50、grid=16 ブロック）に入る区間だけカードを作る（`AgentStatusCardBuilder.visibleSlice`）。結果は全件を作ってから窓で切った場合と一致する。入力 300 回・item 6,000 件の合成会話で 1 回 release 1.13 ms（窓 50）／0.73 ms（窓 16）、dev の窓の処理は 0.28 ms（2026-11-07 計測）。
 - **残すもの**: `ChatRecap.summary`・`thinkingRecap(now:)`・`hangAssessment(now:)` は、通知（`CVM:~2480`）とグリッドの小さいタイル（`GridTileParts.swift:277/292`）が使っているので残す。
 
 ## 5. 描画
@@ -269,4 +280,6 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 - **タスクの id**: Claude の `TodoWrite` の id は「位置＋タイトル」なので、並べ替えると別のタスクに見える。所要時間がずれることを許容する。
 - **Codex のコマンド**: 説明が無い。行はコマンドそのものになり、長い。
 - **結果の失敗**: 失敗したツール（`is_error`）は今の Phlox が読んでいない。カードでも、失敗した作業を区別しない。必要なら別に足す。
-- **2 回以上の入力を含むターン**: `superseded` の扱いは実機で確かめる。Claude と Codex で、実行中の送信の扱いが違いうる。
+- **2 回以上の入力を含むターン**: `superseded` の吸収（§3.4）は、実行中に送った入力ごとに終わりが 1 回届く前提。合流して 1 回しか届かない場合は、新しい入力の見出しが「終了」になる。実機の CLI では未確認。
+- **吸収の取り違え**: A→B と送り、A の完了で状態が待機に戻った後に C を送ると、B の完了が C に書かれうる。送信が失敗した後に別の入力を送ったときも同じ。CVM が前の入力の完了で待機に戻る今の挙動に由来する。
+- **性能**: 窓の分だけ作っても dev より 1 回あたり約 0.5〜1 ms 多い。9 列のグリッドの実機では計測していない。

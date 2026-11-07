@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-11-06
+last-verified: 2026-11-07
 ---
 
 # エージェント状態カード（要件・受け入れ基準）
@@ -8,7 +8,7 @@ last-verified: 2026-11-06
 > **このファイルの役割**: チャットの会話ログで、入力 1 回ごとのエージェントの動きを「タスクと作業」に整理して見せるカードの要件、受け入れ基準、範囲。
 > **書かないもの**: 実装の設計（→ [agent-status-card-design.md](agent-status-card-design.md)）、なぜこの方式か（→ [ADR 0226](../adr/0226-agent-status-card-derived-from-transcript.md)・[ADR 0227](../adr/0227-status-card-icons-inside-card-only.md)）。用語の定義は [glossary.md](glossary.md)。
 > **デザインの見本**: [Claude Design の10画面と部品・全状態の対応表](ClaudeDesign/agent-status-card/index.html)（[全状態・寸法・色・VoiceOver](ClaudeDesign/agent-status-card/boards/10-Anatomy.html)、[PDF](ClaudeDesign/agent-status-card/pdf/phlox-agent-status-card.pdf)、編集用データは `ClaudeDesign/agent-status-card/source/`）。ユーザー作成の見本を2026-11-07に取り込んだ（依頼文は `macos/Design/claude-design-prompts.md` の「14」）。参考はユーザーの手描きスケッチ [ClaudeDesign/agent-status-card-sketch.png](ClaudeDesign/agent-status-card-sketch.png) と、Elia (@eliakuratli) の「Agent status component」動画（2026-10-23、https://x.com/eliakuratli/status/2113618712066711970 。第三者の動画なのでリポジトリには入れない）。実装は見本と見比べてから完了とする。
-> **状態**: 要件確定（2026-11-06 のインタビュー）。未実装。
+> **状態**: 要件確定（2026-11-06 のインタビュー、2026-11-07 に D19〜D21 を追加）。1 段目（Mac）を実装済み（2026-11-07）。2 段目（iOS）は未実装。
 
 ## 1. 解決したい問題
 
@@ -46,6 +46,9 @@ last-verified: 2026-11-06
 | D16 | 完了したタスク | ✓ と取り消し線を付け、文字を薄くして非活性の見た目にする |
 | D17 | デザインの見本 | ユーザーが Claude Design で作る |
 | D18 | Claude Design の全画面の再設計案（依頼文 0〜13 の成果、2026-11-07）との関係（2026-11-07） | 採用しない。アプリは現行のまま（インスペクタの Git タブ、⌘J＝下部パネル、状態の図形を出さない等）とし、変えるのはチャット画面に出す表示だけ |
+| D19 | 文章だけで答える入力の処理中表示（2026-11-07） | FR-2 の文面どおり。返答が届き始めたらカードを出さず、Claude・Codex では今の「考え中」の行も出さない |
+| D20 | 終わった作業の行の言い方（2026-11-07） | 見本どおり体言止め（「5 ファイルを編集」）。「〜した」にはしない |
+| D21 | 終わり方の記録が無い入力の最後の返答（2026-11-07） | 実行中でなければ、記録が無くても（この機能より前の会話・アプリの終了で終わった入力）カードの下に出す |
 
 ## 4. 機能要件
 
@@ -88,7 +91,7 @@ last-verified: 2026-11-06
 
 ### 4.4 作業の行
 
-- **FR-10** 1 行は「種類のアイコン・何をしたか・所要時間」。進行中は薄い文字で「〜中」、終わったら「〜した」形にする。
+- **FR-10** 1 行は「種類のアイコン・何をしたか・所要時間」。進行中は薄い文字で「〜中」、終わったら体言止め（「go.mod を編集」。D20）にする。
 - **FR-11** 同じ種類の作業（読み込み・検索・編集）が続いたら 1 行にまとめる（「5 ファイルを編集」）。コマンドの実行はまとめない。
 - **FR-12** 文言の元は次のとおり。結果の意味（「12 件中 12 件合格」など）は出さない。
   - ファイル操作は対象のファイル名を使う。

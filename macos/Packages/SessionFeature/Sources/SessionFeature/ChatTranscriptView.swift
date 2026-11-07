@@ -131,9 +131,10 @@ struct ChatTranscriptView: View {
                 return .handled
             }
             // 項目が変わらなくても、処理の終了で末尾のカードが消えるなどして新しい側が無くなることがある。
-            // 固定したままだと、次に届く項目が窓の外に積まれる（ADR 0229 §2）。
-            .onChange(of: visibleSlice.hiddenNewerBlockCount == 0) { _, nothingNewer in
-                if nothingNewer, window.lastItemID != nil { window.followTail() }
+            // 固定したままだと、次に届く項目が窓の外に積まれる（ADR 0229 §2）。固定と処理の終了が 1 回の描画に
+            // 重なっても拾えるよう、新しい側の件数ではなく「固定中で新しい側が無い」状態を見る。
+            .onChange(of: window.lastItemID != nil && visibleSlice.hiddenNewerBlockCount == 0) { _, isStale in
+                if isStale { window.followTail() }
             }
             .onChange(of: transcriptSignal) { oldSignal, newSignal in
                 window.followTailIfNothingNewer(in: transcriptItems, source: blockSource)

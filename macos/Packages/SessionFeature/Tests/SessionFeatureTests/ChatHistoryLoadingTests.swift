@@ -203,6 +203,48 @@ struct ChatHistoryLoadingTests {
         try await wait(host, stage: "送った入力を描く") { hiddenNewerCount(host) == 0 }
     }
 
+
+    /// 上端で引いて離して窓を固定するのと、処理の終了で見出しだけのカードが消えるのが 1 回の描画に重なっても、
+    /// 末尾追従に戻る（独立レビュー 7 回目）。処理の終わった同じ会話のモデルへ、描画の前に差し替えて重ねる。
+    @Test func pinnedWindowFollowsTailWhenPinAndProcessingEndShareAnUpdate() async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let sessionID = SessionID()
+        let client = HistoryFakeAgentClient()
+        let model = ChatSessionViewModel(id: sessionID, agentRef: .builtin(.claudeCode), client: client,
+                                         approvalBroker: ChatApprovalBroker(), workingDirectory: "/unused-history-test")
+        client.yield(.turnStarted)
+        try await wait(NSView(), stage: "実行中") { model.status == .running }
+        let idleModel = ChatSessionViewModel(id: sessionID, agentRef: .builtin(.claudeCode), client: HistoryFakeAgentClient(),
+                                             approvalBroker: ChatApprovalBroker(), workingDirectory: "/unused-history-test")
+        var items = (0..<300).flatMap { index -> [ChatItem] in
+            [.userMessage(id: "u\(index)", text: "入力", timestamp: .distantPast),
+             .agentMessage(id: "a\(index)", text: "返答", timestamp: .distantPast)]
+        }
+        items.append(.userMessage(id: "uT", text: String(repeating: "長", count: 2_000), timestamp: .distantPast))
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: model, transcript: items, presentationContext: .gridTile))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { hiddenCount(host) != nil }
+        for _ in 0..<3 {
+            let before = hiddenCount(host)
+            try loadEarlier(host)
+            try await wait(host, stage: "段を足す") { hiddenCount(host) != before }
+        }
+        let wheel = try startHistoryPull(host)
+        try await wait(host, stage: "ローダー") { element(host, "ChatTranscript.historyLoading") != nil }
+        #expect(hiddenNewerCount(host) == 0)
+        wheel.testPhase = .ended
+        NSApp.sendEvent(wheel)
+        host.rootView = ChatTranscriptView(viewModel: idleModel, transcript: items, presentationContext: .gridTile)
+        try await wait(host, stage: "描画") { element(host, "ChatTranscript.historyLoading") == nil }
+        let afterRender = hiddenNewerCount(host)
+        items.append(.userMessage(id: "uN", text: "やり直し", timestamp: .distantPast))
+        host.rootView = ChatTranscriptView(viewModel: idleModel, transcript: items, presentationContext: .gridTile)
+        try await Task.sleep(for: .milliseconds(200))
+        try await wait(host, stage: "送った入力を描く afterRender=\(String(describing: afterRender))") { hiddenNewerCount(host) == 0 }
+    }
+
     @Test(arguments: [false, true])
     func loaderPrecedesExpansionAndKeepsAnchor(grid: Bool) async throws {
         let restoreAccessibility = enableAccessibility()

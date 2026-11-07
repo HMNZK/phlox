@@ -1066,6 +1066,25 @@
         "fake-session-lifecycle"
       ],
       "reason": "全5ファイル差分を独立に読み、表示だけを4096 Unicode scalarと32個目の改行直前で制限し、保存・復元・通常コピーと全文コピーが元のtextを保持することを呼出元と共有コピー処理まで確認した。追加9回帰テストの境界、Unicode、実ボタンのコピー結果、実物store/ViewModelによる全文保持のassertionを確認し、既存qualityの生result.jsonに9テストと必須fake13関数の成功IDがあることを照合した。verification-scenarios.jsonのcodePathsとS1要件を照合し、対象はfake-session-lifecycleのみで、必須範囲・期待値・skipの削減はない。自身でreview-inputを実行した。退避ソースのbase/head一致、両アプリのstrict署名、head実行ファイル3個の既存SHA一致を確認し、隔離した同じネイティブ受入をbaseline/headへ自らcompact-test経由で実行した。baselineは省略案内判定より前のAX会話名取得で失敗し、AX -25204、CPU97.2%、sampleはUserBubbleWidth.sizeThatFitsとCoreTextへ集中した。headはexit 0でcold restore、省略案内と全文コピーボタンのAX、別会話へのAX切替、GUI再接続、496万文字の保存本文SHA一致を確認した。所有PID9件の終了を再確認し使い捨て複製と合成データをゴミ箱へ移した。制約として全quality・9単体の再実行、実アプリでのコピーボタン押下、実CLI、実機、XCUITest、デザイン画像の再比較は今回行っていない。コード上のコピー保持と既存実操作回帰テストの成功証跡を確認した範囲を超えて実行成功とは扱わない。既存Markdown編集テストの初回一時失敗の原因は未確定だが、対象差分はその製品・テスト・期待値を変更せず、最終quality成功を既存証跡で確認した。同一モデルの別コンテキストであり異種モデル評価ではない。ローカルdev統合の差分レビュー判定で、push/main/リリースを承認するものではない。"
+    },
+    {
+      "baseOID": "821eba7efdf3ec0a09b249adafcb726067ce71a1",
+      "targetOID": "8fa5316ddddbe19ef40bddd6211f96c5d0286e14",
+      "diffSHA256": "f36f26bc868292bff9857b6b6d23a65c2a608c27381949b76d6f0c6262b72fbf",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/ab32a489ff62e9872"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T10:38:11Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "dev 取り込み（c44a3509）の後の差分 dev..8fa5316d は 82 件で、dev 側の変更の巻き戻しは含まず、分類されないパスも無い（canvas.json は 86248c19 で外した）。fake-session-lifecycle には macos/Packages・macos/App 配下の 78 パスが当たる。会話の入力に終わり方、作業に完了時刻と説明が増えたが、復元は欠けた値を無しとして読むので互換があり、TaskListCell の削除は状態カードへの置き換えで、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。physical-session-activity には AppBootstrap の 3 パスが当たり、別ウィンドウ・リモートへの差分配信（sameChatItem）が終わり方・完了時刻・説明の違いも比べるようになり配信が増えるが、モバイルへ送る内容は ControlActionHandler のパターンの引数を合わせただけで変わらず、iOS の描画は 2 段目で未実装なので、AC-1〜4 の手順・期待結果は変わらない。physical-usage-preferences-refresh と physical-newchat-worktree-resume は ControlActionHandler.swift のパターンの引数の数だけで、Usage・NewChat の経路に変化はない。physical-history-follow と physical-activity-presentation には当たらない。requirement の参照先（e2e-test-design.md#S1、session-activity-parity.md の AC-1・AC-8・AC-9）と verification-scenarios.json は差分で変わっていない。"
     }
   ]
 }

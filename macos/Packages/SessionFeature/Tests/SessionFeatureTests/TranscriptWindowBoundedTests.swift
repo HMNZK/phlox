@@ -175,7 +175,7 @@ struct TranscriptWindowBoundedTests {
         AgentStatusLiveState(isProcessing: true, activityState: .thinking, hangAssessment: nil, isAwaitingReply: false)
     )
 
-    /// 描画が全体のブロック列の連続した一部と同じ中身で、固定した終端が入力の直前にあること。
+    /// 描画が全体のブロック列の連続した一部と同じ中身で、前後の隠れ件数が全体と合うこと（ADR 0229 §6）。
     private static func expectWholeSegments(_ window: TranscriptWindow, _ items: [ChatItem], _ full: [ChatTranscriptBlock]) throws {
         let slice = window.slice(of: items, source: cards)
         let start = try #require(full.firstIndex { $0.id == slice.blocks.first?.id })
@@ -183,16 +183,10 @@ struct TranscriptWindowBoundedTests {
         #expect(Array(full[start..<end]) == slice.blocks.map(\.content), "窓の中身が全体の組み立てと違う")
         #expect(slice.hiddenBlockCount == start)
         #expect(slice.hiddenNewerBlockCount == full.count - end)
-        if window.lastItemID != nil {
-            guard case .single(.userMessage) = full[end] else {
-                Issue.record("終端が入力の直前にない: \(full[end].id)")
-                return
-            }
-        }
     }
 
     @Test(arguments: [TranscriptPresentationContext.single, .gridTile])
-    func 状態カードの会話では区間の途中で切らずに遡って戻れる(context: TranscriptPresentationContext) throws {
+    func 状態カードの会話でも窓は全体の組み立てと同じブロックで遡って戻れる(context: TranscriptPresentationContext) throws {
         let items = Self.mixed(3_500)
         let full = Self.cards.blocks(items)
         var window = TranscriptWindow(context: context)
@@ -343,13 +337,44 @@ struct TranscriptWindowBoundedTests {
                     .agentMessage(id: "a\(index)", text: "返答", timestamp: Self.timestamp),
                 ]
         }
-        let items = (0..<150).flatMap { segment($0, above: 2) } + segment(150, above: 60) + (151..<300).flatMap { segment($0, above: 2) }
+        // 2,000 字の文章は 1 段の予算を超えるので、1 回に引けるのは 1〜2 ブロックになる。
+        let items = (0..<40).flatMap { segment($0, above: 2) } + segment(40, above: 60) + (41..<80).flatMap { segment($0, above: 2) }
         var window = TranscriptWindow()
         while window.loadEarlier(in: items, source: Self.cards) != nil {}
         var loads = 0
-        while window.lastItemID != nil, loads < 500 {
+        while window.lastItemID != nil, loads < 1_000 {
             let anchor = window.loadNewer(in: items, source: Self.cards)
             #expect(anchor.map { id in window.slice(of: items, source: Self.cards).blocks.contains { $0.id == id } } == true, "引く前の最後が描画から外れた")
+            loads += 1
+        }
+        #expect(window.lastItemID == nil)
+    }
+
+    /// 1 区間が窓より大きく区間の途中が終端になっても、窓は全体と同じブロックで、下端で引く前の最後が残る（独立レビューの再現例）。
+    @Test func 区間の途中が終端になっても下端で引く前の最後が残る() throws {
+        var items: [ChatItem] = [.userMessage(id: "u0", text: "入力", timestamp: Self.timestamp)]
+        items += (0..<60).map { .reasoning(id: "r\($0)", text: String(repeating: "考", count: 200), timestamp: Self.timestamp) }
+        items += [
+            .commandExecution(id: "c0", command: "ls", output: "o", timestamp: Self.timestamp),
+            .commandExecution(id: "c1", command: "ls", output: "o", timestamp: Self.timestamp),
+            .error(id: "e0", message: "誤り", timestamp: Self.timestamp),
+            .agentMessage(id: "w0", text: "途中の文章", timestamp: Self.timestamp),
+            .agentMessage(id: "a0", text: String(repeating: "あ", count: 4_000), timestamp: Self.timestamp),
+            .userMessage(id: "u1", text: "次", timestamp: Self.timestamp),
+            .commandExecution(id: "c2", command: "ls", output: "o", timestamp: Self.timestamp),
+            .agentMessage(id: "a1", text: "返答", timestamp: Self.timestamp),
+        ]
+        let full = Self.cards.blocks(items)
+        var window = TranscriptWindow()
+        while window.loadEarlier(in: items, source: Self.cards) != nil {
+            try Self.expectWholeSegments(window, items, full)
+        }
+        var loads = 0
+        while window.lastItemID != nil, loads < 100 {
+            let bottom = window.loadNewer(in: items, source: Self.cards)
+            #expect(bottom != nil, "引く前の最後を目印にできず末尾へ飛んだ")
+            #expect(bottom.map { id in window.slice(of: items, source: Self.cards).blocks.contains { $0.id == id } } == true)
+            try Self.expectWholeSegments(window, items, full)
             loads += 1
         }
         #expect(window.lastItemID == nil)

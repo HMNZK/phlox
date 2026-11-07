@@ -41,27 +41,33 @@ enum TranscriptBlockSource: Equatable {
         visibleSlice(items, blockLimit: 0).hiddenBlockCount
     }
 
-    /// 窓の終端より新しい区間があるので、窓の最後の区間は実行中として組み立てない（ADR 0229 §6）。
+    /// 末尾でない区間は実行中として組み立てない（全体の組み立てで実行中になるのは末尾の区間だけ。ADR 0229 §6）。
     var pinned: Self {
         guard case .statusCards(var live) = self else { return self }
         live.isProcessing = false
         return .statusCards(live)
     }
 
-    /// 状態カードの会話では、窓の終端を入力の直前に合わせる（カードを区間の途中で切らない。ADR 0229 §6）。
-    /// 古い側へ合わせるときは先頭のブロックを残し、区切りが無ければそのまま返す。
-    func inputBoundary(atOrBefore index: Int, in blocks: [ChatTranscriptBlock]) -> Int {
-        guard case .statusCards = self, index > 1, blocks.count > 1 else { return index }
-        return (1...min(index, blocks.count - 1)).last { Self.isInput(blocks[$0]) } ?? index
+    /// 項目を含む区間。状態カードの会話は入力から次の入力の直前まで、まとめ方はコマンドの連続（ADR 0229 §6）。
+    /// 区間を丸ごと組み立てれば、全体の組み立てと同じブロックになる。
+    func segment(containing index: Int, in items: [ChatItem]) -> Range<Int> {
+        switch self {
+        case .grouped:
+            guard case .commandExecution = items[index] else { return index..<(index + 1) }
+            var lower = index
+            var upper = index + 1
+            while lower > items.startIndex, case .commandExecution = items[lower - 1] { lower -= 1 }
+            while upper < items.endIndex, case .commandExecution = items[upper] { upper += 1 }
+            return lower..<upper
+        case .statusCards:
+            let lower = items[...index].lastIndex(where: Self.isInput) ?? items.startIndex
+            let upper = items[(index + 1)...].firstIndex(where: Self.isInput) ?? items.endIndex
+            return lower..<upper
+        }
     }
 
-    func inputBoundary(atOrAfter index: Int, in blocks: [ChatTranscriptBlock]) -> Int {
-        guard case .statusCards = self else { return index }
-        return (index..<blocks.count).first { Self.isInput(blocks[$0]) } ?? blocks.count
-    }
-
-    private static func isInput(_ block: ChatTranscriptBlock) -> Bool {
-        if case .single(.userMessage) = block { true } else { false }
+    private static func isInput(_ item: ChatItem) -> Bool {
+        if case .userMessage = item { true } else { false }
     }
 }
 
@@ -81,8 +87,11 @@ struct TranscriptWindow: Equatable {
 
     private let presentationContext: TranscriptPresentationContext
     private(set) var limit: Int
-    /// 窓の最後の項目 id。nil なら末尾に追従する。値があるときは新しい側を描画から外している。
+    /// 窓の最後のブロックが含む最後の項目 id。nil なら末尾に追従する。値があるときは新しい側を描画から外している。
+    /// 項目は終端の区間を探すのと、除去を見つけるのに使う。
     private(set) var lastItemID: String?
+    /// 窓の最後のブロックの id。全体の組み立ての中で終端を決める。
+    private var lastBlockID: String?
 
     private var contextDefaultLimit: Int { Self.defaultLimit(for: presentationContext) }
     private var maxLimit: Int { Self.maxStages * contextDefaultLimit }
@@ -102,19 +111,20 @@ struct TranscriptWindow: Equatable {
     /// セッション切替時に自文脈の既定へ戻す。
     mutating func reset() {
         limit = contextDefaultLimit
-        lastItemID = nil
+        followTail()
     }
 
     /// 末尾追従に戻す。段数は保つ。
     mutating func followTail() {
         lastItemID = nil
+        lastBlockID = nil
     }
 
-    /// 終端より新しい項目が無くなっていたら末尾追従に戻す（リバートや項目の除去の後）。
+    /// 終端より新しいブロックが無くなっていたら末尾追従に戻す（リバートや項目の除去の後）。
     /// 戻さないと、以後に届く項目が固定した窓の外に積まれ、最下部にいても描画されない。
-    mutating func followTailIfNothingNewer(in items: [ChatItem]) {
-        guard let lastItemID else { return }
-        if items.last?.id == lastItemID || !items.contains(where: { $0.id == lastItemID }) {
+    mutating func followTailIfNothingNewer(in items: [ChatItem], source: TranscriptBlockSource = .grouped) {
+        guard lastItemID != nil else { return }
+        if slice(of: items, source: source).hiddenNewerBlockCount == 0 {
             followTail()
         }
     }
@@ -125,24 +135,40 @@ struct TranscriptWindow: Equatable {
     }
 
     /// 描画するブロックと、窓の前後で描画していないブロック数。
-    /// 予算（ADR 0139）は窓の終端から古い側へ数える。終端の id が見つからなければ末尾に追従する。
+    /// 予算（ADR 0139）は窓の終端から古い側へ数える。終端が見つからなければ末尾に追従する。
     func slice(of items: [ChatItem], source: TranscriptBlockSource = .grouped) -> ChatTranscriptSlice {
-        let end = lastItemID.flatMap { id in items.lastIndex { $0.id == id } }.map { $0 + 1 } ?? items.endIndex
-        let isPinned = end < items.endIndex
-        let candidate = isPinned
-            ? source.pinned.visibleSlice(Array(items[..<end]), blockLimit: limit)
-            : source.visibleSlice(items, blockLimit: limit)
+        pinnedSlice(of: items, source: source) ?? budgeted(source.visibleSlice(items, blockLimit: limit), hiddenNewer: 0)
+    }
+
+    /// 終端のブロックを含む区間を丸ごと組み立て、終端より後ろを捨てる（ADR 0229 §6）。
+    private func pinnedSlice(of items: [ChatItem], source: TranscriptBlockSource) -> ChatTranscriptSlice? {
+        guard let lastItemID, let lastBlockID, let pin = items.lastIndex(where: { $0.id == lastItemID }) else { return nil }
+        let segment = source.segment(containing: pin, in: items)
+        let isTailSegment = segment.upperBound == items.endIndex
+        // 終端より後ろの、同じ区間のブロックの分だけ多く組み立てる（1 項目は高々 1 ブロック）。
+        let built = isTailSegment
+            ? source.visibleSlice(items, blockLimit: limit + segment.count)
+            : source.pinned.visibleSlice(Array(items[..<segment.upperBound]), blockLimit: limit + segment.count)
+        guard let end = built.blocks.lastIndex(where: { $0.id == lastBlockID }) else { return nil }
+        let throughEnd = built.blocks[...end].suffix(limit)
+        let total = isTailSegment ? built.hiddenBlockCount + built.blocks.count : source.blockCount(items)
+        return budgeted(
+            ChatTranscriptSlice(blocks: Array(throughEnd), hiddenBlockCount: built.hiddenBlockCount + end + 1 - throughEnd.count),
+            hiddenNewer: total - built.hiddenBlockCount - end - 1
+        )
+    }
+
+    private func budgeted(_ candidate: ChatTranscriptSlice, hiddenNewer: Int) -> ChatTranscriptSlice {
         let count = TranscriptRenderBudget.allowedBlockCount(
             blocks: candidate.blocks.map(\.content),
             requestedLimit: limit,
             defaultLimit: contextDefaultLimit,
             minimumBlocks: TranscriptRenderBudget.minimumBlocks
         )
-        let renderedAndOlder = candidate.hiddenBlockCount + candidate.blocks.count
         return ChatTranscriptSlice(
             blocks: Array(candidate.blocks.suffix(count)),
-            hiddenBlockCount: renderedAndOlder - count,
-            hiddenNewerBlockCount: isPinned ? source.blockCount(items) - renderedAndOlder : 0
+            hiddenBlockCount: candidate.hiddenBlockCount + candidate.blocks.count - count,
+            hiddenNewerBlockCount: hiddenNewer
         )
     }
 
@@ -156,16 +182,15 @@ struct TranscriptWindow: Equatable {
             return top.id
         }
         let blocks = current.blocks.map(\.content)
-        var drop = stageCount(blocks.reversed())
-        while true {
-            let keep = source.inputBoundary(atOrBefore: blocks.count - drop, in: blocks)
-            if let pin = Self.itemID(before: blocks[keep], in: items) {
-                lastItemID = pin
-            }
-            // 予算に収まらない重いブロックが古い側に続くと、外した分だけ描画数が減って先頭が動かない。
-            // 古い側が現れるまで外す範囲を広げる（ADR 0229 §2）。
-            guard drop < blocks.count, slice(of: items, source: source).hiddenBlockCount >= current.hiddenBlockCount else { break }
-            drop += 1
+        // 予算に収まらない重いブロックが古い側に続くと、1 段分を外しても描画数が同じだけ減って先頭が動かない。
+        // 古い側が現れるまで外す範囲を広げる（ADR 0229 §2）。
+        for keep in stride(from: blocks.count - stageCount(blocks.reversed()), to: 0, by: -1) {
+            pin(to: blocks[..<keep], in: items)
+            if slice(of: items, source: source).hiddenBlockCount < current.hiddenBlockCount { return top.id }
+        }
+        let all = source.blocks(items)
+        if let index = all.firstIndex(where: { $0.id == top.id }) {
+            pin(to: all[..<index], in: items)
         }
         return top.id
     }
@@ -173,17 +198,13 @@ struct TranscriptWindow: Equatable {
     /// 下端で引く（ADR 0229）。窓を 1 段分新しい側へずらし、末尾に届いたら追従に戻す。
     /// 戻り値は引く前の最後のブロックの id（位置を保つ目印）。新しい側を外していなければ nil。
     mutating func loadNewer(in items: [ChatItem], source: TranscriptBlockSource = .grouped) -> String? {
-        guard lastItemID != nil else { return nil }
-        let bottom = slice(of: items, source: source).blocks.last?.id
+        guard let bottom = lastBlockID else { return nil }
         let blocks = source.blocks(items)
         guard let last = blocks.firstIndex(where: { $0.id == bottom }) else {
             followTail()
             return nil
         }
-        let end = last + 1 + stageCount(blocks[(last + 1)...])
-        pinEnd(trying: [source.inputBoundary(atOrAfter: end, in: blocks), end], blocks: blocks, items: items, source: source) {
-            $0.id == bottom
-        }
+        pin(to: blocks[..<(last + 1 + stageCount(blocks[(last + 1)...]))], of: blocks, in: items)
         return bottom
     }
 
@@ -200,34 +221,28 @@ struct TranscriptWindow: Equatable {
             maxCount: maxLimit - contextDefaultLimit
         )
         limit = maxLimit
-        let end = target + count
-        let ends = [source.inputBoundary(atOrAfter: end, in: blocks), source.inputBoundary(atOrBefore: end, in: blocks), end]
-        pinEnd(trying: ends.filter { $0 > target }, blocks: blocks, items: items, source: source) {
-            $0.content.contains(itemID: itemID)
-        }
+        pin(to: blocks[..<(target + count)], of: blocks, in: items)
         return true
     }
 
-    /// 終端の候補を順に試し、`keeps` に当たるブロックが描画に残る最初の候補で止める。
-    /// 状態カードの会話では終端を入力の区切りへ広げるが、広げた区間が重いと予算で目印が押し出される。
-    /// そのときは手前の候補へ下がる（目印を描くことを区切りより優先する。ADR 0229 §6）。
-    private mutating func pinEnd(
-        trying ends: [Int],
-        blocks: [ChatTranscriptBlock],
-        items: [ChatItem],
-        source: TranscriptBlockSource,
-        keeps: (ChatTranscriptVisibleBlock) -> Bool
-    ) {
-        for end in ends {
-            lastItemID = end < blocks.count ? Self.itemID(before: blocks[end], in: items) : nil
-            if slice(of: items, source: source).blocks.contains(where: keeps) { return }
+    /// 全体の組み立て `all` の先頭部分 `kept` の最後のブロックを窓の終端にする。全体の最後まで届いたら末尾追従にする。
+    private mutating func pin(to kept: ArraySlice<ChatTranscriptBlock>, of all: [ChatTranscriptBlock], in items: [ChatItem]) {
+        guard kept.endIndex < all.endIndex else {
+            followTail()
+            return
         }
+        pin(to: kept, in: items)
     }
 
-    /// ブロックの最初の項目の 1 つ前の項目 id（窓の終端にする）。
-    private static func itemID(before block: ChatTranscriptBlock, in items: [ChatItem]) -> String? {
-        guard let first = items.firstIndex(where: { block.contains(itemID: $0.id) }), first > items.startIndex else { return nil }
-        return items[first - 1].id
+    /// `blocks`（全体の組み立ての連続した一部）の最後のブロックを窓の終端にする。
+    /// 項目を含まないブロック（作業の無い実行中のカード）は終端にできないので手前へ寄せる。
+    private mutating func pin(to blocks: ArraySlice<ChatTranscriptBlock>, in items: [ChatItem]) {
+        for block in blocks.reversed() {
+            guard let item = items.last(where: { block.contains(itemID: $0.id) }) else { continue }
+            lastItemID = item.id
+            lastBlockID = block.id
+            return
+        }
     }
 
     /// 先頭から 1 段分（既定の予算 1 つと既定件数）に収まるブロック数。窓が必ず動くよう、ブロックがあれば最低 1 件。

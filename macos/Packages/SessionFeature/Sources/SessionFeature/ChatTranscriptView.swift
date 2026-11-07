@@ -131,7 +131,7 @@ struct ChatTranscriptView: View {
                 return .handled
             }
             .onChange(of: transcriptSignal) { oldSignal, newSignal in
-                window.followTailIfNothingNewer(in: transcriptItems)
+                window.followTailIfNothingNewer(in: transcriptItems, source: blockSource)
                 if isDetached {
                     // 新着はメッセージ・質問・エラーだけ数える（コマンドや使用量の行は数えない）。
                     let added = transcriptItems.suffix(max(0, newSignal.count - oldSignal.count))

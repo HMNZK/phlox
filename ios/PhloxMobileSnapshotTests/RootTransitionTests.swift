@@ -360,6 +360,33 @@ struct RootTransitionTests {
         }
     }
 
+    @Test func notificationTapWhileAnotherDetailIsOpenShowsNotifiedSession() async throws {
+        try #require(UITestingSupport.isEnabled)
+        let opened = Session(id: "root-opened", name: "ALPHA OPENED", agent: .claudeCode,
+                             status: .running, subtitle: "", updatedAt: Date())
+        let notified = Session(id: "root-notified", name: "BRAVO NOTIFIED", agent: .claudeCode,
+                               status: .running, subtitle: "", updatedAt: Date())
+        let repository = RootRepository(initial: .loaded([opened, notified]))
+        defer { Task { await repository.finish() } }
+        let model = AppModel(authState: .unlocked, hasConnectionConfig: true, reachability: .online)
+        let router = NavigationRouter()
+        router.push(.sessionDetail(id: opened.id))
+        let push = PushCoordinator()
+        let environment = rootEnvironment(repository: repository, sessions: [opened, notified])
+        try await withRootWindow(AppRoot(pushCoordinator: push, model: model, router: router).environment(environment)) { window in
+            _ = try await rootCapture(window, name: "push-tap-before", requiredTextGroups: [[opened.name]],
+                                      forbiddenText: [notified.name])
+            push.handleNotificationTap(userInfo: [
+                "aps": ["alert": ["title": "t", "body": "b"]],
+                "phlox": ["v": 1, "type": "session_completed", "sessionId": notified.id] as [String: Any],
+            ])
+            await repository.emit(.loaded([opened, notified]))
+            try await rootWait { push.pendingSessionID == nil && router.depth == 1 }
+            _ = try await rootCapture(window, name: "push-tap-after", requiredTextGroups: [[notified.name]],
+                                      forbiddenText: [opened.name])
+        }
+    }
+
     @Test func realRootTimeoutProducesC1AndRetryReturnsToSessions() async throws {
         try #require(UITestingSupport.isEnabled)
         let repository = RootRepository(initial: .offline)

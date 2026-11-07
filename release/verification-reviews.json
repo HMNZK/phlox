@@ -1085,6 +1085,22 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "dev 取り込み（c44a3509）の後の差分 dev..8fa5316d は 82 件で、dev 側の変更の巻き戻しは含まず、分類されないパスも無い（canvas.json は 86248c19 で外した）。fake-session-lifecycle には macos/Packages・macos/App 配下の 78 パスが当たる。会話の入力に終わり方、作業に完了時刻と説明が増えたが、復元は欠けた値を無しとして読むので互換があり、TaskListCell の削除は状態カードへの置き換えで、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。physical-session-activity には AppBootstrap の 3 パスが当たり、別ウィンドウ・リモートへの差分配信（sameChatItem）が終わり方・完了時刻・説明の違いも比べるようになり配信が増えるが、モバイルへ送る内容は ControlActionHandler のパターンの引数を合わせただけで変わらず、iOS の描画は 2 段目で未実装なので、AC-1〜4 の手順・期待結果は変わらない。physical-usage-preferences-refresh と physical-newchat-worktree-resume は ControlActionHandler.swift のパターンの引数の数だけで、Usage・NewChat の経路に変化はない。physical-history-follow と physical-activity-presentation には当たらない。requirement の参照先（e2e-test-design.md#S1、session-activity-parity.md の AC-1・AC-8・AC-9）と verification-scenarios.json は差分で変わっていない。"
+    },
+    {
+      "baseOID": "13647cfe3cabb2ecfa51c221a51b1d7a1b2393ba",
+      "targetOID": "4028a575fa1bb46b5f8210dc09367735447b9028",
+      "diffSHA256": "a79f9d070e92eb70e56d01f7777c1b6db9de4e203442aad2493149e464df39da",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/a0b3b0bbf48722448"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T14:13:57Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "差分 dev..4028a575 は 10 件で、すべて macos/Packages 配下にあり fake-session-lifecycle に当たる。分類されないパスは無く、ほかの 5 シナリオには当たらない。状態カードの組み立ては、作業の無い文章を元の位置に見出しの無い行として出し、描画の予算に数える形に変わったが、会話の描画の中で閉じており、送信・停止・終了・保存・復元の経路と保存形式は変わらない。Claude の起動環境への CLAUDE_CODE_ENABLE_TODO_TOOLS=1 の追加、Codex の app-server の起動引数への -c tools.update_plan.enabled=true の追加、tool_use_result の読み取りは、道具を使えるようにするだけで、偽 CLI は追加の環境変数と引数を無視するので、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。SessionFeature の 1500 件が 4028a575 で合格している。requirement の参照先（e2e-test-design.md#S1）と verification-scenarios.json は差分で変わっていない。"
     }
   ]
 }

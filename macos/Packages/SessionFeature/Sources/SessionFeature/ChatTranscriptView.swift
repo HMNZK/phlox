@@ -301,7 +301,10 @@ struct ChatTranscriptView: View {
     private func budgetedSlice(from items: [ChatItem]) -> ChatTranscriptSlice {
         let candidate: ChatTranscriptSlice
         if AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind) {
-            candidate = ChatTranscriptGrouping.visibleSlice(fromBlocks: blocks(from: items), blockLimit: window.limit)
+            // 窓に入る区間だけカードを組み立てる（本体の再描画のたびに走るので、全区間は作らない。NFR-1）。
+            candidate = AgentStatusCardBuilder.visibleSlice(
+                items: items, liveState: viewModel.statusCardLiveState, blockLimit: window.limit
+            )
         } else {
             candidate = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
         }

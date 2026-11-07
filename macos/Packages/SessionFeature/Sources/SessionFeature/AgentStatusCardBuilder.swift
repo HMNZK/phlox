@@ -252,21 +252,154 @@ enum AgentStatusCardBuilder {
     /// 会話ログを `userMessage` で区切り、作業やタスクのある区間をカードにする。
     /// 作業の無い区間と、最初の入力より前の item は今の `ChatTranscriptGrouping.blocks` のまま。
     static func build(items: [ChatItem], liveState: AgentStatusLiveState) -> [ChatTranscriptBlock] {
-        let starts = items.indices.filter { if case .userMessage = items[$0] { true } else { false } }
-        guard let first = starts.first else { return ChatTranscriptGrouping.blocks(from: items) }
+        let (prefixEnd, segments) = segments(items, liveState: liveState)
+        return ChatTranscriptGrouping.blocks(from: Array(items[..<prefixEnd]))
+            + segments.flatMap { segmentBlocks(SegmentPlan($0, in: items), liveState: liveState) }
+    }
 
-        var blocks = ChatTranscriptGrouping.blocks(from: Array(items[..<first]))
-        var baseline = items[..<first].last(where: { Snapshot($0) != nil }).flatMap(Snapshot.init)
-        for (number, start) in starts.enumerated() {
-            let end = number + 1 < starts.count ? starts[number + 1] : items.endIndex
-            let segment = Array(items[start..<end])
-            blocks += segmentBlocks(
-                segment, baseline: baseline,
-                isRunning: number == starts.count - 1 && liveState.isProcessing, liveState: liveState
-            )
-            if let last = segment.last(where: { Snapshot($0) != nil }) { baseline = Snapshot(last) }
+    /// 末尾 `blockLimit` ブロックだけを組み立てる（`build` してから窓で切った結果と同じ）。
+    /// 窓の外の区間はブロック数だけを配列を作らずに数え（隠れ件数のため）、作業の行・文言・所要時間を
+    /// 作るのは窓に入る区間だけ。本体の再描画のたびに呼ばれる（NFR-1、B3 指摘 2）。
+    static func visibleSlice(items: [ChatItem], liveState: AgentStatusLiveState, blockLimit: Int) -> ChatTranscriptSlice {
+        let limit = max(0, blockLimit)
+        let (prefixEnd, segments) = segments(items, liveState: liveState)
+        let prefix = items[..<prefixEnd]
+        let total = segments.reduce(groupedBlockCount(prefix)) { $0 + blockCount($1, in: items) }
+
+        var built: [[ChatTranscriptBlock]] = []
+        var builtCount = 0
+        for segment in segments.reversed() where builtCount < limit {
+            let blocks = segmentBlocks(SegmentPlan(segment, in: items), liveState: liveState)
+            built.append(blocks)
+            builtCount += blocks.count
         }
-        return blocks
+        if builtCount < limit { built.append(ChatTranscriptGrouping.blocks(from: Array(prefix))) }
+
+        let visible = built.reversed().joined().suffix(limit)
+        return ChatTranscriptSlice(
+            blocks: visible.map { ChatTranscriptVisibleBlock(id: $0.id, content: $0) },
+            hiddenBlockCount: total - visible.count
+        )
+    }
+
+    /// 入力 1 回の区間（起点の userMessage から次の入力の直前まで）と、その基準・実行中かどうか。
+    private struct Segment {
+        let range: Range<Int>
+        let baseline: Snapshot?
+        let running: Bool
+    }
+
+    /// 会話ログを入力の区間に分け、それぞれの基準（区間の直前の最後のスナップショット）を決める。
+    /// 返す `prefixEnd` は最初の入力の位置（それより前は今のブロックのまま）。
+    private static func segments(_ items: [ChatItem], liveState: AgentStatusLiveState) -> (prefixEnd: Int, segments: [Segment]) {
+        var starts: [Int] = []
+        var lastSnapshotBefore: [Int?] = []
+        var lastSnapshot: Int?
+        for index in items.indices {
+            switch items[index] {
+            case .userMessage:
+                starts.append(index)
+                lastSnapshotBefore.append(lastSnapshot)
+            case .taskList:
+                lastSnapshot = index
+            default:
+                break
+            }
+        }
+        guard let first = starts.first else { return (items.endIndex, []) }
+        let segments = starts.indices.map { number in
+            Segment(
+                range: starts[number]..<(number + 1 < starts.count ? starts[number + 1] : items.endIndex),
+                baseline: lastSnapshotBefore[number].flatMap { Snapshot(items[$0]) },
+                running: number == starts.count - 1 && liveState.isProcessing
+            )
+        }
+        return (first, segments)
+    }
+
+    /// `segmentBlocks(SegmentPlan(segment))` のブロック数を、配列を作らずに数える（窓の外の区間に使う）。
+    /// 決まりは `SegmentPlan` と同じ（変更が空の fileChange を除いて、カードの有無・上・下を決める）。
+    private static func blockCount(_ segment: Segment, in items: [ChatItem]) -> Int {
+        let body = items[(segment.range.lowerBound + 1)..<segment.range.upperBound]
+        var boundary = body.endIndex
+        var firstReply = body.endIndex
+        var hasWork = false
+        var hasSnapshot = false
+        for index in body.indices {
+            switch body[index] {
+            case .fileChange(_, let changes, _, _) where changes.isEmpty:
+                continue
+            case .commandExecution, .fileChange, .subAgentMarker:
+                hasWork = true
+                boundary = min(boundary, index)
+            case .taskList:
+                hasSnapshot = true
+                boundary = min(boundary, index)
+            case .agentMessage:
+                firstReply = min(firstReply, index)
+            default:
+                break
+            }
+        }
+        let hasCard = hasWork || (segment.running && firstReply == body.endIndex)
+            || (hasSnapshot && !shownTasks(body.compactMap(Snapshot.init), baseline: segment.baseline).isEmpty)
+        guard hasCard else { return groupedBlockCount(items[segment.range]) }
+
+        var above = 0
+        for index in body.indices[..<boundary] {
+            switch body[index] {
+            case .agentMessage, .reasoning: above += 1
+            case .turnCost where index < firstReply: above += 1
+            default: break
+            }
+        }
+        var below = 0
+        if !segment.running {
+            var index = body.endIndex
+            scan: while index > boundary {
+                index -= 1
+                switch body[index] {
+                case .fileChange(_, let changes, _, _) where changes.isEmpty:
+                    continue
+                case .turnCost:
+                    below += 1
+                case .agentMessage:
+                    below += 1
+                    break scan
+                default:
+                    break scan
+                }
+            }
+        }
+        // 起点の入力・上の文章・カード・下の返答と使用量（どれもコマンドではないので 1 件 1 ブロック）。
+        return 1 + above + 1 + below
+    }
+
+    /// 基準と一度でも違ったタスクのうち、区間の最後のスナップショットにあるもの（D8）。
+    private static func shownTasks(_ snapshots: [Snapshot], baseline: Snapshot?) -> [AgentTaskItem] {
+        var baseByID: [String: AgentTaskItem] = [:]
+        for task in baseline?.tasks ?? [] where baseByID[task.id] == nil { baseByID[task.id] = task }
+        var changed = Set<String>()
+        for snapshot in snapshots {
+            for task in snapshot.tasks where baseByID[task.id] != task { changed.insert(task.id) }
+        }
+        return (snapshots.last?.tasks ?? []).filter { changed.contains($0.id) }
+    }
+
+    /// `ChatTranscriptGrouping.blocks(from:).count` と同じ数（連続するコマンドは 1 ブロック）を、配列を作らずに数える。
+    private static func groupedBlockCount<Items: Sequence>(_ items: Items) -> Int where Items.Element == ChatItem {
+        var count = 0
+        var inCommandRun = false
+        for item in items {
+            if case .commandExecution = item {
+                if !inCommandRun { count += 1 }
+                inCommandRun = true
+            } else {
+                count += 1
+                inCommandRun = false
+            }
+        }
+        return count
     }
 
     /// 最新のカードの見出し（グリッドの小さいタイルが使う）。最後の入力の区間と、その直前のタスクの
@@ -302,47 +435,73 @@ enum AgentStatusCardBuilder {
         }
     }
 
-    private static func segmentBlocks(
-        _ segment: [ChatItem], baseline: Snapshot?, isRunning running: Bool, liveState: AgentStatusLiveState
-    ) -> [ChatTranscriptBlock] {
-        guard case .userMessage(let userID, _, let startedAt, _, let turnEnd) = segment[0] else { return [] }
-        // 変更が空の fileChange は作業として数えない（「0 ファイルを編集」にしない）。カードが出ない区間では今のまま出る。
-        let body = segment.dropFirst().filter { !isEmptyFileChange($0) }
-        let snapshots = body.compactMap(Snapshot.init)
+    /// 1 つの入力の区間について、作業の行を作る前に決まること（カードの有無・上・下・ブロック数）。
+    /// 窓の外の区間はここまでで止め、隠れ件数だけに使う。
+    private struct SegmentPlan {
+        /// 起点の userMessage から次の入力の直前まで（元のまま）。
+        let segment: ArraySlice<ChatItem>
+        /// 起点を除いた中身（変更が空の fileChange を除く）。
+        let body: [ChatItem]
+        let baseline: Snapshot?
+        let snapshots: [Snapshot]
+        let shown: [AgentTaskItem]
+        let running: Bool
+        let hasCard: Bool
+        /// カードの上に出す body の位置（昇順）。
+        let above: [Int]
+        let belowStart: Int
 
-        // 基準（区間に入る直前のスナップショット）と一度でも違ったタスクだけを出す（D8）。
-        var baseByID: [String: AgentTaskItem] = [:]
-        for task in baseline?.tasks ?? [] where baseByID[task.id] == nil { baseByID[task.id] = task }
-        var changed = Set<String>()
-        for snapshot in snapshots {
-            for task in snapshot.tasks where baseByID[task.id] != task { changed.insert(task.id) }
-        }
-        let shown = (snapshots.last?.tasks ?? []).filter { changed.contains($0.id) }
+        init(_ range: Segment, in items: [ChatItem]) {
+            let segment = items[range.range]
+            let baseline = range.baseline
+            let running = range.running
+            self.segment = segment
+            self.baseline = baseline
+            self.running = running
+            // 変更が空の fileChange は作業として数えない（「0 ファイルを編集」にしない）。カードが出ない区間では今のまま出る。
+            let body = segment.dropFirst().filter { !AgentStatusCardBuilder.isEmptyFileChange($0) }
+            self.body = body
+            let snapshots = body.compactMap(Snapshot.init)
+            self.snapshots = snapshots
 
-        // 作業もタスクも無ければカードを出さない。実行中は、返答が届き始めるまで見出しだけのカードを出す（FR-2）。
-        let hasWork = body.contains(where: isWork)
-        let hasReply = body.contains { if case .agentMessage = $0 { true } else { false } }
-        guard !shown.isEmpty || hasWork || (running && !hasReply) else {
-            return ChatTranscriptGrouping.blocks(from: segment)
-        }
+            // 基準（区間に入る直前のスナップショット）と一度でも違ったタスクだけを出す（D8）。
+            let shown = AgentStatusCardBuilder.shownTasks(snapshots, baseline: baseline)
+            self.shown = shown
 
-        // 上: 最初の作業・スナップショットより前の文章と思考。
-        let boundary = body.firstIndex { isWork($0) || Snapshot($0) != nil } ?? body.endIndex
-        let isAbove: (Int) -> Bool = { index in
-            guard index < boundary else { return false }
-            switch body[index] {
-            case .agentMessage, .reasoning: return true
-            default: return false
+            // 作業もタスクも無ければカードを出さない。実行中は、返答が届き始めるまで見出しだけのカードを出す（FR-2）。
+            let firstReply = body.firstIndex { if case .agentMessage = $0 { true } else { false } }
+            hasCard = !shown.isEmpty || body.contains(where: AgentStatusCardBuilder.isWork) || (running && firstReply == nil)
+
+            // 上: 最初の作業・スナップショットより前の文章と思考。前の入力の使用量（superseded の後に
+            // 追記された turnCost）も、最初の返答より前ならカードの中に入れず上に出す（B3 指摘 8）。
+            let boundary = body.firstIndex { AgentStatusCardBuilder.isWork($0) || Snapshot($0) != nil } ?? body.endIndex
+            above = body.indices[..<boundary].filter { index in
+                switch body[index] {
+                case .agentMessage, .reasoning: true
+                case .turnCost: index < (firstReply ?? body.endIndex)
+                default: false
+                }
             }
+
+            // 下: 実行中でないカードの、末尾の使用量と、その直前の最後の返答（FR-18）。終わり方の記録が
+            // 無い入力（古い会話・アプリの終了）でも同じ（2026-11-07 ユーザー決定。返答を閉じたカードに隠さない）。
+            var belowStart = body.endIndex
+            if !running {
+                while belowStart > boundary, case .turnCost = body[belowStart - 1] { belowStart -= 1 }
+                if belowStart > boundary, case .agentMessage = body[belowStart - 1] { belowStart -= 1 }
+            }
+            self.belowStart = belowStart
         }
 
-        // 下: 実行中でないカードの、末尾の使用量と、その直前の最後の返答（FR-18）。終わり方の記録が
-        // 無い入力（古い会話・アプリの終了）でも同じ（2026-11-07 ユーザー決定。返答を閉じたカードに隠さない）。
-        var belowStart = body.endIndex
-        if !running {
-            while belowStart > boundary, case .turnCost = body[belowStart - 1] { belowStart -= 1 }
-            if belowStart > boundary, case .agentMessage = body[belowStart - 1] { belowStart -= 1 }
-        }
+    }
+
+    private static func segmentBlocks(_ plan: SegmentPlan, liveState: AgentStatusLiveState) -> [ChatTranscriptBlock] {
+        let segment = plan.segment
+        guard case .userMessage(let userID, _, let startedAt, _, let turnEnd) = segment[segment.startIndex] else { return [] }
+        guard plan.hasCard else { return ChatTranscriptGrouping.blocks(from: Array(segment)) }
+        let (body, baseline, snapshots, shown, running, belowStart) =
+            (plan.body, plan.baseline, plan.snapshots, plan.shown, plan.running, plan.belowStart)
+        let aboveSet = Set(plan.above)
 
         // 中: 位置で振り分ける。直前のスナップショット（区間より前の基準を含む）で進行中がちょうど 1 件、
         // かつそのタスクがカードに出るならそのタスク、それ以外はタスク外（D4。時刻は使わない）。
@@ -352,7 +511,7 @@ enum AgentStatusCardBuilder {
         var taskEntries: [String: [AgentStatusEntry]] = [:]
         var outsideEntries: [Int: [AgentStatusEntry]] = [:]
         var lastWorkID: String?
-        for index in body.indices[..<belowStart] where !isAbove(index) {
+        for index in body.indices[..<belowStart] where !aboveSet.contains(index) {
             let item = body[index]
             if let snapshot = Snapshot(item) {
                 effective = snapshot
@@ -388,8 +547,7 @@ enum AgentStatusCardBuilder {
             ),
             rows: rows
         )
-        let above = body.indices.filter(isAbove).map { body[$0] }
-        return ChatTranscriptGrouping.blocks(from: [segment[0]] + above)
+        return ChatTranscriptGrouping.blocks(from: [segment[segment.startIndex]] + plan.above.map { body[$0] })
             + [.statusCard(card)]
             + ChatTranscriptGrouping.blocks(from: Array(body[belowStart...]))
     }
@@ -467,14 +625,14 @@ enum AgentStatusCardBuilder {
 
     // MARK: - 作業の行
 
-    private static func isWork(_ item: ChatItem) -> Bool {
+    fileprivate static func isWork(_ item: ChatItem) -> Bool {
         switch item {
         case .commandExecution, .fileChange, .subAgentMarker: true
         default: false
         }
     }
 
-    private static func isEmptyFileChange(_ item: ChatItem) -> Bool {
+    fileprivate static func isEmptyFileChange(_ item: ChatItem) -> Bool {
         if case .fileChange(_, let changes, _, _) = item { changes.isEmpty } else { false }
     }
 
@@ -563,8 +721,7 @@ enum AgentStatusCardBuilder {
             case .search:
                 let hits = items.reduce(0) { total, item in
                     guard case .commandExecution(_, _, let output, _, _, _) = item else { return total }
-                    return total + output.split(whereSeparator: \.isNewline)
-                        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+                    return total + hitCount(output)
                 }
                 return items.count == 1 ? .search(query: body, hits: hits) : .searches(times: items.count, hits: hits)
             case .edit, nil:
@@ -573,6 +730,23 @@ enum AgentStatusCardBuilder {
         default:
             return .command("")
         }
+    }
+
+    /// 検索の結果の件数。Claude の Grep・Glob は見出し（「Found 3 files」「Found 40 files limit: 40」
+    /// 「No files found」「No matches found」）や末尾の注記（ページ送り・打ち切り）を付けるので、それは数えない。
+    /// 見出しに件数があればそれを使い、無ければ空でない行を数える（B3 指摘 4。実際の結果の形は
+    /// ~/.claude/projects の会話記録で確かめた）。
+    private static func hitCount(_ output: String) -> Int {
+        let lines = output.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard let first = lines.first else { return 0 }
+        if first.hasPrefix("No "), first.hasSuffix(" found") { return 0 }
+        if first.hasPrefix("Found "), let count = Int(first.dropFirst("Found ".count).prefix(while: \.isNumber)) {
+            return count
+        }
+        let notes = ["[Showing results with pagination", "(Results are truncated", "[result-id:"]
+        return lines.filter { line in !notes.contains { line.hasPrefix($0) } }.count
     }
 
     private static func fileName(_ path: String) -> String {

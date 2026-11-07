@@ -748,7 +748,15 @@ struct AgentStatusCardSupersededTests {
 
         let blocks = AgentStatusCardBuilder.build(items: completed, liveState: idle)
 
-        #expect(blockShape(blocks) == ["uA", "card", "uB", "card", "aB", "kB"])
+        #expect(blockShape(blocks) == ["uA", "card", "uB", "kA", "card", "aB", "kB"])
+    }
+
+    @Test("区間の先頭（最初の作業・返答より前）にある前の入力の使用量は、カードの中に入れず上に出す（B3 指摘 8）")
+    func previousCostAtSegmentHeadStaysAboveCard() {
+        let blocks = AgentStatusCardBuilder.build(items: items, liveState: live(processing: true))
+
+        #expect(blockShape(blocks) == ["uA", "card", "uB", "kA", "card"])
+        #expect(cards(blocks).map(rowShape) == [["o:cA"], ["o:cB"]])
     }
 }
 
@@ -788,6 +796,36 @@ struct AgentStatusCardActionTextTests {
 
         #expect(texts([found]) == ["「Retry-After」を検索 · 4 件"])
         #expect(texts([command("c1", "Grep Retry-After", at: 1)], live(processing: true)) == ["「Retry-After」を検索中"])
+    }
+
+    @Test("「No files found」「No matches found」は 0 件（B3 指摘 4。実際の Claude の Grep・Glob の結果）")
+    func searchWithNoResultsCountsZero() {
+        let files = command("c1", "Glob **/*.kt", at: 1, done: 2, output: "No files found")
+        let matches = command("c1", "Grep Retry-After", at: 1, done: 2,
+                              output: "No matches found\n\n[Showing results with pagination = limit: 30, offset: 0]")
+
+        #expect(texts([files]) == ["「**/*.kt」を検索 · 0 件"])
+        #expect(texts([matches]) == ["「Retry-After」を検索 · 0 件"])
+    }
+
+    @Test("「Found N files」の見出しがあれば、その件数を使う（見出しの行や limit の後の一覧を数えない）")
+    func searchUsesFoundHeading() {
+        let found = command("c1", "Grep Retry-After", at: 1, done: 2, output: "Found 3 files\na.go\nb.go\nc.go")
+        let limited = command("c1", "Grep Retry-After", at: 1, done: 2, output: "Found 40 files limit: 40\na.go\nb.go")
+
+        #expect(texts([found]) == ["「Retry-After」を検索 · 3 件"])
+        #expect(texts([limited]) == ["「Retry-After」を検索 · 40 件"])
+    }
+
+    @Test("見出しの無い一覧は、末尾のページ送り・打ち切りの注記を数えない")
+    func searchIgnoresTrailingNotes() {
+        let paged = command("c1", "Grep foo", at: 1, done: 2,
+                            output: "a.go:1:foo\nb.go:2:foo\n\n[Showing results with pagination = limit: 10, offset: 0]")
+        let truncated = command("c1", "Glob **/*.go", at: 1, done: 2,
+                                output: "a.go\nb.go\nc.go\n(Results are truncated. Consider using a more specific path or pattern.)")
+
+        #expect(texts([paged]) == ["「foo」を検索 · 2 件"])
+        #expect(texts([truncated]) == ["「**/*.go」を検索 · 3 件"])
     }
 
     @Test("続けて検索したら回数と件数の合計にまとめる")
@@ -909,5 +947,93 @@ struct AgentStatusCardActionTextTests {
         try PropertyListSerialization.data(fromPropertyList: translations, format: .xml, options: 0)
             .write(to: english.appendingPathComponent("Localizable.strings"))
         return try #require(Bundle(url: root))
+    }
+}
+
+// MARK: - 表示する窓の分だけ組み立てる（B3 指摘 2）
+
+/// 全件を組み立ててから窓で切った結果（今までの表示の結果）。窓つきの組み立てはこれと一致しなければならない。
+private func fullThenSliced(_ items: [ChatItem], _ state: AgentStatusLiveState, _ limit: Int) -> ChatTranscriptSlice {
+    ChatTranscriptGrouping.visibleSlice(fromBlocks: AgentStatusCardBuilder.build(items: items, liveState: state), blockLimit: limit)
+}
+
+/// 窓の境界を跨ぐ会話: 入力前の item、文章だけの区間（連続コマンドを含む）、カード、上・下のある区間、実行中の最後。
+private let windowedConversation: [ChatItem] = [
+    .error(id: "e0", message: "起動に失敗", timestamp: t(0)),
+    command("p1", "ls", at: 0, done: 0.5), command("p2", "pwd", at: 0.5, done: 0.75),
+    user("u1", at: 1, end: ended(.completed, at: 5)), agent("a1", "OK"),
+    .fileChange(id: "fe1", changes: [], timestamp: t(2), completedAt: nil),
+    .error(id: "err1", message: "再試行", timestamp: t(3)), cost("k1"),
+    user("u2", at: 10, end: ended(.completed, at: 20)), agent("a2pre", "見ます"),
+    snapshot("s2", [("1", "設計", .inProgress), ("2", "実装", .pending)], at: 11),
+    command("c2", "Read /p/a.swift", at: 12, done: 13), agent("a2", "直しました"), cost("k2"),
+    user("u3", at: 30, end: ended(.superseded, at: 34)), command("c3", "Read /p/b.swift", at: 31, done: 32),
+    agent("a3", "見ました"), .fileChange(id: "fe3", changes: [], timestamp: t(33), completedAt: nil), cost("k3a"),
+    user("u3b", at: 34, end: ended(.completed, at: 39)),
+    snapshot("s3b", [("1", "設計", .inProgress), ("2", "実装", .pending)], at: 35), thought("r3b"), agent("a3b", "OK"),
+    user("u4", at: 40), cost("k3"), thought("r4"), edit("e4", "/p/c.swift", at: 41),
+]
+
+/// 基準が窓の外にある会話: 最初の入力でタスクを登録し、間に文章だけの入力が続き、最後の入力で 1 件だけ変える。
+private let baselineOutsideWindow: [ChatItem] = [
+    user("u1", at: 0, end: ended(.completed, at: 5)),
+    snapshot("s1", [("1", "設計", .completed), ("2", "実装", .inProgress), ("3", "検証", .pending)], at: 1),
+    user("u2", at: 10, end: ended(.completed, at: 11)), agent("a2", "OK"),
+    user("u3", at: 20, end: ended(.completed, at: 21)), agent("a3", "OK"),
+    user("u4", at: 30, end: ended(.completed, at: 40)),
+    command("c4", "Read /p/a.swift", at: 31, done: 32),
+    snapshot("s4", [("1", "設計", .completed), ("2", "実装", .completed), ("3", "検証", .pending)], at: 33),
+]
+
+/// 固定 id の古い会話（turnEnd も completedAt も無い）。
+private let legacyConversation: [ChatItem] = [
+    user("u1", at: 0),
+    snapshot("task-list", [("1", "設計", .completed), ("2", "実装", .inProgress)], at: 1),
+    command("c1", "Read /p/a.swift", at: 2), agent("a1", "直しました"),
+    user("u2", at: 10), command("c2", "Read /p/b.swift", at: 11), command("c3", "Bash make", at: 12), agent("a2", "通りました"),
+    user("u3", at: 20), agent("a3", "OK"),
+]
+
+@Suite("状態カード: 表示する窓の分だけ組み立てる（B3 指摘 2）")
+struct AgentStatusCardWindowTests {
+    @Test("窓の大きさを変えても、全件を組み立ててから切った結果と一致する", arguments: Array(0...20))
+    func windowMatchesFullBuildAtEveryBoundary(limit: Int) {
+        let state = live(processing: true)
+
+        let windowed = AgentStatusCardBuilder.visibleSlice(items: windowedConversation, liveState: state, blockLimit: limit)
+
+        #expect(windowed == fullThenSliced(windowedConversation, state, limit))
+    }
+
+    @Test("基準のスナップショットが窓の外にあっても一致する", arguments: [1, 2, 3, 50])
+    func baselineOutsideWindowMatches(limit: Int) {
+        let windowed = AgentStatusCardBuilder.visibleSlice(items: baselineOutsideWindow, liveState: idle, blockLimit: limit)
+
+        #expect(windowed == fullThenSliced(baselineOutsideWindow, idle, limit))
+    }
+
+    @Test("基準が窓の外にあるとき、最後のカードには最後の入力で変わったタスクだけが出る")
+    func baselineOutsideWindowShowsOnlyChangedTask() {
+        let windowed = AgentStatusCardBuilder.visibleSlice(items: baselineOutsideWindow, liveState: idle, blockLimit: 1)
+
+        let shown = windowed.blocks.compactMap { if case .statusCard(let card) = $0.content { tasks(card).map(\.id) } else { nil } }
+        #expect(shown == [["2"]])
+        #expect(windowed.hiddenBlockCount == 7)
+    }
+
+    @Test("固定 id の古い会話でも一致する", arguments: [0, 1, 2, 4, 6, 50])
+    func legacyConversationMatches(limit: Int) {
+        let windowed = AgentStatusCardBuilder.visibleSlice(items: legacyConversation, liveState: idle, blockLimit: limit)
+
+        #expect(windowed == fullThenSliced(legacyConversation, idle, limit))
+    }
+
+    @Test("入力が 1 件も無い会話は、今の窓の処理と一致する")
+    func noInputMatchesGrouping() {
+        let items = [command("p1", "ls", at: 0, done: 1), command("p2", "pwd", at: 1, done: 2), agent("a0", "hi")]
+
+        let windowed = AgentStatusCardBuilder.visibleSlice(items: items, liveState: idle, blockLimit: 1)
+
+        #expect(windowed == ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: 1))
     }
 }

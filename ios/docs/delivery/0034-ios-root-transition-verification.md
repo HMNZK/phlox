@@ -10,7 +10,7 @@
 
 ## 確認の境界
 
-状態を注入したゲートの検査は実Face ID成功やOSバックグラウンド移行の証拠ではない。通知入力は `PushCoordinator.handleSessionURL` の公開入口を使い、実APNs配送の証拠とは区別する。動的な画像は検査時のwindowから採取する。
+状態を注入したゲートの検査は実Face ID成功やOSバックグラウンド移行の証拠ではない。通知入力は `PushCoordinator.handleSessionURL` と `handleNotificationTap`（通知ペイロード）の公開入口を使い、実APNs配送の証拠とは区別する。動的な画像は検査時のwindowから採取する。
 
 強権限メニュー、C1 timeout、429最終色は、必要な公開操作と依存注入の契約が成立する範囲で追加する。未実行の検査は完了と扱わない。
 
@@ -18,6 +18,7 @@
 
 - `RootTransitionTests`: connecting / failure の2状態でロック時にoverlayが消え、状態を保ったまま解除後に再表示する。保持した model を通す状態遷移であり、OS背景通知の検査ではない。
 - `lockedPushWaitsForUnlockAndFreshListThenReplacesOldRoute`: 公開session URL入口から通知要求を積み、ロック中の保留、解除・fresh list取得後の消費、深さ2から1への置換、保留modal解除、本物詳細の見出しを検査する。
+- `notificationTapWhileAnotherDetailIsOpenShowsNotifiedSession`: 別セッションの詳細を1段開いたまま通知ペイロードで要求を積み、経路が同じ深さで通知先へ置き換わった後、画面の文字認識で通知先の見出しが出て前のセッションの見出しが消えたことを検査する。`NavigationStack` が同じ位置の詳細を使い回して `@State` の view-model が前のセッションのまま残る不具合（`destination(for:)` の `.id(id)` で修正）の回帰検査。詳細の見出しはAX labelに出ないため、文字認識で判定する。
 - 一覧40件を本物rootに渡し、親CUAの実スクロール後にnative offsetが増えることを検査する。実UITabBarの位置・項目数、実タップによる設定画面への切替、セッション一覧への復帰とrouter深さ0を確認する。iOS26タブ縮小の視覚判定とは区別する。
 - 本物native delete alertのキャンセル時API0回、confirm後の503失敗alert本文、再試行API2回、閉じるのcallbackを検査する。技術値の文字列順を確認し、OSの最終等幅表示は取得画像で別確認する。
 - `RootInteractiveTransitionTests/strongPermissionNativeAlertCancelThenConfirmInvokesRealViewModelAPI`: 本物 `SessionDetailView` / view-model / composerをhostし、親CUAが権限menu→「全部許可」→実alertのcancelとconfirmを操作する。cancel後API0回・permission nil、confirm後API1回・`bypassPermissions`を検査する。

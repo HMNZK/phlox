@@ -131,6 +131,8 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 `ChatItem.userMessage` は第4連想値 `attachments: [ChatUserAttachment]`（filename?/mediaType のメタのみ）を持ち、送信時に `sendText` が充填する。描画は `ChatUserMessagePresentation` / `ChatAttachmentBadgePresentation`（検査可能な表示モデル）→ `UserMessageCell` のバッジ（photo アイコン＋表示名＋×N）。空テキスト＋添付ありはバッジのみ（テキスト行・コピー操作なし）。永続対象判定 `shouldStoreInTranscript` は「空本文でも添付ありなら保存」。旧「（画像 N 枚）」プレースホルダは廃止。
 
+**長文の表示上限**（2026-11-07 のコードで確認）: `ChatUserMessagePresentation` は表示用の `previewText` と省略状態 `isTruncated` も持つ。本文の先頭 4096 Unicode scalar まで、かつ 32 個目の改行記号（`CharacterSet.newlines` に含まれる符号。CRLF は 2 個と数える）の直前までを `previewText` とし、`UserMessageCell` はこれだけを `Text` へ渡す。両方の上限内なら原文のまま表示する。省略時は吹き出し内に「先頭のみ表示」と常時見える「全文をコピー」（`ChatMessage.copyButton.user.full`）を出す。ホバーのコピーと全文コピーはどちらも元の本文を使い、保存・送信・復元する本文は切り詰めない。scalar 単位で切るため、表示末尾が絵文字や結合文字列の途中になることがある。経緯と計測は[作業記録](../delivery/0226-long-user-message-freeze.md)、回帰は `LongUserMessageTests`。
+
 ## composer フッターのコンテキストドーナツとブランチ表示（chat-ui-context-fixes, 2026-07-10・ADR 0062/0066）
 
 フッター HStack はモード選択（leading コントロール）の右・Spacer の前に `ComposerContextIndicator`（`SessionFeature/ComposerContextIndicator.swift`）を置く。両コントロールは model 名メニューと同じ `HoverableComposerControl`（NSTrackingArea ホバーハイライト・ComposerSettingsControls.swift。ADR 0029 の .onHover 不発対策）に乗る。

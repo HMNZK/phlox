@@ -4,10 +4,20 @@ import DesignSystem
 import StructuredChatKit
 
 struct ChatUserMessagePresentation: Equatable {
+    let previewText: String
+    let isTruncated: Bool
     let showsText: Bool
     let badge: ChatAttachmentBadgePresentation?
 
     init(text: String, attachments: [ChatUserAttachment]) {
+        let scalars = text.unicodeScalars
+        var lineBreaks = 0
+        let preview = scalars.prefix(4_096).prefix { scalar in
+            if CharacterSet.newlines.contains(scalar) { lineBreaks += 1 }
+            return lineBreaks < 32
+        }
+        isTruncated = preview.endIndex != scalars.endIndex
+        previewText = isTruncated ? String(preview) : text
         showsText = !text.isEmpty
         badge = ChatAttachmentBadgePresentation(attachments: attachments)
     }
@@ -72,12 +82,24 @@ struct UserMessageCell: View {
                         ChatAttachmentBadge(title: badge.title, scale: scale)
                     }
                     if presentation.showsText {
-                        Text(text)
+                        Text(presentation.previewText)
                             .font(.system(size: 13 * scale))
                             .foregroundStyle(DSColor.chatTextPrimary)
                             .chatTextSelection()
                             .lineSpacing(5 * scale)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if presentation.isTruncated {
+                        HStack(spacing: 8) {
+                            Text("先頭のみ表示")
+                                .foregroundStyle(DSColor.chatTextSecondary)
+                            Button("全文をコピー") {
+                                ChatMessageCopy.copyPlainTextToPasteboard(text)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("ChatMessage.copyButton.user.full")
+                        }
+                        .font(.system(size: 11 * scale))
                     }
                 }
                 .padding(.horizontal, 13)

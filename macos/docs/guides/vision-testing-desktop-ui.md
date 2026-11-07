@@ -70,6 +70,14 @@ export PHLOX_DESIGN_SNAPSHOT_FRAME_IDS="10-A1-dark-ja 11-T1-dark"
 3. **アプリの直接の子 PTY プロセスを終了させる**（`ps -ax -o pid,ppid,command | awk -v app=<APP_PID> '$2==app'` で特定して `kill -TERM`）。`--exit-after 0` の即時終了はアプリが exit を購読する前に消えてレースするので使わない。
 4. グリッドに**赤枠**が出れば OK（サイドバーの行の状態は図形でなく右端の文字）。生存中の別セッションが緑のままなら対照として正しい。
 
+## 長いユーザー発言の復元後に画面が固まるとき
+
+- 実データの本文をログやfixtureへ転記せず、合成した無改行文、改行、絵文字、結合文字で切り分ける。`sample`が`UserBubbleWidth.sizeThatFits`とCoreTextに集中していたら、保存・復元と表示を別々に計時する。実行サービスの準備期限切れと画面の文字計算を同一原因と決めつけない。
+- `session-runtime-long-user-message.test.py`を固有bundle IDの隔離アプリと空の`--work-dir`で実行する。496万文字の発言と3件のエラーを合成し、cold restore、AXによる別会話への切替、GUI再接続、保存全文のSHA一致を検査する。実行は`compact-test`経由。API応答だけを画面応答の証拠にしない。
+- ユーザー発言の表示には文字を構成するUnicode scalarと改行の両方に上限がある。「先頭のみ表示」と常時見える「全文をコピー」を確認する。通常のコピーも元の全文を使い、保存本文を切り詰めない。
+
+測定条件、結果、再実行コマンドは[長文ユーザーメッセージの調査記録](../delivery/0226-long-user-message-freeze.md)を参照する。通常検査には`LongUserMessageTests`も含まれる。セル単体のPNGと実アプリの撮影を、画面全体の`DesignSnapshotRenderTests`と区別する。
+
 ## Markdownスクロールの固着を調べるとき
 
 - 現在のファイルだけで未再現と判定しない。FileTabDocumentは初回の読み込み内容を保持するため、障害後の変更時刻とGit履歴を照合し、障害前の候補版を隔離したfixtureへ保存する。版・バイト数・SHA-256を記録し、原本を変更しない。

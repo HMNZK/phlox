@@ -7,6 +7,6 @@
 - [PDF](pdf/phlox-agent-status-card.pdf): 全画面の書き出し。
 - `source/`: 編集用の元データ。
 
-`source/*.dc.html` が参照する `support.js` は、受領データには含まれていない。閲覧には `index.html` と `boards/` を使う。元データのスクリプトは実行していない。HTMLにはGoogle Fontsへの外部参照があり、オフライン時は指定されたシステムフォントにフォールバックする。
+`source/*.dc.html` が参照する `support.js` は、受領データには含まれていない。閲覧には `index.html` と `boards/` を使う。元データのスクリプトは実行していない。HTMLにはGoogle Fontsへの外部参照があり、オフライン時は指定されたシステムフォントにフォールバックする。 `source/canvas.json`（編集用のキャンバス設定）は、統合ゲートがコードの JSON として扱うためリポジトリに入れていない。原本は受領元の `~/Downloads/phlox-agent-status-card/source/` にある。
 
 アプリ全体の再設計案は採用せず、この見本のチャット内カードだけを実装する（要件D18）。

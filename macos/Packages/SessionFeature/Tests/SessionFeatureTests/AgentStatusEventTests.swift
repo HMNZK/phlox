@@ -332,6 +332,97 @@ private func threadItem(_ json: String) throws -> ThreadItem {
     try JSONDecoder().decode(ThreadItem.self, from: Data(json.utf8))
 }
 
+// MARK: - 実行中の再送信の後に遅れて届く終了
+//
+// 実行中に次の入力 B を送ると前の入力 A は superseded で閉じる。その後に届く終了は、届いた順に
+// 「A の終わり」として吸収し、B には書かない。B の終わりは B のターンの終わりで書く。
+// 根拠: Claude の通知は turn を識別できない（ADR 0222）。Codex の入力欄の送信は常に turn/start で、
+// turn/steer は非同期の質問への回答（userMessage を足さない）にしか使わない。
+// 実 CLI が B を A に合流させて result を 1 件しか返すかどうかは未確認。その場合は B の終わりが
+// 書かれず、見出しは「終了」（終わり方の記録なし）になる。
+
+@Test @MainActor
+func lateCompletionOfASupersededInputDoesNotEndTheNewInput() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    client.yield(.warning(message: "barrier"))
+    try await waitUntil { vm.transcript.count == 3 }
+    #expect(turnEnds(vm) == ["superseded", "none"], "前の入力の完了は新しい入力に書かない")
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    try await waitUntil { turnEnds(vm) == ["superseded", "completed"] }
+}
+
+@Test @MainActor
+func lateErrorOfASupersededInputDoesNotEndTheNewInput() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+
+    client.yield(.error(message: "boom"))
+    client.yield(.warning(message: "barrier"))
+    try await waitUntil { vm.transcript.count == 4 }
+    #expect(turnEnds(vm) == ["superseded", "none"])
+}
+
+@Test @MainActor
+func singleCompletionAfterASupersedeLeavesTheNewInputWithoutAnEnd() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+
+    client.yield(.turnCompleted(nativeSessionId: nil))
+    client.yield(.warning(message: "barrier"))
+    try await waitUntil { vm.transcript.count == 3 }
+
+    #expect(turnEnds(vm) == ["superseded", "none"], "合流して 1 件だけ届いた場合は、B の終わりを推測しない（終了と表示される）")
+}
+
+@Test @MainActor
+func processExitAfterASupersedeEndsTheNewInputWithError() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+
+    client.yield(.processExited(exitCode: 137))
+    try await waitUntil { turnEnds(vm) == ["superseded", "error"] }
+}
+
+@Test @MainActor
+func userInterruptAfterASupersedeEndsTheNewInputAsInterrupted() async throws {
+    let (vm, client) = makeViewModel()
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+    await vm.turnInterrupt()
+
+    client.yield(.turnInterrupted(nativeSessionId: nil))
+    try await waitUntil { turnEnds(vm) == ["superseded", "interrupted"] }
+}
+
+@Test @MainActor
+func lateInterruptionOfASupersededCodexInputDoesNotEndTheNewInput() async throws {
+    let client = CodexStatusClient()
+    let vm = ChatSessionViewModel(
+        id: SessionID(), agentRef: .builtin(.codex), client: client,
+        approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/phlox-agent-status-event-test"
+    )
+    await vm.restore(threadId: "thread", approvalPolicy: .named("never"), sandbox: .named("workspace-write"))
+    try await vm.sendText("最初", submit: true)
+    try await vm.sendText("次", submit: true)
+
+    client.continuation.yield(.normalized(.turnInterrupted(nativeSessionId: "thread")))
+    client.continuation.yield(.normalized(.warning(message: "barrier")))
+    try await waitUntil { vm.transcript.count == 3 }
+    #expect(turnEnds(vm) == ["superseded", "none"], "A の中断は新しい入力に書かない")
+
+    client.continuation.yield(.normalized(.turnCompleted(nativeSessionId: "thread")))
+    try await waitUntil { turnEnds(vm) == ["superseded", "completed"] }
+    await vm.terminate()
+}
+
 @Test @MainActor
 func codexItemCompletedStampsCommandAndFileChange() async throws {
     let client = CodexStatusClient()

@@ -428,6 +428,10 @@ public final class ChatSessionViewModel: Identifiable {
     private var turnGeneration = 0
     /// ordered Codex event の turn identity。正規化で失われる identity を VM 境界で再検証する。
     private var codexEventTurnId: String?
+    /// 実行中の再送信で `superseded` にした入力のうち、遅れて届く終了（完了・中断・エラー）の件数。
+    /// 通知はターンを識別できない（Claude）か、識別しても対応する入力を持たない（Codex）ので、
+    /// 届いた順に「前の入力の終わり」として吸収し、新しい入力には書かない。
+    private var pendingSupersededEnds = 0
     private var isAwaitingLocallyStartedTurnEvent = false
     private var activeInterruptTask: Task<Void, Never>?
     private var activeInterruptID: UUID?
@@ -1427,6 +1431,8 @@ public final class ChatSessionViewModel: Identifiable {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.interrupt); return }
         cancelRuntimeAcceptedSend()
         flushPendingStreamDeltasBarrier()
+        // 利用者が止めたので、届く中断は今の入力の終わり（前の入力の遅れた終了を待たない）。
+        pendingSupersededEnds = 0
         if let activeInterruptTask {
             await activeInterruptTask.value
             return
@@ -2748,7 +2754,7 @@ public final class ChatSessionViewModel: Identifiable {
             }
             await expireAllPendingUserQuestions(preservingAsync: true)
             appendPendingTurnCostIfNeeded(timestamp: eventDate)
-            recordTurnEnd(.completed, at: eventDate)
+            if !absorbSupersededEnd() { recordTurnEnd(.completed, at: eventDate) }
             guard !isTerminating else { return }
             let previousStatus = status
             let hadActiveTurn = turnStartedAt != nil
@@ -2772,7 +2778,7 @@ public final class ChatSessionViewModel: Identifiable {
                 codexEventTurnId = nil
             }
             await expireAllPendingUserQuestions()
-            recordTurnEnd(.interrupted, at: eventDate)
+            if !absorbSupersededEnd() { recordTurnEnd(.interrupted, at: eventDate) }
             guard !isTerminating else { return }
             isCompacting = false
             clearRunningTurn()
@@ -2800,7 +2806,7 @@ public final class ChatSessionViewModel: Identifiable {
             clearRunningTurn()
             if !launchFailed {
                 appendOrReplace(.error(id: "error-\(UUID().uuidString)", message: message, timestamp: eventDate))
-                if hadActiveTurn { recordTurnEnd(.error, at: eventDate) }
+                if hadActiveTurn, !absorbSupersededEnd() { recordTurnEnd(.error, at: eventDate) }
             }
             clearRunningBackgroundTasks()
             subAgentModel.failRunningSubAgents()
@@ -3611,16 +3617,25 @@ public final class ChatSessionViewModel: Identifiable {
         markTranscriptChanged()
     }
 
-    /// 最後の入力（userMessage）に終わり方を書く。既にあれば書かない。
-    private func recordTurnEnd(_ outcome: ChatTurnEnd.Outcome, at date: Date) {
+    /// superseded にした入力の遅れた終了なら吸収する（吸収したら true。どの入力にも書かない）。
+    private func absorbSupersededEnd() -> Bool {
+        guard pendingSupersededEnds > 0 else { return false }
+        pendingSupersededEnds -= 1
+        return true
+    }
+
+    /// 最後の入力（userMessage）に終わり方を書く。既にあれば書かない。書いたら true。
+    @discardableResult
+    private func recordTurnEnd(_ outcome: ChatTurnEnd.Outcome, at date: Date) -> Bool {
         guard let index = transcript.lastIndex(where: { if case .userMessage = $0 { true } else { false } }),
               case .userMessage(let id, let text, let timestamp, let attachments, nil) = transcript[index]
-        else { return }
+        else { return false }
         transcript[index] = .userMessage(
             id: id, text: text, timestamp: timestamp, attachments: attachments,
             turnEnd: ChatTurnEnd(outcome: outcome, at: date)
         )
         markTranscriptChanged()
+        return true
     }
 
     private func appendOrReplace(_ item: ChatItem) {
@@ -4406,7 +4421,7 @@ extension ChatSessionViewModel: ControllableSession {
             }
             submitBaselineTurnSeq = completedTurnSeq
             // 実行中に次の入力を送った。前の入力は「次の入力へ続く」で閉じる。
-            if turnStartedAt != nil { recordTurnEnd(.superseded, at: Date()) }
+            if turnStartedAt != nil, recordTurnEnd(.superseded, at: Date()) { pendingSupersededEnds += 1 }
             clearRunningTurn()
             pendingInput = ""
             let sentAttachments = attachmentStore.attachments

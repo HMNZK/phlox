@@ -40,6 +40,11 @@ struct AgentStatusCardDisclosure: Equatable {
         overrides[Key(cardID: card.id, rowID: row.id)] ?? Self.isAutoExpanded(row, in: card)
     }
 
+    /// 手で開いた行か（見本 07: 手で開いた行は薄い面で示す。自動で開いた行には付けない）。
+    func isManuallyOpened(_ row: AgentStatusRow, in card: AgentStatusCard) -> Bool {
+        overrides[Key(cardID: card.id, rowID: row.id)] == true
+    }
+
     /// 今の見た目と反対にして、手の状態として覚える。
     mutating func toggle(_ row: AgentStatusRow, in card: AgentStatusCard) {
         overrides[Key(cardID: card.id, rowID: row.id)] = !isExpanded(row, in: card)

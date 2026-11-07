@@ -79,6 +79,8 @@ struct AgentStatusTaskRow: View {
     /// 縦の線は最後の行にはつながない。
     let isLast: Bool
     let isExpanded: Bool
+    /// 手で開いた行は、見出しの行に薄い面を付ける。
+    var isManuallyOpened = false
     let entryLimit: Int
     let scale: CGFloat
     let isNarrow: Bool
@@ -147,6 +149,10 @@ struct AgentStatusTaskRow: View {
         }
         .padding(.horizontal, 2)
         .frame(minHeight: AgentStatusCardLayout.taskRowHeight * scale)
+        .background(
+            isManuallyOpened && isExpanded ? DSColor.fillSubtle : Color.clear,
+            in: RoundedRectangle(cornerRadius: DSRadius.row, style: .continuous)
+        )
         .contentShape(Rectangle())
     }
 

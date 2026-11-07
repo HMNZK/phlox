@@ -131,6 +131,7 @@ struct AgentStatusCardView: View, Equatable {
                             row: row,
                             isLast: index == card.rows.count - 1,
                             isExpanded: disclosure.isExpanded(row, in: card),
+                            isManuallyOpened: disclosure.isManuallyOpened(row, in: card),
                             entryLimit: disclosure.entryLimit(row, in: card),
                             scale: scale,
                             isNarrow: isNarrow,

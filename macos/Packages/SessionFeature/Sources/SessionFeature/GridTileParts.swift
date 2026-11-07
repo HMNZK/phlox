@@ -273,15 +273,24 @@ struct GridTileCompactBody: View {
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.attentionMark(.stalled), lineWidth: 1))
             }
         } else if viewModel.status == .running {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                (ThinkingIndicatorCell.detailText(
-                    recap: viewModel.thinkingRecap(now: context.date),
-                    assessment: viewModel.hangAssessment(now: context.date)
-                ) ?? Text("実行中"))
-                    .italic()
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
+            if AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind) {
+                // Claude・Codex: 列に出るカードの見出しと同じ文言（要件 FR-23）。
+                GridTileStatusLine(
+                    header: AgentStatusCardBuilder.latestHeader(
+                        items: viewModel.transcript, liveState: viewModel.statusCardLiveState
+                    )
+                )
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    (ThinkingIndicatorCell.detailText(
+                        recap: viewModel.thinkingRecap(now: context.date),
+                        assessment: viewModel.hangAssessment(now: context.date)
+                    ) ?? Text("実行中"))
+                        .italic()
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(1)
+                }
             }
         }
     }
@@ -408,5 +417,39 @@ private struct GridTileApprovalCard: View {
     private func respond(_ decision: ApprovalDecision) {
         guard isArmed else { return }
         Task { await viewModel.respond(to: approval, decision: decision) }
+    }
+}
+
+/// 小さいタイルの「実行中」の行: カードの見出し（今の作業・状態語）と経過。見出しは時刻を持たないので、
+/// 1 秒ごとの時計の外で 1 回求めたものを渡し、中では経過だけを描く。
+struct GridTileStatusLine: View {
+    let header: AgentStatusHeader?
+    @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var bundle
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack(spacing: 8) {
+                if let current = header?.current {
+                    Image(systemName: current.symbolName)
+                        .font(.system(size: 11))
+                        .foregroundStyle(DSColor.textTertiary)
+                        .accessibilityHidden(true)
+                }
+                Text(verbatim: header?.title(locale: locale, bundle: bundle) ?? AppLocalizedString.string("実行中", locale: locale, bundle: bundle))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let header {
+                    Text(verbatim: AgentStatusDurationFormat.clock(context.date.timeIntervalSince(header.startedAt)))
+                        .font(.system(size: 11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(DSColor.textTertiary)
+                }
+            }
+        }
+        .accessibilityIdentifier("GridTile.statusLine")
     }
 }

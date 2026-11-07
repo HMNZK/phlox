@@ -703,6 +703,37 @@ struct DesignSnapshotRenderTests {
         }
     }
 
+    /// エージェント状態カード（ClaudeDesign/agent-status-card の 9 画面）を見本と見比べるために撮る。
+    @Test func agentStatusCardSnapshots() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOT_SCOPE"] != "bottom-panel" else { return }
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let defaults = UserDefaults.standard
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        let appearance = NSApp.appearance
+        defer {
+            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+            NSApp.appearance = appearance
+        }
+        let output = try snapshotOutputDirectory()
+        let cachedStrings = output.appendingPathComponent("FileLocalization.bundle")
+        if FileManager.default.fileExists(atPath: cachedStrings.path) {
+            try FileManager.default.removeItem(at: cachedStrings)
+        }
+        let scenes = AgentStatusCardSnapshotFixtures.scenes(now: Date())
+        for scene in scenes {
+            var themeArguments = arguments
+            themeArguments[ThemeStore.themeKey] = scene.light ? AppTheme.phloxLight.id : AppTheme.phlox.id
+            defaults.setVolatileDomain(themeArguments, forName: UserDefaults.argumentDomain)
+            NSApp.appearance = NSAppearance(named: scene.light ? .aqua : .darkAqua)
+            let frame = Frame(id: "asc-\(scene.id)", name: scene.name, width: scene.width, height: scene.height,
+                light: scene.light, language: scene.english ? "en" : "ja")
+            try await capture(AgentStatusCardSnapshotLog(scene: scene), frame: frame, output: output)
+            #expect(FileManager.default.fileExists(atPath: destination(frame, output).path), "\(scene.board) を撮れていない")
+        }
+    }
+
     private struct Frame {
         let id: String
         let name: String

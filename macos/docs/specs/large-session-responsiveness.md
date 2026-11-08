@@ -1,6 +1,6 @@
 ---
 status: active
-last-verified: 2026-11-02
+last-verified: 2026-11-09
 ---
 
 # 問題定義: 大きい会話履歴でも入力と送信を妨げない
@@ -13,7 +13,7 @@ last-verified: 2026-11-02
 
 2026-11-02のRelease観測では、全9セッションの状態応答が約22.8MBだった。指定された`torigonon-fix`は2,189項目、本文約3.3MB。親リポジトリの`.verification/input-lag-investigation-20261102/`に内容を含まない集計とsampleを保存した。10秒の対象表示中sampleでは常駐Mainの32.0%がJSON変換、GUI Mainの24.7%がSwiftUI描画だった。これは入力遅延の測定値ではない。
 
-変更前の調査対象では、`SessionRuntimeClient.startPolling`は取得・適用後250ms待って再取得し、`SessionRuntimeTransport.handle`はMainActor内で全状態をJSON化していた。送信コマンドの応答後にも完全状態取得を待っていた。GUIの復号は当時から別Taskで、同じ本文revisionの再代入も省略済みだった。現在はADR0224の差分同期と別実行場所での変換を実装している。旧サービスへの接続では互換経路を維持する。
+変更前の調査対象では、`SessionRuntimeClient.startPolling`は取得・適用後250ms待って再取得し、`SessionRuntimeTransport.handle`はMainActor内で全状態をJSON化していた。送信コマンドの応答後にも完全状態取得を待っていた。GUIの復号は当時から別Taskで、同じ本文revisionの再代入も省略済みだった。ADR0224の差分同期は従来経路として残り、現在の起動・定期更新は[ADR0230](../adr/0230-bounded-runtime-overview-and-session-content.md)の容量制限付き状態一覧と表示中セッションの内容取得を使う。旧サービスへの接続では互換経路を維持する。
 
 ## 成功基準（検証可能な形で）
 

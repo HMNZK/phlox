@@ -69,6 +69,9 @@ public final class SessionViewModel: Identifiable {
     private static let inputReadinessSettleDuration: Duration = .milliseconds(400)
 
     public var isReadyForInput: Bool {
+        if let runtimeProjectionOverview, case .pty(let state) = runtimeProjectionOverview.kind {
+            return state.isReadyForInput
+        }
         if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.isReadyForInput }
         switch spawnRequest.statusBootstrap {
         case .viaHook:
@@ -132,9 +135,12 @@ public final class SessionViewModel: Identifiable {
     }
 
     /// このセッションが起動した CLI の種類。
-    public var agentRef: AgentRef { runtimeProjectionSnapshot?.agentRef ?? spawnRequest.agentDescriptor.ref }
+    public var agentRef: AgentRef {
+        runtimeProjectionOverview?.agentRef ?? runtimeProjectionSnapshot?.agentRef ?? spawnRequest.agentDescriptor.ref
+    }
     public var agentDescriptor: AgentDescriptor {
-        runtimeProjectionSnapshot.map { AgentRegistry.descriptor(for: $0.agentRef.builtinKind) }
+        runtimeProjectionOverview.map { AgentRegistry.descriptor(for: $0.agentRef.builtinKind) }
+            ?? runtimeProjectionSnapshot.map { AgentRegistry.descriptor(for: $0.agentRef.builtinKind) }
             ?? spawnRequest.agentDescriptor
     }
     public var agentKind: AgentKind { agentRef.builtinKind }
@@ -159,6 +165,7 @@ public final class SessionViewModel: Identifiable {
 
     private var workingDirectory: String? {
         if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.workingDirectory }
+        if let runtimeProjectionOverview { return runtimeProjectionOverview.workingDirectory?.displayText }
         return spawnRequest.workingDirectory
     }
     @ObservationIgnored private var ownedPTYManager: (any PTYManagerProtocol)?
@@ -168,6 +175,10 @@ public final class SessionViewModel: Identifiable {
     }
     @ObservationIgnored private var runtimeCommandHandler: SessionRuntimeSessionCommandHandler?
     private var runtimeProjectionSnapshot: SessionRuntimePTYSnapshot?
+    private var runtimeProjectionOverview: SessionRuntimeSessionOverview?
+    public var isRuntimeDisplayLoaded: Bool { runtimeProjectionSnapshot != nil }
+    @ObservationIgnored public private(set) var runtimeDisplayedRevision: UInt64?
+    private var displayRevision: UInt64 = 0
     @ObservationIgnored private var isApplyingRuntimeSnapshot = false
     public private(set) var runtimeConnectionError: String?
     public var isRuntimeProjection: Bool { runtimeCommandHandler != nil }
@@ -266,6 +277,26 @@ public final class SessionViewModel: Identifiable {
             visibleText: { "" })
         self.runtimeCommandHandler = commandHandler
         try applyRuntimeSnapshot(snapshot)
+        bindCoordinator()
+    }
+
+    public init(projection overview: SessionRuntimeSessionOverview,
+                commandHandler: @escaping SessionRuntimeSessionCommandHandler) throws {
+        guard case .pty = overview.kind else { throw SessionRuntimeProjectionError.wrongSession }
+        self.id = overview.id
+        self.startedAt = overview.startedAt
+        self.status = overview.status
+        self.terminalCoordinator = TerminalCoordinator.emptyRuntimeProjection()
+        self.nonHookIdleFallbackTracker = NonHookIdleFallbackTracker(
+            settleDuration: Self.inputReadinessSettleDuration)
+        self.codexAdapter = nil
+        self.submitDiagnosticRecorder = SubmitDiagnosticRecorder(
+            sessionLabel: Self.shortID(for: overview.id),
+            agentKind: { overview.agentRef.builtinKind },
+            visibleText: { "" })
+        self.runtimeCommandHandler = commandHandler
+        self.runtimeProjectionOverview = overview
+        try applyRuntimeOverview(overview)
         bindCoordinator()
     }
 
@@ -444,6 +475,7 @@ public final class SessionViewModel: Identifiable {
             let cols = self.terminalCoordinator.currentCols
             let rows = self.terminalCoordinator.currentRows
             self.terminalCoordinator.resetBuffer()
+            self.displayRevision &+= 1
             try? await self.ptyManager.resize(self.id, cols: cols, rows: rows)
         }
     }
@@ -477,6 +509,7 @@ public final class SessionViewModel: Identifiable {
                 let outputAt = Date()
                 self?.lastOutputAt = outputAt
                 coordinator.feed(data)
+                self?.displayRevision &+= 1
                 // ponytail: 同じIDのrespawnでは旧世代の遅い通知が新ゲートに届き、背圧が少し弱まる。
                 manager.acknowledgeOutput(data.count, for: sessionID)
                 self?.scheduleCodexOutputEvaluation()
@@ -713,6 +746,7 @@ public final class SessionViewModel: Identifiable {
 
         // 6. 旧プロセスの描画残骸をクリアする。
         terminalCoordinator.resetBuffer()
+        displayRevision &+= 1
 
         // 7. hookTask を新 hookEvents で張り直す。
         await start()
@@ -765,6 +799,7 @@ public final class SessionViewModel: Identifiable {
 
     private func handleResize(cols: UInt16, rows: UInt16) async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.resize(cols: cols, rows: rows)); return }
+        displayRevision &+= 1
         guard !spawnSuppressed else { return }
         if !didSpawn {
             // 初回 spawn のみ trailing debounce する。起動直後のレイアウト確定やサイドバー
@@ -996,6 +1031,21 @@ extension SessionViewModel: ControllableSession {
         await kill()
     }
 
+    public func makeRuntimeOverview() -> SessionRuntimeSessionOverview {
+        SessionRuntimeSessionOverview(
+            id: id, startedAt: startedAt, agentRef: agentRef, workingDirectory: workingDirectory,
+            executionID: executionID, title: titleState.name, titleState: titleState, projectID: projectID,
+            parentSessionID: parentSessionID, launchContext: launchContext,
+            status: status, displayStatus: status,
+            statusEnteredAt: statusEnteredAt, displayStatusEnteredAt: statusEnteredAt,
+            hasUnseenCompletion: hasUnseenCompletion, lastOutputAt: lastOutputAt,
+            lastTurnCompletedAt: lastTurnCompletedAt,
+            kind: .pty(.init(completedTurnSeq: completedTurnSeq,
+                hasProducedOutput: hasProducedOutput, isRestored: isRestored,
+                isReadyForInput: isReadyForInput, nativeSessionID: nativeSessionID,
+                displayRevision: displayRevision)))
+    }
+
     public func makeRuntimeSnapshot() throws -> SessionRuntimePTYSnapshot {
         var value = SessionRuntimePTYSnapshot(id: id, startedAt: startedAt, agentRef: agentRef,
             workingDirectory: workingDirectory, display: try terminalCoordinator.makeRuntimeDisplaySnapshot())
@@ -1019,17 +1069,79 @@ extension SessionViewModel: ControllableSession {
         return value
     }
 
+    public func runtimeContent(for request: SessionRuntimeContentRequest) throws -> SessionRuntimeContentResponse {
+        guard request.sessionID == id, request.executionID == executionID else {
+            throw SessionRuntimeContentError.staleContent
+        }
+        guard case .ptySnapshot(let expectedRevision) = request.target,
+              expectedRevision <= displayRevision else {
+            throw SessionRuntimeContentError.staleContent
+        }
+        return .ptySnapshot(snapshot: try makeRuntimeSnapshot(), displayRevision: displayRevision)
+    }
+
+    public func validateRuntimeOverview(_ overview: SessionRuntimeSessionOverview) throws {
+        guard isRuntimeProjection, case .pty = overview.kind else {
+            throw SessionRuntimeProjectionError.notAProjection
+        }
+        guard overview.id == id, overview.startedAt == startedAt,
+              overview.agentRef == agentRef else {
+            throw SessionRuntimeProjectionError.wrongSession
+        }
+    }
+
+    public func applyRuntimeOverview(_ overview: SessionRuntimeSessionOverview) throws {
+        try validateRuntimeOverview(overview)
+        guard case .pty(let state) = overview.kind else { throw SessionRuntimeProjectionError.wrongSession }
+        isApplyingRuntimeSnapshot = true
+        defer { isApplyingRuntimeSnapshot = false }
+        if executionID != overview.executionID {
+            terminalCoordinator.clearRuntimeProjectionDisplay()
+            runtimeProjectionSnapshot = nil
+            runtimeDisplayedRevision = nil
+            submitBaselineTurnSeq = nil
+            activeTurnId = nil
+            runtimeConnectionError = nil
+        }
+        runtimeProjectionOverview = overview
+        executionID = overview.executionID
+        nativeSessionID = state.nativeSessionID
+        titleState = overview.titleState
+        projectID = overview.projectID
+        parentSessionID = overview.parentSessionID
+        launchContext = overview.launchContext
+        status = overview.status
+        statusEnteredAt = overview.statusEnteredAt
+        hasUnseenCompletion = overview.hasUnseenCompletion
+        hasProducedOutput = state.hasProducedOutput
+        lastOutputAt = overview.lastOutputAt
+        lastTurnCompletedAt = overview.lastTurnCompletedAt
+        completedTurnSeq = state.completedTurnSeq
+        isRestored = state.isRestored
+    }
+
     public func validateRuntimeSnapshot(_ snapshot: SessionRuntimePTYSnapshot) throws {
         guard isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
         guard snapshot.id == id, snapshot.startedAt == startedAt,
-              runtimeProjectionSnapshot == nil || snapshot.agentRef == runtimeProjectionSnapshot?.agentRef
+              snapshot.agentRef == (runtimeProjectionOverview?.agentRef ?? runtimeProjectionSnapshot?.agentRef ?? snapshot.agentRef)
         else { throw SessionRuntimeProjectionError.wrongSession }
+        if let runtimeProjectionOverview, snapshot.executionID != runtimeProjectionOverview.executionID {
+            throw SessionRuntimeProjectionError.staleExecution
+        }
         try snapshot.display.validate()
     }
 
     public func applyRuntimeSnapshot(_ snapshot: SessionRuntimePTYSnapshot) throws {
         try validateRuntimeSnapshot(snapshot)
         try terminalCoordinator.applyRuntimeDisplaySnapshot(snapshot.display)
+        if let runtimeProjectionOverview {
+            runtimeProjectionSnapshot = snapshot
+            submitBaselineTurnSeq = snapshot.submitBaselineTurnSeq
+            activeTurnId = snapshot.activeTurnId
+            try applyRuntimeOverview(runtimeProjectionOverview)
+            runtimeConnectionError = nil
+            return
+        }
         isApplyingRuntimeSnapshot = true
         defer { isApplyingRuntimeSnapshot = false }
         runtimeProjectionSnapshot = snapshot
@@ -1052,6 +1164,21 @@ extension SessionViewModel: ControllableSession {
         runtimeConnectionError = nil
     }
 
+    public func applyRuntimeContent(_ snapshot: SessionRuntimePTYSnapshot, displayRevision: UInt64) throws {
+        guard isRuntimeProjection, runtimeProjectionOverview != nil else {
+            throw SessionRuntimeProjectionError.notAProjection
+        }
+        guard snapshot.executionID == executionID else { throw SessionRuntimeProjectionError.staleExecution }
+        if let runtimeDisplayedRevision, displayRevision <= runtimeDisplayedRevision { return }
+        try applyRuntimeSnapshot(snapshot)
+        runtimeDisplayedRevision = displayRevision
+    }
+
+    public func reportRuntimeContentFailure(_ error: Error) {
+        guard isRuntimeProjection else { return }
+        runtimeConnectionError = error.localizedDescription
+    }
+
     public func performRuntimeCommand(_ command: SessionRuntimeSessionCommand, expectedExecutionID: UUID) async throws -> SessionRuntimeSessionCommandResult {
         guard !isRuntimeProjection else { throw SessionRuntimeProjectionError.notAProjection }
         guard expectedExecutionID == executionID else { throw SessionRuntimeProjectionError.staleExecution }
@@ -1066,6 +1193,7 @@ extension SessionViewModel: ControllableSession {
                   Int(rows) <= TerminalRuntimeDisplaySnapshot.maximumDimension
             else { throw SessionRuntimeProjectionError.unsupportedCommand }
             terminalCoordinator.terminalView.getTerminal().resize(cols: Int(cols), rows: Int(rows))
+            displayRevision &+= 1
             await handleResize(cols: cols, rows: rows)
         case .interrupt: await sendInput(Data([0x1b]))
         case .terminate: await terminate()

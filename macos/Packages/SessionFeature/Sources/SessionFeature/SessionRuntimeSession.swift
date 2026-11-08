@@ -22,6 +22,195 @@ public enum SessionRuntimeSessionSnapshot: Codable, Sendable {
     }
 }
 
+public struct SessionRuntimeTextPreview: Codable, Sendable, Equatable {
+    public let text: String
+    public let truncated: Bool
+
+    public init(_ value: String, maximumBytes: Int = 512) {
+        let bytes = Array(value.utf8.prefix(maximumBytes + 1))
+        truncated = bytes.count > maximumBytes
+        if !truncated {
+            text = value
+            return
+        }
+        var prefix = Array(bytes.prefix(maximumBytes))
+        while String(bytes: prefix, encoding: .utf8) == nil { prefix.removeLast() }
+        text = String(decoding: prefix, as: UTF8.self)
+    }
+
+    public var displayText: String { text + (truncated ? "…" : "") }
+}
+
+public enum SessionRuntimePendingInteractionOverview: Codable, Sendable, Equatable {
+    case approval(id: UUID, prompt: SessionRuntimeTextPreview, requiresDetail: Bool, requestedAt: Date)
+    case question(index: Int, prompt: SessionRuntimeTextPreview, isToolPermission: Bool, requestedAt: Date)
+}
+
+public struct SessionRuntimeSessionOverview: Codable, Sendable {
+    public struct ChatState: Codable, Sendable {
+        public struct Controls: Codable, Sendable {
+            public var selectedModel: String?
+            public var selectedEffort: String?
+            public var selectedPermissionProfile: String?
+            public var selectedApprovalPolicy: ApprovalPolicy?
+            public var selectedCodexSandbox: SandboxPolicy?
+            public var isPlanMode = false
+            public var isPlanModeAvailable = false
+            public var isCompacting = false
+            public var isApplyingSpawnAgentPermission = false
+            public var isTerminating = false
+            public var usesStandardClaudeAuthentication = true
+            public var acceptsImageAttachments = false
+            public var canApplySpawnAgentSettings = false
+            public var supportsCodexSettings = false
+            public var isUsingBuiltinModelList = false
+            public var hasHistoryProvider = false
+            public var submitBaselineTurnSeq: Int?
+            public var lastTurnCostUSD: Double?
+            public var turnStartedAt: Date?
+            public var lastEventAt: Date?
+            public init() {}
+        }
+
+        public let transcriptRevision: Int
+        public let lastNonAppendRevision: Int
+        public let transcriptItemCount: Int
+        public let pendingInteractionCount: Int
+        public let pendingInteractions: [SessionRuntimePendingInteractionOverview]
+        public let pendingIdentity: String
+        public let presentationRevision: UInt64
+        public let lastAgentText: SessionRuntimeTextPreview?
+        public let processExit: ChatProcessExit?
+        public let isStalled: Bool
+        public let stalledSince: Date?
+        public let completedTurnSeq: Int
+        public let draftRecoveryID: UUID?
+        public let isProcessing: Bool
+        public let controls: Controls
+
+        public init(transcriptRevision: Int, lastNonAppendRevision: Int = 0, transcriptItemCount: Int,
+                    pendingInteractionCount: Int, pendingInteractions: [SessionRuntimePendingInteractionOverview],
+                    pendingIdentity: String = "",
+                    presentationRevision: UInt64 = 0,
+                    lastAgentText: SessionRuntimeTextPreview?, processExit: ChatProcessExit?,
+                    isStalled: Bool, stalledSince: Date?, completedTurnSeq: Int,
+                    draftRecoveryID: UUID?, isProcessing: Bool, controls: Controls = .init()) {
+            self.transcriptRevision = transcriptRevision
+            self.lastNonAppendRevision = lastNonAppendRevision
+            self.transcriptItemCount = transcriptItemCount
+            self.pendingInteractionCount = pendingInteractionCount
+            self.pendingInteractions = pendingInteractions
+            self.pendingIdentity = pendingIdentity
+            self.presentationRevision = presentationRevision
+            self.lastAgentText = lastAgentText
+            self.processExit = processExit
+            self.isStalled = isStalled
+            self.stalledSince = stalledSince
+            self.completedTurnSeq = completedTurnSeq
+            self.draftRecoveryID = draftRecoveryID
+            self.isProcessing = isProcessing
+            self.controls = controls
+        }
+    }
+
+    public struct PTYState: Codable, Sendable {
+        public let completedTurnSeq: Int
+        public let hasProducedOutput: Bool
+        public let isRestored: Bool
+        public let isReadyForInput: Bool
+        public let nativeSessionID: String?
+        public let displayRevision: UInt64
+
+        public init(completedTurnSeq: Int, hasProducedOutput: Bool, isRestored: Bool, isReadyForInput: Bool,
+                    nativeSessionID: String? = nil, displayRevision: UInt64 = 0) {
+            self.completedTurnSeq = completedTurnSeq
+            self.hasProducedOutput = hasProducedOutput
+            self.isRestored = isRestored
+            self.isReadyForInput = isReadyForInput
+            self.nativeSessionID = nativeSessionID
+            self.displayRevision = displayRevision
+        }
+    }
+
+    public enum Kind: Codable, Sendable {
+        case chat(ChatState)
+        case pty(PTYState)
+    }
+
+    public let id: SessionID
+    public let startedAt: Date
+    public let agentRef: AgentRef
+    public let workingDirectory: SessionRuntimeTextPreview?
+    public let executionID: UUID
+    public let title: SessionRuntimeTextPreview
+    public let titleState: SessionTitleState
+    public let projectID: ProjectID?
+    public let parentSessionID: SessionID?
+    public let launchContext: SessionLaunchContext
+    public let status: SessionStatus
+    public let displayStatus: SessionStatus
+    public let statusRequiresDetail: Bool
+    public let statusEnteredAt: Date?
+    public let displayStatusEnteredAt: Date?
+    public let hasUnseenCompletion: Bool
+    public let lastOutputAt: Date?
+    public let lastTurnCompletedAt: Date?
+    public let kind: Kind
+
+    public init(id: SessionID, startedAt: Date, agentRef: AgentRef, workingDirectory: String?,
+                executionID: UUID, title: String, titleState: SessionTitleState? = nil,
+                projectID: ProjectID?, parentSessionID: SessionID?,
+                launchContext: SessionLaunchContext, status: SessionStatus, displayStatus: SessionStatus,
+                statusEnteredAt: Date?, displayStatusEnteredAt: Date?,
+                hasUnseenCompletion: Bool, lastOutputAt: Date?, lastTurnCompletedAt: Date?, kind: Kind) {
+        self.id = id
+        self.startedAt = startedAt
+        self.agentRef = agentRef
+        self.workingDirectory = workingDirectory.map { SessionRuntimeTextPreview($0, maximumBytes: 4096) }
+        self.executionID = executionID
+        self.title = SessionRuntimeTextPreview(title)
+        let boundedTitle = SessionRuntimeTextPreview(titleState?.name ?? title)
+        let boundedFlower = titleState?.flowerName.map { SessionRuntimeTextPreview($0).displayText }
+        let derivedTitle = titleState?.fullDerivedTitle
+        if titleState?.source == .derived, let derivedTitle,
+           !SessionRuntimeTextPreview(derivedTitle, maximumBytes: 4096).truncated {
+            self.titleState = SessionTitleState(name: boundedTitle.displayText, source: .derived,
+                flowerName: boundedFlower, fullDerivedTitle: derivedTitle)
+        } else if titleState?.source == .flower, let boundedFlower,
+                  boundedTitle.displayText == boundedFlower {
+            self.titleState = .generated(flowerName: boundedFlower)
+        } else {
+            self.titleState = .legacy(name: boundedTitle.displayText)
+        }
+        self.projectID = projectID
+        self.parentSessionID = parentSessionID
+        self.launchContext = launchContext
+        let boundedStatus: (SessionStatus) -> (SessionStatus, Bool) = { status in
+            switch status {
+            case .awaitingApproval(let prompt):
+                let preview = SessionRuntimeTextPreview(prompt)
+                return (.awaitingApproval(prompt: preview.text), preview.truncated)
+            case .error(let message):
+                let preview = SessionRuntimeTextPreview(message)
+                return (.error(message: preview.text), preview.truncated)
+            default:
+                return (status, false)
+            }
+        }
+        let raw = boundedStatus(status)
+        let displayed = boundedStatus(displayStatus)
+        self.status = raw.0
+        self.displayStatus = displayed.0
+        self.statusRequiresDetail = raw.1 || displayed.1
+        self.statusEnteredAt = statusEnteredAt
+        self.displayStatusEnteredAt = displayStatusEnteredAt
+        self.hasUnseenCompletion = hasUnseenCompletion
+        self.lastOutputAt = lastOutputAt
+        self.lastTurnCompletedAt = lastTurnCompletedAt
+        self.kind = kind
+    }
+}
+
 public struct SessionRuntimePTYSnapshot: Codable, Sendable {
     public let id: SessionID
     public let startedAt: Date

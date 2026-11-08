@@ -5,6 +5,7 @@ import Foundation
 import LocalHTTPServer
 import Network
 import Security
+import SessionFeature
 import os
 
 public enum SessionRuntimeConnectionError: Error, LocalizedError, Sendable, Equatable {
@@ -75,11 +76,18 @@ struct SessionRuntimeHandshake: Codable, Sendable {
     let generation: UUID
     var supportsControlSkills: Bool? = nil
     var supportsSnapshotUpdates: Bool? = nil
+    var supportsOverview: Bool? = nil
+    var supportsSessionContent: Bool? = nil
 }
 
 struct SessionRuntimeSnapshotEnvelope: Codable, Sendable {
     let sequence: UInt64
     let snapshot: DashboardRuntimeSnapshot
+}
+
+struct SessionRuntimeOverviewEnvelope: Codable, Sendable {
+    let sequence: UInt64
+    let overview: DashboardRuntimeOverview
 }
 
 private struct SessionRuntimeSnapshotSequence: Sendable {
@@ -249,6 +257,8 @@ public actor SessionRuntimeTransport {
     private let generation: UUID
     private let authorization: SessionRuntimeAuthorization
     private let snapshot: @MainActor @Sendable () throws -> DashboardRuntimeSnapshot
+    private let overview: (@MainActor @Sendable () throws -> DashboardRuntimeOverview)?
+    private let content: (@MainActor @Sendable (SessionRuntimeContentRequest) throws -> SessionRuntimeContentResponse)?
     private let command: @MainActor @Sendable (DashboardRuntimeCommand) async throws -> DashboardRuntimeReply
     private let applicationSnapshot: (@MainActor @Sendable () throws -> Data)?
     private let applicationCommand: (@MainActor @Sendable (Data) async throws -> Data)?
@@ -264,12 +274,15 @@ public actor SessionRuntimeTransport {
     private var pendingNormalCommands = 0
     private var pendingUrgentCommands = 0
     private var pendingReads = 0
+    private var pendingContentReads = 0
     private let responseBudget = SessionRuntimeResponseBudget()
 
     private enum Request {
         case handshake
         case snapshot
         case snapshotUpdate(UInt64?)
+        case overview
+        case content(SessionRuntimeContentRequest)
         case applicationSnapshot
         case command(SessionRuntimeOperation, DashboardRuntimeCommand)
         case applicationCommand(SessionRuntimeOperation)
@@ -279,6 +292,8 @@ public actor SessionRuntimeTransport {
         generation: UUID,
         storeURL: URL,
         snapshot: @escaping @MainActor @Sendable () throws -> DashboardRuntimeSnapshot,
+        overview: (@MainActor @Sendable () throws -> DashboardRuntimeOverview)? = nil,
+        content: (@MainActor @Sendable (SessionRuntimeContentRequest) throws -> SessionRuntimeContentResponse)? = nil,
         command: @escaping @MainActor @Sendable (DashboardRuntimeCommand) async throws -> DashboardRuntimeReply,
         applicationSnapshot: (@MainActor @Sendable () throws -> Data)? = nil,
         applicationCommand: (@MainActor @Sendable (Data) async throws -> Data)? = nil
@@ -286,6 +301,8 @@ public actor SessionRuntimeTransport {
         self.generation = generation
         self.authorization = SessionRuntimeAuthorization(token: try SessionRuntimeCredentialStore.loadOrCreate(storeURL: storeURL))
         self.snapshot = snapshot
+        self.overview = overview
+        self.content = content
         self.command = command
         self.applicationSnapshot = applicationSnapshot
         self.applicationCommand = applicationCommand
@@ -322,9 +339,11 @@ public actor SessionRuntimeTransport {
         connections[connectionID] = connection
         var commandAdmission: (bytes: Int, urgent: Bool)?
         var readAdmitted = false
+        var contentReadAdmitted = false
         defer {
             if let commandAdmission { finishCommand(payloadBytes: commandAdmission.bytes, urgent: commandAdmission.urgent) }
             if readAdmitted { pendingReads -= 1 }
+            if contentReadAdmitted { pendingContentReads -= 1 }
             connections.removeValue(forKey: connectionID)
             connection.cancel()
         }
@@ -339,7 +358,31 @@ public actor SessionRuntimeTransport {
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
                 pendingReads += 1
                 readAdmitted = true
-                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation, supportsControlSkills: true, supportsSnapshotUpdates: true))
+                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation, supportsControlSkills: true, supportsSnapshotUpdates: true, supportsOverview: overview != nil, supportsSessionContent: content != nil))
+            case .overview:
+                maximumResponseBytes = Self.maximumSnapshotBytes
+                guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
+                pendingReads += 1
+                readAdmitted = true
+                guard let overview else { throw SessionRuntimeConnectionError.incompatibleProtocol }
+                let sequence = snapshotSequence
+                let envelope = try await MainActor.run {
+                    try SessionRuntimeOverviewEnvelope(sequence: sequence.next(), overview: overview())
+                }
+                body = try JSONEncoder().encode(envelope)
+            case .content(let contentRequest):
+                if case .ptySnapshot = contentRequest.target {
+                    maximumResponseBytes = Self.maximumSnapshotBytes
+                } else {
+                    maximumResponseBytes = SessionRuntimeContentLimits.maximumResponseBytes
+                }
+                guard pendingContentReads < 2 else { throw SessionRuntimeConnectionError.busy }
+                pendingContentReads += 1
+                contentReadAdmitted = true
+                guard let content else { throw SessionRuntimeConnectionError.incompatibleProtocol }
+                body = try await MainActor.run {
+                    try JSONEncoder().encode(content(contentRequest))
+                }
             case .snapshot, .snapshotUpdate:
                 maximumResponseBytes = Self.maximumSnapshotBytes
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
@@ -388,6 +431,7 @@ public actor SessionRuntimeTransport {
             case SessionRuntimeConnectionError.busy: status = 503
             case SessionRuntimeConnectionError.staleGeneration, SessionRuntimeConnectionError.incompatibleProtocol,
                  SessionRuntimeConnectionError.operationConflict: status = 409
+            case SessionRuntimeContentError.staleContent: status = 412
             case SessionRuntimeConnectionError.responseTooLarge, HTTPMessageParserError.payloadTooLarge: status = 413
             default: status = 400
             }
@@ -420,6 +464,15 @@ public actor SessionRuntimeTransport {
                 return .snapshotUpdate(sequence)
             }
             return .snapshotUpdate(nil)
+        case ("GET", "/overview"): return .overview
+        case ("GET", "/session-content"):
+            guard let encoded = request.headers["x-phlox-runtime-content-request"],
+                  encoded.utf8.count <= SessionRuntimeContentLimits.maximumEncodedRequestBytes,
+                  let data = Data(base64Encoded: encoded),
+                  data.count <= SessionRuntimeContentLimits.maximumEncodedRequestBytes else {
+                throw SessionRuntimeContentError.invalidRequest
+            }
+            return .content(try JSONDecoder().decode(SessionRuntimeContentRequest.self, from: data))
         case ("GET", "/application-snapshot"): return .applicationSnapshot
         case ("POST", "/command"):
             let operation = try JSONDecoder().decode(SessionRuntimeOperation.self, from: request.body)

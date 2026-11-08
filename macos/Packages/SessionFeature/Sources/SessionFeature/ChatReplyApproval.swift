@@ -17,6 +17,7 @@ public struct ReplyApproval: Identifiable, Equatable, Sendable {
     public enum Source: Equatable, Sendable {
         case approval(UUID)
         case toolPermission(requestId: String, answerKey: String)
+        case unloadedQuestion(Int)
     }
 
     public struct FileLine: Equatable, Sendable {
@@ -42,6 +43,7 @@ public struct ReplyApproval: Identifiable, Equatable, Sendable {
     public var permissionRows: [ApprovalPermissionRow] = []
     /// 「差分を見る」で開く会話の項目（Codex のファイルの変更だけ。Claude の編集は差分が会話に無い）。
     public var diffItemID: String? = nil
+    public var requiresDetail = false
 
     /// 出た直後に押せない時間（05 R6c）。
     public static let armDelay: TimeInterval = 0.5
@@ -74,8 +76,24 @@ extension ChatSessionViewModel {
     /// 返答エリアに出す承認（到着順）。Codex の承認要求のあとに Claude のツール使用許可を並べる。
     public var replyApprovals: [ReplyApproval] {
         var result = pendingApprovals.map(replyApproval(for:))
+        if runtimePendingInteractionsNeedDetail, let runtimeOverview,
+           case .chat(let chat) = runtimeOverview.kind {
+            for interaction in chat.pendingInteractions {
+                switch interaction {
+                case .approval(let id, let prompt, _, let requestedAt):
+                    result.append(ReplyApproval(id: id.uuidString, source: .approval(id), kind: .command,
+                        subject: prompt.displayText, files: [], workingDirectory: nil,
+                        toolName: nil, requestedAt: requestedAt, requiresDetail: true))
+                case .question(let index, let prompt, let isToolPermission, let requestedAt) where isToolPermission:
+                    result.append(ReplyApproval(id: "pending-question-\(index)", source: .unloadedQuestion(index),
+                        kind: .tool, subject: prompt.displayText, files: [], workingDirectory: nil,
+                        toolName: nil, requestedAt: requestedAt, requiresDetail: true))
+                default: break
+                }
+            }
+        }
         // ponytail: 会話を末尾まで線形に見る。未回答の質問を索引で持つ必要が出たら VM に集合を足す。
-        for item in transcript {
+        for item in replyItems {
             guard case .userQuestion(let id, let requestId, let questions, _, .pending, let timestamp) = item,
                   questions.count == 1, let question = questions.first, let permission = question.permission
             else { continue }
@@ -102,6 +120,7 @@ extension ChatSessionViewModel {
     /// 一覧・タイル・ヘッダに出す状態。Claude のツール使用許可は wire 上は質問だが、返答エリアでは承認カードに出すので
     /// 状態も「承認待ち」にそろえる（質問が同時に待っていれば質問待ちのまま）。
     public var displayStatus: SessionStatus {
+        if let runtimeOverview { return runtimeOverview.displayStatus }
         let base = SessionDisplayStatus.resolve(rawStatus: status, isProcessing: isProcessing)
         switch base {
         case .idle, .running, .completed:
@@ -111,7 +130,7 @@ extension ChatSessionViewModel {
         }
         guard base == .awaitingUserQuestion else { return base }
         var permissionPrompt: String?
-        for item in transcript.reversed() {
+        for item in replyItems.reversed() {
             guard case .userQuestion(_, _, let questions, _, .pending, _) = item else { continue }
             guard Self.isToolPermissionQuestion(questions) else { return base }
             permissionPrompt = permissionPrompt ?? questions.first?.question
@@ -120,7 +139,10 @@ extension ChatSessionViewModel {
     }
 
     var pendingAsyncQuestionDate: Date? {
-        let items = transcript
+        if let runtimeOverview, case .awaitingUserQuestion = runtimeOverview.displayStatus {
+            return runtimeOverview.displayStatusEnteredAt
+        }
+        let items = replyItems
         if let cached = pendingAsyncQuestionCache,
            cached.executionID == executionID, cached.revision == transcriptRevision {
             return cached.date
@@ -143,7 +165,7 @@ extension ChatSessionViewModel {
 
     /// 入力欄の Tab。承認か質問のカードがあればそちらへ移る。
     func moveFocusToReplyCard() -> Bool {
-        let hasQuestion = transcript.contains { item in
+        let hasQuestion = replyItems.contains { item in
             guard case .userQuestion(_, _, let questions, _, .pending, _) = item else { return false }
             return !Self.isToolPermissionQuestion(questions)
         }
@@ -153,20 +175,22 @@ extension ChatSessionViewModel {
     }
 
     /// カードが画面に出るたび（ページを戻したときも）0.5 秒の待ちからやり直す。
-    func markApprovalPresented(_ id: String, at date: Date = Date()) {
-        approvalPresentedAt[id] = date
+    func markApprovalPresented(_ approval: ReplyApproval, at date: Date = Date()) {
+        approvalPresentedAt[approval.id] = approval.requiresDetail ? nil : (approval, date)
     }
 
     /// 出てから 0.5 秒たったか。一度も出ていない要求はまだ押せない。
-    func isApprovalArmed(_ id: String, now: Date = Date()) -> Bool {
-        guard let shownAt = approvalPresentedAt[id] else { return false }
-        return now.timeIntervalSince(shownAt) >= ReplyApproval.armDelay
+    func isApprovalArmed(_ approval: ReplyApproval, now: Date = Date()) -> Bool {
+        guard !approval.requiresDetail,
+              let shown = approvalPresentedAt[approval.id], shown.approval == approval else { return false }
+        return now.timeIntervalSince(shown.date) >= ReplyApproval.armDelay
     }
 
     /// 承認カード・メニュー（⌥⌘↩ / ⌥⌘⌫）からの返答。出た直後 0.5 秒は受け付けない。
     @discardableResult
     public func respond(to approval: ReplyApproval, decision: ApprovalDecision, now: Date = Date()) async -> Bool {
-        guard isApprovalArmed(approval.id, now: now) else { return false }
+        guard !approval.requiresDetail else { return false }
+        guard replyApprovals.contains(approval), isApprovalArmed(approval, now: now) else { return false }
         let presentedAt = approvalPresentedAt[approval.id]
         approvalPresentedAt[approval.id] = nil
         if isRuntimeProjection {
@@ -182,6 +206,7 @@ extension ChatSessionViewModel {
                 case .decline: command = .question(requestId: requestId, answers: [answerKey: ["Deny"]])
                 case .cancel: command = .interrupt
                 }
+            case .unloadedQuestion: return false
             }
             let accepted = await sendProjectedReply(command)
             if !accepted { approvalPresentedAt[approval.id] = presentedAt }
@@ -202,6 +227,7 @@ extension ChatSessionViewModel {
                 // 質問カードの「閉じる」と同じ（ターンを中断する）。
                 await turnInterrupt()
             }
+        case .unloadedQuestion: return false
         }
         return true
     }
@@ -230,7 +256,7 @@ extension ChatSessionViewModel {
             )
         case .fileChange:
             // ファイルの一覧は同じ item の変更（会話に届いている fileChange）から引く。
-            let changes = transcript.lazy.compactMap { item -> [FilePatchChange]? in
+            let changes = replyItems.lazy.compactMap { item -> [FilePatchChange]? in
                 if case .fileChange(let id, let changes, _, _) = item, id == request.itemId { return changes }
                 return nil
             }.first ?? []
@@ -333,6 +359,11 @@ struct ApprovalCard: View {
             ScrollView { subjectBox }
                 .frame(maxHeight: subjectMaxHeight)
                 .fixedSize(horizontal: false, vertical: true)
+            if approval.requiresDetail {
+                Text("承認対象の詳細を読み込んでいます…")
+                    .font(DSFont.auxiliary)
+                    .foregroundStyle(DSColor.textSecondary)
+            }
             buttonRow
             if isFocused, approval.supportsSessionScope {
                 // Codex のファイル変更は「同じファイルへの以降の変更」だけを通す（acceptForSession の仕様）。
@@ -383,14 +414,16 @@ struct ApprovalCard: View {
         .onChange(of: isFocused) { _, focused in onFocusChange(focused) }
         .onDisappear { onFocusChange(false) }
         // 要求が変わるたび（1 件返して次が出たときも）0.5 秒の待ちからやり直す。
-        .task(id: approval.id) {
-            viewModel.markApprovalPresented(approval.id)
-            isArmed = viewModel.isApprovalArmed(approval.id)
+        .task(id: approval) {
+            viewModel.markApprovalPresented(approval)
+            isArmed = viewModel.isApprovalArmed(approval)
             armProgress = isArmed ? 1 : 0
+            guard !approval.requiresDetail else { return }
             guard !isArmed else { return }
             withAnimation(.linear(duration: ReplyApproval.armDelay)) { armProgress = 1 }
             try? await Task.sleep(for: .seconds(ReplyApproval.armDelay))
-            isArmed = true
+            guard !Task.isCancelled else { return }
+            isArmed = viewModel.isApprovalArmed(approval)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("承認待ち · \(kindLabel)"))
@@ -652,6 +685,7 @@ struct ApprovalCard: View {
             .foregroundStyle(DSColor.textSecondary)
         }
         .disabled(!isArmed)
+        .disabled(approval.requiresDetail)
     }
 
     /// 許可のキーは accentOnFill 85%、他は弱い文字色（PhloxReply.dc.html の btnAllow / btnSess / btnDeny）。

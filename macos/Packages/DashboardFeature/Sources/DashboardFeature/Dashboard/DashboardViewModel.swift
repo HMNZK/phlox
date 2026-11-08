@@ -114,6 +114,13 @@ public final class DashboardViewModel {
     @ObservationIgnored private var ownedServices: OwnedServices?
     @ObservationIgnored private var runtimeCommandHandler: DashboardRuntimeCommandHandler?
     @ObservationIgnored private var runtimeProjectionSnapshot: DashboardRuntimeSnapshot?
+    @ObservationIgnored private var runtimeProjectionOverview: DashboardRuntimeOverview?
+    @ObservationIgnored public var runtimeContentLoader: (@MainActor (SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse)? {
+        didSet { for node in sessionNodes { node.appServer?.runtimeContentLoader = runtimeContentLoader } }
+    }
+    @ObservationIgnored public internal(set) var viewedRuntimeSessionIDs: Set<SessionID> = []
+    @ObservationIgnored var viewedRuntimeSessionsByObserver: [UUID: Set<SessionID>] = [:]
+    @ObservationIgnored public var onRuntimeSessionsViewed: (@MainActor ([SessionID]) -> Void)?
     @ObservationIgnored private var runtimeCommandTail: Task<Void, Never>?
     @ObservationIgnored private var pendingRuntimeCommandCount = 0
     @ObservationIgnored private var pendingRuntimeControlCount = 0
@@ -164,7 +171,9 @@ public final class DashboardViewModel {
     private var worktreeCreationPaths: [String] = []
     /// 08 F2 の案内に出す worktree のパス。作っていなければ nil。
     /// ponytail: 画面からの起動が重なったら先に作り始めたものを出す。起動ごとに出し分けるなら起動の識別子を案内まで渡す。
-    public var worktreeCreationPath: String? { runtimeProjectionSnapshot?.worktreeCreationPath ?? worktreeCreationPaths.first }
+    public var worktreeCreationPath: String? {
+        runtimeProjectionOverview?.worktreeCreationPath ?? runtimeProjectionSnapshot?.worktreeCreationPath ?? worktreeCreationPaths.first
+    }
     /// 復元で前回の worktree を作り直す前にたずねる（09 E2）。引数はパス・ブランチ・ブランチが残っているか。
     /// アプリは `start()` の前に置く。nil なら確認しない。
     @ObservationIgnored public var worktreeRecreationConfirmer: (@MainActor (_ path: String, _ branchName: String, _ branchExists: Bool) -> Bool)?
@@ -513,6 +522,7 @@ public final class DashboardViewModel {
 
     /// セッション用 worktree の置き場所。
     var sessionWorkspaceRoot: URL {
+        if let root = runtimeProjectionOverview?.workspaceRoot { return root }
         if let snapshot = runtimeProjectionSnapshot, let root = snapshot.workspaceRoot { return root }
         guard !isRuntimeProjection else { preconditionFailure("Runtime snapshot has no workspace root") }
         return environment.workspaceDirectory
@@ -520,6 +530,7 @@ public final class DashboardViewModel {
 
     /// 新規チャットで選べる CLI。解決できた組込 CLI だけを返す。
     public var availableAgentKinds: [AgentKind] {
+        if let runtimeProjectionOverview { return runtimeProjectionOverview.availableAgentKinds }
         if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.availableAgentKinds }
         return [.claudeCode] + AgentRegistry.optionalBinaryKinds.filter { environment.binaryPath(for: $0) != nil }
     }
@@ -1832,12 +1843,14 @@ public final class DashboardViewModel {
     /// 別のプロジェクトへ移せるか。自分用の worktree で動くチャット型は移せない
     /// （worktree は元のプロジェクトのリポジトリのもので、再起動せずに付け替えられないため）。
     public func canMoveSession(_ id: SessionID) -> Bool {
+        if let runtimeProjectionOverview { return !runtimeProjectionOverview.immovableSessionIDs.contains(id) }
         if let runtimeProjectionSnapshot { return !runtimeProjectionSnapshot.immovableSessionIDs.contains(id) }
         guard case .appServer = sessionNode(id: id) else { return true }
         return ownedWorkspaceDirectories[id]?.worktreeRepository == nil
     }
 
     public func worktreeBranchName(for id: SessionID) -> String? {
+        if let runtimeProjectionOverview { return runtimeProjectionOverview.worktreeBranches[id] }
         if let runtimeProjectionSnapshot { return runtimeProjectionSnapshot.worktreeBranches[id] }
         guard ownedWorkspaceDirectories[id]?.worktreeRepository != nil else { return nil }
         return WorktreeIsolationPlanner.branchName(for: id)
@@ -2337,6 +2350,13 @@ extension DashboardViewModel {
         try applyRuntimeSnapshot(snapshot)
     }
 
+    public convenience init(overview: DashboardRuntimeOverview,
+                            paneLayoutStore: PaneLayoutStore? = nil,
+                            commandHandler: @escaping DashboardRuntimeCommandHandler) throws {
+        self.init(projectionCommandHandler: commandHandler, paneLayoutStore: paneLayoutStore)
+        try applyRuntimeOverview(overview)
+    }
+
     public func makeRuntimeSnapshot() throws -> DashboardRuntimeSnapshot {
         try DashboardRuntimeSnapshot(projects: projects, sessions: sessionNodes.map { node in
             switch node {
@@ -2351,6 +2371,141 @@ extension DashboardViewModel {
             workspaceCleanupWarning: workspaceCleanupWarning, workspaceCleanupFailureReason: workspaceCleanupFailureReason,
             discardedSessionCount: discardedSessionCountNotice, worktreeCreationPath: worktreeCreationPath,
             restoredSessionPresentation: restoredSessionPresentation)
+    }
+
+    public func makeRuntimeOverview() -> DashboardRuntimeOverview {
+        let limitedProjects = projects.map { project in
+            Project(id: project.id,
+                name: SessionRuntimeTextPreview(project.name).displayText,
+                directoryPath: project.directoryPath,
+                createdAt: project.createdAt, isManagedDirectory: project.isManagedDirectory,
+                worktreeIsolationEnabled: project.worktreeIsolationEnabled,
+                worktreePaths: project.worktreePaths?.map { SessionRuntimeTextPreview($0, maximumBytes: 4096).displayText })
+        }
+        let limitedWarning: WorkspaceCleanupWarning? = workspaceCleanupWarning.map { warning in
+            switch warning {
+            case .worktreeRetained(let path): .worktreeRetained(path: SessionRuntimeTextPreview(path).displayText)
+            case .branchRetained(let name): .branchRetained(branchName: SessionRuntimeTextPreview(name).displayText)
+            case .workspaceRetained(let path): .workspaceRetained(path: SessionRuntimeTextPreview(path).displayText)
+            }
+        }
+        return DashboardRuntimeOverview(
+            projects: limitedProjects,
+            sessions: sessionNodes.map { node in
+                switch node {
+                case .pty(let session): session.makeRuntimeOverview()
+                case .appServer(let session): session.makeRuntimeOverview()
+                }
+            }, availableAgentKinds: availableAgentKinds, hasRestoredSessions: hasRestoredSessions,
+            immovableSessionIDs: Set(sessionNodes.filter { !canMoveSession($0.id) }.map(\.id)),
+            worktreeBranches: Dictionary(uniqueKeysWithValues: sessionNodes.compactMap { node in
+                worktreeBranchName(for: node.id).map { (node.id, SessionRuntimeTextPreview($0).displayText) }
+            }), workspaceRoot: runtimeProjectionSnapshot?.workspaceRoot ?? ownedServices?.environment.workspaceDirectory,
+            workspaceCleanupWarning: limitedWarning,
+            workspaceCleanupFailureReason: workspaceCleanupFailureReason.map { SessionRuntimeTextPreview($0).displayText },
+            discardedSessionCount: discardedSessionCountNotice,
+            worktreeCreationPath: worktreeCreationPath,
+            restoredSessionPresentation: restoredSessionPresentation)
+    }
+
+    public func runtimeContent(for request: SessionRuntimeContentRequest) throws -> SessionRuntimeContentResponse {
+        switch sessionNode(id: request.sessionID) {
+        case .appServer(let session):
+            return try session.runtimeContent(for: request)
+        case .pty(let session):
+            return try session.runtimeContent(for: request)
+        case nil:
+            throw SessionRuntimeContentError.notFound
+        }
+    }
+
+    public func runtimeOverviewSession(id: SessionID) -> SessionRuntimeSessionOverview? {
+        runtimeProjectionOverview?.sessions.first { $0.id == id }
+    }
+
+    public func applyRuntimeOverview(_ overview: DashboardRuntimeOverview) throws {
+        guard isRuntimeProjection else { throw DashboardRuntimeError.ownedOperationUnavailable }
+        guard Set(overview.projects.map(\.id)).count == overview.projects.count,
+              Set(overview.sessions.map(\.id)).count == overview.sessions.count else {
+            throw DashboardRuntimeError.invalidSnapshot("識別子が重複しています")
+        }
+        for entry in overview.sessions {
+            guard let existing = sessionNodeIndex[entry.id] else { continue }
+            switch (existing, entry.kind) {
+            case (.pty(let vm), .pty): try vm.validateRuntimeOverview(entry)
+            case (.appServer(let vm), .chat): try vm.validateRuntimeOverview(entry)
+            default: throw DashboardRuntimeError.invalidSnapshot("セッションの種類が一致しません")
+            }
+        }
+        var updated: [SessionNode] = []
+        for entry in overview.sessions {
+            let entryID = entry.id
+            let handler: SessionRuntimeSessionCommandHandler = { [weak self] executionID, command in
+                guard let self else { throw CancellationError() }
+                guard case .session(let result) = try await self.sendRuntimeCommand(.session(entryID, executionID, command)) else {
+                    throw DashboardRuntimeError.unexpectedReply
+                }
+                return result
+            }
+            let node: SessionNode
+            switch entry.kind {
+            case .pty:
+                if let current = sessionNodeIndex[entry.id]?.pty { node = .pty(current) }
+                else { node = .pty(try SessionViewModel(projection: entry, commandHandler: handler)) }
+            case .chat:
+                if let current = sessionNodeIndex[entry.id]?.appServer { node = .appServer(current) }
+                else {
+                    let session = ChatSessionViewModel(projection: entry, commandHandler: handler)
+                    session.resumeConversationHandler = { [weak self] in
+                        Task { await self?.resumeEndedChatSession(entryID) }
+                    }
+                    node = .appServer(session)
+                }
+                node.appServer?.runtimeContentLoader = runtimeContentLoader
+            }
+            updated.append(node)
+        }
+        for (node, entry) in zip(updated, overview.sessions) where sessionNodeIndex[entry.id] != nil {
+            switch node {
+            case .pty(let vm): try vm.applyRuntimeOverview(entry)
+            case .appServer(let vm): try vm.applyRuntimeOverview(entry)
+            }
+        }
+        let addedIDs = Set(updated.map(\.id)).subtracting(sessionNodeIndex.keys)
+        runtimeProjectionSnapshot = nil
+        runtimeProjectionOverview = overview
+        projects = overview.projects
+        sessionNodes = updated
+        sessions = updated.compactMap(\.pty)
+        sessionNodeIndex = Dictionary(uniqueKeysWithValues: updated.map { ($0.id, $0) })
+        viewedRuntimeSessionsByObserver = viewedRuntimeSessionsByObserver.compactMapValues { ids in
+            let retained = ids.intersection(sessionNodeIndex.keys)
+            return retained.isEmpty ? nil : retained
+        }
+        viewedRuntimeSessionIDs.formIntersection(sessionNodeIndex.keys)
+        hasRestoredSessions = overview.hasRestoredSessions
+        layoutRestoreInProgress = false
+        workspaceCleanupWarning = overview.workspaceCleanupWarning
+        workspaceCleanupFailureReason = overview.workspaceCleanupFailureReason
+        discardedSessionCountNotice = overview.discardedSessionCount
+        for id in addedIDs { gridSessionSelectionDidSpawn(id) }
+        reconcilePaneLayout(persist: paneLayoutStore != nil)
+        normalizeGridSessionSelection()
+        refreshUnseenCompletionCount()
+        if !hasAppliedInitialRuntimePresentation, overview.hasRestoredSessions {
+            hasAppliedInitialRuntimePresentation = true
+            let visible = sessionNodes.filter { isReachableFromUI($0.id, from: .desktop) }
+            if let original = overview.restoredSessionPresentation,
+               visible.contains(where: { $0.id == original.selectedSessionID }) {
+                restoredSessionPresentation = original
+            } else if let recent = visible.max(by: { $0.startedAt < $1.startedAt }) {
+                restoredSessionPresentation = .init(selectedSessionID: recent.id,
+                    expandedProjectIDs: Set(visible.compactMap(\.projectID)))
+            }
+            if let selected = restoredSessionPresentation?.selectedSessionID {
+                viewedRuntimeSessionIDs.insert(selected)
+            }
+        }
     }
 
     public func applyRuntimeSnapshot(_ snapshot: DashboardRuntimeSnapshot) throws {
@@ -2407,6 +2562,7 @@ extension DashboardViewModel {
             }
         }
         let addedIDs = Set(updated.map(\.id)).subtracting(sessionNodeIndex.keys)
+        runtimeProjectionOverview = nil
         runtimeProjectionSnapshot = snapshot
         projects = snapshot.projects
         sessionNodes = updated
@@ -2482,6 +2638,14 @@ extension DashboardViewModel {
             await removeProject(id)
             if let reason = runtimeCommandError { throw DashboardRuntimeError.removalFailed(reason) }
         case .history(let project, let ref): return .history(try await newChatHistoryEntries(projectID: project, agentRef: ref))
+        case .fileLastWriter(let absolutePath, let baselineAt, let excluding):
+            guard absolutePath.hasPrefix("/"), absolutePath.utf8.count <= 4096,
+                  !absolutePath.contains("\0"), baselineAt.timeIntervalSince1970.isFinite else {
+                throw DashboardRuntimeError.invalidRequest
+            }
+            let name = FileTabDocument.lastWriter(among: sessionNodes, absolutePath: absolutePath,
+                baselineAt: baselineAt, excluding: excluding)
+            return .fileLastWriter(name.map { SessionRuntimeTextPreview($0).displayText })
         case .persistRole(let id, let role): persistSessionRole(id: id, role: role)
         case .clearWorkspaceCleanupWarning: clearWorkspaceCleanupWarning()
         case .takeDiscardedSessionCountNotice: _ = takeDiscardedSessionCountNotice()
@@ -2504,6 +2668,18 @@ extension DashboardViewModel {
             throw DashboardRuntimeError.unexpectedReply
         }
         return id
+    }
+
+    func lastWriterForConflict(_ document: FileTabDocument, excluding sessionID: SessionID?) async throws -> String? {
+        guard isRuntimeProjection else {
+            return document.lastWriter(among: sessionNodes, excluding: sessionID)
+        }
+        guard let request = document.lastWriterRequest(excluding: sessionID) else { return nil }
+        guard case .fileLastWriter(let name) = try await sendRuntimeCommand(.fileLastWriter(
+            absolutePath: request.absolutePath, baselineAt: request.baselineAt, excluding: request.excluding)) else {
+            throw DashboardRuntimeError.unexpectedReply
+        }
+        return name
     }
 
     private func sendRuntimeCommand(_ command: DashboardRuntimeCommand) async throws -> DashboardRuntimeReply {
@@ -2532,7 +2708,7 @@ extension DashboardViewModel {
                 switch (command, reply) {
                 case (.session, .session), (.spawn, .sessionID), (.launchNewChat, .acceptedSession),
                      (.restartNewChat, .sessionID), (.addProject, .projectID), (.removeSession, .bool),
-                     (.history, .history), (.message, .sendOutcome): break
+                     (.history, .history), (.fileLastWriter, .fileLastWriter), (.message, .sendOutcome): break
                 case (.resumeChat, .none), (.renameProject, .none), (.renameSession, .none),
                      (.reorderSession, .none), (.moveSession, .none), (.changeWorkspace, .none),
                      (.removeProject, .none), (.persistRole, .none), (.clearWorkspaceCleanupWarning, .none),

@@ -1,9 +1,11 @@
 ---
-status: active
-last-verified: 2026-11-02
+status: superseded
+last-verified: 2026-11-08
 ---
 
 # ADR 0224: 既知の履歴を共有して状態の変更部分を転送する
+
+現在の画面状態取得は[ADR 0230](0230-bounded-runtime-overview-and-session-content.md)へ移行する。このADRは従来の完全状態取得経路と、その検証記録を説明する。
 
 履歴全体の繰り返し転送を減らし、入力と送信に必要なメイン処理を空ける。[問題定義](../specs/large-session-responsiveness.md)の通信方式を実装した。固定した大履歴で転送削減、実アプリの入力反映と送信、内容の完全性を確認した。実IMEとキー単位の遅延は未測定で、現在のReleaseへの反映は別に扱う。
 

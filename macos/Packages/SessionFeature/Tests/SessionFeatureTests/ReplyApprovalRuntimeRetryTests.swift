@@ -39,11 +39,11 @@ struct ReplyApprovalRuntimeRetryTests {
         _ = await recoveredIterator.next()
         viewModel.draft = "local editing remains"
         let approval = try #require(viewModel.currentReplyApproval)
-        viewModel.markApprovalPresented(approval.id, at: .distantPast)
+        viewModel.markApprovalPresented(approval, at: .distantPast)
 
         let first = await viewModel.respond(to: approval, decision: .accept)
         #expect(!first)
-        #expect(viewModel.isApprovalArmed(approval.id))
+        #expect(viewModel.isApprovalArmed(approval))
         #expect(receivedRequests == [requestID])
         #expect(viewModel.draft == "local editing remains")
 
@@ -51,7 +51,7 @@ struct ReplyApprovalRuntimeRetryTests {
         let second = await viewModel.respond(to: approval, decision: .accept)
         #expect(second)
         #expect(receivedRequests == [requestID, requestID])
-        #expect(!viewModel.isApprovalArmed(approval.id))
+        #expect(!viewModel.isApprovalArmed(approval))
         #expect(viewModel.draft == "local editing remains")
         #expect(fetches == 1)
         #expect(acknowledgements == 1)

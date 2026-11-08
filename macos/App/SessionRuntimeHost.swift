@@ -100,6 +100,12 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
                     var snapshot = try root.dashboard.makeRuntimeSnapshot()
                     snapshot.usage = root.usage.makeRuntimeSnapshot()
                     return snapshot
+                }, overview: {
+                    var overview = root.dashboard.makeRuntimeOverview()
+                    overview.usage = root.usage.makeRuntimeSnapshot().boundedForOverview()
+                    return overview
+                }, content: { request in
+                    try root.dashboard.runtimeContent(for: request)
                 }, command: { command in
                     if case .usage(let usageCommand) = command {
                         try await root.usage.performRuntimeCommand(usageCommand)

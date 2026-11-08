@@ -32,6 +32,8 @@ struct ChatTranscriptView: View {
     @State private var pendingLoadAnchor: String?
     /// ローダーを出している端。指を離したときにこの端の側を読み込む。
     @State private var loadingEdge: VerticalEdge?
+    @State private var isLoadingRuntimeHistory = false
+    @State private var runtimeHistoryLoadError: String?
     /// 各ユーザー入力ブロックの content 座標系での minY。スクロール不変なので、
     /// レイアウト変化時のみ preference から更新される（スクロールでは再計算されない・ADR 0030）。
     @State private var userMessageOffsets: [String: CGFloat] = [:]
@@ -105,6 +107,15 @@ struct ChatTranscriptView: View {
                     CometLoader()
                         .padding(12)
                         .allowsHitTesting(false)
+                } else if viewModel.isRuntimeProjection && !viewModel.hasCompleteRuntimeTranscript {
+                    VStack(spacing: 4) {
+                        Button("履歴を読み込む") {
+                            Task { await loadRuntimeHistory() }
+                        }
+                        .disabled(isLoadingRuntimeHistory)
+                        if let runtimeHistoryLoadError { Text(runtimeHistoryLoadError).font(.caption) }
+                    }
+                    .padding(12)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -322,6 +333,7 @@ struct ChatTranscriptView: View {
 
     private func historyAccessibilityLabel(_ slice: ChatTranscriptSlice) -> String {
         let earlier = "チャット履歴。以前のメッセージ: \(slice.hiddenBlockCount) 件"
+            + (viewModel.hasMoreRuntimeTranscript ? "。さらに過去の履歴があります" : "")
         guard slice.hiddenNewerBlockCount > 0 else { return earlier }
         return earlier + "。以後のメッセージ: \(slice.hiddenNewerBlockCount) 件"
     }
@@ -401,7 +413,8 @@ struct ChatTranscriptView: View {
     private func beginLoading(_ edge: VerticalEdge) {
         guard loadingEdge == nil else { return }
         let slice = window.slice(of: transcriptItems, source: blockSource)
-        guard (edge == .top ? slice.hiddenBlockCount : slice.hiddenNewerBlockCount) > 0 else { return }
+        guard (edge == .top ? slice.hiddenBlockCount > 0 || viewModel.hasMoreRuntimeTranscript
+            : slice.hiddenNewerBlockCount > 0) else { return }
         jumpGeneration += 1
         autoFollow.userInitiatedJump()
         setDetached(true)
@@ -410,11 +423,40 @@ struct ChatTranscriptView: View {
 
     private func finishLoading() {
         guard let edge = loadingEdge else { return }
+        if edge == .top, window.slice(of: transcriptItems, source: blockSource).hiddenBlockCount == 0,
+           viewModel.hasMoreRuntimeTranscript {
+            let anchor = transcriptItems.first?.id
+            Task {
+                do {
+                    try await viewModel.loadEarlierRuntimeContent()
+                    if let anchor { pendingLoadAnchor = anchor }
+                    runtimeHistoryLoadError = nil
+                } catch SessionRuntimeContentError.staleContent { } catch {
+                    runtimeHistoryLoadError = error.localizedDescription
+                }
+                loadingEdge = nil
+            }
+            return
+        }
         autoFollow.userInitiatedJump()
         setDetached(true)
         let anchor = edge == .top ? window.loadEarlier(in: transcriptItems, source: blockSource) : window.loadNewer(in: transcriptItems, source: blockSource)
         pendingLoadAnchor = anchor
         loadingEdge = nil
+    }
+
+    private func loadRuntimeHistory() async {
+        guard !isLoadingRuntimeHistory else { return }
+        isLoadingRuntimeHistory = true
+        defer { isLoadingRuntimeHistory = false }
+        do {
+            try await viewModel.loadAllRuntimeContent()
+            runtimeHistoryLoadError = nil
+        } catch SessionRuntimeContentError.staleContent {
+            runtimeHistoryLoadError = nil
+        } catch {
+            runtimeHistoryLoadError = error.localizedDescription
+        }
     }
 
     private var agentDescriptor: AgentDescriptor {

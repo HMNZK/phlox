@@ -26,21 +26,22 @@ extension CodexStructuredAgentClient: CodexSkillSelectionClient {
 
 @MainActor @Observable
 public final class CodexSkillSelectionState {
-    public private(set) var skills: [SkillMetadata] = []
+    public private(set) var skills: [SkillMetadata] = [] { didSet { runtimePresentationChanged?() } }
     public private(set) var filteredSkills: [SkillMetadata] = []
     public private(set) var selectedSkill: SkillMetadata?
     public private(set) var selectedIndex: Int = 0
     public private(set) var draft = ""
     public private(set) var searchTerm = ""
-    public private(set) var isLoading = false
-    public private(set) var isStale = false
+    public private(set) var isLoading = false { didSet { runtimePresentationChanged?() } }
+    public private(set) var isStale = false { didSet { runtimePresentationChanged?() } }
     /// 一覧の更新後、変更前に選択していた skill を再選択する必要があるか。
     public private(set) var requiresReselection = false
-    public private(set) var errorMessage: String?
+    public private(set) var errorMessage: String? { didSet { runtimePresentationChanged?() } }
+    @ObservationIgnored var runtimePresentationChanged: (@MainActor () -> Void)?
 
     private let client: (any CodexSkillSelectionClient)?
     @ObservationIgnored private var runtimeRefresh: (@MainActor () async -> Void)?
-    private var runtimeFingerprints: [String: String] = [:]
+    private var runtimeFingerprints: [String: String] = [:] { didSet { runtimePresentationChanged?() } }
     private let sessionCWD: String
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?

@@ -410,7 +410,18 @@ public final class FileTabDocument {
     /// 開いてからこのファイルを書き換えた別セッションの表示名（07「アザミ · Codex」）。
     /// 分かるのはチャット型のファイル変更だけ。その後にターミナルやエディタが書き換えていれば分からないので nil。
     public func lastWriter(among sessions: [SessionNode], excluding sessionID: SessionID?) -> String? {
+        guard let request = lastWriterRequest(excluding: sessionID) else { return nil }
+        return Self.lastWriter(among: sessions, absolutePath: request.absolutePath,
+            baselineAt: request.baselineAt, excluding: request.excluding)
+    }
+
+    func lastWriterRequest(excluding sessionID: SessionID?) -> (absolutePath: String, baselineAt: Date, excluding: SessionID?)? {
         guard let baselineAt, let absolutePath else { return nil }
+        return (absolutePath, baselineAt, sessionID)
+    }
+
+    static func lastWriter(among sessions: [SessionNode], absolutePath: String,
+                           baselineAt: Date, excluding sessionID: SessionID?) -> String? {
         let target = Self.canonical(absolutePath, relativeTo: "/")
         var latest: (date: Date, name: String)?
         for node in sessions where node.id != sessionID {

@@ -76,17 +76,33 @@ import Testing
         #expect(agentText(projected.transcript.last) == "生成中の回答")
         #expect(!projected.hasMoreRuntimeTranscript)
 
-        var earlierEdit = streaming
+        var appendedAndEdited = streaming
+        appendedAndEdited.transcript[54] = .agentMessage(id: "item-55", text: "完成した回答", timestamp: .distantPast)
+        appendedAndEdited.transcript.append(.agentMessage(id: "item-56", text: "次の項目", timestamp: .distantPast))
+        appendedAndEdited.transcriptRevision = 9
+        let appendedSource = ChatSessionViewModel(projection: appendedAndEdited) { _, _ in .none }
+        projected.runtimeContentLoader = { try appendedSource.runtimeContent(for: $0) }
+        try projected.applyRuntimeOverview(overviewWithNonAppendRevision(
+            from: appendedSource.makeRuntimeOverview(), revision: 9))
+        try await projected.refreshRuntimeContent()
+
+        #expect(projected.transcript.count == 56)
+        #expect(projected.transcript.first?.id == "item-1")
+        #expect(agentText(projected.transcript[54]) == "完成した回答")
+        #expect(projected.transcript.last?.id == "item-56")
+        #expect(!projected.hasMoreRuntimeTranscript)
+
+        var earlierEdit = appendedAndEdited
         earlierEdit.transcript[0] = .agentMessage(id: "item-1", text: "変更された過去", timestamp: .distantPast)
-        earlierEdit.transcriptRevision = 9
+        earlierEdit.transcriptRevision = 10
         let earlierSource = ChatSessionViewModel(projection: earlierEdit) { _, _ in .none }
         projected.runtimeContentLoader = { try earlierSource.runtimeContent(for: $0) }
         try projected.applyRuntimeOverview(overviewWithNonAppendRevision(
-            from: earlierSource.makeRuntimeOverview(), revision: 9))
+            from: earlierSource.makeRuntimeOverview(), revision: 10))
         try await projected.refreshRuntimeContent()
 
         #expect(projected.transcript.count == 50)
-        #expect(projected.transcript.first?.id == "item-6")
+        #expect(projected.transcript.first?.id == "item-7")
         #expect(projected.hasMoreRuntimeTranscript)
     }
 

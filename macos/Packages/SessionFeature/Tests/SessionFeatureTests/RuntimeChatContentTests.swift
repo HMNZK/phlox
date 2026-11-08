@@ -74,6 +74,13 @@ import Testing
             return
         }
         #expect(afterEdit.entries.count > 0)
+        let checkedTail = try session.runtimeContent(for: .init(sessionID: snapshot.id,
+            executionID: snapshot.executionID, target: .chatTailChecking(cursor: cursor)))
+        guard case .chatPage(let checkedPage) = checkedTail else {
+            Issue.record("不変の過去を確認して末尾を取得できませんでした")
+            return
+        }
+        #expect(checkedPage.totalCount == 7)
         snapshot.transcript[0] = .agentMessage(id: "first", text: "edited", timestamp: .distantPast)
         snapshot.transcriptRevision += 1
         try session.applyRuntimeSnapshot(snapshot)
@@ -83,6 +90,10 @@ import Testing
             Issue.record("変更前の位置を受理しました")
         } catch {
             #expect(error as? SessionRuntimeContentError == .staleContent)
+        }
+        #expect(throws: SessionRuntimeContentError.staleContent) {
+            _ = try session.runtimeContent(for: .init(sessionID: snapshot.id,
+                executionID: snapshot.executionID, target: .chatTailChecking(cursor: cursor)))
         }
     }
 

@@ -5088,7 +5088,22 @@ extension ChatSessionViewModel {
                 runtimeLoadedPendingIdentity = pendingIdentity
             }
             if runtimeLoadedTailRevision != revision {
-                let response = try await loader(.init(sessionID: id, executionID: execution, target: .chatTail))
+                let checkingCursor = runtimeTailNeedsReplacement
+                    && runtimeContentStartIndex < (runtimeTailPrefixCursor?.index ?? 0)
+                    ? runtimeTailPrefixCursor : nil
+                let response: SessionRuntimeContentResponse
+                var verifiedPrefix = false
+                if let checkingCursor {
+                    do {
+                        response = try await loader(.init(sessionID: id, executionID: execution,
+                            target: .chatTailChecking(cursor: checkingCursor)))
+                        verifiedPrefix = true
+                    } catch SessionRuntimeContentError.staleContent {
+                        response = try await loader(.init(sessionID: id, executionID: execution, target: .chatTail))
+                    }
+                } else {
+                    response = try await loader(.init(sessionID: id, executionID: execution, target: .chatTail))
+                }
                 guard isCurrentRuntimeContent(execution: execution, revision: revision,
                     pendingIdentity: pendingIdentity) else { return }
                 guard case .chatPage(let page) = response,
@@ -5114,7 +5129,9 @@ extension ChatSessionViewModel {
                 var incomingStart = page.startIndex
                 var incomingCursor = page.olderCursor
                 var incomingUsage = page.turnUsageByItemID
-                while !runtimeTailNeedsReplacement, !transcript.isEmpty, incomingStart > oldEnd {
+                let bridgeStart = verifiedPrefix ? checkingCursor!.index : oldEnd
+                while (!runtimeTailNeedsReplacement || verifiedPrefix), !transcript.isEmpty,
+                      incomingStart > bridgeStart {
                     guard let cursor = incomingCursor else { throw SessionRuntimeContentError.staleContent }
                     let olderResponse = try await loader(.init(sessionID: id, executionID: execution,
                         target: .chatBefore(cursor: cursor)))
@@ -5150,13 +5167,14 @@ extension ChatSessionViewModel {
                     zip(transcript.dropFirst(incomingStart - runtimeContentStartIndex), items)
                         .allSatisfy { $0 == $1 }
                 if runtimeTailNeedsReplacement {
-                    let retainedCount = incomingStart - runtimeContentStartIndex
-                    if incomingCursor != nil, incomingCursor == runtimeTailPrefixCursor,
-                       retainedCount > 0, retainedCount <= transcript.count {
+                    let retainedCount = bridgeStart - runtimeContentStartIndex
+                    let incomingSkip = bridgeStart - incomingStart
+                    if verifiedPrefix, retainedCount > 0, retainedCount <= transcript.count,
+                       incomingSkip >= 0, incomingSkip <= items.count {
                         let retained = Array(transcript.prefix(retainedCount))
                         let retainedIDs = Set(retained.map(\.id))
                         turnUsageByItemID = turnUsageByItemID.filter { retainedIDs.contains($0.key) }
-                        transcript = retained + items
+                        transcript = retained + Array(items.dropFirst(incomingSkip))
                     } else {
                         transcript = items
                         runtimeContentStartIndex = incomingStart

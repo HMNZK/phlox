@@ -32,6 +32,7 @@ public struct SessionRuntimeContentCursor: Codable, Sendable, Equatable {
 public struct SessionRuntimeContentRequest: Codable, Sendable {
     public enum Target: Codable, Sendable {
         case chatTail
+        case chatTailChecking(cursor: SessionRuntimeContentCursor)
         case ptySnapshot(displayRevision: UInt64)
         case chatBefore(cursor: SessionRuntimeContentCursor)
         case pending(cursor: SessionRuntimeContentCursor?)

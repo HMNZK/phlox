@@ -52,13 +52,11 @@ extension ChatSessionViewModel {
             throw SessionRuntimeContentError.invalidRequest
         case .chatTail:
             response = .chatPage(try makeChatContentPage(before: transcript.count))
+        case .chatTailChecking(let cursor):
+            try validateChatCursor(cursor)
+            response = .chatPage(try makeChatContentPage(before: transcript.count))
         case .chatBefore(let cursor):
-            try Self.validate(cursor: cursor)
-            guard cursor.index < transcript.count,
-                  transcript[cursor.index].id == cursor.anchorID,
-                  try chatPrefixDigest(through: cursor.index) == cursor.prefixDigest else {
-                throw SessionRuntimeContentError.staleContent
-            }
+            try validateChatCursor(cursor)
             response = .chatPage(try makeChatContentPage(before: cursor.index))
         case .pending(let cursor):
             response = .pendingPage(try makePendingContentPage(cursor: cursor))
@@ -121,6 +119,15 @@ extension ChatSessionViewModel {
             throw SessionRuntimeContentError.invalidRequest
         }
         return response
+    }
+
+    private func validateChatCursor(_ cursor: SessionRuntimeContentCursor) throws {
+        try Self.validate(cursor: cursor)
+        guard cursor.index < transcript.count,
+              transcript[cursor.index].id == cursor.anchorID,
+              try chatPrefixDigest(through: cursor.index) == cursor.prefixDigest else {
+            throw SessionRuntimeContentError.staleContent
+        }
     }
 
     private func makeChatContentPage(before end: Int) throws -> SessionRuntimeChatPage {

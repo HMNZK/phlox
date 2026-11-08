@@ -1138,6 +1138,24 @@
       "reason": "差分 dev(b65dcd29)..35480794 は文書を除くと ios/App/AppRoot.swift と ios/PhloxMobileSnapshotTests/RootTransitionTests.swift の 2 件で、diffSHA256 の一致を確かめた。AppRoot.swift が physical-session-activity と physical-usage-preferences-refresh に、RootTransitionTests.swift が physical-history-follow に当たり、ほかの 3 シナリオには当たらない。修正は SessionDetailDestination に .id(id) を付ける 1 行で、PushCoordinator.openPendingSession が popToRoot と push を同じ処理で行うため経路が [詳細A] から [詳細B] へ同じ深さで置き換わり、画面が使い回されて @State の ViewModel が A のまま残る、という説明はコードと合っている。id は経路の値なので、同じセッション ID のまま再描画される場面・新規作成直後の recovery・onShowNextSession の push では画面の同一性と状態が保たれる。physical-session-activity の手順は別の詳細を開いたまま通知から結果を開く操作を既に含み、今回の修正は実装をその期待結果に合わせるもので、手順・期待結果・前提・method・testIDs を変える必要はない。physical-usage-preferences-refresh と physical-history-follow はパスが一致しただけで、usage の配線と履歴の引き寄せには触れていない。追加テストは通知先の見出しが出て元の見出しが消えたことを画面の文字認識で確かめる失敗しうる検査で、修正前の失敗と修正後の合格を実装者のログで確認した。シミュレータのテスト・quality・実機・実 APNs はレビュー側では実行していない。同じモデルの別コンテキストによるローカルの dev 統合に向けた差分レビューであり、push・main・リリースを承認するものではない。"
     },
     {
+      "baseOID": "b65dcd294ea153c138abfe6a3d15b3f770208564",
+      "targetOID": "5402c2201500ceec74c8c689648808f461bf53fa",
+      "diffSHA256": "fa2292ec6246329e0c2ac5101cef36c94f21f153c9f5031f8bffcc69cd8d8657",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/a5d48e1362cdaaf24"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-08T02:35:16Z",
+      "scenarioIDs": [
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation"
+      ],
+      "reason": "差分 dev(b65dcd29)..5402c220 は 5 ファイルで、正規化差分は DSInputBar.swift・DSInputBarLayoutTests.swift・ComposerIMESubmissionTests.swift の 3 件。codePaths と照合すると physical-session-activity・physical-history-follow・physical-activity-presentation の 3 件だけに当たり、3 件とも手順・期待結果・前提・method・testIDs を変える必要はない。変更は入力欄のチップの並べ方と送信後にキーボードを閉じることだけで、送信・実行・完了の状態の流れ、履歴の引き下げと VoiceOver の操作、文字拡大の観察条件には触れていない。文字拡大時は従来どおり段階 2 で止まり、wrapsSecondRow は isAccessibilitySize のときだけ立つ。拡大していないサイズで見積もりが外れたときに縮むのはモデル名だけで、思考の強さ・権限・プロジェクトのチップは幅を固定したまま。シミュレータのホスト付き検査で、428pt と 320pt で盾だけの強い権限のチップが ＋・モデル・「…」・送信と同じ行に画面内で並ぶことを座標で確かめた。キーボードを閉じる処理は onSubmit() の後で、未確定文字の確定・本文の同期・本文のクリアの順序を壊さない。新規チャットの作成失敗では、作成中に入力欄を使えなくする本番の形で遅れを 0〜300ms に変えて試し、focusRequest でキーボードが毎回戻った。既存テスト 2 件の期待値変更はユーザーが明示した 2 点の仕様変更そのもので、検出範囲は不当に狭まっていない。幅計算 12 件とホスト付き ComposerIMESubmissionTests 7 件がレビュー側でも合格した。権限メニューの読み上げ名が空なのは今回より前からの状態で、別途扱う。PhloxKit の全件・品質ゲート・実機・VoiceOver の実操作はレビュー側では実行していない。同じモデルの別コンテキストによるローカルの dev 統合に向けた差分レビューであり、push・main・リリースを承認するものではない。"
+    },
+    {
       "baseOID": "eee19ae50e75fc98346daebb70b4ccf91f9ee317",
       "targetOID": "b1045b542c783e94df4bf7cd74f5fc79372c3296",
       "diffSHA256": "02f0a993e836d164550978bd368b5f699b2d7217bea2f406d56d035148f69ff0",

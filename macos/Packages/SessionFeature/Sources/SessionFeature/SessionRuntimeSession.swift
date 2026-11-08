@@ -189,10 +189,10 @@ public struct SessionRuntimeSessionOverview: Codable, Sendable {
             switch status {
             case .awaitingApproval(let prompt):
                 let preview = SessionRuntimeTextPreview(prompt)
-                return (.awaitingApproval(prompt: preview.text), preview.truncated)
+                return (.awaitingApproval(prompt: preview.displayText), preview.truncated)
             case .error(let message):
                 let preview = SessionRuntimeTextPreview(message)
-                return (.error(message: preview.text), preview.truncated)
+                return (.error(message: preview.displayText), preview.truncated)
             default:
                 return (status, false)
             }

@@ -52,6 +52,44 @@ import Testing
         #expect(!projected.hasMoreRuntimeTranscript)
     }
 
+    @Test func streamingTailEditKeepsVerifiedOlderPagesAndEarlierEditInvalidatesThem() async throws {
+        let items = (1...55).map { number in
+            ChatItem.agentMessage(id: "item-\(number)", text: "回答 \(number)", timestamp: .distantPast)
+        }
+        let snapshot = chatSnapshot(items: items)
+        let source = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        let projected = ChatSessionViewModel(projection: source.makeRuntimeOverview()) { _, _ in .none }
+        projected.runtimeContentLoader = { try source.runtimeContent(for: $0) }
+        try await projected.loadAllRuntimeContent()
+
+        var streaming = snapshot
+        streaming.transcript[54] = .agentMessage(id: "item-55", text: "生成中の回答", timestamp: .distantPast)
+        streaming.transcriptRevision = 8
+        let streamingSource = ChatSessionViewModel(projection: streaming) { _, _ in .none }
+        projected.runtimeContentLoader = { try streamingSource.runtimeContent(for: $0) }
+        try projected.applyRuntimeOverview(overviewWithNonAppendRevision(
+            from: streamingSource.makeRuntimeOverview(), revision: 8))
+        try await projected.refreshRuntimeContent()
+
+        #expect(projected.transcript.count == 55)
+        #expect(projected.transcript.first?.id == "item-1")
+        #expect(agentText(projected.transcript.last) == "生成中の回答")
+        #expect(!projected.hasMoreRuntimeTranscript)
+
+        var earlierEdit = streaming
+        earlierEdit.transcript[0] = .agentMessage(id: "item-1", text: "変更された過去", timestamp: .distantPast)
+        earlierEdit.transcriptRevision = 9
+        let earlierSource = ChatSessionViewModel(projection: earlierEdit) { _, _ in .none }
+        projected.runtimeContentLoader = { try earlierSource.runtimeContent(for: $0) }
+        try projected.applyRuntimeOverview(overviewWithNonAppendRevision(
+            from: earlierSource.makeRuntimeOverview(), revision: 9))
+        try await projected.refreshRuntimeContent()
+
+        #expect(projected.transcript.count == 50)
+        #expect(projected.transcript.first?.id == "item-6")
+        #expect(projected.hasMoreRuntimeTranscript)
+    }
+
     @Test func oldTailResponseCannotOverwriteNewerOverview() async throws {
         let snapshot = chatSnapshot(items: [.agentMessage(id: "old", text: "旧回答", timestamp: .distantPast)])
         let source = ChatSessionViewModel(projection: snapshot) { _, _ in .none }

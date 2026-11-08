@@ -126,6 +126,7 @@ public final class ChatSessionViewModel: Identifiable {
         return chat
     }
     @ObservationIgnored private var runtimeOlderCursor: SessionRuntimeContentCursor?
+    @ObservationIgnored private var runtimeTailPrefixCursor: SessionRuntimeContentCursor?
     @ObservationIgnored private var runtimeContentStartIndex = 0
     @ObservationIgnored private var runtimeLoadedTailRevision: Int?
     @ObservationIgnored private var runtimeTailNeedsReplacement = false
@@ -5001,6 +5002,7 @@ extension ChatSessionViewModel {
                 turnUsageByItemID = [:]
                 runtimeOlderCursor = nil
                 runtimeContentStartIndex = 0
+                runtimeTailPrefixCursor = nil
                 runtimeTailNeedsReplacement = false
                 runtimeLoadedPresentationRevision = nil
                 runtimeFailedPresentationRevision = nil
@@ -5148,10 +5150,19 @@ extension ChatSessionViewModel {
                     zip(transcript.dropFirst(incomingStart - runtimeContentStartIndex), items)
                         .allSatisfy { $0 == $1 }
                 if runtimeTailNeedsReplacement {
-                    transcript = items
-                    runtimeContentStartIndex = incomingStart
-                    runtimeOlderCursor = incomingCursor
-                    turnUsageByItemID = [:]
+                    let retainedCount = incomingStart - runtimeContentStartIndex
+                    if incomingCursor != nil, incomingCursor == runtimeTailPrefixCursor,
+                       retainedCount > 0, retainedCount <= transcript.count {
+                        let retained = Array(transcript.prefix(retainedCount))
+                        let retainedIDs = Set(retained.map(\.id))
+                        turnUsageByItemID = turnUsageByItemID.filter { retainedIDs.contains($0.key) }
+                        transcript = retained + items
+                    } else {
+                        transcript = items
+                        runtimeContentStartIndex = incomingStart
+                        runtimeOlderCursor = incomingCursor
+                        turnUsageByItemID = [:]
+                    }
                     runtimeTailNeedsReplacement = false
                 } else if !transcript.isEmpty, incomingStart == oldEnd {
                     transcript.append(contentsOf: items)
@@ -5167,6 +5178,7 @@ extension ChatSessionViewModel {
                 transcriptIndexByID = Dictionary(transcript.enumerated().map { ($0.element.id, $0.offset) },
                     uniquingKeysWith: { _, last in last })
                 turnUsageByItemID.merge(incomingUsage) { _, new in new }
+                runtimeTailPrefixCursor = page.olderCursor
                 hasLoadedRuntimeTranscript = true
                 hasMoreRuntimeTranscript = runtimeOlderCursor != nil
                 runtimeLoadedTailRevision = revision

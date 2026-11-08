@@ -63,4 +63,21 @@ import Testing
         #expect(prompt.truncated)
         #expect(requiresDetail)
     }
+
+    @Test func truncatedStatusShowsOmissionMark() throws {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+            agentRef: .builtin(.codex), workingDirectory: "/workspace")
+        snapshot.status = .error(message: String(repeating: "失敗", count: 1_000))
+        let session = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+
+        let overview = session.makeRuntimeOverview()
+
+        guard case .error(let message) = overview.status else {
+            Issue.record("Error status was lost")
+            return
+        }
+        #expect(message.hasSuffix("…"))
+        #expect(message.utf8.count <= 515)
+        #expect(overview.statusRequiresDetail)
+    }
 }

@@ -3,6 +3,41 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.7</title>
+            <pubDate>Mon, 09 Nov 2026 06:24:03 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>New</h3>
+<ul>
+  <li>Agent activity is easier to follow with a status card for work and tasks.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+  <li>Large conversations open and update more reliably. Older messages load as you scroll while the visible conversation remains responsive.</li>
+  <li>Long messages and active terminal output no longer block other session updates.</li>
+  <li>Updating the app keeps running conversations alive. Background service changes take effect after the service is restarted.</li>
+</ul>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>新機能</h3>
+<ul>
+  <li>作業やタスクの進行状況を状態カードで追いやすくしました。</li>
+</ul>
+<h3>修正</h3>
+<ul>
+  <li>大きな会話の起動と更新を安定させました。古い発言はスクロールに応じて読み込み、表示中の会話は操作しやすい状態を保ちます。</li>
+  <li>長文や出力中の端末が、ほかのセッションの更新を妨げにくくしました。</li>
+  <li>アプリを更新しても実行中の会話は継続します。常駐サービス側の修正は、サービスの再起動後に反映されます。</li>
+</ul>
+]]></description>
+            <sparkle:version>51</sparkle:version>
+            <sparkle:shortVersionString>1.14.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.7.zip" length="31699627" type="application/octet-stream" sparkle:edSignature="2r7cVC6DBOOR8aZCniCQFq7ZY9yVSbVqUJZTlkUvPzoVJWkkF/jLgGgkpc/nGxcjV0ch+NdnUwTyb68GU0RoDQ=="/>
+        </item>
+        <item>
             <title>1.14.6</title>
             <pubDate>Fri, 06 Nov 2026 12:36:24 GMT</pubDate>
             <description xml:lang="en"><![CDATA[

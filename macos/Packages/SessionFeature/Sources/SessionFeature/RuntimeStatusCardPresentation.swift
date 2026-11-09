@@ -157,6 +157,63 @@ extension SessionRuntimeActionSummary {
     }
 }
 
+/// A closed action has no local cursor or detail task. Keep its header independent of unrelated card updates.
+private struct RuntimeCardActionEntry: View, Equatable {
+    let summary: SessionRuntimeActionSummary
+    let rowID: String
+    let scale: CGFloat
+    let isTimelineVisible: Bool
+    private let runtime: RuntimeStatusCardPresentation
+    private let openBinding: Binding<Bool>?
+    private let openSnapshot: Bool?
+
+    init(summary: SessionRuntimeActionSummary, rowID: String, scale: CGFloat, isTimelineVisible: Bool,
+         presentation: RuntimeStatusCardPresentation, openBinding: Binding<Bool>?) {
+        self.summary = summary
+        self.rowID = rowID
+        self.scale = scale
+        self.isTimelineVisible = isTimelineVisible
+        self.openBinding = openBinding
+        let openSnapshot = openBinding?.wrappedValue
+        self.openSnapshot = openSnapshot
+        let source = presentation.cache
+        let rows = SessionRuntimeCardRowsPage(sessionID: source.rows.sessionID, executionID: source.rows.executionID,
+            card: source.rows.card, rows: [], nextCursor: nil)
+        var ownCache = RuntimeCardReadCache(rows: rows, version: source.version, error: source.error)
+        if openSnapshot != false {
+            ownCache.actions[summary.id] = source.actions[summary.id]
+            ownCache.actionPageOffsets[summary.id] = source.actionPageOffsets[summary.id]
+        }
+        runtime = RuntimeStatusCardPresentation(inputID: presentation.inputID, cache: ownCache,
+            viewModel: presentation.viewModel, revealActionID: presentation.revealActionID,
+            revealSerial: presentation.revealSerial, itemActions: presentation.itemActions)
+    }
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        guard lhs.summary == rhs.summary, lhs.rowID == rhs.rowID, lhs.scale == rhs.scale,
+              lhs.isTimelineVisible == rhs.isTimelineVisible, lhs.openSnapshot == rhs.openSnapshot,
+              lhs.runtime.viewModel === rhs.runtime.viewModel, lhs.runtime.inputID == rhs.runtime.inputID,
+              lhs.runtime.cache.rows.sessionID == rhs.runtime.cache.rows.sessionID,
+              lhs.runtime.cache.rows.executionID == rhs.runtime.cache.rows.executionID,
+              lhs.runtime.cache.rows.card.id == rhs.runtime.cache.rows.card.id,
+              lhs.runtime.revealActionID == rhs.runtime.revealActionID, lhs.runtime.revealSerial == rhs.runtime.revealSerial else { return false }
+        switch (lhs.runtime.itemActions, rhs.runtime.itemActions) {
+        case (nil, nil): break
+        case (.some(let left), .some(let right)):
+            guard left.hasSameRenderState(as: right) else { return false }
+        default: return false
+        }
+        if lhs.openSnapshot == false { return true }
+        // Open and locally owned actions retain structure/content versions, errors, own details and their cursors.
+        return runtimeCardPresentationsMatch(lhs.runtime, rhs.runtime)
+    }
+
+    var body: some View {
+        AgentStatusActionRow(action: summary.action, scale: scale, isTimelineVisible: isTimelineVisible,
+            runtime: runtime, openBinding: openBinding)
+    }
+}
+
 struct RuntimeCardEntriesView: View {
     let presentation: RuntimeStatusCardPresentation
     let rowID: String
@@ -166,8 +223,9 @@ struct RuntimeCardEntriesView: View {
 
     private func actionBinding(_ actionID: String) -> Binding<Bool>? {
         guard let actionDisclosure else { return nil }
-        return Binding(get: { actionDisclosure.wrappedValue.isActionOpen(actionID, cardID: presentation.cache.rows.card.id) },
-            set: { actionDisclosure.wrappedValue.setActionOpen($0, actionID: actionID, cardID: presentation.cache.rows.card.id) })
+        let cardID = presentation.cache.rows.card.id
+        return Binding(get: { actionDisclosure.wrappedValue.isActionOpen(actionID, cardID: cardID) },
+            set: { actionDisclosure.wrappedValue.setActionOpen($0, actionID: actionID, cardID: cardID) })
     }
 
     private var page: SessionRuntimeCardEntriesPage? { presentation.cache.entries[rowID] }
@@ -192,18 +250,20 @@ struct RuntimeCardEntriesView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let visible = visibleEntries
+        return VStack(alignment: .leading, spacing: 0) {
             if let page {
-                ForEach(visibleEntries, id: \.id) { entry in
+                ForEach(visible, id: \.id) { entry in
                     switch entry {
                     case .item(let reference):
                         RuntimeChatItemReferenceView(reference: reference, viewModel: presentation.viewModel, actions: presentation.itemActions)
                     case .action(let summary):
-                        AgentStatusActionRow(action: summary.action, scale: scale,
-                            isTimelineVisible: isTimelineVisible, runtime: presentation, openBinding: actionBinding(summary.id))
+                        RuntimeCardActionEntry(summary: summary, rowID: rowID, scale: scale,
+                            isTimelineVisible: isTimelineVisible, presentation: presentation, openBinding: actionBinding(summary.id))
+                            .equatable()
                     }
                 }
-                let start = visibleEntries.first.flatMap { first in page.entries.firstIndex { $0.id == first.id } } ?? 0
+                let start = visible.first.flatMap { first in page.entries.firstIndex { $0.id == first.id } } ?? 0
                 if start > 0 || page.nextCursor != nil {
                     Button("さらに表示") {
                         if start > 0 {

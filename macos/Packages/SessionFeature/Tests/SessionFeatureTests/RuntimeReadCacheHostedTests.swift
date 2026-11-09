@@ -596,6 +596,97 @@ import Testing
         return false
     }
 
+    @Test(arguments: [false, true])
+    func actionEntryBoundariesKeepBindingsFreshDetailsErrorsAndRoutes(useParentBinding: Bool) async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let sessionID = SessionID()
+        let pair = try await projected(items: [
+            .userMessage(id: "input", text: "行の更新を確認", timestamp: started, attachments: []),
+            .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "工程", status: .inProgress)], timestamp: started),
+            .commandExecution(id: "first", command: "echo first", output: "FIRST_BODY", timestamp: started,
+                completedAt: started.addingTimeInterval(1), intent: nil),
+            .commandExecution(id: "second", command: "echo second", output: "OLD_SECOND_BODY", timestamp: started,
+                completedAt: started.addingTimeInterval(1), intent: nil),
+            .error(id: "launch-error-\(sessionID.rawValue)", message: "起動できませんでした", timestamp: started),
+        ], sessionID: sessionID)
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
+        var received: [String] = []
+        let errorText = URLError(.networkConnectionLost).localizedDescription
+
+        let usable = try await withHosted(ActionEntryBoundaryHost(viewModel: pair.projected, useParentBinding: useParentBinding)) { hosting in
+            try #require(try await waitForLabel("echo first", in: hosting))
+            var metadata = pair.source.makeRuntimeSnapshot()
+            metadata.transcript[1] = .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "更新した工程", status: .inProgress)], timestamp: started)
+            metadata.transcriptRevision = 8
+            try pair.source.applyRuntimeSnapshot(metadata)
+            try pair.projected.applyRuntimeOverview(pair.source.makeRuntimeOverview())
+            try await pair.projected.refreshRuntimeContent()
+            try await press(label: "echo first", in: hosting)
+            try #require(try await waitForLabel("FIRST_BODY", in: hosting))
+            try await press(label: "echo first", in: hosting)
+            try #require(try await waitForAbsentLabel("FIRST_BODY", in: hosting))
+
+            var changed = pair.source.makeRuntimeSnapshot()
+            changed.transcript[3] = .commandExecution(id: "second", command: "echo second", output: "LATEST_SECOND_BODY",
+                timestamp: started, completedAt: started.addingTimeInterval(1), intent: nil)
+            changed.transcriptRevision = 9
+            try pair.source.applyRuntimeSnapshot(changed)
+            try pair.projected.applyRuntimeOverview(pair.source.makeRuntimeOverview())
+            try await pair.projected.refreshRuntimeContent()
+            pair.projected.runtimeContentLoader = { request in
+                switch request.target {
+                case .chatActionItems, .chatActionItemsFrom: throw URLError(.networkConnectionLost)
+                default: return try await pair.source.runtimeChatReadContent(for: request)
+                }
+            }
+            try await press(label: "echo second", in: hosting)
+            try #require(try await waitForLabel(errorText, in: hosting))
+            pair.projected.runtimeContentLoader = { try await pair.source.runtimeChatReadContent(for: $0) }
+            try await press(label: "詳細を読み込む", in: hosting)
+            try #require(try await waitForLabel("LATEST_SECOND_BODY", in: hosting))
+            try #require(try await waitForAbsentLabel(errorText, in: hosting))
+
+            var latest = pair.source.makeRuntimeSnapshot()
+            latest.transcript[3] = .commandExecution(id: "second", command: "echo second", output: "FINAL_SECOND_BODY",
+                timestamp: started, completedAt: started.addingTimeInterval(1), intent: nil)
+            latest.transcriptRevision = 10
+            try pair.source.applyRuntimeSnapshot(latest)
+            try pair.projected.applyRuntimeOverview(pair.source.makeRuntimeOverview())
+            try await pair.projected.refreshRuntimeContent()
+            try #require(try await waitForLabel("FINAL_SECOND_BODY", in: hosting))
+            try #require(try await waitForAbsentLabel("LATEST_SECOND_BODY", in: hosting))
+            try #require(try await waitForAbsentIdentifier("ChatLaunchFailure.restart", in: hosting))
+            let actions = RuntimeChatItemActions(restart: { received.append("restart") },
+                close: { received.append("close") }, isRestarting: false)
+            hosting.rootView = ActionEntryBoundaryHost(viewModel: pair.projected, useParentBinding: useParentBinding, actions: actions)
+            try await press(identifier: "ChatLaunchFailure.restart", in: hosting)
+            try await press(identifier: "ChatLaunchFailure.close", in: hosting)
+            hosting.rootView = ActionEntryBoundaryHost(viewModel: pair.projected, useParentBinding: useParentBinding)
+            try #require(try await waitForAbsentIdentifier("ChatLaunchFailure.restart", in: hosting))
+            try #require(try await waitForAbsentIdentifier("ChatLaunchFailure.close", in: hosting))
+            try await press(label: "echo second", in: hosting)
+            try #require(try await waitForAbsentLabel("FINAL_SECOND_BODY", in: hosting))
+            return try await waitForLabel("echo second", in: hosting)
+        }
+        #expect(usable)
+        #expect(received == ["restart", "close"])
+    }
+
+    private struct ActionEntryBoundaryHost: View {
+        @Bindable var viewModel: ChatSessionViewModel
+        let useParentBinding: Bool
+        var actions: RuntimeChatItemActions? = nil
+        @State private var disclosure = AgentStatusCardDisclosure()
+
+        var body: some View {
+            if let cache = viewModel.runtimeChatRead.cards["input"] {
+                RuntimeCardEntriesView(presentation: RuntimeStatusCardPresentation(inputID: "input", cache: cache,
+                    viewModel: viewModel, itemActions: actions), rowID: "task-stage-0", scale: 1,
+                    isTimelineVisible: false, actionDisclosure: useParentBinding ? $disclosure : nil)
+            }
+        }
+    }
+
     private struct EntriesHost: View {
         @Bindable var viewModel: ChatSessionViewModel
         var body: some View {

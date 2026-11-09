@@ -1208,6 +1208,43 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "Independent read-only scenario review of main..release maps all changed code paths to six existing scenarios and finds no removed or weakened required tests or requirements. It notes that the new long-user-message acceptance is manual and physical scenarios are unverified; this pass applies to scenario coverage, not release readiness. Review details: .verification/release-1.14.7-20261109/claude-review.txt."
+    },
+    {
+      "baseOID": "a4353552e35e926f92bef928f40f7587bf18c6de",
+      "targetOID": "9baa3da6866336da90bb6426f520db9cb0fbb608",
+      "diffSHA256": "16088a137b722557bddb93cb23c928b6a4e084e460e59393cd78210ff4a48f0f",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-final-dev"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:28:10.742999Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "Independent final scenario review covers the 1.14.7 appcast addition and version bump, matching release notes, URL and runtime protocol. No required scenario or test weakened. Actual ZIP signature and size require the distribution gate; physical observations remain unverified. Full report: .verification/release-1.14.7-20261109/claude-final-review.txt."
+    },
+    {
+      "baseOID": "8a7489596f0a84e89619b2e7adda3f2aea12e984",
+      "targetOID": "9baa3da6866336da90bb6426f520db9cb0fbb608",
+      "diffSHA256": "b322ebfa3d4acab1c806dc21a6a1bf98dde91e7a142d452a467226adf4131760",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-final-main"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:28:10.742999Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "Independent final scenario review covers the 1.14.7 appcast addition and version bump, matching release notes, URL and runtime protocol. No required scenario or test weakened. Actual ZIP signature and size require the distribution gate; physical observations remain unverified. Full report: .verification/release-1.14.7-20261109/claude-final-review.txt."
     }
   ]
 }

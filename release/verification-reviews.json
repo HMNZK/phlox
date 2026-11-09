@@ -1171,6 +1171,43 @@
         "physical-activity-presentation"
       ],
       "reason": "差分 dev(b65dcd29)..5402c220 は 5 ファイルで、正規化差分は DSInputBar.swift・DSInputBarLayoutTests.swift・ComposerIMESubmissionTests.swift の 3 件。codePaths と照合すると physical-session-activity・physical-history-follow・physical-activity-presentation の 3 件だけに当たり、3 件とも手順・期待結果・前提・method・testIDs を変える必要はない。変更は入力欄のチップの並べ方と送信後にキーボードを閉じることだけで、送信・実行・完了の状態の流れ、履歴の引き下げと VoiceOver の操作、文字拡大の観察条件には触れていない。文字拡大時は従来どおり段階 2 で止まり、wrapsSecondRow は isAccessibilitySize のときだけ立つ。拡大していないサイズで見積もりが外れたときに縮むのはモデル名だけで、思考の強さ・権限・プロジェクトのチップは幅を固定したまま。シミュレータのホスト付き検査で、428pt と 320pt で盾だけの強い権限のチップが ＋・モデル・「…」・送信と同じ行に画面内で並ぶことを座標で確かめた。キーボードを閉じる処理は onSubmit() の後で、未確定文字の確定・本文の同期・本文のクリアの順序を壊さない。新規チャットの作成失敗では、作成中に入力欄を使えなくする本番の形で遅れを 0〜300ms に変えて試し、focusRequest でキーボードが毎回戻った。既存テスト 2 件の期待値変更はユーザーが明示した 2 点の仕様変更そのもので、検出範囲は不当に狭まっていない。幅計算 12 件とホスト付き ComposerIMESubmissionTests 7 件がレビュー側でも合格した。権限メニューの読み上げ名が空なのは今回より前からの状態で、別途扱う。PhloxKit の全件・品質ゲート・実機・VoiceOver の実操作はレビュー側では実行していない。同じモデルの別コンテキストによるローカルの dev 統合に向けた差分レビューであり、push・main・リリースを承認するものではない。"
+    },
+    {
+      "baseOID": "a4353552e35e926f92bef928f40f7587bf18c6de",
+      "targetOID": "cdf8175e89472ef6474f284e3ceb40acafaa3c6d",
+      "diffSHA256": "d0bab9f9992e0ccc545dd7bfb4f091289073350f2084b31766108d1758d5ffc3",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-version"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:09:59.257703Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "Independent read-only review of dev..release: only macos/project.yml changes the Mac marketing version from 1.14.6 to 1.14.7 and build number from 50 to 51. The fake-session-lifecycle codePaths cover it. No required scenario, test or requirement is removed or weakened. Review details: .verification/release-1.14.7-20261109/claude-version-review.txt."
+    },
+    {
+      "baseOID": "8a7489596f0a84e89619b2e7adda3f2aea12e984",
+      "targetOID": "cdf8175e89472ef6474f284e3ceb40acafaa3c6d",
+      "diffSHA256": "e622397d934dd1cdd642d429fb58b81c92e8bb28e59697d8e4ec75301ffc0321",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-main"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:09:59.257703Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "Independent read-only scenario review of main..release maps all changed code paths to six existing scenarios and finds no removed or weakened required tests or requirements. It notes that the new long-user-message acceptance is manual and physical scenarios are unverified; this pass applies to scenario coverage, not release readiness. Review details: .verification/release-1.14.7-20261109/claude-review.txt."
     }
   ]
 }

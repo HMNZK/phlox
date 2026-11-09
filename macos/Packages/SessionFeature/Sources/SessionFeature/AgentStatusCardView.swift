@@ -71,16 +71,6 @@ struct AgentStatusCardView: View, Equatable {
             else { localDisclosure = newValue }
         }
     }
-    private var actionDisclosureBinding: Binding<AgentStatusCardDisclosure> {
-        let bound = $boundDisclosure
-        let local = $localDisclosure
-        let usesBound = hasDisclosureBinding
-        return Binding(get: { bound.wrappedValue ?? local.wrappedValue }, set: { value in
-            if usesBound { bound.wrappedValue = value }
-            else { local.wrappedValue = value }
-        })
-    }
-
     /// 最初から開いている作業の行（画面外の描画で「作業を開いた」状態を作るために使う）。
     private let openActionIDs: Set<String>
     @State private var handledReveal: AgentStatusRevealRequest?
@@ -182,7 +172,7 @@ struct AgentStatusCardView: View, Equatable {
                             onToggle: { disclosure.toggle(row, in: card) },
                             onShowMore: { disclosure.showMore(row, in: card) },
                             runtime: runtime,
-                            actionDisclosure: actionDisclosureBinding
+                            actionDisclosure: Binding(get: { disclosure }, set: { disclosure = $0 })
                         )
                     }
                 }

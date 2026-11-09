@@ -32,13 +32,13 @@ CVM.handle
   - ターンの終わり方を、その入力の userMessage に書く（turnEnd）
         │ [ChatItem]（会話ログ。保存はこれだけ）
         ▼
-AgentStatusCardBuilder.build(items:, liveState:)   ← 純粋関数。表示のたびに組み立てる
-        │ [ChatTranscriptBlock]（.statusCard を新設。保存しない）
+共通の AgentStatusCardBuilder の規則 → 実行サービスの派生読取索引（ADR 0231）
+        │ ページ分割前に所属・集約・状態を確定、本文参照と詳細を有限取得
         ▼
-ChatTranscriptView → AgentStatusCardView（新規の部品。DisclosureCard は使わない）
+ChatTranscriptView → AgentStatusCardView（DisclosureCard は使わない）
 ```
 
-カード専用の保存データは作らない。カードは会話ログから毎回組み立てるので、保存した内容と表示が食い違わない（ADR 0226）。
+カード専用の保存データは作らない。正本は会話ログのままとし、実行サービスの再構築可能な索引で表示の意味を確定する（ADR 0226・[ADR 0231](../adr/0231-semantic-chat-read-model.md)）。以下の組み立て規則を共用し、画面では本文のページ断片から再判定しない。
 
 ## 2. 保存形式の変更（`SF/ChatItem.swift`）
 

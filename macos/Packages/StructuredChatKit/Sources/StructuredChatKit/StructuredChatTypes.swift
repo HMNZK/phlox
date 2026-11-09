@@ -167,8 +167,12 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     case rateLimitsUpdated(AgentRateLimitsSnapshot)
     case agentMessageDelta(itemId: String, String)
     case reasoningDelta(itemId: String, String)
-    case commandExecution(itemId: String, command: String?, outputDelta: String)
+    /// `intent` はエージェントが付けた短い説明（Claude の Bash の `description`）。無ければ nil。
+    case commandExecution(itemId: String, command: String?, outputDelta: String, intent: String? = nil)
     case fileChange(itemId: String, [FilePatchChange])
+    /// 作業（commandExecution / fileChange）の結果が届いた。会話ログの同じ id の item に終了時刻を書く。
+    /// 保存しない型なので、新設しても互換に影響しない。
+    case itemCompleted(itemId: String)
     case turnStarted
     /// ターンの使用量・コスト。`turnCompleted` の直前に yield される（tasks/task-2.md）。
     case turnUsage(TurnUsage)

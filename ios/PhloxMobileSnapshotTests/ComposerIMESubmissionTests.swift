@@ -1,3 +1,4 @@
+import AgentDomain
 import Darwin
 import SwiftUI
 import Testing
@@ -45,7 +46,7 @@ struct ComposerIMESubmissionTests {
     }
 
     @Test
-    func sendingCompositionKeepsTheEditorFocused() async throws {
+    func sendingCompositionDismissesTheKeyboard() async throws {
         let draft = Draft("前")
         let (window, editor) = try host(draft)
         defer { window.isHidden = true; window.rootViewController = nil }
@@ -62,7 +63,37 @@ struct ComposerIMESubmissionTests {
         try await settle(window)
         #expect(draft.text.isEmpty)
         #expect(editor.text.isEmpty)
-        #expect(editor.isFirstResponder)
+        #expect(!editor.isFirstResponder, "送信後はキーボードを閉じる")
+    }
+
+    @Test(arguments: [428.0, 320.0])
+    func strongPermissionControlsStayOnOneRow(width: Double) async throws {
+        let draft = Draft("")
+        let settings = DSInputBarSettings(
+            agentName: "Claude Code",
+            effortOptions: [.init(value: "high", displayName: "高")],
+            selectedEffort: "high",
+            permissionOptions: [.init(value: "bypassPermissions", displayName: "Bypass Permissions")],
+            selectedPermission: "bypassPermissions"
+        )
+        let (window, _) = try host(draft, width: width, model: (.claudeCode, "Default: Opus 5.5"), settings: settings)
+        defer { window.isHidden = true; window.rootViewController = nil }
+        try await settle(window)
+        let elements = objects(in: window)
+        func frame(_ matches: (String) -> Bool) throws -> CGRect {
+            try #require(elements.first { ($0.accessibilityLabel).map(matches) ?? false }).accessibilityFrame
+        }
+        let controls = [
+            try frame { $0 == "画像を添付" },
+            try frame { $0.hasPrefix("モデル、") },
+            try frame { $0 == "思考の強さと権限を変更" },
+            try frame { $0 == DSInputBar.sendAccessibilityLabel },
+        ]
+        let row = controls[0].midY
+        for control in controls {
+            #expect(abs(control.midY - row) < 1, "チップと送信が 1 行に並ぶ: \(controls)")
+            #expect(control.minX >= 0 && control.maxX <= width, "画面からはみ出さない: \(controls)")
+        }
     }
 
     @Test
@@ -128,7 +159,10 @@ struct ComposerIMESubmissionTests {
         #expect(editor.markedTextRange != nil)
     }
 
-    private func host(_ draft: Draft, clearsOnSubmit: Bool = true, isLoading: Bool = false) throws -> (UIWindow, UITextView) {
+    private func host(
+        _ draft: Draft, clearsOnSubmit: Bool = true, isLoading: Bool = false, width: Double = 390,
+        model: (kind: AgentKind, displayName: String)? = nil, settings: DSInputBarSettings? = nil
+    ) throws -> (UIWindow, UITextView) {
         // shortcut: ホスト付きテストの AX 初期化は非公開 API。UIKit に公開入口ができたら置き換える。
         let library = try #require(dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW))
         defer { dlclose(library) }
@@ -137,13 +171,15 @@ struct ComposerIMESubmissionTests {
         let bar = DSInputBar(
             text: Binding(get: { draft.text }, set: { draft.text = $0 }),
             cursorUTF16: Binding(get: { draft.cursor }, set: { draft.cursor = $0 }),
-            isLoading: isLoading
+            isLoading: isLoading,
+            model: model,
+            settings: settings
         ) {
             draft.submissions.append(draft.text)
             if clearsOnSubmit { draft.text = ""; draft.cursor = 0 }
         }
         let controller = UIHostingController(rootView: bar)
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: 844))
         window.windowScene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         window.rootViewController = controller
         window.makeKeyAndVisible()

@@ -394,11 +394,12 @@ private func sameChatItem(_ lhs: ChatItem, _ rhs: ChatItem) throws -> Bool {
          let (.reasoning(leftID, leftText, _), .reasoning(rightID, rightText, _)),
          let (.error(leftID, leftText, _), .error(rightID, rightText, _)):
         return sameUTF8(leftID, rightID) && sameUTF8(leftText, rightText)
-    case let (.commandExecution(leftID, leftCommand, leftOutput, _),
-              .commandExecution(rightID, rightCommand, rightOutput, _)):
+    case let (.commandExecution(leftID, leftCommand, leftOutput, _, leftCompletedAt, leftIntent),
+              .commandExecution(rightID, rightCommand, rightOutput, _, rightCompletedAt, rightIntent)):
         return sameUTF8(leftID, rightID) && sameUTF8(leftCommand, rightCommand) && sameUTF8(leftOutput, rightOutput)
-    case let (.userMessage(leftID, leftText, _, leftAttachments), .userMessage(rightID, rightText, _, rightAttachments)):
-        guard sameUTF8(leftID, rightID), sameUTF8(leftText, rightText) else { return false }
+            && leftCompletedAt == rightCompletedAt && sameUTF8(leftIntent, rightIntent)
+    case let (.userMessage(leftID, leftText, _, leftAttachments, leftTurnEnd), .userMessage(rightID, rightText, _, rightAttachments, rightTurnEnd)):
+        guard sameUTF8(leftID, rightID), sameUTF8(leftText, rightText), leftTurnEnd == rightTurnEnd else { return false }
         if sharesStorage(leftAttachments, rightAttachments) { return true }
         return try sameEncodedValue(leftAttachments, rightAttachments)
     case let (.subAgentMarker(leftID, leftType, leftDescription, leftStatus),
@@ -407,8 +408,8 @@ private func sameChatItem(_ lhs: ChatItem, _ rhs: ChatItem) throws -> Bool {
             && sameUTF8(leftDescription, rightDescription) && leftStatus == rightStatus
     case let (.turnCost(leftID, leftCost, _), .turnCost(rightID, rightCost, _)):
         return sameUTF8(leftID, rightID) && leftCost.bitPattern == rightCost.bitPattern
-    case let (.fileChange(leftID, leftChanges, _), .fileChange(rightID, rightChanges, _)):
-        guard sameUTF8(leftID, rightID) else { return false }
+    case let (.fileChange(leftID, leftChanges, _, leftCompletedAt), .fileChange(rightID, rightChanges, _, rightCompletedAt)):
+        guard sameUTF8(leftID, rightID), leftCompletedAt == rightCompletedAt else { return false }
         if sharesStorage(leftChanges, rightChanges) { return true }
         return try sameEncodedValue(leftChanges, rightChanges)
     case let (.taskList(leftID, leftTasks, _), .taskList(rightID, rightTasks, _)):

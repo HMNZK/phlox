@@ -7,15 +7,11 @@ import Testing
 struct TranscriptWindowContextWhiteboxTests {
 
     @Test
-    func gridTile_reveal_makesHiddenIndexVisibleWithinGridWindow() {
+    func gridTile_resetReturnsToGridDefault_afterExpand() {
         let total = 1000
         var window = TranscriptWindow(context: .gridTile)
         // 1000 - 16（gridTile 既定件数。ADR 0116 で 40 から引き下げ）
         #expect(window.visibleRange(totalCount: total).startIndex == 984)
-
-        window.reveal(index: 100, totalCount: total)
-        let start = window.visibleRange(totalCount: total).startIndex
-        #expect(start <= 100, "gridTile reveal 後に index=100 が可視域に入っていない start=\(start)")
 
         window.expand()
         window.reset()
@@ -41,22 +37,6 @@ struct TranscriptWindowContextWhiteboxTests {
     }
 
     @Test
-    func singleContext_revealMarginToleratesStreamingGrowthUpToNewExpandStep() {
-        let targetIndex = 949
-        let oldTotal = 1000
-        var window = TranscriptWindow(context: .single)
-        #expect(window.visibleRange(totalCount: oldTotal).startIndex == 950)
-
-        window.reveal(index: targetIndex, totalCount: oldTotal)
-
-        for delta in [0, 1, 49, 50] {
-            let start = window.visibleRange(totalCount: oldTotal + delta).startIndex
-            #expect(start <= targetIndex,
-                    "single reveal: index=\(targetIndex) が delta=\(delta) の成長で隠れ域へ落ちた start=\(start)")
-        }
-    }
-
-    @Test
     func singleContext_visibleRangeKeepsNewestItemVisibleAsTranscriptGrows() {
         let window = TranscriptWindow(context: .single)
 
@@ -64,20 +44,6 @@ struct TranscriptWindowContextWhiteboxTests {
             let range = window.visibleRange(totalCount: totalCount)
             #expect(range.startIndex <= totalCount - 1)
             #expect(totalCount - range.startIndex <= 50)
-        }
-    }
-
-    @Test
-    func gridTile_reveal_marginToleratesStreamingGrowthUpToExpandStep() {
-        let targetIndex = 10
-        var window = TranscriptWindow(context: .gridTile)
-        let oldTotal = 500
-        #expect(window.visibleRange(totalCount: oldTotal).startIndex > targetIndex)
-        window.reveal(index: targetIndex, totalCount: oldTotal)
-        for delta in [0, 1, TranscriptWindow.expandStep] {
-            let start = window.visibleRange(totalCount: oldTotal + delta).startIndex
-            #expect(start <= targetIndex,
-                    "gridTile reveal: index=\(targetIndex) が delta=\(delta) の成長で隠れ域へ落ちた start=\(start)")
         }
     }
 }

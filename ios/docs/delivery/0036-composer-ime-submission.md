@@ -39,3 +39,5 @@
 除外後の品質検査は一度成功したが、DashboardFeatureの古い固定ファイルが `swift-argument-parser` 1.8.1から1.8.2へ自動更新され、候補の整合性検査で停止した。最新devにはSessionFeature・AppBootstrapと整合する1.8.2の固定ファイルが入り、固定版だけの依存解決も成功している。依存の要求範囲は変更していない。依存解決の一時確認で使った `--skip-update` には廃止予定警告が出たが、永続設定には追加していない。
 
 前提不足のまま試した対話操作を要する全体UI検査は失敗・中断しており、上記31テストの成功とは区別する。専用ビルド・画像・生ログは保持要件がないため、後片付けで処分し、本書に結果と既知の例外を残す。
+
+2026-11-08 追記: ユーザー指示で、送信後はフォーカスを保たずキーボードを閉じる仕様に変えた（`redesign-2026-10.md` AC-6-5a）。`sendingCompositionKeepsTheEditorFocused` は `sendingCompositionDismissesTheKeyboard` に改め、上表の「フォーカス維持」はこの日以前の結果である。

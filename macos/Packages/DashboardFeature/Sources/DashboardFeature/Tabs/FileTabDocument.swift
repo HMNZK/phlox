@@ -410,12 +410,23 @@ public final class FileTabDocument {
     /// 開いてからこのファイルを書き換えた別セッションの表示名（07「アザミ · Codex」）。
     /// 分かるのはチャット型のファイル変更だけ。その後にターミナルやエディタが書き換えていれば分からないので nil。
     public func lastWriter(among sessions: [SessionNode], excluding sessionID: SessionID?) -> String? {
+        guard let request = lastWriterRequest(excluding: sessionID) else { return nil }
+        return Self.lastWriter(among: sessions, absolutePath: request.absolutePath,
+            baselineAt: request.baselineAt, excluding: request.excluding)
+    }
+
+    func lastWriterRequest(excluding sessionID: SessionID?) -> (absolutePath: String, baselineAt: Date, excluding: SessionID?)? {
         guard let baselineAt, let absolutePath else { return nil }
+        return (absolutePath, baselineAt, sessionID)
+    }
+
+    static func lastWriter(among sessions: [SessionNode], absolutePath: String,
+                           baselineAt: Date, excluding sessionID: SessionID?) -> String? {
         let target = Self.canonical(absolutePath, relativeTo: "/")
         var latest: (date: Date, name: String)?
         for node in sessions where node.id != sessionID {
             guard case .appServer(let chat) = node else { continue }
-            for case .fileChange(_, let changes, let timestamp) in chat.transcript
+            for case .fileChange(_, let changes, let timestamp, _) in chat.transcript
             where timestamp > baselineAt && timestamp > (latest?.date ?? .distantPast)
                 && changes.contains(where: { Self.canonical($0.path, relativeTo: node.rawWorkspacePath) == target }) {
                 latest = (timestamp, "\(node.displayName) · \(node.agentDescriptor.displayName)")

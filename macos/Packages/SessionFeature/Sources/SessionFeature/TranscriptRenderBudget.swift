@@ -18,6 +18,14 @@ enum TranscriptRenderBudget {
     static let textCharacterUnits = 5
     /// セル骨格など、内容量に比例しない 1 ブロックの最低較正重み。
     static let otherBlockUnits = 50
+    /// エージェント状態カードの、タスク・タスク外の行 1 本あたりの重み。
+    /// 2026-11-07 の画面外の計測（NSHostingView の初回レイアウト＋描画、10 枚の中央値、release）で、
+    /// 短い agentMessage のセル（50 units）を物差しにすると、閉じた行 1 本が約 14 units、開いた作業の行
+    /// 1 本が約 27 units、行 1 本のカードの骨格が約 60 units（= 50 + 1 行）だった（debug は 12〜19 と 20〜29）。
+    /// 実アプリの N=50 計測（上の 2026-07-29）とは方法が違う相対値なので、較正し直すときは同じ手順で測る。
+    static let statusCardRowUnits = 14
+    /// 同、開いている作業の行 1 本あたりの重み（上と同じ計測）。
+    static let statusCardEntryUnits = 27
     /// 200ms（目標）- 107ms（骨格固定費）= 93ms。
     static let defaultUnits = 9_300
     /// 最新の会話文脈を失わないために、予算超過時も描画する既定の最低件数。
@@ -76,17 +84,24 @@ enum TranscriptRenderBudget {
         case .commandGroup:
             return otherBlockUnits
 
+        case .statusCard(let card):
+            // 重みは開いている作業の行の数に比例させる（手で開いた行は View の状態なので数えない）。
+            return saturatedSum(
+                saturatedSum(otherBlockUnits, saturatedProduct(card.rows.count, statusCardRowUnits)),
+                saturatedProduct(card.openEntryCount, statusCardEntryUnits)
+            )
+
         case .single(let item):
             switch item {
             case .agentMessage(_, let text, _),
-                 .userMessage(_, let text, _, _),
+                 .userMessage(_, let text, _, _, _),
                  .reasoning(_, let text, _):
                 return max(otherBlockUnits, saturatedProduct(text.count, textCharacterUnits))
 
             case .error(_, let message, _):
                 return max(otherBlockUnits, saturatedProduct(message.count, textCharacterUnits))
 
-            case .fileChange(_, let changes, _):
+            case .fileChange(_, let changes, _, _):
                 let totalLineCount = changes.reduce(into: 0) { count, change in
                     count = saturatedSum(count, ChatMessageRenderCache.diffLines(change.diff).count)
                 }
@@ -111,7 +126,7 @@ enum TranscriptRenderBudget {
         return result.overflow ? Int.max : result.partialValue
     }
 
-    private static func countWithinBudget(
+    static func countWithinBudget(
         _ blocks: ArraySlice<ChatTranscriptBlock>,
         budget: Int
     ) -> Int {

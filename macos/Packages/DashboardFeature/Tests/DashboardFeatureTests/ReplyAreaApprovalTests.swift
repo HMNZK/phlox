@@ -92,7 +92,7 @@ func replyApproval_ignoresPressWithinHalfSecond_thenSendsAllow() async throws {
     #expect(approval.kind == .tool)
 
     let shownAt = Date()
-    vm.markApprovalPresented(approval.id, at: shownAt)
+    vm.markApprovalPresented(approval, at: shownAt)
     // 出た直後（0.3 秒）の押下は無視する。
     #expect(await vm.respond(to: approval, decision: .accept, now: shownAt.addingTimeInterval(0.3)) == false)
     #expect(client.answers.isEmpty)

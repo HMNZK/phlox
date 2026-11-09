@@ -57,7 +57,7 @@ public struct ChatItemView: View, Equatable {
 
     public var body: some View {
         switch item {
-        case .userMessage(let id, let text, let timestamp, let attachments):
+        case .userMessage(let id, let text, let timestamp, let attachments, _):
             if id.hasPrefix(ChatSessionViewModel.pendingFirstMessageIDPrefix) {
                 VStack(alignment: .trailing, spacing: DSSpacing.xs) {
                     UserMessageCell(text: text, timestamp: timestamp, attachments: attachments)
@@ -80,13 +80,13 @@ public struct ChatItemView: View, Equatable {
             } else {
                 ReasoningSummaryView(text: text, timestamp: timestamp)
             }
-        case .commandExecution(_, let command, let output, let timestamp):
+        case .commandExecution(_, let command, let output, let timestamp, _, _):
             if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isRunningCommand {
                 EmptyView()
             } else {
                 CommandExecutionCell(command: command, output: output, timestamp: timestamp, isRunning: isRunningCommand)
             }
-        case .fileChange(let id, let changes, let timestamp):
+        case .fileChange(let id, let changes, let timestamp, _):
             FileChangeCell(changes: changes, timestamp: timestamp, itemID: id)
         case .error(_, let message, let timestamp):
             ErrorMessageCell(
@@ -103,8 +103,9 @@ public struct ChatItemView: View, Equatable {
                 description: description,
                 status: status
             )
-        case .taskList(_, let tasks, let timestamp):
-            TaskListCell(tasks: tasks, timestamp: timestamp)
+        case .taskList:
+            // タスクはエージェント状態カードに出す（Claude・Codex）。Cursor は taskList を持たない。
+            EmptyView()
         case .turnCost(_, let costUSD, let timestamp):
             TurnCostCell(costUSD: costUSD, timestamp: timestamp, usage: turnUsage)
         case .userQuestion(_, _, _, _, .pending, _) where onRespondToUserQuestion != nil:

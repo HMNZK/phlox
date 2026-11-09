@@ -89,7 +89,7 @@ import StructuredChatKit
     """)
 
     let event = await iterator.next()
-    guard case .commandExecution(let itemId, let command, let outputDelta) = event else {
+    guard case .commandExecution(let itemId, let command, let outputDelta, _) = event else {
         Issue.record("expected commandExecution fallback, got \(String(describing: event))")
         await client.close()
         return

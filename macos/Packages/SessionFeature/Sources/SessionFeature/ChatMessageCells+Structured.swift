@@ -155,6 +155,7 @@ struct ThinkingIndicatorCell: View {
             isInViewHierarchy = false
         }
         .onViewportVisibilityChange { isInViewport = $0 }
+        .accessibilityIdentifier("ChatThinkingIndicator")
     }
 
     /// 無応答（04 B5）では行全体を紫の面と縁で囲み、経過と「中断」を右に出す。
@@ -394,6 +395,14 @@ struct FileChangeCell: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
     @Environment(\.locale) private var locale
+
+    /// `startsExpanded`: 状態カードの作業の行を開いたとき、中の見出しをもう一度開かせないために使う。
+    init(changes: [FilePatchChange], timestamp: Date, itemID: String? = nil, startsExpanded: Bool = false) {
+        self.changes = changes
+        self.timestamp = timestamp
+        self.itemID = itemID
+        _userExpandedOverride = State(initialValue: startsExpanded ? true : nil)
+    }
 
     struct DiffSection: Identifiable {
         let id: Int

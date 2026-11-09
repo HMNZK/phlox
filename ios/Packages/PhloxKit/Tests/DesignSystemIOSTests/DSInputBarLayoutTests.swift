@@ -101,7 +101,8 @@ struct DSInputBarLayoutTests {
 
         #expect(layout.mergesSettings)
         #expect(layout.keepsStrongPermissionVisible)
-        #expect(layout.wrapsSecondRow)
+        #expect(layout.showsStrongPermissionIconOnly)
+        #expect(!layout.wrapsSecondRow)
     }
 
     @Test("428pt の強い権限は赤いチップを保つ")
@@ -160,6 +161,23 @@ struct DSInputBarLayoutTests {
 
         #expect(layout.keepsStrongPermissionVisible)
         #expect(layout.wrapsSecondRow)
+    }
+
+    @Test("強い権限が入らない幅でも 2 段目を折り返さない")
+    func strongPermissionStaysOnOneRowWhenCompressed() {
+        let layout = resolve(
+            width: 380,
+            mode: .session,
+            modelName: "Default: Opus 5.5",
+            effort: "高",
+            permission: "Bypass Permissions",
+            isStrongPermission: true
+        )
+
+        #expect(layout.mergesSettings)
+        #expect(layout.keepsStrongPermissionVisible)
+        #expect(layout.showsStrongPermissionIconOnly)
+        #expect(!layout.wrapsSecondRow)
     }
 
     private func resolve(

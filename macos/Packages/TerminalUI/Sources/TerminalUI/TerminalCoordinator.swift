@@ -127,6 +127,18 @@ public final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         try applyRuntimeDisplaySnapshot(snapshot)
     }
 
+    public static func emptyRuntimeProjection() -> TerminalCoordinator {
+        let coordinator = TerminalCoordinator()
+        coordinator.isRuntimeProjection = true
+        return coordinator
+    }
+
+    public func clearRuntimeProjectionDisplay() {
+        guard isRuntimeProjection else { return }
+        terminalView.feed(byteArray: ArraySlice(Data("\u{1b}[?1049l\u{1b}c".utf8)))
+        terminalView.needsDisplay = true
+    }
+
     private static var runtimeImages: TerminalRuntimeImageStore?
 
     public static func configureRuntimeImageStore(directory: URL, writable: Bool,

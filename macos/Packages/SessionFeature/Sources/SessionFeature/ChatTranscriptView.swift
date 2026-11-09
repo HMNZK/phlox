@@ -16,22 +16,24 @@ struct ChatTranscriptView: View {
     private let onLaunchFailureRestart: (() -> Void)?
     private let isLaunchFailureRestarting: Bool
     private let onLaunchFailureClose: (() -> Void)?
-    private let defaultWindowLimit: Int
+    private let presentationContext: TranscriptPresentationContext
     @State private var autoFollow = ChatAutoFollowController()
-    // 表示件数制限（末尾 N 件のみ描画。ADR 0030:22）。view-local な @State に住み、
-    // body 評価中には書かない（visibleRange は読み取りのみ）。expand は明示スクロール入力、
-    // reset はセッション切替の onChange から呼ぶ（ADR 0010: 描画中 state 変更の禁止）。
+    // 表示窓（ADR 0030:22・0229）。view-local な @State に住み、body 評価中には書かない。
+    // 動かすのは明示スクロール入力・ジャンプ・セッション切替のイベントだけ（ADR 0010）。
     @State private var window: TranscriptWindow
-    /// 明示ジャンプで必要になった末尾ブロック数。通常のコスト予算より優先する。
-    @State private var revealMinimumBlockCount = 0
     // 遅延 scrollTo の世代トークン。ジャンプごと・セッション切替ごと・展開ごとに増やし、pending 遅延
     // Task は捕捉した世代が現在値と一致するときだけ scrollTo する（stale/後続操作時の誤スクロール防止）。
     @State private var jumpGeneration = 0
-    // 履歴追加前の先頭可視 item の id を捕捉して置く一時アンカー。
-    // 展開後にビューポートが履歴の先頭へ飛ぶのを防ぎ、押下時に見えていた位置へ留めるための単発シグナル
+    /// 作業への移動のとき、その作業を含む行をカードに開かせる要求（移動のたびに作り直す）。
+    @State private var statusCardRevealRequest: AgentStatusRevealRequest?
+    // 窓を動かす前に見えていた端のブロックを捕捉して置く一時アンカー。
+    // 読み込み後にビューポートが飛ぶのを防ぎ、操作時に見えていた位置へ留めるための単発シグナル
     // （requestedScrollTarget と同じ @State ワンショット方式・ScrollViewReader レベルの onChange で処理）。
-    @State private var pendingExpandAnchor: String?
-    @State private var isLoadingEarlier = false
+    @State private var pendingLoadAnchor: String?
+    /// ローダーを出している端。指を離したときにこの端の側を読み込む。
+    @State private var loadingEdge: VerticalEdge?
+    @State private var isLoadingRuntimeHistory = false
+    @State private var runtimeHistoryLoadError: String?
     /// 各ユーザー入力ブロックの content 座標系での minY。スクロール不変なので、
     /// レイアウト変化時のみ preference から更新される（スクロールでは再計算されない・ADR 0030）。
     @State private var userMessageOffsets: [String: CGFloat] = [:]
@@ -70,7 +72,7 @@ struct ChatTranscriptView: View {
         self.isLaunchFailureRestarting = isLaunchFailureRestarting
         self.onLaunchFailureClose = onLaunchFailureClose
         _window = State(initialValue: TranscriptWindow(context: presentationContext))
-        defaultWindowLimit = TranscriptWindow.defaultLimit(for: presentationContext)
+        self.presentationContext = presentationContext
     }
 
     var body: some View {
@@ -78,18 +80,21 @@ struct ChatTranscriptView: View {
         ScrollViewReader { proxy in
             let transcriptSignal = transcriptFollowSignal
             let items = transcriptItems
+            let visibleSlice = window.slice(of: items, source: blockSource)
             ScrollView {
-                transcriptContent(items: items, transcriptSignal: transcriptSignal, scrollProxy: proxy)
+                transcriptContent(visibleSlice: visibleSlice, transcriptSignal: transcriptSignal, scrollProxy: proxy)
                     .background(
                         ChatAutoFollowScrollObserver(
                             controller: autoFollow,
                             onViewportCenterChanged: { updateCurrentInputPosition(viewportCenterY: $0, items: items) },
                             onDetachedChanged: setDetached,
-                            onScrollPastTop: beginLoadingEarlier,
-                            onScrollAwayFromTop: {
-                                if isLoadingEarlier { isLoadingEarlier = false }
+                            onScrollPastTop: { beginLoading(.top) },
+                            onScrollPastBottom: { beginLoading(.bottom) },
+                            onScrollAwayFromEdge: {
+                                if loadingEdge != nil { loadingEdge = nil }
                             },
-                            onScrollReleased: finishLoadingEarlier
+                            onScrollReleased: finishLoading,
+                            hasNewerHidden: visibleSlice.hiddenNewerBlockCount > 0
                         )
                         .id(viewModel.id)
                     )
@@ -98,13 +103,29 @@ struct ChatTranscriptView: View {
                 userMessageOffsets = offsets
             }
             .overlay(alignment: .top) {
-                if isLoadingEarlier {
+                if loadingEdge == .top {
                     CometLoader()
                         .padding(12)
                         .allowsHitTesting(false)
+                } else if viewModel.isRuntimeProjection && !viewModel.hasCompleteRuntimeTranscript {
+                    VStack(spacing: 4) {
+                        Button("履歴を読み込む") {
+                            Task { await loadRuntimeHistory() }
+                        }
+                        .disabled(isLoadingRuntimeHistory)
+                        if let runtimeHistoryLoadError { Text(runtimeHistoryLoadError).font(.caption) }
+                    }
+                    .padding(12)
                 }
             }
-            .onDisappear { isLoadingEarlier = false }
+            .overlay(alignment: .bottom) {
+                if loadingEdge == .bottom {
+                    CometLoader(label: "以後のメッセージを読み込み中")
+                        .padding(.bottom, bottomScrollContentMargin + 12)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onDisappear { loadingEdge = nil }
             // 追従を外している間だけ、最新へ戻るボタンを会話の下端（入力欄の上）に浮かせる。
             // レイアウトには参加させない（ADR 0030: スクロール位置を内容のレイアウトへ戻さない）。
             .overlay(alignment: .bottom) {
@@ -120,7 +141,14 @@ struct ChatTranscriptView: View {
                 jumpToLatest(proxy)
                 return .handled
             }
+            // 項目が変わらなくても、処理の終了で末尾のカードが消えるなどして新しい側が無くなることがある。
+            // 固定したままだと、次に届く項目が窓の外に積まれる（ADR 0229 §2）。固定と処理の終了が 1 回の描画に
+            // 重なっても拾えるよう、新しい側の件数ではなく「固定中で新しい側が無い」状態を見る。
+            .onChange(of: window.lastItemID != nil && visibleSlice.hiddenNewerBlockCount == 0) { _, isStale in
+                if isStale { window.followTail() }
+            }
             .onChange(of: transcriptSignal) { oldSignal, newSignal in
+                window.followTailIfNothingNewer(in: transcriptItems, source: blockSource)
                 if isDetached {
                     // 新着はメッセージ・質問・エラーだけ数える（コマンドや使用量の行は数えない）。
                     let added = transcriptItems.suffix(max(0, newSignal.count - oldSignal.count))
@@ -147,13 +175,13 @@ struct ChatTranscriptView: View {
                 jumpToTarget(target, proxy: proxy)
                 requestedScrollTarget = nil
             }
-            .onChange(of: pendingExpandAnchor) { _, anchor in
-                // 履歴追加後、追加前の先頭可視 item を
-                // ビューポート上端へ据える（履歴の一番最初へ飛ばさず、そこから上へ遡れるように）。
-                // window 拡張で上に挿入された行がレンダされた後に届くよう次の MainActor ターンへ遅延。
+            .onChange(of: pendingLoadAnchor) { _, anchor in
+                // 読み込み後、読み込む前に端にあったブロックをビューポート上端へ据える。上端で遡ったら
+                // そこから上へ、下端で引いたらそこから下へ読み進められる（下端へ据えると浮いた入力欄の裏に入る）。
+                // 挿入された行がレンダされた後に届くよう次の MainActor ターンへ遅延。
                 // scroll 観測には連動しない単発イベント（ADR 0030 非該当）。世代ガードで stale を無効化。
                 guard let anchor else { return }
-                pendingExpandAnchor = nil
+                pendingLoadAnchor = nil
                 jumpGeneration += 1
                 let generation = jumpGeneration
                 Task { @MainActor in
@@ -165,8 +193,7 @@ struct ChatTranscriptView: View {
                 // セッション切替（vm identity 変化）で表示件数を既定へ戻す。
                 // イベント文脈での mutation なので body 中の観測 state 変更にならない（ADR 0010）。
                 window.reset()
-                isLoadingEarlier = false
-                revealMinimumBlockCount = 0
+                loadingEdge = nil
                 // 別セッションを開いたので、前の読み戻し状態を持ち越さず最下部へ寄せる。
                 autoFollow.sessionDidChange()
                 setDetached(false)
@@ -186,23 +213,23 @@ struct ChatTranscriptView: View {
 
     @ViewBuilder
     private func transcriptContent(
-        items: [ChatItem],
+        visibleSlice: ChatTranscriptSlice,
         transcriptSignal: TranscriptFollowSignal,
         scrollProxy: ScrollViewProxy
     ) -> some View {
         if let contentMaxWidth {
             VStack(spacing: 0) {
-                transcriptStack(items: items, transcriptSignal: transcriptSignal, scrollProxy: scrollProxy)
+                transcriptStack(visibleSlice: visibleSlice, transcriptSignal: transcriptSignal, scrollProxy: scrollProxy)
             }
             .frame(maxWidth: contentMaxWidth)
             .frame(maxWidth: .infinity)
         } else {
-            transcriptStack(items: items, transcriptSignal: transcriptSignal, scrollProxy: scrollProxy)
+            transcriptStack(visibleSlice: visibleSlice, transcriptSignal: transcriptSignal, scrollProxy: scrollProxy)
         }
     }
 
     private func transcriptStack(
-        items: [ChatItem],
+        visibleSlice: ChatTranscriptSlice,
         transcriptSignal: TranscriptFollowSignal,
         scrollProxy: ScrollViewProxy
     ) -> some View {
@@ -216,7 +243,6 @@ struct ChatTranscriptView: View {
         // 抑える（遅延機構の再導入ではなく件数制限。ADR 0030:22）。
         // window と予算はいずれも内容と明示操作だけに依存する純計算で、
         // スクロール量・可視領域・GeometryReader の値には連動しない。
-        let visibleSlice = budgetedSlice(from: items)
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(visibleSlice.blocks.enumerated()), id: \.element.id) { index, block in
                 let after: TranscriptTypography.BlockRole? = index == 0 ? nil : visibleSlice.blocks[index - 1].content.typographyRole
@@ -226,47 +252,51 @@ struct ChatTranscriptView: View {
                     .id(block.id)
                     .background(userMessagePositionProbe(id: block.id, isTracked: role == .user))
             }
-            if transcript == nil {
-                CodexSessionSurface(viewModel: viewModel)
+            // 接続中・圧縮中・考え中などは末尾に属する。新しい側を外している間は古い内容の直下に出さない（ADR 0229）。
+            if visibleSlice.hiddenNewerBlockCount == 0 {
+                if transcript == nil {
+                    CodexSessionSurface(viewModel: viewModel)
+                        .padding(.top, TranscriptTypography.itemGap)
+                        .id("chat-codex-surface")
+                }
+                if viewModel.shouldShowConnectingIndicator {
+                    ConnectingIndicatorRow()
+                        .padding(.top, TranscriptTypography.itemGap)
+                        .id("chat-connecting")
+                }
+                if CompactingIndicatorPresentation.shouldShowCompactingIndicator(
+                    isCompacting: viewModel.isCompacting
+                ) {
+                    CompactingIndicatorCell(
+                        descriptor: agentDescriptor
+                    )
                     .padding(.top, TranscriptTypography.itemGap)
-                    .id("chat-codex-surface")
-            }
-                        if viewModel.shouldShowConnectingIndicator {
-                ConnectingIndicatorRow()
-                    .padding(.top, TranscriptTypography.itemGap)
-                    .id("chat-connecting")
-            }
-            if CompactingIndicatorPresentation.shouldShowCompactingIndicator(
-                isCompacting: viewModel.isCompacting
-            ) {
-                CompactingIndicatorCell(
-                    descriptor: agentDescriptor
-                )
-                .padding(.top, TranscriptTypography.itemGap)
-                .id("chat-compacting")
-            }
-            if let activityState = viewModel.activityState,
-               CompactingIndicatorPresentation.shouldShowThinkingIndicator(
-                   showsThinkingIndicator: showsThinkingIndicator,
-                   showsProcessingIndicator: viewModel.showsProcessingIndicator,
-                   isCompacting: viewModel.isCompacting,
-                   isAwaitingUser: activityState == .waiting
-               ) {
-                ThinkingIndicatorCell(
-                    descriptor: agentDescriptor,
-                    state: activityState,
-                    hangAssessment: { viewModel.hangAssessment(now: $0) },
-                    recap: { viewModel.thinkingRecap(now: $0) },
-                    onInterrupt: { await viewModel.turnInterrupt() }
-                )
-                    .padding(.top, TranscriptTypography.itemGap)
-                    .id("chat-thinking")
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
-                        Task { @MainActor in
-                            guard autoFollow.isFollowing else { return }
-                            scrollProxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+                    .id("chat-compacting")
+                }
+                if let activityState = viewModel.activityState,
+                   CompactingIndicatorPresentation.shouldShowThinkingIndicator(
+                       showsThinkingIndicator: showsThinkingIndicator,
+                       showsProcessingIndicator: viewModel.showsProcessingIndicator,
+                       isCompacting: viewModel.isCompacting,
+                       isAwaitingUser: activityState == .waiting,
+                       usesStatusCard: AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind)
+                   ) {
+                    ThinkingIndicatorCell(
+                        descriptor: agentDescriptor,
+                        state: activityState,
+                        hangAssessment: { viewModel.hangAssessment(now: $0) },
+                        recap: { viewModel.thinkingRecap(now: $0) },
+                        onInterrupt: { await viewModel.turnInterrupt() }
+                    )
+                        .padding(.top, TranscriptTypography.itemGap)
+                        .id("chat-thinking")
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
+                            Task { @MainActor in
+                                guard autoFollow.isFollowing else { return }
+                                scrollProxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+                            }
                         }
-                    }
+                }
             }
             // 浮遊 composer の逃し余白はスクロールコンテンツ内部のスペーサーで確保する。
             // .contentMargins(for: .scrollContent) は macOS ではオーバーレイスクローラも
@@ -282,30 +312,30 @@ struct ChatTranscriptView: View {
         .padding(.vertical, TranscriptTypography.transcriptVerticalInset)
         .coordinateSpace(.named(Self.contentSpaceName))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("チャット履歴。以前のメッセージ: \(visibleSlice.hiddenBlockCount) 件")
+        .accessibilityLabel(historyAccessibilityLabel(visibleSlice))
         .accessibilityIdentifier("ChatTranscript.history")
         .accessibilityAction(named: Text("以前のメッセージを読み込む")) {
-            beginLoadingEarlier()
-            finishLoadingEarlier()
+            beginLoading(.top)
+            finishLoading()
+        }
+        .accessibilityAction(named: Text("以後のメッセージを読み込む")) {
+            beginLoading(.bottom)
+            finishLoading()
         }
     }
 
-    private func budgetedSlice(from items: [ChatItem]) -> ChatTranscriptSlice {
-        let candidate = ChatTranscriptGrouping.visibleSlice(from: items, blockLimit: window.limit)
-        let blockLimit = renderBlockLimit(for: candidate.blocks.map(\.content))
-        return ChatTranscriptSlice(
-            blocks: Array(candidate.blocks.suffix(blockLimit)),
-            hiddenBlockCount: candidate.hiddenBlockCount + candidate.blocks.count - blockLimit
-        )
+    /// ブロックの作り方。Claude と Codex はカードの組み立て、Cursor は今のまま（AC-14）。
+    private var blockSource: TranscriptBlockSource {
+        AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind)
+            ? .statusCards(viewModel.statusCardLiveState)
+            : .grouped
     }
 
-    private func renderBlockLimit(for blocks: [ChatTranscriptBlock]) -> Int {
-        TranscriptRenderBudget.allowedBlockCount(
-            blocks: blocks,
-            requestedLimit: window.limit,
-            defaultLimit: defaultWindowLimit,
-            minimumBlocks: max(TranscriptRenderBudget.minimumBlocks, revealMinimumBlockCount)
-        )
+    private func historyAccessibilityLabel(_ slice: ChatTranscriptSlice) -> String {
+        let earlier = "チャット履歴。以前のメッセージ: \(slice.hiddenBlockCount) 件"
+            + (viewModel.hasMoreRuntimeTranscript ? "。さらに過去の履歴があります" : "")
+        guard slice.hiddenNewerBlockCount > 0 else { return earlier }
+        return earlier + "。以後のメッセージ: \(slice.hiddenNewerBlockCount) 件"
     }
 
     /// ユーザー入力ブロックの content 座標系での縦位置を preference で publish する。
@@ -322,60 +352,111 @@ struct ChatTranscriptView: View {
         }
     }
 
+    private func chatItemView(for item: ChatItem, lastTranscriptID: String?) -> ChatItemView {
+        ChatItemView(
+            item: item,
+            isRunningCommand: isRunningCommand(item, lastTranscriptID: lastTranscriptID),
+            agentDescriptor: agentDescriptor,
+            onRespondToUserQuestion: { requestId, answers in
+                await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
+            },
+            onDismissUserQuestion: {
+                Task {
+                    if case .userQuestion(_, let requestId, _, _, _, _) = item {
+                        await viewModel.dismissUserQuestion(requestId: requestId)
+                    }
+                }
+            },
+            turnUsage: viewModel.turnUsageByItemID[item.id],
+            onLaunchFailureRestart: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureRestart : nil,
+            isLaunchFailureRestarting: isLaunchFailureRestarting,
+            onLaunchFailureClose: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureClose : nil
+        )
+    }
+
     @ViewBuilder
     private func transcriptBlock(_ block: ChatTranscriptBlock, lastTranscriptID: String?) -> some View {
         switch block {
         case .single(let item):
-            ChatItemView(
-                item: item,
-                isRunningCommand: isRunningCommand(item, lastTranscriptID: lastTranscriptID),
-                agentDescriptor: agentDescriptor,
-                onRespondToUserQuestion: { requestId, answers in
-                    await viewModel.respondToUserQuestion(requestId: requestId, answers: answers)
-                },
-                onDismissUserQuestion: {
-                    Task {
-                        if case .userQuestion(_, let requestId, _, _, _, _) = item {
-                            await viewModel.dismissUserQuestion(requestId: requestId)
-                        }
-                    }
-                },
-                turnUsage: viewModel.turnUsageByItemID[item.id],
-                onLaunchFailureRestart: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureRestart : nil,
-                isLaunchFailureRestarting: isLaunchFailureRestarting,
-                onLaunchFailureClose: item.id == "launch-error-\(viewModel.id.rawValue)" ? onLaunchFailureClose : nil
-            )
-            // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が
-            // @Observable の依存になっており、1行の更新でもこのビュー全体が無効化されるため、
-            // ここで止めないと窓内の全行（グリッドは最大 40 件×9 タイル）が毎 tick 再評価される。
-            .equatable()
+            chatItemView(for: item, lastTranscriptID: lastTranscriptID)
+                // ADR 0116: 変化していない行の body 再評価を飛ばす。transcript は配列全体が
+                // @Observable の依存になっており、1行の更新でもこのビュー全体が無効化されるため、
+                // ここで止めないと窓内の全行（グリッドは最大 40 件×9 タイル）が毎 tick 再評価される。
+                .equatable()
         case .commandGroup(_, let items):
+            // 実行中になりうるのは末尾のグループだけ。他のグループへ末尾 id と実行状態を渡すと、
+            // 1 件の追加や状態変化のたびに窓内の全グループの同値判定が崩れて再評価される。
+            let isTail = items.last?.id == lastTranscriptID
             CommandGroupCell(
                 items: items,
-                lastTranscriptID: lastTranscriptID,
-                isTurnRunning: viewModel.status.isRunning
+                lastTranscriptID: isTail ? lastTranscriptID : nil,
+                isTurnRunning: isTail && viewModel.status.isRunning
+            )
+            .equatable()
+        case .statusCard(let card):
+            AgentStatusCardView(
+                card: card,
+                agentDescriptor: agentDescriptor,
+                // 圧縮中・接続待ちの間は、実行中のカードの点描を止める。
+                isStill: card.header.isLive && (viewModel.isCompacting || viewModel.shouldShowConnectingIndicator),
+                isNarrow: presentationContext == .gridTile,
+                isLaunchFailureRestarting: isLaunchFailureRestarting,
+                revealRequest: statusCardRevealRequest.flatMap { card.contains(itemID: $0.itemID) ? $0 : nil },
+                hangAssessment: { viewModel.hangAssessment(now: $0) },
+                onInterrupt: { await viewModel.turnInterrupt() },
+                makeItemView: { chatItemView(for: $0, lastTranscriptID: lastTranscriptID) }
             )
             .equatable()
         }
     }
 
-    private func beginLoadingEarlier() {
-        guard !isLoadingEarlier else { return }
-        guard budgetedSlice(from: transcriptItems).hiddenBlockCount > 0 else { return }
+    private func beginLoading(_ edge: VerticalEdge) {
+        guard loadingEdge == nil else { return }
+        let slice = window.slice(of: transcriptItems, source: blockSource)
+        guard (edge == .top ? slice.hiddenBlockCount > 0 || viewModel.hasMoreRuntimeTranscript
+            : slice.hiddenNewerBlockCount > 0) else { return }
         jumpGeneration += 1
         autoFollow.userInitiatedJump()
         setDetached(true)
-        isLoadingEarlier = true
+        loadingEdge = edge
     }
 
-    private func finishLoadingEarlier() {
-        guard isLoadingEarlier else { return }
+    private func finishLoading() {
+        guard let edge = loadingEdge else { return }
+        if edge == .top, window.slice(of: transcriptItems, source: blockSource).hiddenBlockCount == 0,
+           viewModel.hasMoreRuntimeTranscript {
+            let anchor = transcriptItems.first?.id
+            Task {
+                do {
+                    try await viewModel.loadEarlierRuntimeContent()
+                    if let anchor { pendingLoadAnchor = anchor }
+                    runtimeHistoryLoadError = nil
+                } catch SessionRuntimeContentError.staleContent { } catch {
+                    runtimeHistoryLoadError = error.localizedDescription
+                }
+                loadingEdge = nil
+            }
+            return
+        }
         autoFollow.userInitiatedJump()
         setDetached(true)
-        let slice = budgetedSlice(from: transcriptItems)
-        window.expand()
-        pendingExpandAnchor = slice.blocks.first?.id
-        isLoadingEarlier = false
+        let anchor = edge == .top ? window.loadEarlier(in: transcriptItems, source: blockSource) : window.loadNewer(in: transcriptItems, source: blockSource)
+        pendingLoadAnchor = anchor
+        loadingEdge = nil
+    }
+
+    private func loadRuntimeHistory() async {
+        guard !isLoadingRuntimeHistory else { return }
+        isLoadingRuntimeHistory = true
+        defer { isLoadingRuntimeHistory = false }
+        do {
+            try await viewModel.loadAllRuntimeContent()
+            runtimeHistoryLoadError = nil
+        } catch SessionRuntimeContentError.staleContent {
+            runtimeHistoryLoadError = nil
+        } catch {
+            runtimeHistoryLoadError = error.localizedDescription
+        }
     }
 
     private var agentDescriptor: AgentDescriptor {
@@ -401,14 +482,14 @@ struct ChatTranscriptView: View {
 
     private func lastContentLength(for item: ChatItem) -> Int {
         switch item {
-        case .userMessage(_, let text, _, _),
+        case .userMessage(_, let text, _, _, _),
              .agentMessage(_, let text, _),
              .reasoning(_, let text, _),
              .error(_, let text, _):
             text.utf8.count
-        case .commandExecution(_, let command, let output, _):
+        case .commandExecution(_, let command, let output, _, _, _):
             (command?.utf8.count ?? 0) + output.utf8.count
-        case .fileChange(_, let changes, _):
+        case .fileChange(_, let changes, _, _):
             changes.reduce(0) { partial, change in
                 partial + change.path.utf8.count + change.diff.utf8.count
             }
@@ -451,13 +532,6 @@ struct ChatTranscriptView: View {
         return current
     }
 
-    /// ユーザー起点のジャンプ（実行中バックグラウンドタスク・sub-agent 等への飛び先）を処理する。
-    /// windowing で対象行が隠れ域（既定 N 件より前）にあると scrollTo は無言 no-op になり、
-    /// AutoFollow 離脱だけが起きて目的地に行かない壊れた操作になる（ステージ1 HIGH 指摘）。
-    /// 裁定=案b（reveal-on-jump）: 隠れ域ターゲットは scrollTo の前に window を広げて可視化する。
-    /// 集約された command の個別 id は折りたたみ中のビュー階層に存在しないため、全 transcript 上で
-    /// 安定した block id（group は先頭 item.id）へ解決してから scrollTo する。
-    /// これはユーザー操作起点であり、スクロール量・可視領域の観測連動ではない（ADR 0030 非該当）。
     static func countsAsNewMessage(_ item: ChatItem) -> Bool {
         switch item {
         case .agentMessage, .userMessage, .userQuestion, .error: true
@@ -465,13 +539,19 @@ struct ChatTranscriptView: View {
         }
     }
 
-    /// 「↓ 最新へ」・End。最下部へ寄せて追従を戻す。
+    /// 「↓ 最新へ」・End。最下部へ寄せて追従を戻す。新しい側を外していたら末尾に戻し、
+    /// 描画が確定してから寄せる（外したままの下端へ寄せない。ADR 0229）。
     private func jumpToLatest(_ proxy: ScrollViewProxy) {
-        isLoadingEarlier = false
-        jumpGeneration += 1
-        proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
+        loadingEdge = nil
         autoFollow.scrollPositionChanged(isAtBottom: true)
         setDetached(false)
+        guard window.lastItemID == nil else {
+            window.followTail()
+            scheduleScrollToBottom(proxy)
+            return
+        }
+        jumpGeneration += 1
+        proxy.scrollTo(ChatScrollTarget.bottom.rawValue, anchor: .bottom)
     }
 
     private func setDetached(_ detached: Bool) {
@@ -480,39 +560,49 @@ struct ChatTranscriptView: View {
         unseenSinceDetach = 0
     }
 
+    /// ユーザー起点のジャンプ（入力スクラバー・実行中バックグラウンドタスク・sub-agent 等への飛び先）。
+    /// 飛び先が窓の外なら、飛び先を含む上限分の窓にしてから scrollTo する（ADR 0229）。
+    /// 集約された command の個別 id は折りたたみ中のビュー階層に存在しないため、全 transcript 上で
+    /// 安定した block id（group は先頭 item.id）へ解決してから scrollTo する。
+    /// これはユーザー操作起点であり、スクロール量・可視領域の観測連動ではない（ADR 0030 非該当）。
     private func jumpToTarget(_ target: String, proxy: ScrollViewProxy) {
-        isLoadingEarlier = false
+        loadingEdge = nil
         autoFollow.userInitiatedJump()
         setDetached(true)
         // 新しいジャンプは以前の pending 遅延 scrollTo を無効化する。
         jumpGeneration += 1
         let generation = jumpGeneration
         let currentItems = transcriptItems
-        let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, in: currentItems)
-        // 対象が現セッションの items にあり、かつ隠れ域なら reveal してから遅延 scrollTo。
-        let blocks = ChatTranscriptGrouping.blocks(from: currentItems)
-        let blockCount = blocks.count
-        if let blockIndex = ChatTranscriptGrouping.blockIndex(ofItemWithID: target, in: currentItems) {
-            let start = max(0, blockCount - renderBlockLimit(for: blocks))
-            if blockIndex < start {
-                window.reveal(index: blockIndex, totalCount: blockCount)
-                // reveal はユーザーが明示的に見に行った要求なので予算より優先する。
-                // window.reveal が持つ streaming 用マージンと同じ件数を最低描画数として保持し、
-                // コスト予算が引き上げ済みの window.limit を打ち消さないようにする。
-                let requiredCount = (blockCount - blockIndex) + TranscriptWindow.expandStep
-                revealMinimumBlockCount = max(revealMinimumBlockCount, requiredCount)
-                // window 拡張（@State 書込）で新規行がまだ未レンダのため、同一イベント内 scrollTo は
-                // 空振りしうる。次の MainActor ターンへ遅延させ、再レンダ後に確実に届かせる。
-                // 遅延中に後続ジャンプ・セッション切替（reset）が来たら世代不一致で何もしない。
-                Task { @MainActor in
-                    guard generation == jumpGeneration else { return }
-                    proxy.scrollTo(scrollTarget, anchor: .center)
-                }
-                return
+        let source = blockSource
+        let allBlocks = source.blocks(currentItems)
+        let scrollTarget = ChatTranscriptGrouping.scrollTargetID(containing: target, inBlocks: allBlocks)
+        // 対象の作業が状態カードの中にあるなら、その行を開かせ、開いた後にその作業の位置へ寄せ直す。
+        let entryID = allBlocks.lazy.compactMap { block -> String? in
+            if case .statusCard(let card) = block { card.entryID(containing: target) } else { nil }
+        }.first
+        statusCardRevealRequest = entryID == nil ? nil : AgentStatusRevealRequest(itemID: target, serial: generation)
+        func scroll() {
+            proxy.scrollTo(scrollTarget, anchor: .center)
+            guard let entryID else { return }
+            // 行が開いて描かれた後（次の MainActor ターン）に、作業そのものへ。
+            Task { @MainActor in
+                guard generation == jumpGeneration else { return }
+                proxy.scrollTo(entryID, anchor: .center)
+                statusCardRevealRequest = nil
             }
         }
-        // 可視域 or items に存在しない別セッション id: 従来どおり即 scrollTo（no-op を含む）。
-        proxy.scrollTo(scrollTarget, anchor: .center)
+        guard window.reveal(itemID: target, in: currentItems, source: source) else {
+            // 窓の中 or items に存在しない別セッション id: 従来どおり即 scrollTo（no-op を含む）。
+            scroll()
+            return
+        }
+        // window 変更（@State 書込）で新規行がまだ未レンダのため、同一イベント内 scrollTo は
+        // 空振りしうる。次の MainActor ターンへ遅延させ、再レンダ後に確実に届かせる。
+        // 遅延中に後続ジャンプ・セッション切替（reset）が来たら世代不一致で何もしない。
+        Task { @MainActor in
+            guard generation == jumpGeneration else { return }
+            scroll()
+        }
     }
 
     private func scrollToBottomIfNeeded(

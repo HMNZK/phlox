@@ -1,0 +1,129 @@
+import Foundation
+
+// エージェント状態カードの開閉と件数の規則（設計 §5。純粋な値。View の状態として持ち、保存しない）。
+// 自動の開閉は組み立ての結果（実行中か・進行中のタスクか）から決め、手で開閉したものは
+// カード id と行 id（タスクは `task-<タスク id>`）の組で覚える。
+
+struct AgentStatusCardDisclosure: Equatable {
+    /// 作業が多い行で最初に出す件数（要件 FR-15）。
+    static let initialEntryLimit = 30
+
+    private struct Key: Hashable {
+        let cardID: String
+        let rowID: String
+    }
+
+    private var overrides: [Key: Bool] = [:]
+    private var limits: [Key: Int] = [:]
+
+    // MARK: - 開閉
+
+    /// 手の開閉が無いときの開閉。実行中のカードで、進行中のタスクと、実行中の作業があるタスク外の行だけ開く。
+    /// タスクがまだ 1 件も無い間は、タスク外の行を開く。タスクがある間に、前のタスク外の行を開き直さない。
+    /// 終わったカードは全部閉じる（FR-8）。
+    static func isAutoExpanded(_ row: AgentStatusRow, in card: AgentStatusCard) -> Bool {
+        guard card.header.isLive else { return false }
+        switch row {
+        case .task(let task):
+            return task.state == .inProgress
+        case .outside(let group):
+            // 作業の無い行（文章だけ）は見出しを持たず、いつも出る。開閉の対象ではない。
+            guard !row.isTextOnly else { return false }
+            let hasTask = card.rows.contains { if case .task = $0 { true } else { false } }
+            let hasRunningAction = group.entries.contains {
+                if case .action(let action) = $0 { action.isRunning } else { false }
+            }
+            return !hasTask || hasRunningAction
+        }
+    }
+
+    func isExpanded(_ row: AgentStatusRow, in card: AgentStatusCard) -> Bool {
+        overrides[Key(cardID: card.id, rowID: row.id)] ?? Self.isAutoExpanded(row, in: card)
+    }
+
+    /// 手で開いた行か（見本 07: 手で開いた行は薄い面で示す。自動で開いた行には付けない）。
+    func isManuallyOpened(_ row: AgentStatusRow, in card: AgentStatusCard) -> Bool {
+        overrides[Key(cardID: card.id, rowID: row.id)] == true
+    }
+
+    /// バックグラウンド作業の一覧などからの移動: その作業を含む行を手で開き、「さらに表示」の外なら件数も足す。
+    /// 移動先の作業が見える状態にするだけで、位置の移動は呼び出し側（既存のジャンプ）が行う。
+    mutating func reveal(itemID: String, in card: AgentStatusCard) {
+        for row in card.rows {
+            guard let index = row.entries.firstIndex(where: { $0.contains(itemID: itemID) }) else { continue }
+            let key = Key(cardID: card.id, rowID: row.id)
+            overrides[key] = true
+            limits[key] = max(entryLimit(row, in: card), row.entries.count - index)
+        }
+    }
+
+    /// 今の見た目と反対にして、手の状態として覚える。
+    mutating func toggle(_ row: AgentStatusRow, in card: AgentStatusCard) {
+        overrides[Key(cardID: card.id, rowID: row.id)] = !isExpanded(row, in: card)
+    }
+
+    // MARK: - 件数
+
+    /// 行で今出す件数の上限。
+    func entryLimit(_ row: AgentStatusRow, in card: AgentStatusCard) -> Int {
+        limits[Key(cardID: card.id, rowID: row.id)] ?? Self.initialEntryLimit
+    }
+
+    /// 「さらに表示」: もう 30 件出す。
+    mutating func showMore(_ row: AgentStatusRow, in card: AgentStatusCard) {
+        limits[Key(cardID: card.id, rowID: row.id)] = entryLimit(row, in: card) + Self.initialEntryLimit
+    }
+
+    /// 新しい順に `limit` 件。古い側が `hidden` 件（順序は時系列のまま）。
+    static func window(_ entries: [AgentStatusEntry], limit: Int) -> (visible: [AgentStatusEntry], hidden: Int) {
+        let visible = entries.suffix(max(0, limit))
+        return (Array(visible), entries.count - visible.count)
+    }
+}
+
+/// 「この item の作業を開いて見せて」という 1 回の要求。`serial` が変わるたびに新しい要求として扱う。
+struct AgentStatusRevealRequest: Equatable {
+    let itemID: String
+    let serial: Int
+}
+
+extension AgentStatusEntry {
+    func contains(itemID: String) -> Bool {
+        switch self {
+        case .action(let action): action.items.contains { $0.id == itemID }
+        case .item(let item): item.id == itemID
+        }
+    }
+}
+
+extension AgentStatusRow {
+    var entries: [AgentStatusEntry] {
+        switch self {
+        case .task(let task): task.entries
+        case .outside(let group): group.entries
+        }
+    }
+
+    /// 開ける行か。作業の無いタスク（未着手など）は開けない。
+    var isExpandable: Bool { !entries.isEmpty && !isTextOnly }
+
+    /// 作業を含まないタスク外の行（途中の文章だけ）。「タスク外の作業 · 0 件」の見出しは付けず、
+    /// 文章だけを元の位置に出す。終わったカードでも出る（閉じるのはタスクだけ。FR-8）。
+    var isTextOnly: Bool {
+        guard case .outside(let group) = self else { return false }
+        return !group.entries.contains { if case .action = $0 { true } else { false } }
+    }
+}
+
+extension AgentStatusCard {
+    /// 描画の予算に数える、開いている作業の行の数（自動で開く行だけ。手で開いた分は View の状態なので数えない）。
+    var openEntryCount: Int {
+        rows.reduce(0) { total, row in
+            // 文章だけの行は見出し無しでいつも出るので、全件を数える。
+            if row.isTextOnly { return total + row.entries.count }
+            return AgentStatusCardDisclosure.isAutoExpanded(row, in: self)
+                ? total + min(row.entries.count, AgentStatusCardDisclosure.initialEntryLimit)
+                : total
+        }
+    }
+}

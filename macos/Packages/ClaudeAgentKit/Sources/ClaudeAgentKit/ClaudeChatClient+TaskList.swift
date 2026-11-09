@@ -48,11 +48,11 @@ extension ClaudeChatClient {
         return true
     }
 
-    /// TaskCreate の user tool_result は toolUseResult.task.id に作成済み ID を載せる。
+    /// TaskCreate の user tool_result は、イベントの `tool_use_result.task.id` に作成済み ID を載せる（実 CLI の形）。
     /// TaskCreate の結果には status がないため、作成直後は pending として扱う。
     func resolveCreatedTaskIfNeeded(toolUseId: String, event: [String: Any]) {
         guard let title = pendingCreatedTaskTitles.removeValue(forKey: toolUseId),
-              let result = event["toolUseResult"] as? [String: Any],
+              let result = event["tool_use_result"] as? [String: Any],
               let taskID = taskIdentifier(from: result),
               !taskListTasks.contains(where: { $0.id == taskID })
         else { return }

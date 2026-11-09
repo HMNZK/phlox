@@ -72,7 +72,7 @@ public struct ChatHistorySummary: Codable, Equatable, Sendable {
     init(items: [ChatItem], limit: Int = ClaudeSessionHistoryEntry.transcriptItemLimit) {
         let texts = items.compactMap { item -> String? in
             switch item {
-            case .userMessage(_, let text, _, _), .agentMessage(_, let text, _): text
+            case .userMessage(_, let text, _, _, _), .agentMessage(_, let text, _): text
             default: nil
             }
         }

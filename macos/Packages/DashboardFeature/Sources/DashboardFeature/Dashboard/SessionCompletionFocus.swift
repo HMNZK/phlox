@@ -40,6 +40,7 @@ struct SessionCompletionFocusEvents: View {
     let viewModel: DashboardViewModel
     let router: AppRouter
     let isWindowFocused: Bool
+    @State private var observerID = UUID()
 
     var body: some View {
         Color.clear.frame(width: 0, height: 0)
@@ -48,14 +49,16 @@ struct SessionCompletionFocusEvents: View {
             .onChange(of: router.focusedSessionID.flatMap { viewModel.sessionNode(id: $0)?.hasUnseenCompletion }) { _, _ in acknowledge() }
             .onChange(of: router.viewMode) { _, _ in acknowledge() }
             .onChange(of: router.viewMode == .grid ? viewModel.gridTileOrder() : []) { _, _ in acknowledge() }
-            .onChange(of: displayedSessionIDs, initial: true) { _, ids in viewModel.noteSessionsViewed(ids) }
+            .onChange(of: displayedSessionIDs, initial: true) { _, ids in viewModel.noteSessionsViewed(ids, observerID: observerID) }
             // 表示し続けているセッションを常駐側が止めないよう、5 分ごとに知らせる（ADR 0221）。
             .task {
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(5 * 60))
-                    viewModel.noteSessionsViewed(displayedSessionIDs)
+                    do { try await Task.sleep(for: .seconds(5 * 60)) }
+                    catch { return }
+                    viewModel.noteSessionsViewed(displayedSessionIDs, observerID: observerID)
                 }
             }
+            .onDisappear { viewModel.noteSessionsViewed([], observerID: observerID) }
             .accessibilityHidden(true)
     }
 

@@ -1,5 +1,6 @@
 import AgentDomain
 import AppKit
+import StructuredChatKit
 import SwiftUI
 import Testing
 @testable import SessionFeature
@@ -67,6 +68,181 @@ struct ChatHistoryLoadingTests {
         bridge.detach()
         bridge.handleScrollWheel(event)
         #expect(requests == 2)
+    }
+
+    @Test func bottomPullRequiresHiddenNewerAndKeepsDetached() throws {
+        _ = NSApplication.shared
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
+        let document = FlippedHistoryDocument(frame: NSRect(x: 0, y: 0, width: 300, height: 1_000))
+        scroll.documentView = document
+        let window = makeWindow(scroll)
+        defer { window.close() }
+        let controller = ChatAutoFollowController()
+        controller.userInitiatedJump()
+        var tops = 0
+        var bottoms = 0
+        var releases = 0
+        let bridge = ChatAutoFollowScrollEventBridge(
+            controller: controller, onScrollPastTop: { tops += 1 }, onScrollPastBottom: { bottoms += 1 },
+            onScrollReleased: { releases += 1 }, hasNewerHidden: false
+        )
+        bridge.attach(to: scroll)
+        defer { bridge.detach() }
+        let event = HistoryWheelEvent()
+        event.testWindow = window
+        event.testLocation = NSPoint(x: 150, y: 100)
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: 800))
+        NotificationCenter.default.post(name: NSView.boundsDidChangeNotification, object: scroll.contentView)
+        #expect(controller.isFollowing, "新しい側が隠れていなければ最下部で追従に戻る")
+        event.testPhase = .began
+        event.delta = -70
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 0, "新しい側が隠れていなければ下端では読み込まない")
+
+        controller.userInitiatedJump()
+        bridge.update(
+            controller: controller, onViewportCenterChanged: { _ in }, onScrollPastTop: { tops += 1 },
+            onScrollPastBottom: { bottoms += 1 }, onScrollReleased: { releases += 1 }, hasNewerHidden: true
+        )
+        NotificationCenter.default.post(name: NSView.boundsDidChangeNotification, object: scroll.contentView)
+        #expect(!controller.isFollowing, "新しい側が隠れている間は最下部でも追従に戻らない")
+        event.testPhase = .began
+        event.delta = -10
+        bridge.handleScrollWheel(event)
+        event.testPhase = .changed
+        event.delta = -49
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 0, "下端での追加スクロールが59ptなら表示しない")
+        event.delta = 20
+        bridge.handleScrollWheel(event)
+        event.delta = -20
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 0, "上向きに戻した分は差し引く")
+        event.delta = -1
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 1, "60ptで初めてローダーを表示する")
+        event.delta = -60
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 1, "同じジェスチャーでは1回だけ")
+        #expect(releases == 0, "スクロール中は読み込まない")
+        event.testPhase = .ended
+        bridge.handleScrollWheel(event)
+        #expect(releases == 1, "指を離したときに1回だけ読み込む")
+        event.testPhase = .began
+        event.delta = -70
+        bridge.handleScrollWheel(event)
+        event.testPhase = .cancelled
+        bridge.handleScrollWheel(event)
+        event.testPhase = .ended
+        bridge.handleScrollWheel(event)
+        #expect(bottoms == 2)
+        #expect(releases == 1, "取り消したジェスチャーでは読み込まない")
+        #expect(tops == 0)
+    }
+
+    @Test func historyBeyondCapHidesNewerAndLoadsItBack() async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let many = (0..<300).map { ChatItem.userMessage(id: "many-\($0)", text: "メッセージ \($0)", timestamp: .distantPast) }
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: makeModel(), transcript: many, presentationContext: .gridTile))
+        let window = makeWindow(host)
+        defer { window.close() }
+        let cap = TranscriptWindow.maxStages * TranscriptWindow.gridTileDefaultLimit
+        try await wait(host) { hiddenCount(host) == 300 - 16 }
+        for _ in 0..<3 { try loadEarlier(host) }
+        try await wait(host, stage: "上限まで遡る") { hiddenCount(host) == 300 - cap }
+        #expect(hiddenNewerCount(host) == 0, "上限までは新しい側を外さない")
+        try loadEarlier(host)
+        try await wait(host, stage: "上限を超えて遡る") { hiddenCount(host) == 300 - cap - 16 }
+        #expect(hiddenNewerCount(host) == 16, "上限を超えて遡った分だけ新しい側を外す")
+        #expect(element(host, "ChatTranscript.jumpToLatest") != nil, "新しい側を外している間は最新へ戻るボタンを出す")
+
+        try loadNewer(host)
+        try await wait(host, stage: "新しい側を読み込む") { hiddenNewerCount(host) == 0 }
+        #expect(hiddenCount(host) == 300 - cap)
+
+        try loadEarlier(host)
+        try await wait(host) { hiddenNewerCount(host) == 16 }
+        let jump = try #require(element(host, "ChatTranscript.jumpToLatest"))
+        let pressed = jump.accessibilityPerformPress()
+        #expect(pressed)
+        try await wait(host, stage: "最新へ") {
+            hiddenNewerCount(host) == 0 && scrollViews(host).first.map(ChatAutoFollowGeometry.isAtBottom) == true
+        }
+    }
+
+    /// 実行中の見出しだけのカードを外して固定している間に処理が終わると、項目は変わらずにカードだけが消える。
+    /// そのとき末尾追従に戻らないと、次に送った入力が窓の外に積まれて描画されない（独立レビュー 6 回目）。
+    @Test func pinnedWindowFollowsTailWhenProcessingEndsWithoutNewItems() async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let client = HistoryFakeAgentClient()
+        let model = ChatSessionViewModel(id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
+                                         approvalBroker: ChatApprovalBroker(), workingDirectory: "/unused-history-test")
+        client.yield(.turnStarted)
+        try await wait(NSView(), stage: "実行中") { model.status == .running }
+        var items = (0..<300).flatMap { index -> [ChatItem] in
+            [.userMessage(id: "u\(index)", text: "入力", timestamp: .distantPast),
+             .agentMessage(id: "a\(index)", text: "返答", timestamp: .distantPast)]
+        }
+        // 1 段の予算を超える最後の入力。作業も返答もまだ無いので、見出しだけのカードが続く。
+        items.append(.userMessage(id: "uT", text: String(repeating: "長", count: 2_000), timestamp: .distantPast))
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: model, transcript: items, presentationContext: .gridTile))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { hiddenCount(host) != nil }
+        for _ in 0..<4 { try loadEarlier(host) }
+        try await wait(host, stage: "見出しだけのカードを外す") { hiddenNewerCount(host) == 1 }
+
+        client.yield(.turnInterrupted(nativeSessionId: nil))
+        try await wait(host, stage: "処理の終了で末尾追従に戻る") { model.status != .running && hiddenNewerCount(host) == 0 }
+        items.append(.userMessage(id: "uN", text: "やり直し", timestamp: .distantPast))
+        host.rootView = ChatTranscriptView(viewModel: model, transcript: items, presentationContext: .gridTile)
+        // 固定したままなら、送った入力が新しい側に 1 件外れる。
+        try await Task.sleep(for: .milliseconds(200))
+        try await wait(host, stage: "送った入力を描く") { hiddenNewerCount(host) == 0 }
+    }
+
+
+    /// 上端で引いて離して窓を固定するのと、処理の終了で見出しだけのカードが消えるのが 1 回の描画に重なっても、
+    /// 末尾追従に戻る（独立レビュー 7 回目）。処理の終わった同じ会話のモデルへ、描画の前に差し替えて重ねる。
+    @Test func pinnedWindowFollowsTailWhenPinAndProcessingEndShareAnUpdate() async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let sessionID = SessionID()
+        let client = HistoryFakeAgentClient()
+        let model = ChatSessionViewModel(id: sessionID, agentRef: .builtin(.claudeCode), client: client,
+                                         approvalBroker: ChatApprovalBroker(), workingDirectory: "/unused-history-test")
+        client.yield(.turnStarted)
+        try await wait(NSView(), stage: "実行中") { model.status == .running }
+        let idleModel = ChatSessionViewModel(id: sessionID, agentRef: .builtin(.claudeCode), client: HistoryFakeAgentClient(),
+                                             approvalBroker: ChatApprovalBroker(), workingDirectory: "/unused-history-test")
+        var items = (0..<300).flatMap { index -> [ChatItem] in
+            [.userMessage(id: "u\(index)", text: "入力", timestamp: .distantPast),
+             .agentMessage(id: "a\(index)", text: "返答", timestamp: .distantPast)]
+        }
+        items.append(.userMessage(id: "uT", text: String(repeating: "長", count: 2_000), timestamp: .distantPast))
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: model, transcript: items, presentationContext: .gridTile))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { hiddenCount(host) != nil }
+        for _ in 0..<3 {
+            let before = hiddenCount(host)
+            try loadEarlier(host)
+            try await wait(host, stage: "段を足す") { hiddenCount(host) != before }
+        }
+        let wheel = try startHistoryPull(host)
+        try await wait(host, stage: "ローダー") { element(host, "ChatTranscript.historyLoading") != nil }
+        #expect(hiddenNewerCount(host) == 0)
+        wheel.testPhase = .ended
+        NSApp.sendEvent(wheel)
+        host.rootView = ChatTranscriptView(viewModel: idleModel, transcript: items, presentationContext: .gridTile)
+        try await wait(host, stage: "描画") { element(host, "ChatTranscript.historyLoading") == nil }
+        let afterRender = hiddenNewerCount(host)
+        items.append(.userMessage(id: "uN", text: "やり直し", timestamp: .distantPast))
+        host.rootView = ChatTranscriptView(viewModel: idleModel, transcript: items, presentationContext: .gridTile)
+        try await Task.sleep(for: .milliseconds(200))
+        try await wait(host, stage: "送った入力を描く afterRender=\(String(describing: afterRender))") { hiddenNewerCount(host) == 0 }
     }
 
     @Test(arguments: [false, true])
@@ -373,14 +549,29 @@ struct ChatHistoryLoadingTests {
     private func hiddenCount(_ root: NSView) -> Int? {
         guard let history = element(root, "ChatTranscript.history"),
               let value = attribute(history, "accessibilityLabel") as? String else { return nil }
-        return value.split(separator: " ").compactMap { Int($0) }.first
+        return value.replacingOccurrences(of: ",", with: "").split(separator: " ").compactMap { Int($0) }.first
     }
 
     private func loadEarlier(_ root: NSView) throws {
+        try performHistoryAction(root, "以前のメッセージを読み込む")
+    }
+
+    private func loadNewer(_ root: NSView) throws {
+        try performHistoryAction(root, "以後のメッセージを読み込む")
+    }
+
+    private func performHistoryAction(_ root: NSView, _ name: String) throws {
         let history = try #require(element(root, "ChatTranscript.history"))
         let actions = try #require(attribute(history, "accessibilityCustomActions") as? [NSAccessibilityCustomAction])
-        let action = try #require(actions.first { $0.name == "以前のメッセージを読み込む" })
+        let action = try #require(actions.first { $0.name == name })
         try #require(action.handler?() == true)
+    }
+
+    private func hiddenNewerCount(_ root: NSView) -> Int? {
+        guard let history = element(root, "ChatTranscript.history"),
+              let value = attribute(history, "accessibilityLabel") as? String else { return nil }
+        guard let range = value.range(of: "以後のメッセージ: ") else { return 0 }
+        return value[range.upperBound...].split(separator: " ").first.flatMap { Int($0.replacingOccurrences(of: ",", with: "")) }
     }
 
     private func startHistoryPull(_ host: NSView) throws -> HistoryWheelEvent {
@@ -480,4 +671,25 @@ private final class HistoryWheelEvent: NSEvent {
     override var scrollingDeltaY: CGFloat { delta }
     override var phase: NSEvent.Phase { testPhase }
     override var momentumPhase: NSEvent.Phase { testMomentumPhase }
+}
+
+private final class HistoryFakeAgentClient: StructuredAgentClient, @unchecked Sendable {
+    let events: AsyncStream<NormalizedChatEvent>
+    private let continuation: AsyncStream<NormalizedChatEvent>.Continuation
+
+    init() {
+        var captured: AsyncStream<NormalizedChatEvent>.Continuation?
+        events = AsyncStream { captured = $0 }
+        continuation = captured!
+    }
+
+    func start() async {}
+    func turnStart(_ input: [ChatInput]) async throws {}
+    func resume(sessionRef: String) async throws {}
+    func interrupt() async throws {}
+    func close() async { continuation.finish() }
+
+    func yield(_ event: NormalizedChatEvent) {
+        continuation.yield(event)
+    }
 }

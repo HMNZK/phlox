@@ -205,11 +205,15 @@ struct GridTileCompactBody: View {
                 if !trimmed.isEmpty { return trimmed }
             }
         }
+        if let overview = viewModel.runtimeOverview,
+           case .chat(let chat) = overview.kind {
+            return chat.lastAgentText?.displayText
+        }
         return nil
     }
 
     private var pendingQuestion: (requestId: String, questions: [ChatUserQuestion])? {
-        for item in viewModel.transcript {
+        for item in viewModel.replyItems {
             guard case .userQuestion(_, let requestId, let questions, _, .pending, _) = item,
                   !ChatSessionViewModel.isToolPermissionQuestion(questions) else { continue }
             return (requestId, questions)
@@ -244,6 +248,16 @@ struct GridTileCompactBody: View {
                         .font(DSFont.stateLabel)
                 }
             }
+        } else if let preview = viewModel.runtimePendingQuestionPreview {
+            card(.question) {
+                Text(verbatim: preview)
+                    .font(DSFont.auxiliary.weight(.semibold))
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(isSmall ? 1 : 3)
+                Button { onOpen() } label: { Text("開いて回答") }
+                    .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: true, compact: true))
+                    .font(DSFont.stateLabel)
+            }
         } else if case .error(let message) = viewModel.displayStatus {
             card(.error) {
                 Text(verbatim: message.components(separatedBy: .newlines).first ?? message)
@@ -273,15 +287,24 @@ struct GridTileCompactBody: View {
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.attentionMark(.stalled), lineWidth: 1))
             }
         } else if viewModel.status == .running {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                (ThinkingIndicatorCell.detailText(
-                    recap: viewModel.thinkingRecap(now: context.date),
-                    assessment: viewModel.hangAssessment(now: context.date)
-                ) ?? Text("実行中"))
-                    .italic()
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(DSColor.textSecondary)
-                    .lineLimit(1)
+            if AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind) {
+                // Claude・Codex: 列に出るカードの見出しと同じ文言（要件 FR-23）。
+                GridTileStatusLine(
+                    header: AgentStatusCardBuilder.latestHeader(
+                        items: viewModel.transcript, liveState: viewModel.statusCardLiveState
+                    )
+                )
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    (ThinkingIndicatorCell.detailText(
+                        recap: viewModel.thinkingRecap(now: context.date),
+                        assessment: viewModel.hangAssessment(now: context.date)
+                    ) ?? Text("実行中"))
+                        .italic()
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(1)
+                }
             }
         }
     }
@@ -363,19 +386,28 @@ private struct GridTileApprovalCard: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             HStack(spacing: 5) {
-                Button { respond(.accept) } label: { Text("許可") }
-                    .buttonStyle(ApprovalPrimaryButtonStyle(progress: isArmed ? 1 : 0, isArmed: isArmed, compact: true))
-                    .font(DSFont.stateLabel)
-                if isSmall {
+                if approval.requiresDetail {
+                    Text("詳細を読み込み中…")
+                        .font(DSFont.stateLabel)
+                        .foregroundStyle(DSColor.textSecondary)
                     Button { onOpen() } label: { Text("開く") }
                         .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                 } else {
-                    if approval.supportsSessionScope {
+                    Button { respond(.accept) } label: { Text("許可") }
+                        .buttonStyle(ApprovalPrimaryButtonStyle(progress: isArmed ? 1 : 0, isArmed: isArmed, compact: true))
+                        .font(DSFont.stateLabel)
+                    if isSmall {
+                        Button { onOpen() } label: { Text("開く") }
+                            .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
+                    }
+                    if !isSmall && approval.supportsSessionScope {
                         Button { respond(.acceptForSession) } label: { Text("このセッション中は許可") }
                             .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                     }
-                    Button { respond(.decline) } label: { Text("拒否") }
-                        .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
+                    if !isSmall {
+                        Button { respond(.decline) } label: { Text("拒否") }
+                            .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
+                    }
                 }
             }
             .font(.system(size: 11.5))
@@ -386,12 +418,14 @@ private struct GridTileApprovalCard: View {
         .padding(.vertical, 7)
         .background(DSColor.attentionTint(.approval), in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.attentionMark(.approval), lineWidth: 1))
-        .task(id: approval.id) {
-            viewModel.markApprovalPresented(approval.id)
-            isArmed = viewModel.isApprovalArmed(approval.id)
+        .task(id: approval) {
+            viewModel.markApprovalPresented(approval)
+            isArmed = viewModel.isApprovalArmed(approval)
+            guard !approval.requiresDetail else { return }
             guard !isArmed else { return }
             try? await Task.sleep(for: .seconds(ReplyApproval.armDelay))
-            isArmed = true
+            guard !Task.isCancelled else { return }
+            isArmed = viewModel.isApprovalArmed(approval)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("承認待ち · \(ApprovalCard.kindLabel(approval.kind, locale: locale))"))
@@ -408,5 +442,39 @@ private struct GridTileApprovalCard: View {
     private func respond(_ decision: ApprovalDecision) {
         guard isArmed else { return }
         Task { await viewModel.respond(to: approval, decision: decision) }
+    }
+}
+
+/// 小さいタイルの「実行中」の行: カードの見出し（今の作業・状態語）と経過。見出しは時刻を持たないので、
+/// 1 秒ごとの時計の外で 1 回求めたものを渡し、中では経過だけを描く。
+struct GridTileStatusLine: View {
+    let header: AgentStatusHeader?
+    @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var bundle
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack(spacing: 8) {
+                if let current = header?.current {
+                    Image(systemName: current.symbolName)
+                        .font(DSFont.meta)
+                        .foregroundStyle(DSColor.textTertiary)
+                        .accessibilityHidden(true)
+                }
+                Text(verbatim: header?.title(locale: locale, bundle: bundle) ?? AppLocalizedString.string("実行中", locale: locale, bundle: bundle))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let header {
+                    Text(verbatim: AgentStatusDurationFormat.clock(context.date.timeIntervalSince(header.startedAt)))
+                        .font(.system(size: 11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(DSColor.textTertiary)
+                }
+            }
+        }
+        .accessibilityIdentifier("GridTile.statusLine")
     }
 }

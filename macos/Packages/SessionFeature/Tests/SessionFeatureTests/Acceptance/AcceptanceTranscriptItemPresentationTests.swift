@@ -612,7 +612,7 @@ private func chatItemViewReachableCommandIDs(item: ChatItem, isRunningCommand: B
         isRunningCommand: isRunningCommand,
         agentDescriptor: AgentRegistry.descriptor(for: .claudeCode)
     )
-    guard case .commandExecution(let id, _, let output, _) = view.item else {
+    guard case .commandExecution(let id, _, let output, _, _, _) = view.item else {
         return []
     }
     if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !view.isRunningCommand {

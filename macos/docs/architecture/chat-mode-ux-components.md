@@ -42,7 +42,7 @@ last-verified: 2026-09-14
 - 添付 = `ChatSessionViewModel.attachmentStore`。送信は `buildChatInputs(text:)` → `ChatInput.text/.image`。
 - 履歴 = off-main ロード → observable キャッシュ（ADR 0040）。
 - ターン追跡 = `turnStartedAt`/`lastEventAt`（turnStarted で記録・完了/中断/エラーでクリア）→ `hangAssessment(now:)` は読み取り専用。
-- 入力履歴 = `ChatSessionViewModel.inputHistoryEntries`（= `InputHistoryPolicy.entries(from: transcript)`、transcript 順・古い→新しい）。revert 用 `revertCandidates`（新しい順・→ chat-revert-escape-and-interrupt.md）とは別プロパティで意味論を分離。スクラバーのジャンプは新機構を作らず、既存の `requestedTranscriptTarget` → `ChatTranscriptView.jumpToTarget`（windowing の reveal-on-jump 込み）に相乗りする。スクラバーのハイライトはトランスクリプトのスクロール位置に連動する（`ChatSessionView.currentInputPositionID` ← `ChatTranscriptView` が NSScrollView のビューポート中央にあるユーザー入力を算出）。位置測定はスクロール不変な content 座標系（preference）で行い、@Binding 更新は値変化時のみ＝既存の `isThinkingIndicatorInViewport` と同じ経路で ADR 0030 の再入（スクロール連動レイアウトループ）を避ける。
+- 入力履歴 = `ChatSessionViewModel.inputHistoryEntries`（= `InputHistoryPolicy.entries(from: transcript)`、transcript 順・古い→新しい）。revert 用 `revertCandidates`（新しい順・→ chat-revert-escape-and-interrupt.md）とは別プロパティで意味論を分離。スクラバーのジャンプは新機構を作らず、既存の `requestedTranscriptTarget` → `ChatTranscriptView.jumpToTarget`（窓の外なら飛び先から上限分を描く `TranscriptWindow.reveal(itemID:in:)` 込み。ADR 0229）に相乗りする。スクラバーのハイライトはトランスクリプトのスクロール位置に連動する（`ChatSessionView.currentInputPositionID` ← `ChatTranscriptView` が NSScrollView のビューポート中央にあるユーザー入力を算出）。位置測定はスクロール不変な content 座標系（preference）で行い、@Binding 更新は値変化時のみ＝既存の `isThinkingIndicatorInViewport` と同じ経路で ADR 0030 の再入（スクロール連動レイアウトループ）を避ける。
 
 ## 時刻駆動 UI の規約（ADR 0010 準拠）
 
@@ -57,7 +57,7 @@ last-verified: 2026-09-14
 composer 入力欄パネルは既定でコンパクト表示に戻され、**最小高は 36pt**（`ADR 0046` 参照。running インジケータ撤去済み・ADR 0044 と合わせて入力欄パネル全体は約80pxに圧縮）。
 
 入力先の表示は `ComposerDestinationLabel` が作る。単一・グリッドでは「プロジェクト / 作業名」、
-チームでは討論の開始・発言・親セッションへの送信を区別し、送信不可なら理由も表示する。表示は入力欄の
+親セッションへ送る入力では「親セッションへの送信」を区別し、送信不可なら理由も表示する。表示は入力欄の
 直前であり、送信先を決める既存分岐は変更しない。
 
 ## 回答と処理詳細の描画（ADR 0175）
@@ -75,9 +75,9 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 ## トランスクリプトの描画（末尾 N ブロック・ADR 0051 / 0127）
 
-**履歴追加の操作（ADR 0217）**: 上端からさらに60pt分スクロールするとローダーを表示し、指を離すまで表示を続ける。履歴追加は指を離してから1回だけ行う。終了通知のないホイールは入力停止180msで確定する。
+**履歴追加の操作（ADR 0217・0229）**: 上端からさらに60pt分スクロールするとローダーを表示し、指を離すまで表示を続ける。履歴追加は指を離してから1回だけ行う。終了通知のないホイールは入力停止180msで確定する。新しい側を外している間は、下端で同じ操作を下向きに行うと新しい側を読み込む。
 
-`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`Session/TranscriptWindow.swift`）で**末尾 N ブロックのみ描画**する。**N が数えるのはトップレベルに描画されるブロック数**であって item 数ではない（ADR 0127）——連続するツール実行のまとまりは中に何件入っていても1枠。`ChatTranscriptGrouping.visibleSlice(from:blockLimit:)` は item 列を末尾から1回走査して総ブロック数を数え、末尾 `blockLimit` ブロックだけを組み立てて返す（隠れたブロックの配列は作らない。2026-11-02 のコードで確認）。隠れ件数は `hiddenBlockCount`（ブロック単位）で返る。`ChatTranscriptView` はこの窓の候補だけに描画予算（`TranscriptRenderBudget`）を適用し、予算で除外した候補数を隠れ件数へ加える。ユーザー入力位置の計測対象は可視ブロック自身の種類で判定する。N は表示文脈（`TranscriptPresentationContext`）で分かれ、**単一表示 = 50 / グリッドタイル = 16**（ADR 0094 で文脈別既定を導入。単一表示は当初 200 だったが初回描画コスト削減のため 50 へ引き下げ＝ADR 0097。グリッドは全タイル常時描画のため小窓で、40 → 16 は ADR 0116）。`reset()` は自文脈の既定値へ戻る。超過時は最上部でさらに上方向へスクロールすると、Comet ローダーを表示してから既存の窓と描画予算を1段階拡張する（追加幅50、実表示数は描画予算による）。ボタンは表示しない。展開後は追加前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。実入力だけを契機にし、慣性やレイアウト変化では追加しない（ADR 0217）。隠れ域へのジャンプ（バックグラウンドタスクストリップ）は `ChatTranscriptGrouping.blockIndex(ofItemWithID:in:)` で item→ブロック index へ翻訳してから `reveal(index:totalCount:)` がマージン付きで可視化し、scrollTo する。window の純計算はスクロール量・可視領域を参照しない。拡張は実スクロール入力または明示操作による単発の要求に限る。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
+`ChatTranscriptView` は非 Lazy VStack（ADR 0030）のまま、`TranscriptWindow`（純粋値型・`SessionFeature/TranscriptWindow.swift`）で**窓の N ブロックのみ描画**する。窓は通常は末尾に追従する。**N が数えるのはトップレベルに描画されるブロック数**であって item 数ではない（ADR 0127）——連続するツール実行のまとまりは中に何件入っていても1枠。`ChatTranscriptGrouping.visibleSlice(from:blockLimit:)` は item 列を末尾から1回走査して総ブロック数を数え、末尾 `blockLimit` ブロックだけを組み立てて返す（隠れたブロックの配列は作らない。2026-11-02 のコードで確認）。隠れ件数は `hiddenBlockCount`（ブロック単位）で返る。`TranscriptWindow.slice(of:)` はこの窓の候補だけに描画予算（`TranscriptRenderBudget`）を適用し、予算で除外した候補数を隠れ件数へ加える。ユーザー入力位置の計測対象は可視ブロック自身の種類で判定する。N は表示文脈（`TranscriptPresentationContext`）で分かれ、**単一表示 = 50 / グリッドタイル = 16**（ADR 0094 で文脈別既定を導入。単一表示は当初 200 だったが初回描画コスト削減のため 50 へ引き下げ＝ADR 0097。グリッドは全タイル常時描画のため小窓で、40 → 16 は ADR 0116）。`reset()` は自文脈の既定値へ戻る。超過時は最上部でさらに上方向へスクロールすると、Comet ローダーを表示してから既存の窓と描画予算を1段階拡張する（追加幅50、実表示数は描画予算による）。ボタンは表示しない。展開後は追加前の先頭可視メッセージへアンカー保持（イベント駆動 scrollTo・1回のみ）。実入力だけを契機にし、慣性やレイアウト変化では追加しない（ADR 0217）。**窓は上限 `maxStages`（8 段）で止まる**。上限を超えて遡ると、窓の終端を「最後のブロックの id」（`lastBlockID`）と、終端の区間を探すための項目の id（`lastItemID`）で固定して 1 段分ずつ古い側へずらし、新しい側を描画から外す。窓は常に会話全体を組み立てたブロック列の連続した一部で、終端を含む区間（状態カードは入力 1 回分）を丸ごと組み立ててから終端より後ろを捨てる（ADR 0229 §6）。外している間は自動追従に戻らず「↓ 最新へ」を出し続け、接続中・考え中などの末尾の表示は出さない。下端の引き操作で 1 段分ずつ新しい側へ戻す（直前の最後のブロックを上端へアンカー保持）。「↓ 最新へ」・End・セッション切替、またはリバートや処理の終了で終端より新しいブロックが無くなったときに末尾追従に戻る。隠れ域へのジャンプ（入力スクラバー・バックグラウンドタスクストリップ）は `reveal(itemID:in:)` が窓を上限の段数にし、飛び先から新しい側へ上限より 1 段少ない分（件数と予算の両方）を描く窓にしてから scrollTo する（ADR 0229）。描画するブロックと前後の隠れ件数は `TranscriptWindow.slice(of:)` が、描画予算（`TranscriptRenderBudget`）の適用まで含めて返す。window の純計算はスクロール量・可視領域を参照しない。拡張は実スクロール入力または明示操作による単発の要求に限る。遅延 scrollTo は世代トークン（jumpGeneration）でセッション切替・後続操作時に無効化。
 
 **復元中の接続表示**（ADR 0098）: セッション復元は空 transcript の VM を先に UI へ載せてから `await vm.restore()` で全件一括反映するため、その間 transcript が空になる。`ChatRestoreState`（`notRestored`/`restoring`/`restored`/`failed`）の `restoring` を `restore()` 入口で設定し、`ChatSessionView` は `restoreState == .restoring` かつ transcript 空の間だけ `ChatConnectingIndicator`（iOS `DSConnectingIndicator` の移植・Canvas + TimelineView レーダー風・`DSColor.chatAccent`・Reduce Motion 静的フォールバック・`accessibilityHidden(true)`）を中央オーバーレイ表示する。完了/失敗で消え、空データ・失敗で永久表示にならない。`SessionRestoreCoordinator` は View が状態を観測するため変更不要。
 
@@ -131,6 +131,8 @@ PTY read（actor＋専用キュー）・transcript 保存（actor）・Hook/Cont
 
 `ChatItem.userMessage` は第4連想値 `attachments: [ChatUserAttachment]`（filename?/mediaType のメタのみ）を持ち、送信時に `sendText` が充填する。描画は `ChatUserMessagePresentation` / `ChatAttachmentBadgePresentation`（検査可能な表示モデル）→ `UserMessageCell` のバッジ（photo アイコン＋表示名＋×N）。空テキスト＋添付ありはバッジのみ（テキスト行・コピー操作なし）。永続対象判定 `shouldStoreInTranscript` は「空本文でも添付ありなら保存」。旧「（画像 N 枚）」プレースホルダは廃止。
 
+**長文の表示上限**（2026-11-07 のコードで確認）: `ChatUserMessagePresentation` は表示用の `previewText` と省略状態 `isTruncated` も持つ。本文の先頭 4096 Unicode scalar まで、かつ 32 個目の改行記号（`CharacterSet.newlines` に含まれる符号。CRLF は 2 個と数える）の直前までを `previewText` とし、`UserMessageCell` はこれだけを `Text` へ渡す。両方の上限内なら原文のまま表示する。省略時は吹き出し内に「先頭のみ表示」と常時見える「全文をコピー」（`ChatMessage.copyButton.user.full`）を出す。ホバーのコピーと全文コピーはどちらも元の本文を使い、保存・送信・復元する本文は切り詰めない。scalar 単位で切るため、表示末尾が絵文字や結合文字列の途中になることがある。経緯と計測は[作業記録](../delivery/0226-long-user-message-freeze.md)、回帰は `LongUserMessageTests`。
+
 ## composer フッターのコンテキストドーナツとブランチ表示（chat-ui-context-fixes, 2026-07-10・ADR 0062/0066）
 
 フッター HStack はモード選択（leading コントロール）の右・Spacer の前に `ComposerContextIndicator`（`SessionFeature/ComposerContextIndicator.swift`）を置く。両コントロールは model 名メニューと同じ `HoverableComposerControl`（NSTrackingArea ホバーハイライト・ComposerSettingsControls.swift。ADR 0029 の .onHover 不発対策）に乗る。
@@ -182,7 +184,7 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 ## カードの装飾とファイル変更のコードビュー（chat-toolcall-view run, 2026-07-30）
 
-共通の `DisclosureCard` は**アイコンもステータスグリフも時刻も持たない**（`systemImage` / `accent` / `status` / `timestamp` 引数と `StatusGlyph` / `DisclosureRunningSpinner` / `ChatTimestampText` は削除済み。ADR 0144 → 0147）。枠・背景も持たず「見出し＋シェブロン＋展開状態」だけを担う。transcript に回転アニメーションは存在しない。ツールコール系カードの文字色は `DSColor.chatToolCallText`（半透明・無彩色）で、色の選択は純粋関数 `DisclosureCardPalette.title(isToolCall:)` / `.subtitle(isToolCall:)` に集約する。`AvatarMessageRow` はブランドアイコンを描かず本文を左端へ詰める（**チームビュー `TeamTimelineView` とアゴラの発言者行のアイコンは従来どおり**）。時刻はカードごとには出さず、**ホバーで現れるコピーボタン（`MessageCopyButton`。背景は透明、ホバー時のみ背景が付く）の右**に出す。Reasoning は見出しと本文（trim 後）が一致するとき `DisclosureCard` を使わず、半透明グレーの折りたためない 1 行として描く。
+共通の `DisclosureCard` は**アイコンもステータスグリフも時刻も持たない**（`systemImage` / `accent` / `status` / `timestamp` 引数と `StatusGlyph` / `DisclosureRunningSpinner` / `ChatTimestampText` は削除済み。ADR 0144 → 0147）。枠・背景も持たず「見出し＋シェブロン＋展開状態」だけを担う。transcript に回転アニメーションは存在しない。ツールコール系カードの文字色は `DSColor.chatToolCallText`（半透明・無彩色）で、色の選択は純粋関数 `DisclosureCardPalette.title(isToolCall:)` / `.subtitle(isToolCall:)` に集約する。`AvatarMessageRow` はブランドアイコンを描かず本文を左端へ詰める。時刻はカードごとには出さず、**ホバーで現れるコピーボタン（`MessageCopyButton`。背景は透明、ホバー時のみ背景が付く）の右**に出す。Reasoning は見出しと本文（trim 後）が一致するとき `DisclosureCard` を使わず、半透明グレーの折りたためない 1 行として描く。
 
 枠線・背景・角丸・`clipShape`・ホバー・右上のコピーボタンは共通コンポーネント **`ChatCodeCard<Header, Content>`**（`ChatCodeCard.swift`）が持ち、diff とコマンド実行の両方がこの器に入る（`DSColor.chatCard` / `DSColor.border` / `DSRadius.m`。`clipShape` は `overlay(strokeBorder)` より前）。markdown の fenced code block（`CodeBlockView`）は同じトークンを使うが独立したままで、挙動は不変（`ChatCodeBlockTests` で固定）。
 
@@ -200,7 +202,7 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 ## タスクリストカード（agent-grid-jank run, 2026-07-24）
 
-Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（同一カードの置換更新）を `TaskListCell`（`ChatMessageCells+TaskList.swift`・DisclosureCard ベース・accessibilityIdentifier `ChatMessage.taskList`）で描画。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `ClaudeTaskListEventTests`・`TaskListCardTests`。
+Claude Code の Tasks 機能（TodoWrite/TaskCreate/TaskUpdate）を transcript 内の1枚カードで表示する。正規化は `NormalizedChatEvent.taskListUpdated(tasks: [AgentTaskItem])`（TodoWrite=全量スナップショット、TaskCreate/TaskUpdate=`toolUseResult.task.id` による差分。`ClaudeChatClient+TaskList.swift`）。transcript 側は `ChatItem.taskList`（更新のたびに一意の id `task-list-<UUID>` で追記するスナップショット。同じ入力内で同じ内容なら追記しない。古い会話は固定 id `task-list` の 1 枚）を保存の正本として持ち、描画は `AgentStatusCardBuilder` が作るエージェント状態カード（`AgentStatusCardView`。ADR 0226・0227）が受け持つ（`TaskListCell` は削除した）。型は `StructuredChatKit/AgentTaskList.swift`（`AgentTaskItem`/`AgentTaskStatus`）。凍結 `ClaudeTaskListEventTests`。
 
 ## スラッシュコマンドのサジェスト＝セッションの提供一覧が正本（ADR 0120, 2026-07-26）
 

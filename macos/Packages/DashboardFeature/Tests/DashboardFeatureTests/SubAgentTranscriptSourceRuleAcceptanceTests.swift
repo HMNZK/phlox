@@ -82,7 +82,7 @@ struct SubAgentTranscriptSourceRuleAcceptanceTests {
 
         try await waitUntil(timeoutNanoseconds: 5_000_000_000) {
             vm.subAgentTranscript(for: "toolu_R").contains {
-                if case .commandExecution(_, _, let output, _) = $0 { return output.contains("LIVE-OUT") }
+                if case .commandExecution(_, _, let output, _, _, _) = $0 { return output.contains("LIVE-OUT") }
                 return false
             }
         }

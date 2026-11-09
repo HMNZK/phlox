@@ -882,7 +882,7 @@ func spawnNewCodexAppServerSessionInjectsTranscriptStore() async throws {
     try await waitUntil {
         guard let stored = try? await transcriptStore.loadTranscript(for: sessionID) else { return false }
         return stored.contains { item in
-            if case .userMessage(_, "hi", _, _) = item { return true }
+            if case .userMessage(_, "hi", _, _, _) = item { return true }
             return false
         }
     }

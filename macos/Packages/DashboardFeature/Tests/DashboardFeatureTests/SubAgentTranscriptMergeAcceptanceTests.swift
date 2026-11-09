@@ -37,7 +37,7 @@ struct SubAgentTranscriptMergeAcceptanceTests {
 
         // (3) tool_use と tool_result が 1 つの commandExecution にマージされ、command と output を持つ。
         let commands = items.compactMap { item -> (String?, String)? in
-            if case .commandExecution(let id, let command, let output, _) = item, id == "toolu_A" {
+            if case .commandExecution(let id, let command, let output, _, _, _) = item, id == "toolu_A" {
                 return (command, output)
             }
             return nil
@@ -66,7 +66,7 @@ struct SubAgentTranscriptMergeAcceptanceTests {
         #expect(Set(ids).count == ids.count, "reversed tool order must not create duplicate ids: \(ids)")
         // 単一の commandExecution に command と output の両方が入る。
         let cmds = items.compactMap { item -> (String?, String)? in
-            if case .commandExecution(let id, let c, let o, _) = item, id == "toolu_X" { return (c, o) }
+            if case .commandExecution(let id, let c, let o, _, _, _) = item, id == "toolu_X" { return (c, o) }
             return nil
         }
         #expect(cmds.count == 1)

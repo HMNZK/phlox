@@ -146,7 +146,7 @@ struct ChatHistoryRevertPicker: View {
     }()
 
     private func messageText(_ item: ChatItem) -> String {
-        if case .userMessage(_, let text, _, _) = item {
+        if case .userMessage(_, let text, _, _, _) = item {
             return text
         }
         return ""

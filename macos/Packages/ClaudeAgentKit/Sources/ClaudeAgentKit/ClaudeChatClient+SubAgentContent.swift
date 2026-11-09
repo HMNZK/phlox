@@ -196,10 +196,12 @@ extension ClaudeChatClient {
         if let fileChange = fileChangeEvent(toolName: name, input: input, itemId: itemId) {
             eventContinuation.yield(fileChange)
         } else {
+            let intent = name == "Bash" ? (input["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } : nil
             eventContinuation.yield(.commandExecution(
                 itemId: itemId,
                 command: commandDescription(toolName: name, input: input),
-                outputDelta: ""
+                outputDelta: "",
+                intent: intent
             ))
         }
     }
@@ -288,6 +290,7 @@ extension ClaudeChatClient {
                 command: nil,
                 outputDelta: toolResultText(from: item["content"])
             ))
+            eventContinuation.yield(.itemCompleted(itemId: itemId))
         }
     }
 

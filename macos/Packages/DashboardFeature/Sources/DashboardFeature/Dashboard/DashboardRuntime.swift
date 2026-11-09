@@ -39,6 +39,69 @@ public struct DashboardRuntimeSnapshot: Codable, Sendable {
     }
 }
 
+public struct DashboardRuntimeOverview: Codable, Sendable {
+    public var projects: [Project]
+    public var sessions: [SessionRuntimeSessionOverview]
+    public var availableAgentKinds: [AgentKind]
+    public var hasRestoredSessions: Bool
+    public var immovableSessionIDs: Set<SessionID>
+    public var worktreeBranches: [SessionID: String]
+    public var workspaceRoot: URL?
+    public var workspaceCleanupWarning: WorkspaceCleanupWarning?
+    public var workspaceCleanupFailureReason: String?
+    public var discardedSessionCount: Int?
+    public var worktreeCreationPath: String?
+    public var usage: UsageRuntimeSnapshot?
+    public var restoredSessionPresentation: RestoredSessionPresentation?
+
+    public init(projects: [Project], sessions: [SessionRuntimeSessionOverview], availableAgentKinds: [AgentKind],
+                hasRestoredSessions: Bool = true, immovableSessionIDs: Set<SessionID> = [],
+                worktreeBranches: [SessionID: String] = [:], workspaceRoot: URL? = nil,
+                workspaceCleanupWarning: WorkspaceCleanupWarning? = nil,
+                workspaceCleanupFailureReason: String? = nil, discardedSessionCount: Int? = nil,
+                worktreeCreationPath: String? = nil, usage: UsageRuntimeSnapshot? = nil,
+                restoredSessionPresentation: RestoredSessionPresentation? = nil) {
+        self.projects = projects
+        self.sessions = sessions
+        self.availableAgentKinds = availableAgentKinds
+        self.hasRestoredSessions = hasRestoredSessions
+        self.immovableSessionIDs = immovableSessionIDs
+        self.worktreeBranches = worktreeBranches
+        self.workspaceRoot = workspaceRoot
+        self.workspaceCleanupWarning = workspaceCleanupWarning
+        self.workspaceCleanupFailureReason = workspaceCleanupFailureReason
+        self.discardedSessionCount = discardedSessionCount
+        self.worktreeCreationPath = worktreeCreationPath
+        self.usage = usage
+        self.restoredSessionPresentation = restoredSessionPresentation
+    }
+}
+
+public extension UsageRuntimeSnapshot {
+    func boundedForOverview() -> UsageRuntimeSnapshot {
+        let limited = usages.mapValues { usage in
+            let state: CLIUsage.State
+            switch usage.state {
+            case .ok(let buckets) where buckets.count > 16:
+                state = .unavailable(reason: "使用量の項目数が上限を超えています。")
+            case .ok(let buckets):
+                state = .ok(buckets.map { bucket in
+                    UsageBucket(id: SessionRuntimeTextPreview(bucket.id).displayText,
+                        label: SessionRuntimeTextPreview(bucket.label).displayText,
+                        usedPercent: bucket.usedPercent, resetsAt: bucket.resetsAt)
+                })
+            case .unavailable(let reason):
+                state = .unavailable(reason: SessionRuntimeTextPreview(reason).displayText)
+            }
+            return CLIUsage(kind: usage.kind, state: state,
+                updatedAt: usage.updatedAt, dataAsOf: usage.dataAsOf)
+        }
+        return UsageRuntimeSnapshot(usages: limited, failures: failures.mapValues { failure in
+            UsageFailure(reason: SessionRuntimeTextPreview(failure.reason).displayText, at: failure.at)
+        })
+    }
+}
+
 public struct DashboardRuntimeSpawnRequest: Codable, Sendable {
     public var ref: AgentRef
     public var projectID: ProjectID?
@@ -71,6 +134,7 @@ public enum DashboardRuntimeCommand: Codable, Sendable {
     case removeSession(SessionID)
     case removeProject(ProjectID)
     case history(ProjectID, AgentRef)
+    case fileLastWriter(absolutePath: String, baselineAt: Date, excluding: SessionID?)
     case persistRole(SessionID, String)
     case clearWorkspaceCleanupWarning
     case takeDiscardedSessionCountNotice
@@ -94,6 +158,7 @@ public enum DashboardRuntimeReply: Codable, Sendable {
     case projectID(ProjectID?)
     case bool(Bool)
     case history([ClaudeSessionHistoryEntry])
+    case fileLastWriter(String?)
     case session(SessionRuntimeSessionCommandResult)
     case sendOutcome(DashboardViewModel.SendOutcome)
 }
@@ -118,12 +183,13 @@ public struct DashboardRuntimeMessageRequest: Codable, Sendable {
 
 public typealias DashboardRuntimeCommandHandler = @MainActor (DashboardRuntimeCommand) async throws -> DashboardRuntimeReply
 
-public enum DashboardRuntimeError: Error, LocalizedError, Sendable {
+public enum DashboardRuntimeError: Error, LocalizedError, Sendable, Equatable {
     case invalidSnapshot(String)
     case unexpectedReply
     case ownedOperationUnavailable
     case sessionNotFound
     case commandQueueFull
+    case invalidRequest
     case removalFailed(String)
 
     public var errorDescription: String? {
@@ -133,6 +199,7 @@ public enum DashboardRuntimeError: Error, LocalizedError, Sendable {
         case .ownedOperationUnavailable: "この操作はバックグラウンド実行プロセスでのみ実行できます"
         case .sessionNotFound: "対象のセッションが見つかりません"
         case .commandQueueFull: "操作が混み合っています。処理が終わってからやり直してください"
+        case .invalidRequest: "変更元の照会内容が不正です"
         case .removalFailed(let reason): reason
         }
     }

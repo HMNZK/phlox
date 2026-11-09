@@ -179,6 +179,17 @@ public struct CodexSubAgentState: Codable, Equatable, Sendable {
         self.parentThreadId = parentThreadId
     }
 
+    func boundedRuntimePresentation() -> Self {
+        var result = self
+        result.children = children.map {
+            var child = $0
+            child.summary = child.summary.map(boundedRuntimeDisplay)
+            child.taskName = child.taskName.map(boundedRuntimeDisplay)
+            return child
+        }
+        return result
+    }
+
     public mutating func apply(_ event: CodexSubAgentEvent) {
         switch event {
         case .available(let incoming):

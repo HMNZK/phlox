@@ -465,6 +465,11 @@ public actor ClaudeChatClient: StructuredAgentClient {
         observedExistingConversation = false
         callerResumedSession = false
         settingsDirty = false
+        // 古い会話のタスクの記憶を持ち越さない（古い id 宛ての TaskUpdate でタスクが戻るのを防ぐ）。
+        taskListTasks = []
+        taskListToolUseIds = []
+        pendingCreatedTaskTitles = [:]
+        toolUseItemIds = [:]
         do {
             try await spawn(sessionArgument: .none)
         } catch {

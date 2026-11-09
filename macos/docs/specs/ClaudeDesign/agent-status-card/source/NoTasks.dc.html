@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>タスクなしのカード</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="card.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="pc" style="width: 720px; height: 560px; padding: 32px 40px 28px; display: flex; flex-direction: column; gap: 14px">
+<div class="log" style="width: 100%">
+<div class="um">go.mod の Go を 1.25 に上げて、ビルドが通るか見て</div>
+
+<section class="asc" aria-label="実行中。ビルドが通るか確認中。経過 18 秒">
+<div class="ash">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b></span>
+<span class="now"><span class="ic" aria-hidden="true" style="color: var(--ic)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="tx">ビルドが通るか確認中</span></span>
+<span class="el">0:18</span>
+</div>
+<div class="asb">
+<div class="tl">
+<div class="ti">
+<button class="tr out" aria-expanded="true" aria-label="タスク外の作業、3 件"><span class="chev open"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 1.5L6.5 5 3 8.5"></path></svg></span><span class="mk"><span class="mout"></span></span><span class="tn">タスク外の作業 · 3 件</span><span class="du"></span></button>
+<div class="wl">
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M10.6 2.6l2.8 2.8-7.6 7.6H3v-2.8z"></path></svg></span><span class="wx"><span class="f">go.mod</span> を編集</span><span class="du">0.2s</span></button>
+<button class="wr"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx">依存関係を整理</span><span class="du">3.1s</span></button>
+<button class="wr run"><span class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"></rect><path d="M4.6 6.2l2 1.8-2 1.8M8.4 10h3"></path></svg></span><span class="wx">ビルドが通るか確認中</span><span class="du"></span></button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div style="flex: 1"></div>
+<div class="cmp">入力欄（現行のまま）</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":560}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

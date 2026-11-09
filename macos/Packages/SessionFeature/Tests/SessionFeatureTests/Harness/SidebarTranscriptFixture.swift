@@ -85,7 +85,7 @@ enum SidebarTranscriptFixture {
 
     static var manifest: [Record] {
         entries.map { record(id: $0.id, kind: $0.kind, text: $0.text) } + changeCards.flatMap { item in
-            guard case .fileChange(let id, let changes, _) = item else { return [Record]() }
+            guard case .fileChange(let id, let changes, _, _) = item else { return [Record]() }
             return changes.map { record(id: id, kind: "change-card", text: $0.diff) }
         }
     }
@@ -120,14 +120,13 @@ struct SidebarTranscriptFixtureTests {
         let canonical = entries.map { "\($0.id)\t\($0.kind)\t\($0.text)\n" }.joined()
         #expect(SidebarTranscriptFixture.record(id: "fixture", kind: "all", text: canonical).sha256
                 == "b0f42f5ad8ed79e03ec13bd05cc766a3fdb98ff1e7ea2f02527a4696f6d566b3")
-        #expect([0, 1, 4, 8].map { SidebarTranscriptFixture.allowed(expansions: $0) } == [9, 21, 39, 63])
-        var window = TranscriptWindow()
-        window.reveal(index: 0, totalCount: blocks.count)
+        // 8 回目の拡張は窓の上限（8 段。ADR 0229）で止まるので、7 回と同じ件数になる。
+        #expect([0, 1, 4, 8].map { SidebarTranscriptFixture.allowed(expansions: $0) } == [9, 21, 39, 57])
         #expect(TranscriptRenderBudget.allowedBlockCount(
-            blocks: blocks, requestedLimit: window.limit, defaultLimit: 50, minimumBlocks: 550
+            blocks: blocks, requestedLimit: blocks.count + TranscriptWindow.expandStep, defaultLimit: 50, minimumBlocks: 550
         ) == 500)
         for item in SidebarTranscriptFixture.changeCards {
-            guard case .fileChange(_, let changes, _) = item else { Issue.record("not a change card"); continue }
+            guard case .fileChange(_, let changes, _, _) = item else { Issue.record("not a change card"); continue }
             let lines = changes[0].diff.components(separatedBy: "\n")
             #expect(lines.count == 30)
             #expect(lines.allSatisfy { $0.count == 80 })

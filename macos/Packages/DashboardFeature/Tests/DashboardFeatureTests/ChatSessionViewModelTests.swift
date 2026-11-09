@@ -521,7 +521,7 @@ func revert_replayPreambleSurvivesFailedSendAndAppliesExactlyOnce() async throws
     try await revertWhiteboxCompleteTurn(vm, client: client, userText: "二番目の依頼", agentItemID: "a2", agentReply: "応答2")
 
     let userIDs = vm.transcript.compactMap { item -> String? in
-        if case .userMessage(let id, _, _, _) = item { id } else { nil }
+        if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
     }
     _ = await vm.revert(toUserMessageID: userIDs[1])
 
@@ -564,7 +564,7 @@ func revert_replayContextTruncatesFromOldSideAt12kChars() async throws {
     try await revertWhiteboxCompleteTurn(vm, client: client, userText: "third", agentItemID: "a3", agentReply: "応答3")
 
     let userIDs = vm.transcript.compactMap { item -> String? in
-        if case .userMessage(let id, _, _, _) = item { id } else { nil }
+        if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
     }
     // "third"（3番目のユーザーメッセージ）の直前まで巻き戻す → 保持分は old/recent の 2 ターン。
     _ = await vm.revert(toUserMessageID: userIDs[2])
@@ -629,7 +629,7 @@ func revert_codexIgnoresStaleOldThreadEventsAfterReset() async throws {
     } }
 
     let userIDs = vm.transcript.compactMap { item -> String? in
-        if case .userMessage(let id, _, _, _) = item { id } else { nil }
+        if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
     }
     // "二番目" の直前まで巻き戻す → retained = [user"最初", agent-1"old-reply"]。
     let restored = await vm.revert(toUserMessageID: try #require(userIDs.last))
@@ -1863,7 +1863,7 @@ func chatSessionViewModel_accumulatesCommandOutputAfterCommandItemStarted() asyn
 
     try await waitUntil {
         vm.transcript.contains { item in
-            if case .commandExecution("cmd-1", "swift test", "Build complete\nTest Suite passed", _) = item {
+            if case .commandExecution("cmd-1", "swift test", "Build complete\nTest Suite passed", _, _, _) = item {
                 return true
             }
             return false
@@ -1889,7 +1889,7 @@ func chatSessionViewModel_accumulatesCommandOutputForCommandQualifiedEvents() as
 
     try await waitUntil {
         vm.transcript.contains { item in
-            if case .commandExecution("cmd-1", "swift test", "Build complete\nTest Suite passed", _) = item {
+            if case .commandExecution("cmd-1", "swift test", "Build complete\nTest Suite passed", _, _, _) = item {
                 return true
             }
             return false

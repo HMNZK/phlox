@@ -75,7 +75,7 @@ private func reasoningTexts(_ items: [ChatItem]) -> [String] {
 }
 
 private func commandOutputs(_ items: [ChatItem]) -> [String] {
-    items.compactMap { if case .commandExecution(_, _, let output, _) = $0 { output } else { nil } }
+    items.compactMap { if case .commandExecution(_, _, let output, _, _, _) = $0 { output } else { nil } }
 }
 
 // MARK: - Tests

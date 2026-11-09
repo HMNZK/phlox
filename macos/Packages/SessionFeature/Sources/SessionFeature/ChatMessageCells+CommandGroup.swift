@@ -27,7 +27,7 @@ struct CommandGroupHeader: Equatable {
         isRunning = isTurnRunning && lastItem?.id == lastTranscriptID
         title = CommandGroupTitle.derive(items: items)
 
-        if case .commandExecution(_, _, _, let timestamp)? = lastItem {
+        if case .commandExecution(_, _, _, let timestamp, _, _)? = lastItem {
             self.timestamp = timestamp
         } else {
             timestamp = .distantPast
@@ -37,7 +37,7 @@ struct CommandGroupHeader: Equatable {
     }
 
     private static func hasNonBlankOutput(_ item: ChatItem) -> Bool {
-        guard case .commandExecution(_, _, let output, _) = item else {
+        guard case .commandExecution(_, _, let output, _, _, _) = item else {
             return false
         }
         return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -127,7 +127,7 @@ enum CommandGroupRowWindow {
         let groupIsRunning = isTurnRunning && lastItemID == lastTranscriptID
 
         let allRows = items.compactMap { item -> CommandGroupRow? in
-            guard case .commandExecution(let id, let command, let output, let timestamp) = item else {
+            guard case .commandExecution(let id, let command, let output, let timestamp, _, _) = item else {
                 return nil
             }
             return CommandGroupRow(
@@ -194,7 +194,7 @@ struct CommandGroupCell: View, Equatable {
             isTurnRunning: isTurnRunning
         )
         let hasNonBlankOutput = items.contains { item in
-            guard case .commandExecution(_, _, let output, _) = item else { return false }
+            guard case .commandExecution(_, _, let output, _, _, _) = item else { return false }
             return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         let presentation = TranscriptItemPresentation.command(
@@ -223,7 +223,7 @@ struct CommandGroupCell: View, Equatable {
                     ? [TranscriptCardBadge(id: "running", text: Text("実行中"), color: DSColor.chatTextPrimary, weight: .medium)]
                     : singleExitBadge
             ) {
-                if items.count == 1, case .commandExecution(_, _, let output, _) = items[0] {
+                if items.count == 1, case .commandExecution(_, _, let output, _, _, _) = items[0] {
                     // 04 A1: 1 件だけのときは「コマンド」の単独カード。中身は出力の行。
                     CommandCardOutput(output: output)
                 } else {
@@ -260,7 +260,7 @@ struct CommandGroupCell: View, Equatable {
 
     /// 1 件のカードだけ、出力から拾えた終了コードを右端に出す。
     private var singleExitBadge: [TranscriptCardBadge] {
-        guard items.count == 1, case .commandExecution(_, _, let output, _) = items[0] else { return [] }
+        guard items.count == 1, case .commandExecution(_, _, let output, _, _, _) = items[0] else { return [] }
         return [CommandExitCode.badge(for: output)].compactMap { $0 }
     }
 
@@ -288,7 +288,7 @@ struct CommandGroupCell: View, Equatable {
     }
 
     static func tool(of item: ChatItem) -> (label: String, body: String) {
-        guard case .commandExecution(_, let command, _, _) = item else { return ("Bash", "") }
+        guard case .commandExecution(_, let command, _, _, _, _) = item else { return ("Bash", "") }
         return CommandToolLabel.derive(command: command)
     }
 

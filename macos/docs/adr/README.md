@@ -1,6 +1,6 @@
 ---
 status: active        # active | completed | superseded | archived
-last-verified: 2026-10-24
+last-verified: 2026-11-09
 ---
 
 # ADR（アーキテクチャ決定記録）索引
@@ -12,8 +12,13 @@ last-verified: 2026-10-24
 ## 一覧
 | 番号 | 決定 | ステータス |
 |---|---|---|
+| 0230 | [起動状態とセッション内容を分けて取得する](0230-bounded-runtime-overview-and-session-content.md) | active（起動・定期更新を容量制限付き状態一覧へ移行） |
+| 0229 | [チャットの表示窓に上限を設け、上限を超えて遡るときは新しい側を外す](0229-transcript-window-bounded-at-both-ends.md) | accepted（0139 §3・0217 を一部置換） |
+| 0227 | [エージェント状態カードの中に限り、作業のアイコンとタスクの完了印を戻す](0227-status-card-icons-inside-card-only.md) | accepted（0144 をカード内に限り置換） |
+| 0228 | [Claude と Codex のタスクの道具を有効にして起動する（使用は強制しない）](0228-enable-agent-task-tools-without-forcing.md) | accepted（0226 を補う） |
+| 0226 | [エージェント状態カードは会話ログから組み立て、タスクの登録は強制しない](0226-agent-status-card-derived-from-transcript.md) | accepted（保存方式は暫定） |
 | 0225 | [送信の受付を画面同期から切り離す](0225-send-acceptance-without-snapshot-wait.md) | accepted（送信受付の分離と指紋計算の非同期化を検証） |
-| 0224 | [既知の履歴を共有して状態の変更部分を転送する](0224-incremental-runtime-snapshots.md) | accepted（転送削減と内容保持を検証。実IME・キー遅延は未計測） |
+| 0224 | [既知の履歴を共有して状態の変更部分を転送する](0224-incremental-runtime-snapshots.md) | superseded（従来経路の転送削減を検証。現在の起動経路は0230） |
 | 0223 | [状態同期のメイン処理と不変本文の費用を抑える](0223-runtime-snapshot-main-actor-budget.md) | accepted（GUI本文の不変時省略と質問日付cacheのみ統合。encodeの別actor移動は撤回） |
 | 0222 | [停止・終了と遅れて届く通知でチャットの状態を矛盾させない](0222-stop-exit-and-late-events-consistency.md) | accepted |
 | 0221 | [24 時間使われていないチャットのエージェントプロセスを止める](0221-suspend-idle-chat-agent-processes.md) | accepted |
@@ -84,7 +89,7 @@ last-verified: 2026-10-24
 | 0147 | [コードビューを枠線付きカードへ 1 本化し、見出しの重複・時刻・件数を落とす](0147-chat-code-card-and-header-dedup.md) | accepted |
 | 0146 | [ファイル変更をコードビューで描く（行番号は推測しない）](0146-diff-code-view.md) | accepted |
 | 0145 | [ツール実行グループの見出しを recap にし、開閉トグルを右端へ移す](0145-tool-group-recap-header.md) | accepted |
-| 0144 | [チャットの装飾を落とす（カードのアイコン・ステータスグリフ・アバターの撤去）](0144-quiet-chat-chrome.md) | accepted |
+| 0144 | [チャットの装飾を落とす（カードのアイコン・ステータスグリフ・アバターの撤去）](0144-quiet-chat-chrome.md) | accepted（エージェント状態カードの中に限り 0227 で置換） |
 | 0143 | [活動状態のラベルにシマーを戻し、帯の純関数を共有モデルへ1本化する](0143-activity-label-keeps-shimmer.md) | accepted |
 | 0142 | [Thinking 表示を点描 orb に置き換え、活動状態を transcript から導出する](0142-thinking-orb-replaces-shimmer.md) | accepted |
 | 0141 | [spawn の projectId をワイヤに載せ、未知のプロジェクトは 422 で拒否する](0141-spawn-project-id-wire.md) | accepted |

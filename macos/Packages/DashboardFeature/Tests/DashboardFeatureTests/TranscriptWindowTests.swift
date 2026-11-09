@@ -3,7 +3,8 @@ import Testing
 @testable import DashboardFeature
 @testable import SessionFeature
 
-/// TranscriptWindow（トランスクリプトの末尾 N 件表示・隠れ件数・expand・reveal・reset）の純ロジック。
+/// TranscriptWindow（トランスクリプトの末尾 N 件表示・隠れ件数・expand・reset）の純ロジック。
+/// ジャンプと上限でずれる窓（ADR 0229）は SessionFeature の TranscriptWindowBoundedTests が担う。
 /// 名指しハザードの「off-by-one（start と hidden とスライス表示件数の整合）」と
 /// 「window 拡張の単調性・末尾追従」を内部不変条件として符号化する。
 /// AutoFollow 等の view 挙動は ChatAutoFollowAcceptanceTests が担う。
@@ -56,22 +57,26 @@ struct TranscriptWindowTests {
         #expect(final.startIndex == 0)
     }
 
-    // expand は limit を単調増加させ、隠れ件数を単調減少（0 で下げ止まり）させる。
+    // expand は limit を上限（maxStages 段。ADR 0229）まで単調増加させ、上限で止まる。
+    // 隠れ件数は単調減少（0 で下げ止まり）する。
     @Test
-    func expand_isMonotonicAndClampsAtZero() {
+    func expand_isMonotonicUntilStageCapAndClampsAtZero() {
         var window = TranscriptWindow()
         let total = TranscriptWindow.defaultLimit + 3 * TranscriptWindow.expandStep
+        let cap = TranscriptWindow.maxStages * TranscriptWindow.defaultLimit
         var previousHidden = window.visibleRange(totalCount: total).hiddenCount
         var previousLimit = window.limit
         for _ in 0..<10 {
             window.expand()
-            #expect(window.limit > previousLimit, "expand で limit が増えていない")
+            #expect(window.limit == min(previousLimit + TranscriptWindow.expandStep, cap),
+                    "expand が step 分増えていない、または上限を超えた")
             let hidden = window.visibleRange(totalCount: total).hiddenCount
             #expect(hidden <= previousHidden, "expand で隠れ件数が増えた")
             #expect(hidden >= 0, "隠れ件数が負")
             previousHidden = hidden
             previousLimit = window.limit
         }
+        #expect(window.limit == cap, "10 回の expand で上限に届いていない")
         // 十分拡張すれば全件表示（隠れ 0・start 0）に到達する。
         #expect(window.visibleRange(totalCount: total).hiddenCount == 0)
         #expect(window.visibleRange(totalCount: total).startIndex == 0)
@@ -117,51 +122,6 @@ struct TranscriptWindowTests {
         #expect(TranscriptWindow.expandStep >= 50)
     }
 
-    // reveal（ステージ1差し戻し）: あらゆる隠れ域 index を可視化し、可視 index では no-op。
-    // 範囲外 index は安全に無視する（対象行が現セッションに無いケースの防御）。
-    @Test
-    func reveal_makesAnyHiddenIndexVisible_andNoOpWhenVisible() {
-        let total = TranscriptWindow.defaultLimit + 400
-        // 隠れ域の全 index を可視化できる（境界含む）。
-        for index in [0, 1, 50, TranscriptWindow.defaultLimit - 1] {
-            var window = TranscriptWindow()
-            window.reveal(index: index, totalCount: total)
-            let start = window.visibleRange(totalCount: total).startIndex
-            #expect(start <= index, "reveal 後に index=\(index) が可視域に入っていない start=\(start)")
-        }
-        // 可視域 index では limit 不変。
-        var visible = TranscriptWindow()
-        let base = visible.limit
-        for index in [total - 1, total - 10, total - visible.limit] {
-            visible.reveal(index: index, totalCount: total)
-            #expect(visible.limit == base, "可視 index=\(index) への reveal で limit が変わった")
-        }
-        // 範囲外 index（別セッション由来の解決ミスなど）は無視。
-        var oob = TranscriptWindow()
-        let before = oob.limit
-        oob.reveal(index: -1, totalCount: total)
-        oob.reveal(index: total, totalCount: total)
-        oob.reveal(index: total + 100, totalCount: total)
-        #expect(oob.limit == before, "範囲外 index で limit が変わった")
-    }
-
-    // reveal は単調（limit を縮めない）。より浅い reveal の後に深い reveal をしても逆行しない。
-    // total を十分大きく取り、中間 index の reveal 後も先頭側がまだ隠れ域に残るようにする
-    // （マージン +expandStep で全件可視化されない配置）。
-    @Test
-    func reveal_isMonotonic() {
-        let total = TranscriptWindow.defaultLimit + 1000
-        var window = TranscriptWindow()
-        window.reveal(index: 900, totalCount: total)       // 中間を可視化（まだ先頭側は隠れ域）
-        let deep = window.limit
-        #expect(window.visibleRange(totalCount: total).startIndex > 0, "テスト前提: 先頭側はまだ隠れ域")
-        window.reveal(index: total - 1, totalCount: total) // 可視域 → no-op
-        #expect(window.limit == deep, "可視 index への reveal で limit が縮んだ/変わった")
-        window.reveal(index: 0, totalCount: total)         // さらに深く（最古）
-        #expect(window.limit >= deep, "深い reveal で limit が縮んだ")
-        #expect(window.visibleRange(totalCount: total).startIndex == 0)
-    }
-
     // 展開アンカー（追加要望）: ビューポートを留めるアンカーは「押下時の先頭可視 item」
     // ＝ visibleRange(totalCount).startIndex の item。expand 後もそのアンカーは可視スライスに
     // 残り（newStart <= anchorIndex）、かつ上に以前隠れていた行が現れて遡れる（newStart < anchorIndex）。
@@ -180,24 +140,5 @@ struct TranscriptWindowTests {
         window.expand()
         let fullStart = window.visibleRange(totalCount: total).startIndex
         #expect(fullStart <= anchorIndex)
-    }
-
-    // reveal のマージン（stage2 差し戻し）: 露出はぴったりでなく expandStep 分の余裕を持ち、
-    // reveal 後に item が expandStep 件まで増えてもターゲットが可視のまま（遅延 scrollTo 空振り防止）。
-    @Test
-    func reveal_marginToleratesStreamingGrowthUpToExpandStep() {
-        for targetIndex in [0, 1, 37, TranscriptWindow.defaultLimit - 1] {
-            var window = TranscriptWindow()
-            let oldTotal = TranscriptWindow.defaultLimit + 300
-            // 前提: 隠れ域。
-            #expect(window.visibleRange(totalCount: oldTotal).startIndex > targetIndex)
-            window.reveal(index: targetIndex, totalCount: oldTotal)
-            // reveal 直後〜expandStep 件の成長まで、ターゲットは可視スライスに入り続ける。
-            for delta in [0, 1, TranscriptWindow.expandStep] {
-                let start = window.visibleRange(totalCount: oldTotal + delta).startIndex
-                #expect(start <= targetIndex,
-                        "index=\(targetIndex) が delta=\(delta) の成長で隠れ域へ落ちた start=\(start)")
-            }
-        }
     }
 }

@@ -24,6 +24,12 @@ struct ChatReplyArea<Composer: View>: View {
                         viewModel.dismissSendFailure()
                     }
                 }
+                if viewModel.isRuntimeProjection, let error = viewModel.runtimeConnectionError {
+                    Text("会話を取得できませんでした: \(error)")
+                        .font(DSFont.auxiliary)
+                        .foregroundStyle(DSColor.attentionInk(.error))
+                        .accessibilityIdentifier("ChatReplyArea.runtimeContentError")
+                }
                 let approvals = viewModel.replyApprovals
                 if let approval = viewModel.currentReplyApproval {
                     ApprovalCard(
@@ -38,6 +44,16 @@ struct ChatReplyArea<Composer: View>: View {
                 }
                 if let question = pendingQuestion {
                     questionCard(question, receivesFocus: approvals.isEmpty)
+                } else if let preview = viewModel.runtimePendingQuestionPreview {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("質問の詳細を読み込んでいます…")
+                            .font(DSFont.stateLabel)
+                        Text(verbatim: preview)
+                            .font(DSFont.auxiliary)
+                            .lineLimit(3)
+                    }
+                    .foregroundStyle(DSColor.textSecondary)
+                    .accessibilityLabel("質問の詳細を読み込んでいます")
                 }
             }
             .padding(.horizontal, DSSpacing.m)
@@ -83,7 +99,7 @@ struct ChatReplyArea<Composer: View>: View {
 
     /// 返答エリアに出す質問（ツールの使用許可は承認カード側）。最初の 1 件だけ。
     private var pendingQuestion: PendingQuestion? {
-        guard let item = Self.pendingQuestionItem(in: viewModel.transcript),
+        guard let item = Self.pendingQuestionItem(in: viewModel.replyItems),
               case .userQuestion(let id, let requestId, let questions, _, .pending, let timestamp) = item else { return nil }
         return PendingQuestion(itemId: id, requestId: requestId, questions: questions, timestamp: timestamp)
     }

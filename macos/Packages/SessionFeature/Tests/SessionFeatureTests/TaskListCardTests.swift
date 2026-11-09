@@ -4,9 +4,9 @@ import AgentDomain
 import StructuredChatKit
 @testable import SessionFeature
 
-// taskListUpdated イベントを transcript の「タスクリストカード」（ChatItem.taskList）へ反映する。
-// カードは 1 セッションの transcript に 1 枚だけ置かれ、更新のたびに最新スナップショットへ置換される
-// （更新ごとの新カード追加でチャットを埋めない）。
+// taskListUpdated イベントを transcript のタスクリストのスナップショット（ChatItem.taskList）へ反映する。
+// 更新のたびに一意の id（task-list-<UUID>）で追記し、経過を残す（ADR 0226・設計 §3.3）。
+// 同じ入力の中で同じ内容を続けて追記しない件は AgentStatusEventTests が持つ。
 
 // MARK: - ハーネス
 
@@ -72,7 +72,7 @@ private func taskListItems(_ vm: ChatSessionViewModel) -> [(id: String, tasks: [
 // MARK: - Tests
 
 @Test @MainActor
-func taskListUpdated_appendsSingleTaskListCard() async throws {
+func taskListUpdated_appendsFirstSnapshot() async throws {
     let (vm, client) = makeViewModel()
 
     client.yield(.turnStarted)
@@ -85,13 +85,13 @@ func taskListUpdated_appendsSingleTaskListCard() async throws {
     try await waitUntil { !taskListItems(vm).isEmpty }
 
     let cards = taskListItems(vm)
-    #expect(cards.count == 1, "taskListUpdated → transcript にタスクリストカードが 1 枚現れること")
+    #expect(cards.count == 1, "taskListUpdated → transcript にタスクリストのスナップショットが 1 件現れること")
     #expect(cards.first?.tasks.map(\.title) == ["調査する", "実装する"])
     #expect(cards.first?.tasks.map(\.status) == [.inProgress, .pending])
 }
 
 @Test @MainActor
-func taskListUpdated_replacesExistingCardInsteadOfAppending() async throws {
+func taskListUpdated_appendsNewSnapshotInsteadOfReplacing() async throws {
     let (vm, client) = makeViewModel()
 
     client.yield(.turnStarted)
@@ -108,11 +108,13 @@ func taskListUpdated_replacesExistingCardInsteadOfAppending() async throws {
         AgentTaskItem(id: "t2", title: "実装する", status: .inProgress),
         AgentTaskItem(id: "t3", title: "検証する", status: .pending),
     ]))
-    try await waitUntil { taskListItems(vm).first?.tasks.count == 3 }
+    try await waitUntil { taskListItems(vm).count == 2 }
 
     let cards = taskListItems(vm)
-    #expect(cards.count == 1, "更新のたびに新カードを追加せず、既存カードを最新スナップショットへ置換すること")
-    #expect(cards.first?.tasks.map(\.status) == [.completed, .inProgress, .pending])
+    #expect(cards.count == 2, "更新のたびに置換せず、スナップショットを追記すること")
+    #expect(cards.first?.tasks.map(\.status) == [.inProgress, .pending], "最初のスナップショットは書き換わらない")
+    #expect(cards.last?.tasks.map(\.status) == [.completed, .inProgress, .pending])
+    #expect(cards.first?.id != cards.last?.id, "スナップショットごとに一意の id")
 }
 
 @Test
@@ -131,7 +133,7 @@ func taskListChatItem_roundTripsThroughCodable() throws {
 }
 
 @Test @MainActor
-func taskListUpdates_keepOneFixedCardForEmptyAndDuplicateTitles() async throws {
+func taskListUpdates_appendSnapshotsForEmptyAndDuplicateTitles() async throws {
     let (vm, client) = makeViewModel()
 
     client.yield(.taskListUpdated(tasks: []))
@@ -140,11 +142,12 @@ func taskListUpdates_keepOneFixedCardForEmptyAndDuplicateTitles() async throws {
         AgentTaskItem(id: "first", title: "同じ項目", status: .pending),
         AgentTaskItem(id: "second", title: "同じ項目", status: .completed),
     ]))
-    try await waitUntil { taskListItems(vm).first?.tasks.count == 2 }
+    try await waitUntil { taskListItems(vm).count == 2 }
 
     let cards = taskListItems(vm)
-    #expect(cards.count == 1)
-    #expect(cards.first?.id == "task-list")
-    #expect(cards.first?.tasks.map(\.id) == ["first", "second"])
-    #expect(cards.first?.tasks.map(\.status) == [.pending, .completed])
+    #expect(cards.count == 2)
+    #expect(cards.allSatisfy { $0.id.hasPrefix("task-list-") })
+    #expect(cards.first?.tasks.isEmpty == true)
+    #expect(cards.last?.tasks.map(\.id) == ["first", "second"])
+    #expect(cards.last?.tasks.map(\.status) == [.pending, .completed])
 }

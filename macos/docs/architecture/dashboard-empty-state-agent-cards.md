@@ -29,5 +29,5 @@ superseded-by: ../specs/unified-new-chat-start.md
 
 - プロジェクト未登録時の空状態（「プロジェクトを追加」）は従来どおり別ビューで、カードは出ない。
 - custom agent descriptor / `supportsStructuredChat == false` はチャットボタンを出さず**ターミナルのみ**。
-- 「＋」新規セッションメニュー（`DashboardView.newSessionMenuItems`）とチームビューの「＋」（`TeamTimelineView`・非討論時）も同じ `modes(for:)` で agent × mode をフラットに列挙する（項目名「<表示名> — チャット/ターミナル」）。
+- 「＋」新規セッションメニュー（`DashboardView.newSessionMenuItems`）も同じ `modes(for:)` で agent × mode をフラットに列挙する（項目名「<表示名> — チャット/ターミナル」）。
 - テスト: `DashboardFeatureTests/AcceptanceAgentStartCardsTests.swift`・`AgentStartCardModesTests.swift`・`AgentStartCardsLayoutTests.swift`（実ビュー配線の ImageRenderer 検証含む）・`AgentStartCardsTests.swift`・参照 PNG `AgentStartCardsRenderPNGTests.swift`。

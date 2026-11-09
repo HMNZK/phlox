@@ -330,7 +330,7 @@ struct StreamFlagsAndNestedSubAgentTests {
 
         let events = await collectEvents(from: client)
         #expect(!events.contains {
-            if case .commandExecution(_, _, let output) = $0 { return output.contains("GRANDCHILD-OUTPUT") }
+            if case .commandExecution(_, _, let output, _) = $0 { return output.contains("GRANDCHILD-OUTPUT") }
             return false
         })
         #expect(events.contains {

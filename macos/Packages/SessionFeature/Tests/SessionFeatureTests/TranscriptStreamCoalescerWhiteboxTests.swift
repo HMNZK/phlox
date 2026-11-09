@@ -363,7 +363,7 @@ func codex_failedCommandCompletionCarriesTheExitCodeAndAggregatedOutput() async 
     for _ in 0..<1000 where output == nil {
         await Task.yield()
         output = vm.transcript.lazy.compactMap { item -> String? in
-            if case .commandExecution("c1", _, let output, _) = item { output } else { nil }
+            if case .commandExecution("c1", _, let output, _, _, _) = item { output } else { nil }
         }.first
     }
     #expect(output == "Exit code 1\nerror: boom")
@@ -387,7 +387,7 @@ func codex_structuredExitCodeWinsOverAnExitCodeLineInTheOutput() async throws {
     for _ in 0..<1000 where output == nil {
         await Task.yield()
         output = vm.transcript.lazy.compactMap { item -> String? in
-            if case .commandExecution("c2", _, let output, _) = item { output } else { nil }
+            if case .commandExecution("c2", _, let output, _, _, _) = item { output } else { nil }
         }.first
     }
     #expect(CommandExitCode.parse(output ?? "") == 1)
@@ -410,7 +410,7 @@ func codex_structuredZeroExitCodeWinsOverAFailureLineInTheOutput() async throws 
     for _ in 0..<1000 where output == nil {
         await Task.yield()
         output = vm.transcript.lazy.compactMap { item -> String? in
-            if case .commandExecution("c3", _, let output, _) = item { output } else { nil }
+            if case .commandExecution("c3", _, let output, _, _, _) = item { output } else { nil }
         }.first
     }
     #expect(CommandExitCode.parse(output ?? "") == 0)

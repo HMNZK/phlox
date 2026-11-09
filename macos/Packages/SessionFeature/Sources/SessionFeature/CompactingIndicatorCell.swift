@@ -13,9 +13,11 @@ enum CompactingIndicatorPresentation {
         showsThinkingIndicator: Bool,
         showsProcessingIndicator: Bool,
         isCompacting: Bool,
-        isAwaitingUser: Bool = false
+        isAwaitingUser: Bool = false,
+        usesStatusCard: Bool = false
     ) -> Bool {
-        showsThinkingIndicator && (showsProcessingIndicator || isAwaitingUser) && !isCompacting
+        // Claude と Codex は、状態カードの見出しが処理中表示を兼ねる（要件 D6）。
+        showsThinkingIndicator && !usesStatusCard && (showsProcessingIndicator || isAwaitingUser) && !isCompacting
     }
 }
 

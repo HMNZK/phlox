@@ -22,13 +22,37 @@ public enum ChatUserQuestionState: String, Codable, Sendable {
     case expired
 }
 
+/// 入力（userMessage）1 件の終わり方。エージェント状態カードの見出しが読む
+/// （agent-status-card-design.md §2.2）。`superseded` は実行中に次の入力が送られたこと。
+public struct ChatTurnEnd: Equatable, Codable, Sendable {
+    public enum Outcome: String, Codable, Sendable {
+        case completed
+        case interrupted
+        case error
+        case superseded
+    }
+
+    public let outcome: Outcome
+    public let at: Date
+
+    public init(outcome: Outcome, at: Date) {
+        self.outcome = outcome
+        self.at = at
+    }
+}
+
 // Hidden secret: chat item schema and its Codable/Equatable representation.
 public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
-    case userMessage(id: String, text: String, timestamp: Date, attachments: [ChatUserAttachment])
+    /// `turnEnd` はその入力の終わり方。`nil` は実行中か、この機能より前の記録。
+    case userMessage(id: String, text: String, timestamp: Date, attachments: [ChatUserAttachment], turnEnd: ChatTurnEnd? = nil)
     case agentMessage(id: String, text: String, timestamp: Date)
     case reasoning(id: String, text: String, timestamp: Date)
-    case commandExecution(id: String, command: String?, output: String, timestamp: Date)
-    case fileChange(id: String, changes: [StructuredChatKit.FilePatchChange], timestamp: Date)
+    /// `completedAt` は結果が届いた時刻（`nil` は実行中か旧記録）。`intent` はエージェントが付けた短い説明。
+    case commandExecution(
+        id: String, command: String?, output: String, timestamp: Date,
+        completedAt: Date? = nil, intent: String? = nil
+    )
+    case fileChange(id: String, changes: [StructuredChatKit.FilePatchChange], timestamp: Date, completedAt: Date? = nil)
     case error(id: String, message: String, timestamp: Date)
     case subAgentMarker(id: String, subagentType: String, description: String, status: SubAgentStatus)
     /// ターン完了時の API コスト行（task-6 契約。受け入れテスト TurnCostItem が凍結）。
@@ -43,9 +67,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         state: ChatUserQuestionState,
         timestamp: Date
     )
-    /// エージェントのタスクリストカード（tasks/task-2.md 契約。受け入れテスト
-    /// TaskListCardTests が凍結）。transcript 内に 1 セッションあたり
-    /// 1 枚だけ置かれ、taskListUpdated のたびに最新スナップショットへ置換される。
+    /// エージェントのタスクリストのスナップショット。taskListUpdated のたびに
+    /// 一意の id（`task-list-<UUID>`）で追記する（旧版は固定 id `task-list` の 1 枚を置換していた）。
     case taskList(id: String, tasks: [StructuredChatKit.AgentTaskItem], timestamp: Date)
 
     /// 既存呼び出し互換の3引数ファクトリ（attachments なし）。
@@ -84,15 +107,18 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
         case answers
         case state
         case tasks
+        case completedAt
+        case intent
+        case turnEnd
     }
 
     public var id: String {
         switch self {
-        case .userMessage(let id, _, _, _),
+        case .userMessage(let id, _, _, _, _),
              .agentMessage(let id, _, _),
              .reasoning(let id, _, _),
-             .commandExecution(let id, _, _, _),
-             .fileChange(let id, _, _),
+             .commandExecution(let id, _, _, _, _, _),
+             .fileChange(let id, _, _, _),
              .error(let id, _, _),
              .subAgentMarker(let id, _, _, _),
              .turnCost(let id, _, _),
@@ -104,11 +130,11 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
 
     public var timestamp: Date {
         switch self {
-        case .userMessage(_, _, let timestamp, _),
+        case .userMessage(_, _, let timestamp, _, _),
              .agentMessage(_, _, let timestamp),
              .reasoning(_, _, let timestamp),
-             .commandExecution(_, _, _, let timestamp),
-             .fileChange(_, _, let timestamp),
+             .commandExecution(_, _, _, let timestamp, _, _),
+             .fileChange(_, _, let timestamp, _),
              .error(_, _, let timestamp),
              .turnCost(_, _, let timestamp),
              .userQuestion(_, _, _, _, _, let timestamp),
@@ -121,18 +147,18 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
 
     var plainText: String {
         switch self {
-        case .userMessage(_, let text, _, _):
+        case .userMessage(_, let text, _, _, _):
             "User: \(text)"
         case .agentMessage(_, let text, _):
             "Agent: \(text)"
         case .reasoning(_, let text, _):
             "Reasoning: \(text)"
-        case .commandExecution(_, let command, let output, _):
+        case .commandExecution(_, let command, let output, _, _, _):
             // command==nil のとき "Command: " の空行を出さない（N1）。output も空なら全体が空。
             [command.map { "Command: \($0)" }, output.isEmpty ? nil : output]
                 .compactMap { $0 }
                 .joined(separator: "\n")
-        case .fileChange(_, let changes, _):
+        case .fileChange(_, let changes, _, _):
             changes.map { "File change: \($0.path)\n\($0.diff)" }.joined(separator: "\n")
         case .error(_, let message, _):
             "Error: \(message)"
@@ -149,16 +175,23 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
 
     public static func == (lhs: ChatItem, rhs: ChatItem) -> Bool {
         switch (lhs, rhs) {
-        case let (.userMessage(lhsId, lhsText, _, lhsAttachments), .userMessage(rhsId, rhsText, _, rhsAttachments)):
-            lhsId == rhsId && lhsText == rhsText && lhsAttachments == rhsAttachments
+        case let (
+            .userMessage(lhsId, lhsText, _, lhsAttachments, lhsTurnEnd),
+            .userMessage(rhsId, rhsText, _, rhsAttachments, rhsTurnEnd)
+        ):
+            lhsId == rhsId && lhsText == rhsText && lhsAttachments == rhsAttachments && lhsTurnEnd == rhsTurnEnd
         case let (.agentMessage(lhsId, lhsText, _), .agentMessage(rhsId, rhsText, _)):
             lhsId == rhsId && lhsText == rhsText
         case let (.reasoning(lhsId, lhsText, _), .reasoning(rhsId, rhsText, _)):
             lhsId == rhsId && lhsText == rhsText
-        case let (.commandExecution(lhsId, lhsCommand, lhsOutput, _), .commandExecution(rhsId, rhsCommand, rhsOutput, _)):
+        case let (
+            .commandExecution(lhsId, lhsCommand, lhsOutput, _, lhsCompletedAt, lhsIntent),
+            .commandExecution(rhsId, rhsCommand, rhsOutput, _, rhsCompletedAt, rhsIntent)
+        ):
             lhsId == rhsId && lhsCommand == rhsCommand && lhsOutput == rhsOutput
-        case let (.fileChange(lhsId, lhsChanges, _), .fileChange(rhsId, rhsChanges, _)):
-            lhsId == rhsId && lhsChanges == rhsChanges
+                && lhsCompletedAt == rhsCompletedAt && lhsIntent == rhsIntent
+        case let (.fileChange(lhsId, lhsChanges, _, lhsCompletedAt), .fileChange(rhsId, rhsChanges, _, rhsCompletedAt)):
+            lhsId == rhsId && lhsChanges == rhsChanges && lhsCompletedAt == rhsCompletedAt
         case let (.error(lhsId, lhsMessage, _), .error(rhsId, rhsMessage, _)):
             lhsId == rhsId && lhsMessage == rhsMessage
         case let (
@@ -195,7 +228,8 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
                 id: try nested.decode(String.self, forKey: .id),
                 text: try nested.decode(String.self, forKey: .text),
                 timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast,
-                attachments: try nested.decodeIfPresent([ChatUserAttachment].self, forKey: .attachments) ?? []
+                attachments: try nested.decodeIfPresent([ChatUserAttachment].self, forKey: .attachments) ?? [],
+                turnEnd: try nested.decodeIfPresent(ChatTurnEnd.self, forKey: .turnEnd)
             )
         } else if container.contains(.agentMessage) {
             let nested = try container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .agentMessage)
@@ -217,14 +251,17 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
                 id: try nested.decode(String.self, forKey: .id),
                 command: try nested.decodeIfPresent(String.self, forKey: .command),
                 output: try nested.decode(String.self, forKey: .output),
-                timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast
+                timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast,
+                completedAt: try nested.decodeIfPresent(Date.self, forKey: .completedAt),
+                intent: try nested.decodeIfPresent(String.self, forKey: .intent)
             )
         } else if container.contains(.fileChange) {
             let nested = try container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .fileChange)
             self = .fileChange(
                 id: try nested.decode(String.self, forKey: .id),
                 changes: try nested.decode([StructuredChatKit.FilePatchChange].self, forKey: .changes),
-                timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast
+                timestamp: try nested.decodeIfPresent(Date.self, forKey: .timestamp) ?? .distantPast,
+                completedAt: try nested.decodeIfPresent(Date.self, forKey: .completedAt)
             )
         } else if container.contains(.error) {
             let nested = try container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .error)
@@ -276,7 +313,7 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .userMessage(let id, let text, let timestamp, let attachments):
+        case .userMessage(let id, let text, let timestamp, let attachments, let turnEnd):
             var nested = container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .userMessage)
             try nested.encode(id, forKey: .id)
             try nested.encode(text, forKey: .text)
@@ -284,6 +321,7 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
             if !attachments.isEmpty {
                 try nested.encode(attachments, forKey: .attachments)
             }
+            try nested.encodeIfPresent(turnEnd, forKey: .turnEnd)
         case .agentMessage(let id, let text, let timestamp):
             var nested = container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .agentMessage)
             try nested.encode(id, forKey: .id)
@@ -294,17 +332,20 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
             try nested.encode(id, forKey: .id)
             try nested.encode(text, forKey: .text)
             try nested.encode(timestamp, forKey: .timestamp)
-        case .commandExecution(let id, let command, let output, let timestamp):
+        case .commandExecution(let id, let command, let output, let timestamp, let completedAt, let intent):
             var nested = container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .commandExecution)
             try nested.encode(id, forKey: .id)
             try nested.encodeIfPresent(command, forKey: .command)
             try nested.encode(output, forKey: .output)
             try nested.encode(timestamp, forKey: .timestamp)
-        case .fileChange(let id, let changes, let timestamp):
+            try nested.encodeIfPresent(completedAt, forKey: .completedAt)
+            try nested.encodeIfPresent(intent, forKey: .intent)
+        case .fileChange(let id, let changes, let timestamp, let completedAt):
             var nested = container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .fileChange)
             try nested.encode(id, forKey: .id)
             try nested.encode(changes, forKey: .changes)
             try nested.encode(timestamp, forKey: .timestamp)
+            try nested.encodeIfPresent(completedAt, forKey: .completedAt)
         case .error(let id, let message, let timestamp):
             var nested = container.nestedContainer(keyedBy: AssociatedValueKeys.self, forKey: .error)
             try nested.encode(id, forKey: .id)
@@ -341,16 +382,19 @@ public enum ChatItem: Identifiable, Equatable, Codable, Sendable {
 extension ChatItem {
     func withTimestamp(_ timestamp: Date) -> ChatItem {
         switch self {
-        case .userMessage(let id, let text, _, let attachments):
-            .userMessage(id: id, text: text, timestamp: timestamp, attachments: attachments)
+        case .userMessage(let id, let text, _, let attachments, let turnEnd):
+            .userMessage(id: id, text: text, timestamp: timestamp, attachments: attachments, turnEnd: turnEnd)
         case .agentMessage(let id, let text, _):
             .agentMessage(id: id, text: text, timestamp: timestamp)
         case .reasoning(let id, let text, _):
             .reasoning(id: id, text: text, timestamp: timestamp)
-        case .commandExecution(let id, let command, let output, _):
-            .commandExecution(id: id, command: command, output: output, timestamp: timestamp)
-        case .fileChange(let id, let changes, _):
-            .fileChange(id: id, changes: changes, timestamp: timestamp)
+        case .commandExecution(let id, let command, let output, _, let completedAt, let intent):
+            .commandExecution(
+                id: id, command: command, output: output, timestamp: timestamp,
+                completedAt: completedAt, intent: intent
+            )
+        case .fileChange(let id, let changes, _, let completedAt):
+            .fileChange(id: id, changes: changes, timestamp: timestamp, completedAt: completedAt)
         case .error(let id, let message, _):
             .error(id: id, message: message, timestamp: timestamp)
         case .subAgentMarker(let id, let subagentType, let description, let status):

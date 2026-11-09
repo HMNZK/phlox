@@ -2,6 +2,23 @@
   "schemaVersion": 1,
   "reviews": [
     {
+      "baseOID": "eee19ae50e75fc98346daebb70b4ccf91f9ee317",
+      "targetOID": "b1045b542c783e94df4bf7cd74f5fc79372c3296",
+      "diffSHA256": "02f0a993e836d164550978bd368b5f699b2d7217bea2f406d56d035148f69ff0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/192a7bf6-5c6f-4850-a29c-bb12b698a802"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-08T17:08:44Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "reason": "独立した読み取り専用のClaudeレビューで、dev(eee19ae5)..b1045b54の統合候補を確認した。以前の2回のレビューが指摘した、応答中の書き換えで過去ページが消える問題と、追記が重なって末尾ページ境界が動く問題を、実装・テスト・差分から再検討した。新しいchatTailCheckingは旧境界より前の項目のハッシュと境界項目IDを実行側で確認し、画面は境界までの隙間をchatBeforeで取得してから結合する。前方が変わった場合は古いページを捨てる。改訂競合、削除、ページ容量の境界を読んで、統合を止める具体的な反例は見つからなかった。対象はコードパス対応からfake-session-lifecycleとphysical-session-activityの2件で、ほかのシナリオの要求文と対応ファイルは変更されない。レビュー側はビルド・テスト・実機を実行していない。追加・書き換えの対象テストは実装側で実走して合格した。64MiBを超える保存済み本文での実アプリ起動と実機は未確認であり、この記録はローカルdev統合のみを対象とする。"
+    },
+    {
       "baseOID": "9978c6254519c8a7e7188eac403b9719b9277e0f",
       "targetOID": "1d15d9fde70d7c982e40e5646ed88640ba2c6eaa",
       "diffSHA256": "821a27f4936c146faa2d15d31b848d7af67eea0f593541d148cd238139d4fcb0",
@@ -1033,6 +1050,201 @@
         "physical-session-activity"
       ],
       "reason": "1契約適合: 正規化差分を自ら再計算し指定SHAと一致。Mac1.14.6/50・iOS1.0/20の来歴source003de677、現target、両inputManifest、全externalInputs・実コンパイラコピー・依存snapshot・成果物SHAを独立照合。2正しさ: compact-testでMac実配布物/preview3件と最終候補4件が成功。DMG/ZIP全app内容・mode・symlink、codesign deep/strict、app/DMGのstapler、Gatekeeper、実ZIPのEd25519署名をNode標準cryptoで独立検証。IPA本体/Widgetの識別子・版/build・署名・Ad Hoc profile/entitlementsを確認。3誠実性: devices/executionsは空で実機not_runを維持、必須物理シナリオは削除・弱体化しない。4根本原因: 画面snapshotから同期的な指紋計算を除き、acceptedの早期応答はsend/sendControlSkillだけ。後続拒否時は既存回収本文/添付の前後関係と画像番号を保つ。5構造: 既存世代/取消し・指紋辞書・下書き併合・定期snapshotを使い新たな通信形式を加えない。配布producerは旧版から版/出力名/所有ラベル/seed場所のみ変更、canonicalの署名公証経路を維持。6到達性: 稼働中の互換runtimeを置換しない実装を確認し、全修正には作業完了後のMac再起動が必要な日英ノートを追加済み。feedのen→ja各4項目はMarkdownと一致し、旧feedはbyte保持。7非機能: MainActor外計算と同時公開、送信直前の内容/画像/実行属性検証を維持、公開鍵・更新URL・protocol1を照合。8テスト品質: AX5件、レビュー契約16件を今回独立実走し成功、必須fake13とS1/AC1–4本文に削減なし。送信の同一製品コードでの独立baseline/head/nativeと全品質・スキル保守の保存結果も照合したが自ら再実走したとは扱わない。今回のpassは差分・シナリオ・配布物の独立レビューであり、最終共通候補のquality/distribution/securityと公開後確認は親が別途実行する。実機、実IME、元セッションのクリック遅延は未測定。既知ADR0209と状態モデルの通知競合は未修正。"
+    },
+    {
+      "baseOID": "393baf9478fb097996f458377f937c94024d97d0",
+      "targetOID": "b89fef7b0b8ea2b24805274b9ab291cea1869823",
+      "diffSHA256": "1607ec1f6284df4fb13ab9e5e1e3208fe368e906c53bfb775af19fb1fc381802",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/acdad68b65bc2afea"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-06T16:43:44Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation"
+      ],
+      "reason": "StatusBadge.swiftはisStalledのdocコメントを120秒から30分へ直した1行のみで、ChatHangPolicy.defaultWarnAfter（30*60）と一致し挙動は不変。codePathsで該当するfake-session-lifecycle・physical-activity-presentationの手順・期待結果・前提・適用範囲・method・required・testIDsは不変で、requirementのe2e-test-design.md#S1とsession-activity-parity.md#AC-6も差分に含まれない。claude-design-prompts.mdの節14追記とスケッチ画像はどのシナリオにも該当しない。"
+    },
+    {
+      "baseOID": "780c3dc6345ddff09a3fe21f358b002a2c861269",
+      "targetOID": "39d20ec5a1b4e1b28bb8fa377830850b9f806f92",
+      "diffSHA256": "e7fee3906bec88268e81e129876f1d2a7df4b19003b655b684fb1cb8cfb28e5f",
+      "reviewer": {
+        "kind": "ai",
+        "id": "/root/merge_independent_verifier"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T06:56:37.991411Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "全5ファイル差分を独立に読み、表示だけを4096 Unicode scalarと32個目の改行直前で制限し、保存・復元・通常コピーと全文コピーが元のtextを保持することを呼出元と共有コピー処理まで確認した。追加9回帰テストの境界、Unicode、実ボタンのコピー結果、実物store/ViewModelによる全文保持のassertionを確認し、既存qualityの生result.jsonに9テストと必須fake13関数の成功IDがあることを照合した。verification-scenarios.jsonのcodePathsとS1要件を照合し、対象はfake-session-lifecycleのみで、必須範囲・期待値・skipの削減はない。自身でreview-inputを実行した。退避ソースのbase/head一致、両アプリのstrict署名、head実行ファイル3個の既存SHA一致を確認し、隔離した同じネイティブ受入をbaseline/headへ自らcompact-test経由で実行した。baselineは省略案内判定より前のAX会話名取得で失敗し、AX -25204、CPU97.2%、sampleはUserBubbleWidth.sizeThatFitsとCoreTextへ集中した。headはexit 0でcold restore、省略案内と全文コピーボタンのAX、別会話へのAX切替、GUI再接続、496万文字の保存本文SHA一致を確認した。所有PID9件の終了を再確認し使い捨て複製と合成データをゴミ箱へ移した。制約として全quality・9単体の再実行、実アプリでのコピーボタン押下、実CLI、実機、XCUITest、デザイン画像の再比較は今回行っていない。コード上のコピー保持と既存実操作回帰テストの成功証跡を確認した範囲を超えて実行成功とは扱わない。既存Markdown編集テストの初回一時失敗の原因は未確定だが、対象差分はその製品・テスト・期待値を変更せず、最終quality成功を既存証跡で確認した。同一モデルの別コンテキストであり異種モデル評価ではない。ローカルdev統合の差分レビュー判定で、push/main/リリースを承認するものではない。"
+    },
+    {
+      "baseOID": "821eba7efdf3ec0a09b249adafcb726067ce71a1",
+      "targetOID": "8fa5316ddddbe19ef40bddd6211f96c5d0286e14",
+      "diffSHA256": "f36f26bc868292bff9857b6b6d23a65c2a608c27381949b76d6f0c6262b72fbf",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/ab32a489ff62e9872"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T10:38:11Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "dev 取り込み（c44a3509）の後の差分 dev..8fa5316d は 82 件で、dev 側の変更の巻き戻しは含まず、分類されないパスも無い（canvas.json は 86248c19 で外した）。fake-session-lifecycle には macos/Packages・macos/App 配下の 78 パスが当たる。会話の入力に終わり方、作業に完了時刻と説明が増えたが、復元は欠けた値を無しとして読むので互換があり、TaskListCell の削除は状態カードへの置き換えで、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。physical-session-activity には AppBootstrap の 3 パスが当たり、別ウィンドウ・リモートへの差分配信（sameChatItem）が終わり方・完了時刻・説明の違いも比べるようになり配信が増えるが、モバイルへ送る内容は ControlActionHandler のパターンの引数を合わせただけで変わらず、iOS の描画は 2 段目で未実装なので、AC-1〜4 の手順・期待結果は変わらない。physical-usage-preferences-refresh と physical-newchat-worktree-resume は ControlActionHandler.swift のパターンの引数の数だけで、Usage・NewChat の経路に変化はない。physical-history-follow と physical-activity-presentation には当たらない。requirement の参照先（e2e-test-design.md#S1、session-activity-parity.md の AC-1・AC-8・AC-9）と verification-scenarios.json は差分で変わっていない。"
+    },
+    {
+      "baseOID": "13647cfe3cabb2ecfa51c221a51b1d7a1b2393ba",
+      "targetOID": "4028a575fa1bb46b5f8210dc09367735447b9028",
+      "diffSHA256": "a79f9d070e92eb70e56d01f7777c1b6db9de4e203442aad2493149e464df39da",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/a0b3b0bbf48722448"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T14:13:57Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "差分 dev..4028a575 は 10 件で、すべて macos/Packages 配下にあり fake-session-lifecycle に当たる。分類されないパスは無く、ほかの 5 シナリオには当たらない。状態カードの組み立ては、作業の無い文章を元の位置に見出しの無い行として出し、描画の予算に数える形に変わったが、会話の描画の中で閉じており、送信・停止・終了・保存・復元の経路と保存形式は変わらない。Claude の起動環境への CLAUDE_CODE_ENABLE_TODO_TOOLS=1 の追加、Codex の app-server の起動引数への -c tools.update_plan.enabled=true の追加、tool_use_result の読み取りは、道具を使えるようにするだけで、偽 CLI は追加の環境変数と引数を無視するので、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。SessionFeature の 1500 件が 4028a575 で合格している。requirement の参照先（e2e-test-design.md#S1）と verification-scenarios.json は差分で変わっていない。"
+    },
+    {
+      "baseOID": "c7faec39f6c11ffdf8f244dbfbb1800dcf9d4def",
+      "targetOID": "dc0105cb17a697279c2cca2896ce654b4a6ad6f1",
+      "diffSHA256": "07a5f8bd05bd664e0fc636a90676b2e2a3912126a4b9a4ee141cd6e28b615c75",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/transcript-history-perf-review8"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-07T19:25:45Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation"
+      ],
+      "reason": "dev(c7faec39)...dc0105cb の差分全体（正規化差分 15 パスと ADR 0229 などの文書。中心は TranscriptWindow・ChatTranscriptView・ChatAutoFollow）を読み、review-input を自分で再実行して diffSHA256 の一致を確かめた。verification-scenarios.json の codePaths と fnmatchcase で照合すると、fake-session-lifecycle に macos/Packages と macos/scripts の 15 パスすべてが、physical-activity-presentation に DesignSystem の HistoryLoadingIndicator.swift が当たり、ほかの 4 シナリオには当たらない。requirement の参照先（e2e-test-design.md#S1、session-activity-parity.md#AC-6）と verification-scenarios.json は差分で変わっていない。fake-session-lifecycle は、変更が会話画面の表示窓の計算と画面への接続の中で閉じ、送信・停止・終了・保存・復元の経路と保存形式が変わらないので、13 関数の手順・期待結果・前提・method・testIDs を変える必要はない。verification-gate.py の変更は PHLOX_TRANSCRIPT_BENCH があるときだけ走る計測テスト 2 件を任意の skip に足しただけで必須範囲は減らない。physical-activity-presentation は HistoryLoadingIndicator がラベルを既定値付きの引数で受けるようになっただけで、iOS の SessionDetailView.swift:137 は引数なしで呼び識別子も変わらないので AC-6 の観察条件は変わらない。7 回目の指摘（固定と処理の終了が 1 回の描画に重なると固定が残る）は、ChatTranscriptView の onChange が「固定中で新しい側が無い」状態を見る形で直っていることを確かめた。末尾追従中は値が常に false で状態を書かず、true になると followTail で false に戻って収まり、初回表示とセッション切替では lastItemID が nil なので誤って動かず、スクロール量・可視領域・計測値を参照しないので ADR 0030 に反しない。compact-test 経由で窓関連 5 スイート 51 件が合格し、追加された 2 件の画面テストも名前指定で合格した（修正前に落ちることは 7 回目の担当の記録を引用）。前の担当が試していない入力として、1 回の描画に 1〜3 個の操作（遡る・引く・処理中の切替・末尾への追加・途中への挿入・除去・置換・末尾の除去・ジャンプ）を重ねるファズを seed 8 個×単一表示とグリッド×カードの有無で各 400 回描画し、窓が全体の連続した一部で中身が同じ・件数の合計が合う・上限を超えない・固定中は新しい側が 1 以上であることが毎回保たれた。テストの削除は reveal(index:) などの API 削除に伴うもので性質は TranscriptWindowBoundedTests が引き継ぎ、fixture の 63→57 は 8 段の上限から出る値で、弱体化は無い。SessionFeature の全件・DashboardFeature・DesignSystem のテストと quality ゲートは実装者の証跡に依拠し、実アプリ・Instruments・XCUITest・実機・性能計測は実行していない。同じモデルの別コンテキストによるレビューで、ローカルの dev 統合に向けた差分レビューの判定であり、push・main・リリースを承認するものではない。"
+    },
+    {
+      "baseOID": "b65dcd294ea153c138abfe6a3d15b3f770208564",
+      "targetOID": "35480794006e381da4aae65f5cbaa2568a4d0804",
+      "diffSHA256": "80161e6396a47423e2ccd06fe9a61141cbfe4ebcbb29f3f7ff911ae9ef010862",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/a01c9bdd436f0b1fe"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-08T02:11:18Z",
+      "scenarioIDs": [
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "physical-history-follow"
+      ],
+      "reason": "差分 dev(b65dcd29)..35480794 は文書を除くと ios/App/AppRoot.swift と ios/PhloxMobileSnapshotTests/RootTransitionTests.swift の 2 件で、diffSHA256 の一致を確かめた。AppRoot.swift が physical-session-activity と physical-usage-preferences-refresh に、RootTransitionTests.swift が physical-history-follow に当たり、ほかの 3 シナリオには当たらない。修正は SessionDetailDestination に .id(id) を付ける 1 行で、PushCoordinator.openPendingSession が popToRoot と push を同じ処理で行うため経路が [詳細A] から [詳細B] へ同じ深さで置き換わり、画面が使い回されて @State の ViewModel が A のまま残る、という説明はコードと合っている。id は経路の値なので、同じセッション ID のまま再描画される場面・新規作成直後の recovery・onShowNextSession の push では画面の同一性と状態が保たれる。physical-session-activity の手順は別の詳細を開いたまま通知から結果を開く操作を既に含み、今回の修正は実装をその期待結果に合わせるもので、手順・期待結果・前提・method・testIDs を変える必要はない。physical-usage-preferences-refresh と physical-history-follow はパスが一致しただけで、usage の配線と履歴の引き寄せには触れていない。追加テストは通知先の見出しが出て元の見出しが消えたことを画面の文字認識で確かめる失敗しうる検査で、修正前の失敗と修正後の合格を実装者のログで確認した。シミュレータのテスト・quality・実機・実 APNs はレビュー側では実行していない。同じモデルの別コンテキストによるローカルの dev 統合に向けた差分レビューであり、push・main・リリースを承認するものではない。"
+    },
+    {
+      "baseOID": "b65dcd294ea153c138abfe6a3d15b3f770208564",
+      "targetOID": "5402c2201500ceec74c8c689648808f461bf53fa",
+      "diffSHA256": "fa2292ec6246329e0c2ac5101cef36c94f21f153c9f5031f8bffcc69cd8d8657",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:reviewer/a5d48e1362cdaaf24"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-08T02:35:16Z",
+      "scenarioIDs": [
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation"
+      ],
+      "reason": "差分 dev(b65dcd29)..5402c220 は 5 ファイルで、正規化差分は DSInputBar.swift・DSInputBarLayoutTests.swift・ComposerIMESubmissionTests.swift の 3 件。codePaths と照合すると physical-session-activity・physical-history-follow・physical-activity-presentation の 3 件だけに当たり、3 件とも手順・期待結果・前提・method・testIDs を変える必要はない。変更は入力欄のチップの並べ方と送信後にキーボードを閉じることだけで、送信・実行・完了の状態の流れ、履歴の引き下げと VoiceOver の操作、文字拡大の観察条件には触れていない。文字拡大時は従来どおり段階 2 で止まり、wrapsSecondRow は isAccessibilitySize のときだけ立つ。拡大していないサイズで見積もりが外れたときに縮むのはモデル名だけで、思考の強さ・権限・プロジェクトのチップは幅を固定したまま。シミュレータのホスト付き検査で、428pt と 320pt で盾だけの強い権限のチップが ＋・モデル・「…」・送信と同じ行に画面内で並ぶことを座標で確かめた。キーボードを閉じる処理は onSubmit() の後で、未確定文字の確定・本文の同期・本文のクリアの順序を壊さない。新規チャットの作成失敗では、作成中に入力欄を使えなくする本番の形で遅れを 0〜300ms に変えて試し、focusRequest でキーボードが毎回戻った。既存テスト 2 件の期待値変更はユーザーが明示した 2 点の仕様変更そのもので、検出範囲は不当に狭まっていない。幅計算 12 件とホスト付き ComposerIMESubmissionTests 7 件がレビュー側でも合格した。権限メニューの読み上げ名が空なのは今回より前からの状態で、別途扱う。PhloxKit の全件・品質ゲート・実機・VoiceOver の実操作はレビュー側では実行していない。同じモデルの別コンテキストによるローカルの dev 統合に向けた差分レビューであり、push・main・リリースを承認するものではない。"
+    },
+    {
+      "baseOID": "a4353552e35e926f92bef928f40f7587bf18c6de",
+      "targetOID": "cdf8175e89472ef6474f284e3ceb40acafaa3c6d",
+      "diffSHA256": "d0bab9f9992e0ccc545dd7bfb4f091289073350f2084b31766108d1758d5ffc3",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-version"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:09:59.257703Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "Independent read-only review of dev..release: only macos/project.yml changes the Mac marketing version from 1.14.6 to 1.14.7 and build number from 50 to 51. The fake-session-lifecycle codePaths cover it. No required scenario, test or requirement is removed or weakened. Review details: .verification/release-1.14.7-20261109/claude-version-review.txt."
+    },
+    {
+      "baseOID": "8a7489596f0a84e89619b2e7adda3f2aea12e984",
+      "targetOID": "cdf8175e89472ef6474f284e3ceb40acafaa3c6d",
+      "diffSHA256": "e622397d934dd1cdd642d429fb58b81c92e8bb28e59697d8e4ec75301ffc0321",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-main"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:09:59.257703Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "Independent read-only scenario review of main..release maps all changed code paths to six existing scenarios and finds no removed or weakened required tests or requirements. It notes that the new long-user-message acceptance is manual and physical scenarios are unverified; this pass applies to scenario coverage, not release readiness. Review details: .verification/release-1.14.7-20261109/claude-review.txt."
+    },
+    {
+      "baseOID": "a4353552e35e926f92bef928f40f7587bf18c6de",
+      "targetOID": "9baa3da6866336da90bb6426f520db9cb0fbb608",
+      "diffSHA256": "16088a137b722557bddb93cb23c928b6a4e084e460e59393cd78210ff4a48f0f",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-final-dev"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:28:10.742999Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "Independent final scenario review covers the 1.14.7 appcast addition and version bump, matching release notes, URL and runtime protocol. No required scenario or test weakened. Actual ZIP signature and size require the distribution gate; physical observations remain unverified. Full report: .verification/release-1.14.7-20261109/claude-final-review.txt."
+    },
+    {
+      "baseOID": "8a7489596f0a84e89619b2e7adda3f2aea12e984",
+      "targetOID": "9baa3da6866336da90bb6426f520db9cb0fbb608",
+      "diffSHA256": "b322ebfa3d4acab1c806dc21a6a1bf98dde91e7a142d452a467226adf4131760",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude-code:cli/release-1.14.7-final-main"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-09T06:28:10.742999Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reason": "Independent final scenario review covers the 1.14.7 appcast addition and version bump, matching release notes, URL and runtime protocol. No required scenario or test weakened. Actual ZIP signature and size require the distribution gate; physical observations remain unverified. Full report: .verification/release-1.14.7-20261109/claude-final-review.txt."
     }
   ]
 }

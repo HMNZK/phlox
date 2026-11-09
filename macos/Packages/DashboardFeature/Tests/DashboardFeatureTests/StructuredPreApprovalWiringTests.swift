@@ -6,12 +6,15 @@ import StructuredChatKit
 @testable import DashboardFeature
 @testable import SessionFeature
 
-// task-13: Codex app-server 起動 args に reasoning summary 設定が含まれること。
+// task-13: Codex app-server 起動 args に reasoning summary 設定が含まれること。あわせて update_plan を有効にする（ADR 0228）。
 @Test
 func appEnvironmentCodexAppServerProcessArguments_includeReasoningSummaryOverride() {
     #expect(
         AppEnvironment.codexAppServerProcessArguments()
-            == ["app-server", "-c", "model_reasoning_summary=detailed", "-c", "features.default_mode_request_user_input=true"]
+            == [
+                "app-server", "-c", "model_reasoning_summary=detailed", "-c", "features.default_mode_request_user_input=true",
+                "-c", "tools.update_plan.enabled=true",
+            ]
     )
 }
 
@@ -44,7 +47,7 @@ func appEnvironmentCodexFactoryPassesReasoningSummaryArgsToProcess() async throw
 
     try await assertEventuallyFileExists(argsURL)
     let argsText = try String(contentsOf: argsURL, encoding: .utf8)
-    #expect(argsText == "app-server\n-c\nmodel_reasoning_summary=detailed\n-c\nfeatures.default_mode_request_user_input=true\n")
+    #expect(argsText == "app-server\n-c\nmodel_reasoning_summary=detailed\n-c\nfeatures.default_mode_request_user_input=true\n-c\ntools.update_plan.enabled=true\n")
 }
 
 // フルアクセス ON の Claude/Cursor 送信は handler を呼ばずに実行する。

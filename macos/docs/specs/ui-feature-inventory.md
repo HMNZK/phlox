@@ -7,7 +7,7 @@ last-verified: 2026-10-13
 
 この文書は、Phlox macOS アプリの UI を 0 から再構築するためのモック作成者向けに、既存 UI の機能・状態・文言を「画面/サーフェス（情報設計上の単位）」別に棚卸ししたものである。4名の担当（App/ 全体、DashboardFeature、SessionFeature、DesignSystem/TerminalUI/ChatRenderKit/エージェント種別/Localizable/ControlServer系）がパッケージ単位で並行調査した結果を、画面軸に組み替えて統合している。根拠は現行コードの `file:line` を正とし、docs/ADR/コメント由来の記述は「未確認（文書のみ）」「推測」と明記して区別する。対象範囲は macOS デスクトップアプリ（`App/` + `Packages/*/Sources`）のみで、iOS アプリ・CLI・Control API 単体の仕様は対象外（UI に現れる範囲でのみ言及する）。
 
-> **2026-10-12 の更新範囲**: 新規チャット画面・プロジェクト単位のタブ・共通ターミナルの廃止・ヘッダーと使用量のバー・略号と図形の廃止・カスタムエージェントの廃止（ADR 0183〜0187）に関わる箇所だけを実装に合わせた（§1・§2 の図と上部バー、§3 の関連行、§9・§10、§14 の新規チャット行、§16.1、§17 の状態の行、§19 の設定行）。それ以外の章は 2026-09-29 時点の記述のままで、未再確認。チームビュー（§6）・右端ドロワー（§8）・インスペクタの一部は、別の変更でコードから無くなっているか構成が変わっている。
+> **2026-10-12 の更新範囲**: 新規チャット画面・プロジェクト単位のタブ・共通ターミナルの廃止・ヘッダーと使用量のバー・略号と図形の廃止・カスタムエージェントの廃止（ADR 0183〜0187）に関わる箇所だけを実装に合わせた（§1・§2 の図と上部バー、§3 の関連行、§9・§10、§14 の新規チャット行、§16.1、§17 の状態の行、§19 の設定行）。それ以外の章は 2026-09-29 時点の記述のままで、未再確認。チームビュー（§6。2026-09-24 に削除、章は欠番）・右端ドロワー（§8）・インスペクタの一部は、別の変更でコードから無くなっているか構成が変わっている。
 >
 > **2026-10-13 の追加更新**: ADR 0188（新規チャットはタブではなくモード・下書きはアプリに 1 つ）と ADR 0189（アクセントは白黒）に合わせ、§2 の図・ヘッダーの行・タブ列、§9・§10、§17 の空状態の行、§19 のキー、§20 のアクセントの行だけを直した。
 
@@ -17,7 +17,7 @@ last-verified: 2026-10-13
 
 | 画面/サーフェス | 役割 | 開き方 | 主な子領域 | 章 |
 |---|---|---|---|---|
-| メインウィンドウ | プロジェクト/セッションの一覧・操作の中心 | アプリ起動 | サイドバー・detail(single/grid/team)・インスペクタ・ドロワー・上部バー | 2〜11 |
+| メインウィンドウ | プロジェクト/セッションの一覧・操作の中心 | アプリ起動 | サイドバー・detail(single/grid)・インスペクタ・ドロワー・上部バー | 2〜11 |
 | 設定ウィンドウ | アプリ全体設定 | メニュー/トップバー歯車/`Cmd+,` | 一般・外観・エージェント・接続・詳細の5タブ | 12 |
 | Agent Console（エージェント管理ウィンドウ） | Claude/Codex/Cursor CLI設定の直接編集 | `Cmd+Shift+,`/トップバーのレンチ/設定「エージェント管理を開く」 | Claude/Codex/Cursorの各パネル | 13 |
 | メニューバー（アプリメニュー） | キーボード操作の入口 | メニューバー | 表示/セッション/ウィンドウ系コマンド | 14 |
@@ -38,14 +38,13 @@ last-verified: 2026-10-13
 メインウィンドウは `DashboardView`（`Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardView.swift:88-181`, `navigationShell` 本体 `:183-419`）が `GeometryReader` + `HStack` で左から右へ4領域を並べる、単一ウィンドウ・単一階層構成。上部バーは実際の titlebar と重なる形でオーバーレイ配置（`.ignoresSafeArea(.container, edges: .top)` `DashboardView.swift:423`）。
 
 - 左サイドバー: `DashboardSidebarView`。`router.sidebarVisible` で開閉、幅 `sidebarWidth`（既定280, `DashboardView.swift:13`）。ドラッグでリサイズ（`ResizeGripView`, `:328-345`。掴みしろ20pt、hover/drag中accent色3pt発光バー、`Packages/DesignSystem/Sources/DesignSystem/ResizeGripView.swift:11-65`）。
-- 中央 detail: `DashboardDetailView`（`Dashboard/DashboardDetailView.swift`）。`router.viewMode`（`Router/AppRouter.swift:6-10`）により single / grid / team の3モード切替。
+- 中央 detail: `DashboardDetailView`（`Dashboard/DashboardDetailView.swift`）。`router.viewMode`（`Router/AppRouter.swift:6-10`）により single / grid の2モード切替。
 - 右インスペクタ: `InspectorView`（ファイルツリーだけ。2026-10-13 に使用量とセッション情報のタブを廃止。ADR 0192）。`router.inspectorVisible` で開閉、幅 `inspectorWidth`（既定300）。
 - 右端ドロワー: `TerminalPanelView` / `EditorPanelView`。`router.terminalPanelVisible` / `editorPanelVisible` の組で開閉。両方表示時は `VSplitView` で縦積み（`DashboardView.swift:648-659`）。既定幅560pt・最小280pt（`PanelDrawerLayout.swift:9-10`）。ドラッグでリサイズ（`:367-403`）。
 
 ビューモード（`ViewMode`, `Router/AppRouter.swift:6-10`）:
 1. **single**: 選択中の1セッションのみ表示（`SessionView` / `ChatSessionView` を `SessionFeature` へ委譲, `DashboardDetailView.swift:67-80`）。→ 4章
 2. **grid**: `SessionGridView` で複数セッションをタイル表示、プロジェクト絞り込み・セッション選択の2軸フィルタあり（`DashboardDetailView.swift:42-54`）。→ 5章
-3. **team**（「チームビュー (Beta)」, `TeamViewBranding.swift:5`）: `TeamTimelineView` で複数エージェントの発言を1本のタイムラインに集約表示。→ 6章
 
 セッション未選択の単体表示では、プロジェクトが 0 件でも `NewChatView`（`DashboardDetailView.swift`。旧 起動カードとフォルダの登録案内は廃止）。送信先のプロジェクトが決まっていれば、そのプロジェクトを選んだまま子タブの場所に出す（`router.showsNewChat`）。→ 9章
 
@@ -128,18 +127,18 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | エラー (`ErrorMessageCell`) | 赤系背景、警告アイコン+本文 | なし（表示のみ） | なし | なし | `ChatMessageCells+Basic.swift:207-243` |
 | サブエージェントマーカー (`SubAgentMarkerCell`) | 説明文+`subagentType · status`、状態アイコン | クリックでサブエージェント選択 | running→completed／failed | 自由文字列、汎エージェント共通 | `ChatMessageCells+Structured.swift:7-68`, `SubAgentModel.swift:3-7` |
 | ターンコスト (`TurnCostCell`) | 右寄せ淡色USD金額 | なし | なし | なし | `ChatMessageCells+Basic.swift:148-185` |
-| タスクリスト (`TaskListCell`) | `DisclosureCard`、各行にステータスアイコン | 開閉トグルのみ | pending→inProgress→completed | なし | `ChatMessageCells+TaskList.swift:10-91` |
+| エージェント状態カード (`AgentStatusCardView`) | 見出し（状態・今の作業・経過）＋タスクの行＋作業の行。`DisclosureCard` は使わない | タスク・作業の行の開閉（手の開閉は表示中だけ保持）、無応答時の中断ボタン | pending→inProgress→completed／中断 | Claude・Codex のみ（Cursor は従来の並び） | `AgentStatusCardView.swift` ほか `AgentStatusCard*.swift` |
 | ユーザー質問カード (`UserQuestionCell`) | 質問文+選択肢(単一/複数)+自由入力、secretはマスク表示 | 選択肢クリック/入力/送信ボタン/閉じるボタン | pending→answered／expired | Codexは`ChatApprovalBroker`経由、閉じ操作もCodex/Claudeで分岐 | `UserQuestionCell.swift:16-353`, `ChatItem.swift:19-23` |
 | 承認バナー (`ApprovalBanner`) | コマンド/ファイル変更/権限の承認待ちカード | Accept/Decline/Cancelボタン | `ChatApprovalKind`: command/fileChange/permissions | 下記4.2節参照 | `ChatSessionAccessories.swift:363-423`, `ChatApprovalBroker.swift:6-225` |
 | 圧縮中インジケータ (`CompactingIndicatorCell`) | シマーテキスト+犬アニメ(6ステージ) | なし | `isCompacting`のみ | なし | `CompactingIndicatorCell.swift:22-100` |
-| Thinkingインジケータ (`ThinkingIndicatorCell`) | オーブ+活動状態ラベル、ハング時は経過時間+中断ボタン | ハング時「中断」ボタン | `AgentActivityState`、`isStalled`（無応答120秒でハング検知、Chat型のみ実装） | avatarは`agentDescriptor`依存 | `ChatMessageCells+Structured.swift:70-193`, `ChatHangPolicy.swift:19-35` |
+| Thinkingインジケータ (`ThinkingIndicatorCell`) | オーブ+活動状態ラベル、ハング時は経過時間+中断ボタン | ハング時「中断」ボタン | `AgentActivityState`、`isStalled`（無応答30分でハング検知、Chat型のみ実装） | avatarは`agentDescriptor`依存 | `ChatMessageCells+Structured.swift:70-193`, `ChatHangPolicy.swift:19-35` |
 | 接続待ちインジケータ (`ChatConnectingIndicator`) | レーダー回転アニメ(Canvas) | なし | reduceMotionで静的化 | なし | `ChatConnectingIndicator.swift:5-111` |
 | メッセージ種別ディスパッチ (`ChatItemView`) | なし | `ChatItem`のcase毎に上記各セルへ振り分け（reasoning/commandExecutionは本文・出力が空かつ非実行中ならEmptyView） | ADR 0116対応の`Equatable`実装（クロージャは比較対象外、`item`/`isRunningCommand`/`agentDescriptor`のみで同値判定） | avatarは`agentDescriptor`依存 | `ChatMessageCells.swift:5-92` |
 | Markdown本文レンダリング (`RichMarkdownView`) | リンククリック | `Markdown(markdown)`をテーマ適用して表示、テーマは`themeID:scale:languageCode:role`キーでプロセス内キャッシュ | フォントスケール・テーマ・ロケールに追従 | なし | `RichMarkdownView.swift:9-53` |
 | 圧縮中インジケータの演出詳細（6ステージのご当地ストーリー：海→川→砂漠→火山→氷山→宇宙） | なし（自動再生） | 犬は画面固定X=40ptで世界側がスクロール、1ステージ14.2秒（走行11.0秒＋イベント2回）、装備獲得演出、5ステージ踏破後にゴール演出 | `TimelineView`が渡す日時のみを入力とする純関数で状態導出（Timer/repeatForever禁止、ADR 0010） | なし | `CompactingDogAnimation.swift:16-59` |
-| Codexサブエージェント/プランのインライン表示 (`CodexSessionSurface`) | 子スレッド行クリックで選択・展開表示、「停止」ボタン | プランタスクリスト(`TaskListCell`再利用)、子スレッド一覧（要約・ステータス）、選択中の子スレッドtranscript、エラー表示 | `subAgents.stopState(for:)`が`.available`でない間は停止ボタン無効、`threadId`変化で自動再取得(`task`/`onChange`) | Codex専用（`viewModel.agentRef == .builtin(.codex)`以外は非表示） | `CodexSessionSurface.swift:17-93` |
+| Codexの子エージェントのエラー表示 (`CodexSessionSurface`) | なし（押せない） | 子エージェントのエラー表示（プランは状態カードに出す）。子エージェント自体は共通の札の帯・マーカーで出す（名前と状態だけ。押しても開かない） | — | Codex専用（`viewModel.agentRef == .builtin(.codex)`以外は非表示） | `CodexSessionSurface.swift` |
 
-その他の関連機能: メッセージ単位コピー（ホバー時checkmark）`ChatMessageCopyButton.swift:12-70`／コードブロックコピー`ChatCodeCard.swift:4-41`／トランスクリプトMarkdownエクスポート（推論・出力・タイムスタンプのON/OFFオプション付）`ChatTranscriptExport.swift:5-211`／コマンド連続グルーピング`ChatTranscriptGrouping.swift:3-132`／最上部からさらにスクロールして離すと以前の履歴を追加表示（ボタンなし、VoiceOver 操作「以前のメッセージを読み込む」、ADR 0217）`ChatTranscriptView.swift:289-291`。
+その他の関連機能: メッセージ単位コピー（ホバー時checkmark）`ChatMessageCopyButton.swift:12-70`／コードブロックコピー`ChatCodeCard.swift:4-41`／トランスクリプトMarkdownエクスポート（推論・出力・タイムスタンプのON/OFFオプション付）`ChatTranscriptExport.swift:5-211`／コマンド連続グルーピング`ChatTranscriptGrouping.swift:3-132`／最上部からさらにスクロールして離すと以前の履歴を追加表示（ボタンなし、VoiceOver 操作「以前のメッセージを読み込む」、ADR 0217）。表示窓は上限 8 段で、超えて遡ると新しい側を外し、下端からさらにスクロールして離すと戻す（VoiceOver 操作「以後のメッセージを読み込む」、ADR 0229）`ChatTranscriptView.swift`・`TranscriptWindow.swift`。
 
 共通セル部品: アバター行ラッパー`AvatarMessageRow`（`ChatMessageCellsCommon.swift:14-20`）／タイムスタンプ表示`ChatTimestampText`（`HH:mm`形式`en_US_POSIX`固定、`.distantPast`は非表示、フォントスケール・テーマに追従、`:22-44`）／折りたたみカード`DisclosureCard`（ラベル部クリックで開閉、chevron90度回転、`isToolCall`で文字色分岐、VoiceOverへ展開状態通知、`:46-132`）。
 
@@ -246,7 +245,7 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 | タイルを閉じる | ヘッダの×ボタン | `onRemove`呼び出し（呼び出し元でDashboardView側の削除確認ダイアログへ） | — | なし | `PaneLayoutView.swift:369-377` |
 | タイルヘッダの表示縮退 | タイル幅が240pt未満 | ステータスラベル・セカンダリ名・プロジェクト名を省略しコンパクト表示 | `isCompact` | なし | `PaneLayoutView.swift:329-367` |
 | 要注意/停止ハイライト | — | `SessionAttentionPolicy.requiresAttention`が真の間、背景・枠を強調色に（赤枠3pt/フォーカス2pt/通常1pt、`GridTileBorderPolicy`） | — | なし | `PaneLayoutView.swift:278-320`, `GridTileBorderPolicy.swift:16-27` |
-| タイル本文 | — | `.pty`はSwiftTerm(`TerminalView`)埋め込み、`.appServer`は`GridChatColumn`（承認バナー＋トランスクリプト＋コンポーザ＋Codex子スレッド表示を内包） | — | `CodexSessionSurface`はCodex子スレッド表示 | `PaneLayoutView.swift:254-266`, `GridChatColumn.swift:10-95` |
+| タイル本文 | — | `.pty`はSwiftTerm(`TerminalView`)埋め込み、`.appServer`は`GridChatColumn`（承認バナー＋トランスクリプト＋コンポーザ＋Codex子スレッド表示を内包） | — | `CodexSessionSurface`はCodexの子エージェントのエラー表示（プランは状態カード） | `PaneLayoutView.swift:254-266`, `GridChatColumn.swift:10-95` |
 | グリッドタイル内送信/中断 | 送信ボタン/Enter・中断ボタン | `viewModel.sendText`/`turnInterrupt()` | — | なし | `GridChatColumn.swift:133-148` |
 | グリッドタイルでのライブリサイズ中レイアウト凍結 | ウィンドウリサイズ中 | `stableWidth`で凍結 | isLiveResizing | なし | `GridChatColumn.swift:19-30,96-118` |
 | グリッドタイル内Codexスキル/スラッシュ候補 | `/`入力 | `updateCodexSkillSuggestions()` | — | Codex限定 | `GridChatColumn.swift:275,351-375` |
@@ -263,42 +262,9 @@ Phlox のセッション画面には大きく2系統の ViewModel/表示モデ�
 
 ---
 
-## 6. チームビュー・Agora討論（`Dashboard/TeamTimelineView.swift` ほか Agora*）
+## 6. （欠番）チームビュー・Agora 討論
 
-| 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定 | 根拠 file:line |
-|---|---|---|---|---|---|
-| タイムライン表示 | 縦スクロール | 全参加セッションの発言・ツール実行・端末出力を1系列に統合 | 空/表示中 | LazyVStack不使用（無限自走ループ回避のADR方針、コード上はコメントのみで未確認） | `TeamTimelineView.swift:66-98,283-288` |
-| 発言元ヘッダから該当セッションへドリルダウン | ヘッダクリック | — | シングルビューへ遷移 | — | `:634-665`, `AppRouter.swift:94-98` |
-| Thinking インジケータ表示 | — | 実行中セッションの「考え中」アニメーション | running時のみ | — | `TeamTimelineView.swift:398-408`, `AgentChatRowPolicy.swift:67-134` |
-| セッションチップ一覧（非討論時） | 水平スクロール | 参加セッションのアイコン・名前 | — | — | `TeamTimelineView.swift:127-139,549-580` |
-| エージェント追加（通常時） | 「+」メニュー | 利用可能エージェント種別×モード(chat/terminal) | `isCreating`中/プロジェクト未解決で無効 | — | `:145-187,267-281` |
-
-討論エンジンは3層構成: `AgoraDiscussionEngine`（純粋状態機械、I/O禁止）→`AgoraDiscussionCoordinator`（副作用実行・直列キュー）→`TeamTimelineView`（UI）。
-
-| 機能 | ユーザー操作/契機 | 表示データ・挙動 | 状態遷移 | 関連設定 | 根拠 file:line |
-|---|---|---|---|---|---|
-| 討論開始 | コンポーザへ議題を入力して送信（非討論・討論可能時） | ファシリテーター役のClaudeチャットセッションをspawn→役割プロンプト＋議題を注入 | `idle`→`discussing` | — | `AgoraComposerRouting.swift:12-25`, `AgoraDiscussionCoordinator.swift:70-73,175-193`, `AgoraDiscussionEngine.swift:163-178` |
-| 参加者登録（ファシリテーターのspawn --role着地／「＋」手動追加） | ファシリテーター自身のツール実行 or ヘッダ横「+」ボタン | 役割名（`AgoraParticipantNaming`で命名衝突時は「役割名 2」等に採番、討論参加登録自体は`AgoraParticipantNaming`未使用でロール文字列そのまま保持）＋参加プロンプト注入 | `maxAgents`到達で登録拒否（討論外の通常セッションとして残留） | `phlox.agora.maxAgents`（既定5） | `AgoraDiscussionCoordinator.swift:79-98`, `AgoraDiscussionEngine.swift:180-198`, `AgoraDiscussionSettings.swift:8,13`, `AgoraParticipantNaming.swift:9-27` |
-| 発言上限 | — | PASSを除く実発言数が上限到達で`concluding`（ファシリテーターへ最終まとめ要求）→ファシリテーター応答で`ended(.utteranceLimitReached)` | `discussing`→`concluding`→`ended` | `phlox.agora.maxUtterances`（既定30、残り`warningRemaining`(既定5)以下で警告文言を配送に付加） | `AgoraDiscussionEngine.swift:275-295,239-245`, `AgoraDiscussionSettings.swift:7,12,17` |
-| 発言順制御 | — | `freeSpeech`（既定・アイドル検知で配送）/`roundRobin`（発言完了ごとに次者へ）の2方式 | スケジューラ切替はTeamTimelineView内にUI切替導線なし | `phlox.agora.scheduler`（既定`freeSpeech`）。**設定UIは設定ウィンドウ詳細タブに存在**（12.5節参照） | `AgoraDiscussionSettings.swift:10,18`, `AgoraDiscussionEngine.swift:206-210,297-300,26-29` |
-| 発言タイムアウト | — | 配送後`turnTimeoutSeconds`（既定180秒）応答が無い参加者の待機状態を解除しスキップ | — | `phlox.agora.turnTimeoutSeconds`（設定UIは12.5節） | `AgoraDiscussionSettings.swift:9,14`, `AgoraDiscussionEngine.swift:212-221` |
-| 連続発言制限 | — | 同一参加者が`consecutiveSpeakLimit`（既定2、設定UIなし）連続で発言すると次回配送で発話を促さない | — | 固定値（設定キー無し） | `AgoraDiscussionEngine.swift:40,457-459`, `AgoraDiscussionSettings.swift:15,41` |
-| 停滞検知・打開 | — | 全参加者PASSが`(参加者数-1)×stallPassRounds`（既定2）周回続くとファシリテーターへ「討論が停滞しています。次の論点を提示してください。」を配送 | — | 固定値（設定キー無し） | `AgoraDiscussionEngine.swift:247-249,347-376`, `AgoraDiscussionSettings.swift:16,42` |
-| ユーザー発言の合流 | 討論中にコンポーザから送信 | 発言数にはカウントされず全参加者へ配送対象としてログに追加 | — | — | `AgoraDiscussionCoordinator.swift:101-109`, `AgoraDiscussionEngine.swift:303-311` |
-| 討論停止 | ヘッダ「停止」ボタン | 以後の観測・配送を停止 | 任意フェーズ→`ended(.stopped)` | — | `AgoraDiscussionHeaderView.swift:59-60`, `AgoraDiscussionCoordinator.swift:112-116`, `AgoraDiscussionEngine.swift:223-226` |
-| 討論中のClaude追加 | 「+」円ボタン | 新規Claude appServerセッションをspawnし討論参加 | 追加中は無効化 | — | `TeamTimelineView.swift:149-161,238-258` |
-| タイムライン表示内容の絞り込み | — | `userMessage`/`agentMessage`/`error`のみ表示、`reasoning`/`commandExecution`/`fileChange`等の生成過程は非表示 | — | — | `AgoraTimelineDisplayPolicy.swift:11-26` |
-| Thinkingインジケータ表示 | — | 参加セッションが`running`状態の間だけ末尾に表示 | running時のみ | — | `AgoraTimelineDisplayPolicy.swift:29-47` |
-| タイムラインのフラットマージ | — | 参加者集合に含まれるソースの発言のみ`TeamTimelineModel.merge`で時系列統合、非参加者の発言は除外 | — | — | `AgoraTimelineBuilder.swift:14-32` |
-| 350ms周期の観測tick | — | 参加者のidle検知・turn完了検知・タイムアウトチェックを350ms毎に実行（非討論時は5秒間隔にフォールバック、`TeamTimelineView.swift:16-17`） | — | — | `TeamTimelineView.swift:14-17,290-309`, `AgoraDiscussionCoordinator.swift:118-124` |
-| コンポーザ送信先ラベル表示 | — | 討論中は「討論」、非討論時は対象ノード名 | — | — | `TeamTimelineView.swift:189-211`, `ComposerDestinationLabel+Agora.swift` |
-| 討論中の発言カウンタ表示 | — | 「n/max」 | — | `maxUtterances`（Coordinator側で管理） | `AgoraDiscussionHeaderView.swift:24-44,52-64` |
-| 討論中の参加者チップ表示 | — | 名前・役割・司会フラグ | — | — | `:9-22,66-77` |
-| チームコンポーザ入力 | テキスト入力（NSTextViewラップ）、Cmd+Enter等で送信 | プレースホルダ・IME合成対応・高さ自動伸縮（最大6行） | フォーカス/未フォーカス、送信可否で送信ボタン色変化 | — | `TeamComposer.swift:12-116,133-164,298-382` |
-| 送信失敗時のドラフト復元 | — | 失敗時に送信テキストを下書きへ戻す | — | — | `TeamComposer.swift:101-115`, `TeamComposer.swift:166-170`（`TeamComposerDraftPolicy`） |
-| セッション起動失敗アラート | — | エラーメッセージ表示 | — | — | `TeamTimelineView.swift:52-60,544-547` |
-
-備考: `AgoraDiscussionSettings`はAppStorageキーの読み出しのみを提供する純粋構造体。DashboardFeature内には変更UIが無いが、**設定ウィンドウ「詳細」タブに最大発言数・最大エージェント数・ターンタイムアウト・スケジューラの編集UIが存在する**（12.5節、`App/SettingsView.swift:265-273`）。「チームビュー討論」機能の存在はLocalizable.xcstringsのキー「討論」（line1126）や`ControlActionHandler.swift:62-64`のコメントからも示唆される。
+2026-09-24 の d514fc37 で削除済み（記録: `../delivery/0037-ui-redesign-worklog.md` の「P1'」）。表示モードは単体とグリッドの 2 つ。章番号は他章の参照を保つため残す。
 
 ---
 
@@ -473,10 +439,6 @@ Control API経由（デスクトップUI外、リモート/モバイル制御用
 
 | 機能 | ユーザー操作 | 表示データ | 状態 | 関連設定 | 根拠 file:line |
 |---|---|---|---|---|---|
-| 最大発言数 | TextField(.number) | — | 範囲チェック無し | `phlox.agora.maxUtterances`（既定30） | `App/SettingsView.swift:265` |
-| 最大エージェント数 | TextField(.number) | — | 範囲チェック無し | `phlox.agora.maxAgents`（既定5） | `App/SettingsView.swift:266` |
-| ターンタイムアウト（秒） | TextField(.number) | — | 範囲チェック無し | `phlox.agora.turnTimeoutSeconds`（既定180） | `App/SettingsView.swift:267` |
-| スケジューラ | Picker（自由発言/ラウンドロビン、xcstrings未登録の直書き`Text`） | — | — | `phlox.agora.scheduler`（既定`.freeSpeech`） | `App/SettingsView.swift:268-273` |
 | 使用量の自動更新（オフでも起動時に 1 回は取得） | Toggle | — | — | `phlox.usage.autoRefresh`（既定true） | `App/SettingsView.swift`（`usageForm`） |
 | Claude使用量取得 | Toggle | — | — | `phlox.usage.claudeScrape`（既定true） | `App/SettingsView.swift:284-286` |
 | 未取得CLIも表示 | Toggle | — | — | `phlox.usage.showUnavailable`（既定false） | `App/SettingsView.swift:287-289` |
@@ -676,7 +638,7 @@ Agent Console 側（Claude/Codex/Cursor各パネル）はいずれも**UserDefau
 | awaitingUserQuestion | UserQuestionCell表示 | single/グリッド | 4.1節 |
 | completed(exitCode) | 要注意(未読完了)ハイライト、通知バナー | サイドバー/Dock/通知 | 3章, 15章 |
 | error(message) | ErrorMessageCell、赤系背景 | single/グリッド | 4.1節 |
-| ハング(isStalled) | 経過時間+中断ボタン(無応答120秒) | single/グリッド | `ChatHangPolicy.swift:19-35` |
+| ハング(isStalled) | 経過時間+中断ボタン(無応答30分) | single/グリッド | `ChatHangPolicy.swift:19-35` |
 | フォーカス中(グリッド) | 枠線強調(太線＋内側リング) | グリッド | 5章 |
 | 要注意(requiresAttention) | 赤枠3pt、行背景`idleHighlight`、プロジェクトアイコン不透明度変化 | サイドバー/グリッド | 3章, `GridTileBorderPolicy.swift:16-27` |
 | 空状態(プロジェクト0件) | 「+」ボタンのみ | サイドバー/detail | 3章, 9章 |
@@ -728,7 +690,6 @@ DashboardFeature内には`keyboardShortcut`/`onKeyPress`/`commands(`の定義は
 | Enter/Tab | サジェスト確定 | 候補表示中 | `ComposerSuggestions.swift:390-407` |
 | Esc | サジェスト却下 / ターン中断 / Escワンショット | 候補表示中はサジェスト却下、それ以外は`performChatEscape`（4.5節） | `ComposerKeyRouting.swift`, `ChatEscapeHandling.swift:12-23` |
 | Esc（2連打、1.5秒以内） | 会話巻き戻しピッカー表示 | Chat型のみ | `ChatSessionViewModel.swift:989-1011` |
-| Cmd+Enter | チームコンポーザ送信 | チームビュー | `TeamComposer.swift:12-116,133-164,298-382` |
 
 **不明点**: 明示的なキーボードショートカットによるペイン切替（Cmd+数字等）は発見できず、存在しないと推測（未確定）。
 
@@ -747,10 +708,6 @@ DashboardFeature内には`keyboardShortcut`/`onKeyPress`/`commands(`の定義は
 | `phlox.theme` | String | `AppTheme.phlox.id` | `ThemeStore.all` | 配色テーマ | `App/SettingsView.swift:29,208-212` |
 | `phlox.appIcon` | String | `AppIconStore.defaultOption.id` | `AppIconStore.all` | Dockアイコン | `App/SettingsView.swift:31,220-227` |
 | `phlox.bypass.<agentID>`（例: `phlox.bypass.claudeCode`, `phlox.bypass.codex`） | Bool | true | — | エージェント別パーミッションバイパス | `App/SettingsView.swift:238-246,319-362` |
-| `phlox.agora.maxUtterances` | Int | 30 | — | 議論機能の最大発言数 | `App/SettingsView.swift:38-39,265` |
-| `phlox.agora.maxAgents` | Int | 5 | — | 議論機能の最大エージェント数 | `App/SettingsView.swift:41-42,266` |
-| `phlox.agora.turnTimeoutSeconds` | Int | 180 | — | 議論機能のターンタイムアウト | `App/SettingsView.swift:44-45,267` |
-| `phlox.agora.scheduler` | String(enum) | `.freeSpeech` | freeSpeech/roundRobin | 議論スケジューラ方式 | `App/SettingsView.swift:47-48,268-273` |
 | `phlox.usage.autoRefresh` | Bool | true | — | 使用量の自動更新 | `App/SettingsView.swift` |
 | `phlox.usage.claudeScrape` | Bool | true | — | Claude使用量取得 | `App/SettingsView.swift:25,284-286` |
 | `phlox.usage.showUnavailable` | Bool | false | — | 未取得CLIの表示 | `App/SettingsView.swift:26,287-289` |
@@ -823,7 +780,7 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 
 ## 21. 横断章 — UI文言カテゴリ（Localizable.xcstrings）
 
-対象: `App/Localizable.xcstrings`（sourceLanguage: "ja"、キー文字列自体が日本語原文）。**重要**: 117キーはカタログ登録分の全件であり、アプリ全体のUI文言の全件ではない。`App/SettingsView.swift`の`Text("ラウンドロビン")`等、xcstringsに未登録の直書き`Text`が別に存在する（grep 0件で確認、推測ではなく確認済み事実）。
+対象: `App/Localizable.xcstrings`（sourceLanguage: "ja"、キー文字列自体が日本語原文）。**重要**: 117キーはカタログ登録分の全件であり、アプリ全体のUI文言の全件ではない。xcstringsに未登録の直書き`Text`が別に存在しうる（2026-11-07: 以前ここで例に挙げた「ラウンドロビン」は討論機能の削除とともに消えている）。
 
 | カテゴリ | 件数 | 代表キー(line) | 備考 |
 |---|---|---|---|
@@ -838,13 +795,12 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 | I. 設定/アプリ情報/プライバシー | 9 | バージョン(510), 匿名の利用状況を送信(807) | |
 | J. ステータス表示 | 3 | 作業完了(708), 入力待ち(752) | |
 | K. オンボーディング/空状態 | 8 | プロジェクトがありません(576), 左の「プロジェクトを追加」から…(906) | 初回起動導線 |
-| L. マルチエージェント討論 | 1 | 討論(1126) | 6章参照 |
 | M. 汎用UI操作 | 10 | キャンセル(312), 削除(796), 表示(1267/"Reveal") | |
-| **合計** | **117** | | |
+| **合計** | **116** | | |
 
 見落とされがちな機能（担当別調査で拾いにくいもの）:
 
-1. **カタログは全UI文言ではない**: `App/SettingsView.swift:270,272,275,277`の「ラウンドロビン」「スケジューラ」「チームビュー討論」等はxcstrings未登録の直書き文字列（grepで確認）。モック作成時、xcstringsだけを文言源にすると漏れる。
+1. **カタログは全UI文言ではない**: `App/SettingsView.swift` には xcstrings 未登録の直書き文字列がある（grepで確認）。モック作成時、xcstringsだけを文言源にすると漏れる。
 2. **プッシュ通知の宛先(App ID)未設定警告とトークン再発行フロー**: 「送信先（App ID）が未設定のため、ONでも送信されません。」(1181)、「トークンの再発行に失敗しました。」(1277)は外部デバイス(iOS等)とのAPNs連携UIの存在を示す。line1257/1267の「隠す」「表示（Reveal）」はトークンの伏せ字表示トグルの可能性が高い（推測、未確認）。
 3. **セッションspawnの三段階ガードレール**: 深度上限(433)・総数上限(686)・レート上限(1060)の3種エラー文言から、子セッション再帰spawnに対する3軸の制限がUIに露出していることが分かる。
 4. **hooks自動設置の衝突検知**: 「既存のユーザー設定ファイルがあるため hooks を設置できませんでした。」(961)は、Phloxがエージェント設定ファイルへhooksを自動書き込みし、失敗時にサイレントではなくユーザー通知する設計であることを示す。
@@ -861,16 +817,14 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 - **Cursor MCPパネルの有効/無効切替**が`setMCPEnabled`後に`mcpServers`/`settings`を再読込しない非対称挙動は、意図した仕様かバグかコード上からは判別できない。
 - **入力履歴の矢印キー(↑↓)呼び出し**は調査対象ファイル内に実装が見当たらない。↑↓はサジェスト候補選択にのみ使用されている。矢印キー履歴機能自体が存在しない可能性、または`ChatSessionViewModel.swift`側の未確認箇所にある可能性がある。
 - **通知文言「入力待ち」が完了(`notifyCompleted`)でも使われている点**は実コードのまま記載。意図的仕様かバグかは未確認。
-- **`PaneLayoutAction`の実処理側(reducer)の内部ロジック**: `DashboardViewModel`が担うことは特定できたが、1400-1860行付近（waitUntilDone/sendMessage/Agora系詳細ロジック）は未読で見落としの可能性がある（網羅度: 中）。
+- **`PaneLayoutAction`の実処理側(reducer)の内部ロジック**: `DashboardViewModel`が担うことは特定できたが、1400-1860行付近（waitUntilDone/sendMessage系詳細ロジック）は未読で見落としの可能性がある（網羅度: 中）。
 - **`SubAgentStrip`・`ChatSubAgentModel`の内部実装詳細**、**`ChatRecap.deriveActivityState`本体**、**`TranscriptItemPresentation`の既定展開ロジック本体**は担当ファイル外のため未読了。
 - **「隠す／表示（Reveal）」文言(line1257,1267)の具体的な使用箇所**（トークン伏せ字トグルか等）は特定できておらず「推測」に留まる。
 - **画像添付対応のエージェント種別差**: UI添付層とワイヤ符号化層の記述が食い違う（16.5節）。層の違いによるものか矛盾かは未解消。
 - **`Environment/`配下の設定群**（`CodexUserHooksSettings`, `CursorShellSanitizer`, `LastUsedChatSettingsStore`, `AppSupportMigrator`, `AppEnvironment`）と`Spawn/`配下（hooks/discovery関連）は非UI寄りのバックエンド設定・移行ロジックと判断し詳細読解を省略。
-- **`GridSessionSelectionFilter.swift`, `PaneLayoutStore.swift`, `PaneWidthPolicy.swift`, `TrailingTopBarLayout.swift`, `TopBarInsetPolicy.swift`, `AgentStartCardsLayoutPolicy.swift`, `SessionOriginPolicy.swift`, `SessionReachability.swift`, `SessionRestoreCoordinator.swift`, `SessionPersistenceCoordinator.swift`, `MessagingService.swift`, `ControlDashboardSupport.swift`, `GitBranchReader.swift`, `OrphanReaper.swift`, `OrphanedRemoteSessionMigration.swift`, `CursorModelListProvider.swift`, `CodexNativeSessionDiscoveryController.swift`, `SidebarPresentation.swift`, `TeamTimelineModel.swift`, `TeamTimelineStore.swift`, `TeamComposerTarget.swift`, `AgentLaunchPlanner.swift`, `ClaudeSessionHistory.swift`ほかSpawn配下, `ClaudeChatUsageSource.swift`, `ClaudeUsageProvider.swift`, `ClaudeUsageStaleness.swift`, `CodexUsageProvider.swift`, `CursorUsageProvider.swift`, `UsageMonitor.swift`, `UsageProvider.swift`**: ファイル一覧・シグネチャ検索で存在は確認したが、内容の全文読解は行っていない。
+- **`GridSessionSelectionFilter.swift`, `PaneLayoutStore.swift`, `PaneWidthPolicy.swift`, `TrailingTopBarLayout.swift`, `TopBarInsetPolicy.swift`, `AgentStartCardsLayoutPolicy.swift`, `SessionOriginPolicy.swift`, `SessionReachability.swift`, `SessionRestoreCoordinator.swift`, `SessionPersistenceCoordinator.swift`, `MessagingService.swift`, `ControlDashboardSupport.swift`, `GitBranchReader.swift`, `OrphanReaper.swift`, `OrphanedRemoteSessionMigration.swift`, `CursorModelListProvider.swift`, `CodexNativeSessionDiscoveryController.swift`, `SidebarPresentation.swift`, `AgentLaunchPlanner.swift`, `ClaudeSessionHistory.swift`ほかSpawn配下, `ClaudeChatUsageSource.swift`, `ClaudeUsageProvider.swift`, `ClaudeUsageStaleness.swift`, `CodexUsageProvider.swift`, `CursorUsageProvider.swift`, `UsageMonitor.swift`, `UsageProvider.swift`**: ファイル一覧・シグネチャ検索で存在は確認したが、内容の全文読解は行っていない。
 - **Localizable.xcstringsのカテゴリ境界**は帰納的判断であり厳密な仕様分類ではない（一部キーは複数カテゴリに跨る）。
 - **ControlServer/HookServer/MobileProxy/LocalHTTPServerの型定義本体**（`ControlTypes.swift`, `HookPayload.swift`など）は、担当サブエージェントが参照箇所ベースで報告した内容に依拠しており、直接全文Readしたものではない。
-- **`AgoraRolePromptTemplate`・`AgoraUtteranceExtraction`の本文は未読**（Agora 討論の役割プロンプト・発言抽出の詳細）。
-- **Agora 討論の設定を変更する UI の所在は未確認**。
 
 ---
 
@@ -939,10 +893,6 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 - `Dashboard/DashboardDetailView.swift`
 - `Dashboard/DashboardSidebarView.swift`
 - `Dashboard/DashboardTopBarControls.swift`（`DashboardLeadingTopBarControls`, `DashboardTrailingTopBarControls`, `ViewModeToggle`, `ModeSegmentButton`）
-- `Dashboard/TeamTimelineView.swift`（複数private View含む）
-- `Dashboard/TeamComposer.swift`（`TeamComposerTextInput`はNSViewRepresentable）
-- `Dashboard/AgoraDiscussionHeaderView.swift`
-- `Dashboard/AgentChatRowPolicy.swift`（`AgoraAgentMessageBubble`, `AgoraThinkingIndicatorRow`）
 - `Dashboard/AgentStartCards.swift`
 - `Dashboard/GridSessionPicker.swift`
 - `Dashboard/InspectorView.swift`
@@ -955,7 +905,6 @@ Packages/DesignSystem/Sources/DesignSystem 配下 全28ファイルを確認。
 
 未確認（Viewマーカー無し、と判断したが目視未実施）: `SessionTreeSidebarSection.swift`（データ型のみと推測、簡易確認済み・View無し）。
 
-追補で実読済み: `AgoraDiscussionCoordinator.swift`, `AgoraDiscussionEngine.swift`, `AgoraDiscussionSettings.swift`, `AgoraParticipantNaming.swift`, `AgoraTimelineBuilder.swift`, `AgoraTimelineDisplayPolicy.swift`, `Packages/SessionFeature/Sources/SessionFeature/SessionGridView.swift`, `PaneLayoutView.swift`。
 
 ### 担当c（`Packages/SessionFeature/Sources/SessionFeature`）
 

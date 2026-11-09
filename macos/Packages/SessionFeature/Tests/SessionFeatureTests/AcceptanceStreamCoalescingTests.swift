@@ -67,7 +67,7 @@ private func reasoningText(_ vm: ChatSessionViewModel, id: String) -> String? {
 @MainActor
 private func commandOutput(_ vm: ChatSessionViewModel, id: String) -> String? {
     for item in vm.transcript {
-        if case .commandExecution(let itemId, _, let output, _) = item, itemId == id {
+        if case .commandExecution(let itemId, _, let output, _, _, _) = item, itemId == id {
             return output
         }
     }

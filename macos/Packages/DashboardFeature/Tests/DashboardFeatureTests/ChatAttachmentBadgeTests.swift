@@ -102,7 +102,7 @@ struct ChatAttachmentBadgeSendTests {
         try await viewModel.sendText("この画像を見て", submit: true)
 
         let first = try #require(viewModel.transcript.first)
-        guard case let .userMessage(_, text, _, attachments) = first else {
+        guard case let .userMessage(_, text, _, attachments, _) = first else {
             Issue.record("先頭アイテムが userMessage ではない: \(first)")
             return
         }
@@ -123,7 +123,7 @@ struct ChatAttachmentBadgeSendTests {
         try await viewModel.sendText("", submit: true)
 
         let first = try #require(viewModel.transcript.first)
-        guard case let .userMessage(_, text, _, attachments) = first else {
+        guard case let .userMessage(_, text, _, attachments, _) = first else {
             Issue.record("先頭アイテムが userMessage ではない: \(first)")
             return
         }
@@ -138,7 +138,7 @@ struct ChatAttachmentBadgeSendTests {
     func legacyTranscriptJSONDecodesWithEmptyAttachments() throws {
         let json = #"{"userMessage":{"id":"u1","text":"hello"}}"#
         let item = try JSONDecoder().decode(ChatItem.self, from: Data(json.utf8))
-        guard case let .userMessage(id, text, _, attachments) = item else {
+        guard case let .userMessage(id, text, _, attachments, _) = item else {
             Issue.record("userMessage として decode されなかった: \(item)")
             return
         }

@@ -172,14 +172,14 @@ private func writeJSONL(_ lines: [String], to url: URL, modifiedAt: Date? = nil)
 
     let all = loader.load(fileURL: file, maxItems: 10)
     try #require(all.count == 4)
-    if case .userMessage(_, let text, _, _) = all[0] { #expect(text == "u1") } else { Issue.record("all[0] should be userMessage: \(all[0])") }
+    if case .userMessage(_, let text, _, _, _) = all[0] { #expect(text == "u1") } else { Issue.record("all[0] should be userMessage: \(all[0])") }
     if case .agentMessage(_, let text, _) = all[1] { #expect(text == "a1") } else { Issue.record("all[1] should be agentMessage: \(all[1])") }
     if case .agentMessage(_, let text, _) = all[2] { #expect(text == "a2") } else { Issue.record("all[2] should be agentMessage: \(all[2])") }
-    if case .userMessage(_, let text, _, _) = all[3] { #expect(text == "u2") } else { Issue.record("all[3] should be userMessage: \(all[3])") }
+    if case .userMessage(_, let text, _, _, _) = all[3] { #expect(text == "u2") } else { Issue.record("all[3] should be userMessage: \(all[3])") }
 
     // 末尾側 maxItems 件
     let tail = loader.load(fileURL: file, maxItems: 3)
     try #require(tail.count == 3)
     if case .agentMessage(_, let text, _) = tail[0] { #expect(text == "a1") } else { Issue.record("tail[0] should be agentMessage: \(tail[0])") }
-    if case .userMessage(_, let text, _, _) = tail[2] { #expect(text == "u2") } else { Issue.record("tail[2] should be userMessage: \(tail[2])") }
+    if case .userMessage(_, let text, _, _, _) = tail[2] { #expect(text == "u2") } else { Issue.record("tail[2] should be userMessage: \(tail[2])") }
 }

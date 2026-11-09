@@ -190,7 +190,7 @@ func composerAttachment_imageOnlySendDisplaysImageCountInTranscript() async thro
         .image(data: AttachmentImageFixture.png, mediaType: "image/png"),
         .image(data: AttachmentImageFixture.jpeg, mediaType: "image/jpeg"),
     ]])
-    guard case let .userMessage(_, text, _, attachments) = try #require(viewModel.transcript.first) else {
+    guard case let .userMessage(_, text, _, attachments, _) = try #require(viewModel.transcript.first) else {
         Issue.record("先頭アイテムが userMessage ではない")
         return
     }

@@ -74,14 +74,14 @@ public enum SubAgentTranscriptLoader {
 
         func appendToolUse(_ block: [String: Any], index: Int) {
             let item = toolUseItem(from: block, index: index)
-            guard case .commandExecution(let id, let command, _, _) = item else {
+            guard case .commandExecution(let id, let command, _, _, _, _) = item else {
                 items.append(item)
                 return
             }
             // 万一 tool_result が先行して同 id の項目が既にある（孤児登録）場合は、追加せず
             // 既存項目に command を補う。これで tool_use/tool_result の順序が逆でも duplicate id を作らない。
             if let existing = commandIndexByToolUseId[id],
-               case .commandExecution(let eid, _, let existingOutput, let ets) = items[existing] {
+               case .commandExecution(let eid, _, let existingOutput, let ets, _, _) = items[existing] {
                 items[existing] = .commandExecution(id: eid, command: command, output: existingOutput, timestamp: ets)
                 return
             }
@@ -93,7 +93,7 @@ public enum SubAgentTranscriptLoader {
             let output = text(from: block["content"])
             if let toolUseId = block["tool_use_id"] as? String,
                let existing = commandIndexByToolUseId[toolUseId],
-               case .commandExecution(let id, let command, let prevOutput, let ts) = items[existing] {
+               case .commandExecution(let id, let command, let prevOutput, let ts, _, _) = items[existing] {
                 let merged: String
                 if prevOutput.isEmpty { merged = output }
                 else if output.isEmpty { merged = prevOutput }
@@ -103,7 +103,7 @@ public enum SubAgentTranscriptLoader {
                 // 対応する tool_use を見つけられない孤児 tool_result は単独セルとして追加。
                 let item = toolResultItem(from: block, index: index)
                 items.append(item)
-                if case .commandExecution(let id, _, _, _) = item {
+                if case .commandExecution(let id, _, _, _, _, _) = item {
                     commandIndexByToolUseId[id] = items.count - 1
                 }
             }

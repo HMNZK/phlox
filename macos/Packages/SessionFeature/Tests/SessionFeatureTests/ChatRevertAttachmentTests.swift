@@ -99,7 +99,7 @@ struct ChatRevertAttachmentTests {
         #expect(vm.attachmentStore.attachments.isEmpty)
 
         let userID = try #require(vm.transcript.compactMap { item -> String? in
-            if case .userMessage(let id, _, _, _) = item { id } else { nil }
+            if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
         }.first)
 
         let restored = await vm.revert(toUserMessageID: userID)
@@ -128,7 +128,7 @@ struct ChatRevertAttachmentTests {
         )
 
         let userID = try #require(vm.transcript.compactMap { item -> String? in
-            if case .userMessage(let id, _, _, _) = item { id } else { nil }
+            if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
         }.first)
 
         _ = vm.attachmentStore.addImage(data: tinyPNG, mediaType: "image/png")
@@ -154,7 +154,7 @@ struct ChatRevertAttachmentTests {
         try await waitUntil { vm.status == .idle }
 
         let userID = try #require(vm.transcript.compactMap { item -> String? in
-            if case .userMessage(let id, _, _, _) = item { id } else { nil }
+            if case .userMessage(let id, _, _, _, _) = item { id } else { nil }
         }.first)
 
         _ = await vm.revert(toUserMessageID: userID)

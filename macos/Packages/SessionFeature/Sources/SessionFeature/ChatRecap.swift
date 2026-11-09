@@ -18,7 +18,7 @@ public enum ChatRecap {
             switch item {
             case .userMessage, .reasoning:
                 return .thinking
-            case .commandExecution(_, let command, _, _):
+            case .commandExecution(_, let command, _, _, _, _):
                 return AgentActivityClassifier.state(forCommand: command)
             case .fileChange:
                 return .editing
@@ -41,9 +41,9 @@ public enum ChatRecap {
             switch item {
             case .userMessage:
                 return ThinkingRecap.headline(from: reasoningText).map(Summary.headline)
-            case .commandExecution(_, let command, _, _):
+            case .commandExecution(_, let command, _, _, _, _):
                 return .activity(.fromCommand(command))
-            case .fileChange(_, let changes, _):
+            case .fileChange(_, let changes, _, _):
                 if let path = changes.last?.path {
                     return .activity(.editing((path as NSString).lastPathComponent))
                 }
@@ -66,7 +66,7 @@ public enum ChatRecap {
 enum CommandGroupTitle {
     static func derive(items: [ChatItem]) -> String {
         let commands = items.map { item -> String? in
-            guard case .commandExecution(_, let command, _, _) = item else {
+            guard case .commandExecution(_, let command, _, _, _, _) = item else {
                 return nil
             }
             return command

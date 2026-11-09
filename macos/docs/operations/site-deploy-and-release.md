@@ -22,7 +22,7 @@ last-verified: 2026-07-16
 
 ## サイトを更新する
 
-1. dev由来の作業ブランチで`site/`配下を編集する。下記の統合前検証を通し、共通マージツールでdev→mainへ統合してからpushする。mainへの直接コミットはしない。
+1. dev由来の作業ブランチで`site/`配下を編集する。下記の統合前検証を通し、共通マージツールでdev→verify→mainへ統合してからpushする。mainへの直接コミットはしない。
 2. `.github/workflows/pages.yml` が起動し `site/` を phlox.cc へデプロイする（`site/**` または当ワークフロー変更時に自動起動。手動起動は `gh workflow run pages.yml --repo HMNZK/phlox`）。
 3. 検証:
    ```bash

@@ -468,7 +468,7 @@ struct AgentStatusCardRenderBudgetTests {
         #expect(running.openEntryCount == 2)
         #expect(finished.openEntryCount == 0)
         #expect(open - base == 2 * TranscriptRenderBudget.statusCardEntryUnits)
-        #expect(base == TranscriptRenderBudget.otherBlockUnits + 2 * TranscriptRenderBudget.statusCardRowUnits)
+        #expect(base == TranscriptRenderBudget.statusCardBaseUnits + 2 * TranscriptRenderBudget.statusCardRowUnits)
     }
 
     @Test("開いた行の数は 30 件で頭打ち（残りは「さらに表示」）")

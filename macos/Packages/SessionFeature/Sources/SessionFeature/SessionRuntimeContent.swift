@@ -40,6 +40,7 @@ public struct SessionRuntimeContentRequest: Codable, Sendable {
         case chatRowEntriesAround(inputID: String, rowID: String, entryID: String)
         case chatCardRows(inputID: String, cursor: SessionRuntimeChatReadCursor?)
         case chatRowEntries(inputID: String, rowID: String, cursor: SessionRuntimeChatReadCursor?)
+        case chatActionItemsFrom(inputID: String?, actionID: String, itemID: String)
         case chatActionItems(inputID: String?, actionID: String, cursor: SessionRuntimeChatReadCursor?)
         case inputHistoryAfter(cursor: SessionRuntimeChatReadCursor)
         case inputHistory(before: SessionRuntimeChatReadCursor?)
@@ -64,7 +65,7 @@ public struct SessionRuntimeContentRequest: Codable, Sendable {
     }
 }
 
-public struct SessionRuntimeContentMarker: Codable, Sendable {
+public struct SessionRuntimeContentMarker: Codable, Sendable, Equatable {
     public enum Kind: String, Codable, Sendable { case chatItem, approval }
 
     public let kind: Kind

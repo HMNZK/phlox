@@ -18,6 +18,7 @@ struct ChatTranscriptView: View {
     private let onLaunchFailureClose: (() -> Void)?
     private let presentationContext: TranscriptPresentationContext
     @State private var autoFollow = ChatAutoFollowController()
+    @State private var runtimeItemActionRouter = RuntimeChatItemActionRouter()
     // 表示窓（ADR 0030:22・0229）。view-local な @State に住み、body 評価中には書かない。
     // 動かすのは明示スクロール入力・ジャンプ・セッション切替のイベントだけ（ADR 0010）。
     @State private var window: TranscriptWindow
@@ -80,13 +81,16 @@ struct ChatTranscriptView: View {
         Group {
         if transcript == nil, viewModel.isRuntimeProjection {
             if viewModel.runtimeSupportsChatReadModel {
+                let actions = RuntimeChatItemActions(restart: onLaunchFailureRestart,
+                    close: onLaunchFailureClose, isRestarting: isLaunchFailureRestarting,
+                    router: runtimeItemActionRouter)
                 RuntimeChatTranscriptView(viewModel: viewModel,
                     requestedScrollTarget: $requestedScrollTarget,
                     currentInputPositionID: $currentInputPositionID,
                     contentMaxWidth: contentMaxWidth, bottomMargin: bottomScrollContentMargin,
                     context: presentationContext, showsThinkingIndicator: showsThinkingIndicator,
-                    itemActions: RuntimeChatItemActions(restart: onLaunchFailureRestart,
-                        close: onLaunchFailureClose, isRestarting: isLaunchFailureRestarting))
+                    itemActions: actions)
+                    .onChange(of: ObjectIdentifier(actions), initial: true) { _, _ in actions.installHandlers() }
                     .id(viewModel.id)
             } else {
                 VStack(spacing: 0) {

@@ -9,7 +9,7 @@ public struct SessionRuntimeChatReadCursor: Codable, Sendable, Equatable {
     public let anchorID: String
 }
 
-public enum SessionRuntimeChatItemReference: Codable, Sendable {
+public enum SessionRuntimeChatItemReference: Codable, Sendable, Equatable {
     case inline(ChatItem)
     case deferred(SessionRuntimeContentMarker)
 
@@ -21,7 +21,7 @@ public enum SessionRuntimeChatItemReference: Codable, Sendable {
     }
 }
 
-public struct SessionRuntimeCardSummary: Codable, Sendable {
+public struct SessionRuntimeCardSummary: Codable, Sendable, Equatable {
     public let id: String
     public let inputID: String
     public let revision: UInt64
@@ -63,7 +63,7 @@ public struct SessionRuntimeChatReadBlock: Codable, Sendable {
     public let content: Content
 }
 
-public struct SessionRuntimeChatReadRevealTarget: Codable, Sendable {
+public struct SessionRuntimeChatReadRevealTarget: Codable, Sendable, Equatable {
     public let inputID: String?
     public let cardID: String?
     public let rowID: String?
@@ -86,8 +86,8 @@ public struct SessionRuntimeChatReadPage: Codable, Sendable {
     public let turnUsageByItemID: [String: TurnUsage]
 }
 
-public struct SessionRuntimeCardRow: Codable, Sendable {
-    public enum Kind: Codable, Sendable {
+public struct SessionRuntimeCardRow: Codable, Sendable, Equatable {
+    public enum Kind: Codable, Sendable, Equatable {
         case task(id: String, title: String, state: AgentStatusTask.State, startedAt: Date?, endedAt: Date?)
         case outside(state: AgentStatusWorkState)
     }
@@ -98,7 +98,7 @@ public struct SessionRuntimeCardRow: Codable, Sendable {
     public let totalActionCount: Int
 }
 
-public struct SessionRuntimeCardRowsPage: Codable, Sendable {
+public struct SessionRuntimeCardRowsPage: Codable, Sendable, Equatable {
     public let sessionID: SessionID
     public let executionID: UUID
     public let card: SessionRuntimeCardSummary
@@ -106,7 +106,7 @@ public struct SessionRuntimeCardRowsPage: Codable, Sendable {
     public let nextCursor: SessionRuntimeChatReadCursor?
 }
 
-public enum SessionRuntimeCardEntry: Codable, Sendable {
+public enum SessionRuntimeCardEntry: Codable, Sendable, Equatable {
     case item(SessionRuntimeChatItemReference)
     case action(SessionRuntimeActionSummary)
 
@@ -118,7 +118,7 @@ public enum SessionRuntimeCardEntry: Codable, Sendable {
     }
 }
 
-public struct SessionRuntimeCardEntriesPage: Codable, Sendable {
+public struct SessionRuntimeCardEntriesPage: Codable, Sendable, Equatable {
     public let sessionID: SessionID
     public let executionID: UUID
     public let inputID: String
@@ -128,7 +128,7 @@ public struct SessionRuntimeCardEntriesPage: Codable, Sendable {
     public let nextCursor: SessionRuntimeChatReadCursor?
 }
 
-public struct SessionRuntimeActionItemsPage: Codable, Sendable {
+public struct SessionRuntimeActionItemsPage: Codable, Sendable, Equatable {
     public let sessionID: SessionID
     public let executionID: UUID
     public let inputID: String?
@@ -160,7 +160,7 @@ extension SessionRuntimeContentRequest.Target {
     public var requiresChatReadModel: Bool {
         switch self {
         case .chatReadTail, .chatReadBefore, .chatReadAfter, .chatReadAround, .chatReadAroundItem,
-             .chatCardRows, .chatCardRowsAround, .chatRowEntries, .chatRowEntriesAround, .chatActionItems, .inputHistory, .inputHistoryAfter: true
+             .chatCardRows, .chatCardRowsAround, .chatRowEntries, .chatRowEntriesAround, .chatActionItems, .chatActionItemsFrom, .inputHistory, .inputHistoryAfter: true
         default: false
         }
     }

@@ -18,6 +18,8 @@ struct RuntimeChatTranscriptView: View {
     @State private var offsets: [String: CGFloat] = [:]
     @State private var window: TranscriptWindow
     @State private var revealRequest: SessionRuntimeChatReadRevealTarget?
+    @State private var renderOwner = UUID()
+    @State private var pendingJump: RuntimeChatPendingJump?
 
     init(viewModel: ChatSessionViewModel, requestedScrollTarget: Binding<String?>,
          currentInputPositionID: Binding<String?>, contentMaxWidth: CGFloat?, bottomMargin: CGFloat,
@@ -36,11 +38,22 @@ struct RuntimeChatTranscriptView: View {
 
     private var page: SessionRuntimeChatReadPage? { viewModel.runtimeChatRead.page }
     private var blocks: [SessionRuntimeChatReadBlock] { page?.blocks ?? [] }
-    private var slice: RuntimeChatReadSlice { window.slice(of: blocks) }
+    private var slice: RuntimeChatReadSlice {
+        let renderingWindow = pendingJump?.windowForRender(window, projection: viewModel.runtimeChatRead) ?? window
+        return renderingWindow.slice(of: blocks)
+    }
     private var visibleBlocks: [SessionRuntimeChatReadBlock] { slice.blocks }
 
     var body: some View {
-        ScrollViewReader { proxy in
+        let control = viewModel.runtimeChatRead.control
+        let renderedSpan = visibleBlocks.first.flatMap { first in
+            visibleBlocks.last.map { last in
+                RuntimeChatRenderedSpan(executionID: viewModel.executionID, epoch: viewModel.runtimeChatRead.epoch,
+                    intentToken: viewModel.runtimeChatRead.appliedIntentToken, firstID: first.id, lastID: last.id,
+                    count: visibleBlocks.count)
+            }
+        }
+        return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: TranscriptTypography.itemGap) {
                     if page?.olderCursor != nil || slice.hiddenBlockCount > 0 {
@@ -132,6 +145,10 @@ struct RuntimeChatTranscriptView: View {
             }
         }
         .background(DSColor.chatBackground)
+        .onChange(of: renderedSpan, initial: true) { _, span in
+            control.renderedSpans[renderOwner] = span
+        }
+        .onDisappear { control.renderedSpans.removeValue(forKey: renderOwner) }
         .task(id: viewModel.executionID) {
             do { try await viewModel.refreshRuntimeContent() }
             catch { viewModel.runtimeChatRead.error = error.localizedDescription }
@@ -147,9 +164,10 @@ struct RuntimeChatTranscriptView: View {
         case .item(let reference):
             RuntimeChatItemReferenceView(reference: reference, viewModel: viewModel, actions: itemActions)
         case .card(let summary):
-            RuntimeStatusCardView(viewModel: viewModel, summary: summary,
+            RuntimeStatusCardView(viewModel: viewModel, summary: summary, cache: viewModel.runtimeChatRead.cards[summary.inputID],
                 isNarrow: context == .gridTile, revealRequest: revealRequest, revealSerial: jumpGeneration,
                 itemActions: itemActions)
+                .equatable()
         case .commandGroup(let summary):
             RuntimeCommandGroupView(viewModel: viewModel, summary: summary, inputID: block.ownerInputID,
                 itemActions: itemActions)
@@ -167,6 +185,7 @@ struct RuntimeChatTranscriptView: View {
     private func load(_ edge: VerticalEdge, proxy: ScrollViewProxy) {
         guard !viewModel.runtimeChatRead.isLoading else { return }
         revealRequest = nil
+        pendingJump = nil
         autoFollow.userInitiatedJump()
         detached = true
         let anchor = edge == .top ? visibleBlocks.first?.id : visibleBlocks.last?.id
@@ -182,17 +201,20 @@ struct RuntimeChatTranscriptView: View {
         }
         let cursor = edge == .top ? page?.olderCursor : page?.newerCursor
         guard let cursor else { return }
-        if edge == .bottom, let anchor { window.keepRuntimeEnd(at: anchor, in: blocks) }
         jumpGeneration += 1
         let generation = jumpGeneration
+        let intent = RuntimeChatReadIntent(epoch: viewModel.runtimeChatRead.epoch, token: UUID())
         Task {
             do {
-                try await viewModel.loadRuntimeChatRead(target: edge == .top ? .chatReadBefore(cursor: cursor) : .chatReadAfter(cursor: cursor))
-                guard generation == jumpGeneration else { return }
+                try await viewModel.loadRuntimeChatRead(target: edge == .top ? .chatReadBefore(cursor: cursor) : .chatReadAfter(cursor: cursor),
+                    intentToken: intent.token)
+                guard generation == jumpGeneration, intent.isApplied(in: viewModel.runtimeChatRead) else { return }
+                if edge == .bottom, let anchor { window.keepRuntimeEnd(at: anchor, in: blocks) }
                 if edge == .top {
                     _ = window.loadEarlier(in: blocks)
                 } else { _ = window.loadNewer(in: blocks) }
                 await Task.yield()
+                guard generation == jumpGeneration, intent.isApplied(in: viewModel.runtimeChatRead) else { return }
                 if let anchor, slice.blocks.contains(where: { $0.id == anchor }) {
                     proxy.scrollTo(anchor, anchor: .top)
                 } else if let target = edge == .top ? slice.blocks.last?.id : slice.blocks.first?.id {
@@ -204,19 +226,26 @@ struct RuntimeChatTranscriptView: View {
 
     private func jump(_ inputID: String, proxy: ScrollViewProxy) {
         revealRequest = nil
+        let requestedJump = RuntimeChatPendingJump(itemID: inputID, epoch: viewModel.runtimeChatRead.epoch,
+            intentToken: UUID())
+        pendingJump = requestedJump
         jumpGeneration += 1
         let generation = jumpGeneration
         detached = true
         autoFollow.userInitiatedJump()
         Task {
+            defer { if generation == jumpGeneration { pendingJump = nil } }
             do {
-                try await viewModel.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: inputID))
-                guard generation == jumpGeneration else { return }
-                revealRequest = page?.revealTarget
-                let target = revealRequest?.scrollTargetID ?? inputID
+                try await viewModel.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: inputID),
+                    intentToken: requestedJump.intentToken)
+                guard generation == jumpGeneration,
+                      let appliedTarget = requestedJump.appliedTarget(in: viewModel.runtimeChatRead) else { return }
+                revealRequest = appliedTarget
+                let target = appliedTarget.scrollTargetID
                 _ = window.reveal(itemID: target, in: blocks)
                 await Task.yield()
-                guard generation == jumpGeneration else { return }
+                guard generation == jumpGeneration,
+                      requestedJump.appliedTarget(in: viewModel.runtimeChatRead) != nil else { return }
                 proxy.scrollTo(target, anchor: .top)
                 currentInputPositionID = revealRequest?.inputID ?? inputID
             } catch { }
@@ -225,19 +254,51 @@ struct RuntimeChatTranscriptView: View {
 
     private func latest(_ proxy: ScrollViewProxy) {
         revealRequest = nil
+        pendingJump = nil
         jumpGeneration += 1
         let generation = jumpGeneration
+        let intent = RuntimeChatReadIntent(epoch: viewModel.runtimeChatRead.epoch, token: UUID())
         Task {
             do {
-                try await viewModel.loadRuntimeChatRead(target: .chatReadTail)
-                guard generation == jumpGeneration else { return }
+                try await viewModel.loadRuntimeChatRead(target: .chatReadTail, intentToken: intent.token)
+                guard generation == jumpGeneration, intent.isApplied(in: viewModel.runtimeChatRead) else { return }
                 window.followTail()
                 detached = false
                 autoFollow.scrollPositionChanged(isAtBottom: true)
                 await Task.yield()
+                guard generation == jumpGeneration, intent.isApplied(in: viewModel.runtimeChatRead) else { return }
                 proxy.scrollTo("chat-bottom", anchor: .bottom)
             } catch { }
         }
+    }
+}
+
+struct RuntimeChatReadIntent {
+    let epoch: UUID
+    let token: UUID
+
+    func isApplied(in projection: RuntimeChatReadProjection) -> Bool {
+        projection.epoch == epoch && projection.appliedIntentToken == token
+    }
+}
+
+/// Prepare the first successful jump frame without mutating view state during rendering.
+struct RuntimeChatPendingJump {
+    let itemID: String
+    let epoch: UUID
+    let intentToken: UUID
+
+    func appliedTarget(in projection: RuntimeChatReadProjection) -> SessionRuntimeChatReadRevealTarget? {
+        guard RuntimeChatReadIntent(epoch: epoch, token: intentToken).isApplied(in: projection),
+              let target = projection.page?.revealTarget, target.itemID == itemID else { return nil }
+        return target
+    }
+
+    func windowForRender(_ window: TranscriptWindow, projection: RuntimeChatReadProjection) -> TranscriptWindow {
+        guard let target = appliedTarget(in: projection), let page = projection.page else { return window }
+        var prepared = window
+        _ = prepared.reveal(itemID: target.scrollTargetID, in: page.blocks)
+        return prepared
     }
 }
 
@@ -252,9 +313,10 @@ private struct RuntimeChatBlockOffsets: PreferenceKey {
     }
 }
 
-struct RuntimeStatusCardView: View {
+struct RuntimeStatusCardView: View, Equatable {
     @Bindable var viewModel: ChatSessionViewModel
     let summary: SessionRuntimeCardSummary
+    let cache: RuntimeCardReadCache?
     let isNarrow: Bool
     let revealRequest: SessionRuntimeChatReadRevealTarget?
     let revealSerial: Int
@@ -262,13 +324,21 @@ struct RuntimeStatusCardView: View {
     @State private var handledRevealSerial: Int?
     @State private var disclosure = AgentStatusCardDisclosure()
 
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.viewModel === rhs.viewModel && lhs.summary == rhs.summary
+            && runtimeCardSnapshotsMatch(lhs.cache, rhs.cache) && lhs.isNarrow == rhs.isNarrow
+            && lhs.revealRequest == rhs.revealRequest
+            && (lhs.revealRequest == nil || lhs.revealSerial == rhs.revealSerial)
+            && lhs.itemActions.hasSameRenderState(as: rhs.itemActions)
+    }
+
     private var contentVersion: String {
         "\(summary.revision)-\(summary.contentRevision)-\(revealRequest?.cardID == summary.id ? revealSerial : 0)"
     }
 
     var body: some View {
         Group {
-            if let cache = viewModel.runtimeChatRead.cards[summary.inputID] {
+            if let cache {
                 let presentation = RuntimeStatusCardPresentation(inputID: summary.inputID, cache: cache, viewModel: viewModel,
                     revealActionID: revealRequest?.cardID == summary.id && handledRevealSerial != revealSerial ? revealRequest?.entryID : nil,
                     revealSerial: revealSerial, itemActions: itemActions)
@@ -311,7 +381,12 @@ struct RuntimeStatusCardView: View {
                     }
                 }
                 handledRevealSerial = revealSerial
-            } else { try await viewModel.loadRuntimeCardRows(summary.inputID) }
+            } else {
+                if let current = viewModel.runtimeChatRead.cards[summary.inputID],
+                   current.rows.card.revision == summary.revision,
+                   current.rows.card.contentRevision >= summary.contentRevision { return }
+                try await viewModel.loadRuntimeCardRows(summary.inputID)
+            }
             viewModel.runtimeChatRead.error = nil
         } catch { viewModel.runtimeChatRead.error = error.localizedDescription }
     }
@@ -323,7 +398,6 @@ private struct RuntimeCommandGroupView: View {
     let inputID: String?
     let itemActions: RuntimeChatItemActions
     @State private var page: SessionRuntimeActionItemsPage?
-    @State private var currentCursor: SessionRuntimeChatReadCursor?
     @State private var fetchSequence = 0
     @State private var userOverride: Bool?
     @State private var error: String?
@@ -374,7 +448,7 @@ private struct RuntimeCommandGroupView: View {
                         } else if error == nil { ProgressView().controlSize(.small) }
                         if let error {
                             Text(error).font(DSFont.meta)
-                            Button("再試行") { fetch(currentCursor) }
+                            Button("再試行") { reload() }
                                 .font(DSFont.meta)
                                 .accessibilityIdentifier("CommandGroupCell.retry")
                         }
@@ -383,7 +457,7 @@ private struct RuntimeCommandGroupView: View {
                 .accessibilityIdentifier("CommandGroupCell")
             }
         }
-        .task(id: "\(summary.contentRevision)-\(isOpen)") { if isOpen { fetch(currentCursor) } }
+        .task(id: "\(summary.contentRevision)-\(isOpen)") { if isOpen { reload() } }
     }
 
     private var badges: [TranscriptCardBadge] {
@@ -393,27 +467,43 @@ private struct RuntimeCommandGroupView: View {
             color: code == 0 ? DSColor.textTertiary : DSColor.attentionInk(.error), weight: code == 0 ? .regular : .semibold)]
     }
 
+    private func reload() {
+        let firstID = page?.items.first?.id
+        let target: SessionRuntimeContentRequest.Target = firstID.map {
+            .chatActionItemsFrom(inputID: inputID, actionID: summary.id, itemID: $0)
+        } ?? .chatActionItems(inputID: inputID, actionID: summary.id, cursor: nil)
+        fetch(target, recoveringBoundary: firstID != nil)
+    }
+
     private func fetch(_ cursor: SessionRuntimeChatReadCursor?) {
-        currentCursor = cursor
+        fetch(.chatActionItems(inputID: inputID, actionID: summary.id, cursor: cursor), recoveringBoundary: false)
+    }
+
+    private func fetch(_ target: SessionRuntimeContentRequest.Target, recoveringBoundary: Bool) {
         fetchSequence += 1
         let sequence = fetchSequence
         let execution = viewModel.executionID
+        let epoch = viewModel.runtimeChatRead.epoch
         Task {
             do {
-                let response = try await viewModel.readRuntimeChat(.chatActionItems(inputID: inputID, actionID: summary.id, cursor: cursor))
+                let response: SessionRuntimeContentResponse
+                do { response = try await viewModel.readRuntimeChat(target) }
+                catch SessionRuntimeContentError.notFound {
+                    guard recoveringBoundary else { throw SessionRuntimeContentError.notFound }
+                    response = try await viewModel.readRuntimeChat(.chatActionItems(inputID: inputID, actionID: summary.id, cursor: nil))
+                }
                 guard sequence == fetchSequence else { return }
-                guard viewModel.executionID == execution, case .actionItemsPage(let value) = response,
-                      value.executionID == execution, value.sessionID == viewModel.id,
-                      value.inputID == inputID, value.actionID == summary.id else { throw SessionRuntimeContentError.staleContent }
+                guard viewModel.executionID == execution, viewModel.runtimeChatRead.epoch == epoch,
+                      case .actionItemsPage(let value) = response, value.executionID == execution,
+                      value.sessionID == viewModel.id, value.inputID == inputID,
+                      value.actionID == summary.id else { throw SessionRuntimeContentError.staleContent }
                 page = value
                 error = nil
             } catch {
-                guard sequence == fetchSequence else { return }
-                if let contentError = error as? SessionRuntimeContentError,
-                   contentError == .staleContent || contentError == .invalidRequest || contentError == .notFound {
-                    page = nil
-                    currentCursor = nil
-                }
+                guard sequence == fetchSequence, viewModel.executionID == execution,
+                      viewModel.runtimeChatRead.epoch == epoch else { return }
+                // Retain real details while retrying; only authoritative disappearance removes them.
+                if let contentError = error as? SessionRuntimeContentError, contentError == .notFound { page = nil }
                 self.error = error.localizedDescription
             }
         }

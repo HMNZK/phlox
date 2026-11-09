@@ -32,6 +32,56 @@ import Testing
         #expect(recovered, "一度開いた作業は、詳細キャッシュが入れ替わっても再読込して表示できる")
     }
 
+    @Test func anOpenCardShowsAndClearsADetailErrorWithoutChangingItsContentVersion() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let pair = try await projected(items: [
+            .userMessage(id: "input", text: "実行内容", timestamp: started, attachments: []),
+            .commandExecution(id: "work", command: "echo detail", output: "待機中",
+                timestamp: started, completedAt: nil, intent: nil),
+        ], running: true)
+        try await pair.projected.loadRuntimeCardRows("input")
+        let rowID = try #require(pair.projected.runtimeChatRead.cards["input"]?.rows.rows.first?.id)
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: rowID)
+
+        let visible = try await withHosted(transcript(pair.projected)) { hosting in
+            try #require(try await waitForLabel("echo detail", in: hosting))
+            pair.projected.runtimeChatRead.cards["input"]?.error = "詳細の読み込みに失敗しました"
+            try #require(try await waitForLabel("詳細の読み込みに失敗しました", in: hosting))
+            pair.projected.runtimeChatRead.cards["input"]?.error = nil
+            try #require(try await waitForAbsentLabel("詳細の読み込みに失敗しました", in: hosting))
+            return try await waitForLabel("echo detail", in: hosting)
+        }
+
+        #expect(visible)
+    }
+
+    @Test func replacingTranscriptCallbacksUpdatesTheActualRestartAndCloseButtons() async throws {
+        let sessionID = SessionID()
+        let pair = try await projected(items: [
+            .error(id: "launch-error-\(sessionID.rawValue)", message: "起動できませんでした", timestamp: .distantPast),
+        ], sessionID: sessionID)
+        var received: [String] = []
+        let visible = try await withHosted(CallbackHost(viewModel: pair.projected, marker: "初期表示")) { hosting in
+            try #require(try await waitForLabel("起動できませんでした", in: hosting))
+            try #require(try await waitForAbsentIdentifier("ChatLaunchFailure.restart", in: hosting))
+            hosting.rootView = CallbackHost(viewModel: pair.projected, marker: "最初の操作先",
+                restart: { received.append("first-restart") }, close: { received.append("first-close") })
+            try await press(identifier: "ChatLaunchFailure.restart", in: hosting)
+            try await press(identifier: "ChatLaunchFailure.close", in: hosting)
+            hosting.rootView = CallbackHost(viewModel: pair.projected, marker: "最新の操作先",
+                restart: { received.append("latest-restart") }, close: { received.append("latest-close") })
+            try #require(try await waitForLabel("最新の操作先", in: hosting))
+            try await press(identifier: "ChatLaunchFailure.restart", in: hosting)
+            try await press(identifier: "ChatLaunchFailure.close", in: hosting)
+            hosting.rootView = CallbackHost(viewModel: pair.projected, marker: "操作なし")
+            try #require(try await waitForAbsentIdentifier("ChatLaunchFailure.restart", in: hosting))
+            return try await waitForAbsentIdentifier("ChatLaunchFailure.close", in: hosting)
+        }
+
+        #expect(visible)
+        #expect(received == ["first-restart", "first-close", "latest-restart", "latest-close"])
+    }
+
     @Test func cursorCommandDetailsUseTheInputThatOwnsTheCommandGroup() async throws {
         let started = Date(timeIntervalSince1970: 1_800_000_000)
         let pair = try await projected(items: [
@@ -154,18 +204,123 @@ import Testing
         #expect(visible)
     }
 
-    @Test func completedTaskRowsRemainVisibleWhenTheWindowContainsMoreThanThirtyTwoCards() async throws {
+    @Test func aCursorGroupsOwnBodyUpdateAndInsertionKeepItsManualDetailPage() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let commands = (0..<120).map { number in
+            ChatItem.commandExecution(id: "group-\(number)", command: "echo group-\(number)", output: "結果 \(number)",
+                timestamp: started, completedAt: started.addingTimeInterval(1), intent: nil)
+        }
+        let pair = try await projected(items: [.userMessage(id: "input", text: "実行", timestamp: started,
+            attachments: [], turnEnd: .init(outcome: .completed, at: started.addingTimeInterval(2)))] + commands,
+            agent: .cursor)
+
+        let preserved = try await withHosted(transcript(pair.projected)) { hosting in
+            try await press(label: "ツール実行", in: hosting)
+            try #require(try await waitForLabel("Bash、echo group-0、1 行", in: hosting))
+            try await press(label: "さらに表示", in: hosting)
+            try #require(try await waitForLabel("Bash、echo group-50、1 行", in: hosting))
+            try await press(label: "echo group-60", in: hosting)
+            try #require(try await waitForLabel("結果 60", in: hosting))
+            var changed = pair.source.makeRuntimeSnapshot()
+            changed.transcript[61] = .commandExecution(id: "group-60", command: "echo group-60", output: "GROUP_UPDATED_BODY",
+                timestamp: started, completedAt: started.addingTimeInterval(1), intent: nil)
+            changed.transcript.insert(.commandExecution(id: "inserted", command: "echo inserted", output: "挿入",
+                timestamp: started, completedAt: started.addingTimeInterval(1), intent: nil), at: 11)
+            changed.transcriptRevision = 8
+            try pair.source.applyRuntimeSnapshot(changed)
+            try pair.projected.applyRuntimeOverview(pair.source.makeRuntimeOverview())
+            try await pair.projected.refreshRuntimeContent()
+            try #require(try await waitForLabel("GROUP_UPDATED_BODY", in: hosting))
+            let rows = elements(in: hosting).filter { $0.role == NSAccessibility.Role.button.rawValue && $0.label.hasPrefix("Bash、echo group-") }
+            return Set(rows.map(\.label)) == Set((50..<100).map { "Bash、echo group-\($0)、1 行" })
+        }
+        #expect(preserved)
+    }
+
+    @Test func localEntryPagingKeepsAllVisibleItemsDuringAppendAndCanReturnToLatest() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let reasoning = (0..<120).map { ChatItem.reasoning(id: "reason-\($0)", text: "作業記録 \($0)", timestamp: started) }
+        let pair = try await projected(items: [
+            .userMessage(id: "input", text: "作業記録を表示", timestamp: started, attachments: []),
+            .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "記録", status: .inProgress)], timestamp: started),
+        ] + reasoning)
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
+
+        let preserved = try await withHosted(EntriesHost(viewModel: pair.projected)) { hosting in
+            try #require(try await waitForReasoningIDs(Set((90..<120).map { "reason-\($0)" }), in: hosting))
+            try await press(identifier: "AgentStatusCard.showMore", in: hosting)
+            let manualIDs = Set((70..<90).map { "reason-\($0)" })
+            try #require(try await waitForReasoningIDs(manualIDs, in: hosting))
+            var changed = pair.source.makeRuntimeSnapshot()
+            changed.transcript[82] = .reasoning(id: "reason-80", text: "更新された作業記録 80", timestamp: started)
+            changed.transcript.append(.reasoning(id: "reason-120", text: "作業記録 120", timestamp: started))
+            changed.transcriptRevision = 8
+            try pair.source.applyRuntimeSnapshot(changed)
+            try pair.projected.applyRuntimeOverview(pair.source.makeRuntimeOverview())
+            try await pair.projected.refreshRuntimeContent()
+            try #require(try await waitForLabel("更新された作業記録 80", in: hosting))
+            try #require(try await waitForReasoningIDs(manualIDs, in: hosting))
+            try await press(label: "最新の作業に戻る", in: hosting)
+            return try await waitForReasoningIDs(Set((91..<121).map { "reason-\($0)" }), in: hosting)
+        }
+        #expect(preserved)
+    }
+
+    @Test func heavyEntryPagingVisitsEachPrecedingItemWithoutSkippingTheMiddle() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let reasoning = (0..<120).map {
+            ChatItem.reasoning(id: "reason-\($0)", text: "# 作業記録 \($0)\n\n" + String(repeating: "x", count: 2_000), timestamp: started)
+        }
+        let pair = try await projected(items: [
+            .userMessage(id: "input", text: "重い作業記録を表示", timestamp: started, attachments: []),
+            .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "記録", status: .inProgress)], timestamp: started),
+        ] + reasoning)
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0", next: true)
+        try #require(pair.projected.runtimeChatRead.cards["input"]?.entries["task-stage-0"]?.entries.first?.id == "reason-20")
+        try #require(pair.projected.runtimeChatRead.cards["input"]?.entries["task-stage-0"]?.entries.last?.id == "reason-69")
+
+        let visited = try await withHosted(EntriesHost(viewModel: pair.projected)) { hosting in
+            try #require(try await waitForReasoningIDs(["reason-69"], in: hosting))
+            try await press(identifier: "AgentStatusCard.showMore", in: hosting)
+            try #require(try await waitForReasoningIDs(["reason-68"], in: hosting))
+            try #require(pair.projected.runtimeChatRead.cards["input"]?.entries["task-stage-0"]?.entries.last?.id == "reason-68")
+            try await press(identifier: "AgentStatusCard.showMore", in: hosting)
+            return try await waitForReasoningIDs(["reason-67"], in: hosting)
+        }
+        #expect(visited)
+        #expect(pair.projected.runtimeChatRead.cards["input"]?.entries["task-stage-0"]?.entries.last?.id == "reason-67")
+    }
+
+    private func waitForReasoningIDs(_ expected: Set<String>, in hosting: NSView) async throws -> Bool {
+        let deadline = ContinuousClock.now + .seconds(3)
+        while ContinuousClock.now < deadline {
+            hosting.layoutSubtreeIfNeeded()
+            let nodes = elements(in: hosting)
+            let actual = Set((0..<121).filter { number in
+                let text = "作業記録 \(number)"
+                return nodes.contains { $0.label.hasSuffix(text) || $0.value.hasSuffix(text) }
+            }.map { "reason-\($0)" })
+            if actual == expected { return true }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        return false
+    }
+
+    @Test func completedTaskRowsRemainAvailableAcrossBothDirectionsOfTheBoundedWindow() async throws {
         let started = Date(timeIntervalSince1970: 1_800_000_000)
         let pair = try await projected(items: manyCompletedCards(started))
 
-        let visible = try await withHosted(transcript(pair.projected)) { hosting in
-            try #require(try await waitForIdentifier("AgentStatusCard.row.outside-command-32", in: hosting))
-            try await waitForRuntimeReadIdle(pair.projected)
-            try await press(identifier: "ChatTranscript.loadEarlier", in: hosting)
-            return try await waitForCardRowCount(33, in: hosting)
+        let walked = try await withHosted(transcript(pair.projected)) { hosting in
+            try await walkCompletedCardRows(pair.projected, in: hosting)
         }
 
-        #expect(visible)
+        #expect(walked == Set((0..<33).map { "AgentStatusCard.row.outside-command-\($0)" }))
+        let loadedInputs = pair.projected.runtimeChatRead.page?.blocks.compactMap { block -> String? in
+            if case .item(.inline(.userMessage(let id, _, _, _, _))) = block.content { id } else { nil }
+        } ?? []
+        #expect(loadedInputs.count == 33)
+        #expect(Set(loadedInputs) == Set((0..<33).map { "input-\($0)" }))
     }
 
     @Test func anOpenActionCanReloadItsDetailAfterOtherActionsUseTheDetailCache() async throws {
@@ -227,6 +382,20 @@ import Testing
         #expect(visible)
     }
 
+    private struct CallbackHost: View {
+        let viewModel: ChatSessionViewModel
+        let marker: String
+        var restart: (() -> Void)? = nil
+        var close: (() -> Void)? = nil
+        var body: some View {
+            VStack {
+                Text(marker)
+                ChatTranscriptView(viewModel: viewModel,
+                    onLaunchFailureRestart: restart, onLaunchFailureClose: close)
+            }
+        }
+    }
+
     private struct CardHost: View {
         @Bindable var viewModel: ChatSessionViewModel
         var revealRequest: SessionRuntimeChatReadRevealTarget? = nil
@@ -235,9 +404,10 @@ import Testing
             if let summary = viewModel.runtimeChatRead.page?.blocks.compactMap({ block -> SessionRuntimeCardSummary? in
                 if case .card(let summary) = block.content { summary } else { nil }
             }).first {
-                RuntimeStatusCardView(viewModel: viewModel, summary: summary, isNarrow: false,
+                RuntimeStatusCardView(viewModel: viewModel, summary: summary, cache: viewModel.runtimeChatRead.cards[summary.inputID], isNarrow: false,
                     revealRequest: revealRequest, revealSerial: revealSerial,
                     itemActions: RuntimeChatItemActions(restart: nil, close: nil, isRestarting: false))
+                    .equatable()
             }
         }
     }
@@ -250,9 +420,9 @@ import Testing
             .environment(\.locale, Locale(identifier: "ja"))
     }
 
-    private func projected(items: [ChatItem], agent: AgentKind = .codex, running: Bool = false)
+    private func projected(items: [ChatItem], agent: AgentKind = .codex, running: Bool = false, sessionID: SessionID = SessionID())
         async throws -> (projected: ChatSessionViewModel, source: ChatSessionViewModel) {
-        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: Date(timeIntervalSince1970: 1_800_000_000),
+        var snapshot = SessionRuntimeChatSnapshot(id: sessionID, startedAt: Date(timeIntervalSince1970: 1_800_000_000),
             agentRef: .builtin(agent), workingDirectory: "/workspace")
         snapshot.transcript = items
         snapshot.transcriptRevision = 7
@@ -341,15 +511,69 @@ import Testing
         try #require(!projected.runtimeChatRead.isLoading)
     }
 
-    private func waitForCardRowCount(_ count: Int, in hosting: NSView) async throws -> Bool {
+    private struct RenderedCardStage: Equatable {
+        let firstID: String
+        let lastID: String
+        let rows: Set<String>
+    }
+
+    private func waitForCompleteCardStage(_ projected: ChatSessionViewModel, in hosting: NSView,
+                                          after previous: RenderedCardStage? = nil) async throws -> RenderedCardStage {
         let deadline = ContinuousClock.now + .seconds(3)
+        var complete: RenderedCardStage?
         while ContinuousClock.now < deadline {
             hosting.layoutSubtreeIfNeeded()
-            let ids = Set(elements(in: hosting).map(\.id).filter { $0.hasPrefix("AgentStatusCard.row.outside-command-") })
-            if ids.count == count { return true }
+            let state = projected.runtimeChatRead
+            if state.control.renderedSpans.count == 1, let span = state.control.renderedSpans.values.first,
+               let blocks = state.page?.blocks,
+               let first = blocks.firstIndex(where: { $0.id == span.firstID }),
+               let last = blocks.firstIndex(where: { $0.id == span.lastID }), first <= last {
+                let displayed = Array(blocks[first...last])
+                let expectedRows = Set(displayed.compactMap { block -> String? in
+                    guard case .card(let card) = block.content else { return nil }
+                    return "AgentStatusCard.row.outside-command-" + card.inputID.replacingOccurrences(of: "input-", with: "")
+                })
+                let expectedInputs = displayed.compactMap { block -> String? in
+                    if case .item(.inline(.userMessage(_, let text, _, _, _))) = block.content { text } else { nil }
+                }
+                let nodes = elements(in: hosting)
+                let actualRows = Set(nodes.map(\.id).filter { $0.hasPrefix("AgentStatusCard.row.outside-command-") })
+                let stage = RenderedCardStage(firstID: span.firstID, lastID: span.lastID, rows: actualRows)
+                try #require(expectedRows.count <= 24, "各表示段は共通8段予算の最大24カード以内")
+                let inputsPresent = expectedInputs.allSatisfy { text in nodes.contains { $0.label == text || $0.value == text } }
+                if !expectedRows.isEmpty, actualRows == expectedRows, inputsPresent,
+                   previous == nil || stage.firstID != previous?.firstID || stage.lastID != previous?.lastID {
+                    complete = stage
+                    break
+                }
+            }
             try await Task.sleep(for: .milliseconds(20))
         }
-        return false
+        return try #require(complete, "表示中の全カードに実タスク行と入力本文が揃う必要があります")
+    }
+
+    private func walkCompletedCardRows(_ projected: ChatSessionViewModel, in hosting: NSView) async throws -> Set<String> {
+        try await waitForRuntimeReadIdle(projected)
+        var stage = try await waitForCompleteCardStage(projected, in: hosting)
+        try #require(stage.rows.contains("AgentStatusCard.row.outside-command-32"), "初期表示は最新入力に到達")
+        var visited = stage.rows
+        for _ in 0..<20 {
+            if stage.rows.contains("AgentStatusCard.row.outside-command-0") { break }
+            try await waitForRuntimeReadIdle(projected)
+            try await press(identifier: "ChatTranscript.loadEarlier", in: hosting)
+            stage = try await waitForCompleteCardStage(projected, in: hosting, after: stage)
+            visited.formUnion(stage.rows)
+        }
+        try #require(stage.rows.contains("AgentStatusCard.row.outside-command-0"), "実UIで最古入力へ到達")
+        for _ in 0..<20 {
+            if stage.rows.contains("AgentStatusCard.row.outside-command-32") { break }
+            try await waitForRuntimeReadIdle(projected)
+            try await press(identifier: "ChatTranscript.loadNewer", in: hosting)
+            stage = try await waitForCompleteCardStage(projected, in: hosting, after: stage)
+            visited.formUnion(stage.rows)
+        }
+        try #require(stage.rows.contains("AgentStatusCard.row.outside-command-32"), "実UIで最新入力へ戻る")
+        return visited
     }
 
     private func waitForAbsentLabel(_ text: String, in hosting: NSView) async throws -> Bool {

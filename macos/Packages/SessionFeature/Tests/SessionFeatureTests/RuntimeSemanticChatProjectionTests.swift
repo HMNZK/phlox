@@ -2,9 +2,40 @@ import AgentDomain
 import Foundation
 import StructuredChatKit
 import Testing
+import os
 @testable import SessionFeature
 
 @Suite @MainActor struct RuntimeSemanticChatProjectionTests {
+    @Test func waitingForCardDetailsDoesNotInvalidateTheDisplayedConversation() async throws {
+        let source = source(items: [
+            .userMessage(id: "input", text: "表示中の作業", timestamp: .distantPast, attachments: []),
+            .commandExecution(id: "work", command: "printf result", output: "完了",
+                timestamp: .distantPast, completedAt: .distantFuture, intent: nil),
+        ])
+        let projected = projection(source)
+        try await projected.refreshRuntimeContent()
+        let response = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatCardRows(inputID: "input", cursor: nil)))
+        let held = HeldReadResponse()
+        projected.runtimeContentLoader = { _ in try await held.response() }
+        let changed = OSAllocatedUnfairLock(initialState: false)
+        withObservationTracking {
+            _ = projected.runtimeChatRead.page
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+
+        let loading = Task { try await projected.loadRuntimeCardRows("input") }
+        await held.waitForRequest()
+        let invalidatedWhileWaiting = changed.withLock { $0 }
+        held.release(response)
+        try await loading.value
+
+        #expect(!invalidatedWhileWaiting)
+        #expect(changed.withLock { $0 })
+        #expect(projected.runtimeChatRead.cards["input"]?.rows.card.totalRowCount == 1)
+    }
+
     @Test func aLongSingleInputRetainsItsCardWithoutLoadingTheRawTranscript() async throws {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         let input = ChatItem.userMessage(id: "request", text: "長い作業", timestamp: start,
@@ -48,6 +79,140 @@ import Testing
         #expect(projected.runtimeChatRead.page?.blocks.contains(where: { $0.id == "input-0" }) == true)
         #expect(projected.runtimeChatRead.page?.blocks.count ?? 0 <= 50)
         #expect(projected.transcript.isEmpty)
+    }
+
+    @Test func refreshingDuringAnOldestItemJumpKeepsTheRequestedInputInsteadOfReturningToTail() async throws {
+        let source = source(items: (0..<128).map {
+            .userMessage(id: "input-\($0)", text: "依頼 \($0)", timestamp: .distantPast, attachments: [])
+        })
+        let projected = projection(source)
+        try await projected.refreshRuntimeContent()
+        let reply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatReadAroundItem(itemID: "input-0")))
+        var finalSnapshot = source.makeRuntimeSnapshot()
+        finalSnapshot.transcriptRevision = 8
+        let final = ChatSessionViewModel(projection: finalSnapshot) { _, _ in .none }
+        let held = HeldReadResponse()
+        var holdsFirstJump = true
+        projected.runtimeContentLoader = { request in
+            if holdsFirstJump, case .chatReadAroundItem = request.target {
+                holdsFirstJump = false
+                return try await held.response()
+            }
+            return try await final.runtimeChatReadContent(for: request)
+        }
+        let jump = Task { try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "input-0")) }
+        await held.waitForRequest()
+        try projected.applyRuntimeOverview(final.makeRuntimeOverview())
+
+        // refresh starts while the direct jump is still waiting on the runtime reply.
+        let release = Task { held.release(reply) }
+        try await projected.refreshRuntimeChatRead()
+        await release.value
+        try await jump.value
+
+        #expect(projected.runtimeChatRead.page?.blocks.first?.id == "input-0")
+        #expect(projected.runtimeChatRead.page?.blocks.contains(where: { $0.id == "input-127" }) == false)
+        #expect(projected.runtimeChatRead.page?.revealTarget?.itemID == "input-0")
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
+        #expect(projected.runtimeChatRead.error == nil)
+    }
+
+    @Test func aMissingJumpKeepsTheCommittedPositionAndAllowsTheNextBackgroundUpdate() async throws {
+        let source = source(items: (0..<128).map {
+            .userMessage(id: "input-\($0)", text: "依頼 \($0)", timestamp: .distantPast, attachments: [])
+        })
+        let projected = projection(source)
+        try await projected.refreshRuntimeContent()
+        try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "input-0"))
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[1] = .userMessage(id: "input-1", text: "更新後の依頼", timestamp: .distantPast, attachments: [])
+        changed.transcriptRevision = 8
+        let updated = ChatSessionViewModel(projection: changed) { _, _ in .none }
+
+        await #expect(throws: SessionRuntimeContentError.notFound) {
+            try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "missing-input"))
+        }
+        #expect(projected.runtimeChatRead.page?.blocks.first?.id == "input-0")
+        #expect(projected.runtimeChatRead.error != nil)
+        try projected.applyRuntimeOverview(updated.makeRuntimeOverview())
+        projected.runtimeContentLoader = { try await updated.runtimeChatReadContent(for: $0) }
+        try await projected.refreshRuntimeChatRead()
+
+        #expect(projected.runtimeChatRead.page?.blocks.first?.id == "input-0")
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
+        #expect(projected.runtimeChatRead.page?.blocks.contains(where: {
+            if case .item(.inline(.userMessage(_, let text, _, _, _))) = $0.content { text == "更新後の依頼" }
+            else { false }
+        }) == true)
+        #expect(projected.runtimeChatRead.error == nil)
+    }
+
+    @Test func backgroundUpdateWaitsForAFailedNavigationAndRefreshesTheCommittedPage() async throws {
+        let source = source(items: [
+            .userMessage(id: "input", text: "元の依頼", timestamp: .distantPast, attachments: []),
+            .agentMessage(id: "answer", text: "元の回答", timestamp: .distantPast),
+        ])
+        let projected = projection(source)
+        try await projected.refreshRuntimeContent()
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[1] = .agentMessage(id: "answer", text: "更新後の回答", timestamp: .distantPast)
+        changed.transcriptRevision = 8
+        let updated = ChatSessionViewModel(projection: changed) { _, _ in .none }
+        let held = HeldReadResponse()
+        var holdsFirstJump = true
+        projected.runtimeContentLoader = { request in
+            if case .chatReadAroundItem = request.target {
+                guard holdsFirstJump else { throw URLError(.networkConnectionLost) }
+                holdsFirstJump = false
+                return try await held.response()
+            }
+            return try await updated.runtimeChatReadContent(for: request)
+        }
+        let jump = Task { try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "unreachable-input")) }
+        await held.waitForRequest()
+        try projected.applyRuntimeOverview(updated.makeRuntimeOverview())
+
+        let release = Task { held.reject(URLError(.networkConnectionLost)) }
+        try await projected.refreshRuntimeChatRead()
+        await release.value
+        await #expect(throws: URLError.self) { try await jump.value }
+
+        #expect(projected.runtimeChatRead.page?.blocks.first?.id == "input")
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
+        #expect(projected.runtimeChatRead.page?.blocks.contains(where: {
+            if case .item(.inline(.agentMessage(_, let text, _))) = $0.content { text == "更新後の回答" }
+            else { false }
+        }) == true)
+        #expect(projected.runtimeChatRead.error == nil)
+    }
+
+    @Test func aLaterExplicitJumpWinsWhenAnEarlierJumpReplyIsStillPending() async throws {
+        let source = source(items: (0..<128).map {
+            .userMessage(id: "input-\($0)", text: "依頼 \($0)", timestamp: .distantPast, attachments: [])
+        })
+        let projected = projection(source)
+        try await projected.refreshRuntimeContent()
+        let reply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatReadAroundItem(itemID: "input-0")))
+        let held = HeldReadResponse()
+        projected.runtimeContentLoader = { request in
+            if case .chatReadAroundItem(let itemID) = request.target, itemID == "input-0" {
+                return try await held.response()
+            }
+            return try await source.runtimeChatReadContent(for: request)
+        }
+        let earlierJump = Task { try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "input-0")) }
+        await held.waitForRequest()
+
+        let release = Task { held.release(reply) }
+        try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "input-100"))
+        await release.value
+        try await earlierJump.value
+
+        #expect(projected.runtimeChatRead.page?.blocks.first?.id == "input-100")
+        #expect(projected.runtimeChatRead.page?.revealTarget?.itemID == "input-100")
+        #expect(projected.runtimeChatRead.error == nil)
     }
 
     @Test func giantInputRecallUsesTheOriginalTextInsteadOfItsPreview() async throws {
@@ -426,6 +591,11 @@ import Testing
     func waitForRequest() async {
         if request != nil { return }
         await withCheckedContinuation { waiter = $0 }
+    }
+
+    func reject(_ error: Error) {
+        request?.resume(throwing: error)
+        request = nil
     }
 
     func release(_ response: SessionRuntimeContentResponse) {

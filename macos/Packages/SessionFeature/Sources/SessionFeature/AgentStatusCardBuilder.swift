@@ -783,6 +783,8 @@ enum AgentStatusCardBuilder {
             contribute(item, sign: 1)
         }
 
+        func index(ofItemID id: String) -> Int? { positions[id] }
+
         func replace(_ item: ChatItem) {
             guard let index = positions[item.id] else { return }
             let completionChanged = completionDate(items[index]) != completionDate(item)

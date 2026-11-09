@@ -49,7 +49,7 @@ extension ChatSessionViewModel {
         let response: SessionRuntimeContentResponse
         switch request.target {
         case .chatReadTail, .chatReadBefore, .chatReadAfter, .chatReadAround, .chatReadAroundItem,
-             .chatCardRows, .chatCardRowsAround, .chatRowEntries, .chatRowEntriesAround, .chatActionItems, .inputHistory, .inputHistoryAfter:
+             .chatCardRows, .chatCardRowsAround, .chatRowEntries, .chatRowEntriesAround, .chatActionItems, .chatActionItemsFrom, .inputHistory, .inputHistoryAfter:
             throw SessionRuntimeContentError.invalidRequest
         case .ptySnapshot:
             throw SessionRuntimeContentError.invalidRequest

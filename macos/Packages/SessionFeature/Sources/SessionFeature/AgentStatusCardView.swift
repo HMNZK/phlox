@@ -123,7 +123,8 @@ struct AgentStatusCardView: View, Equatable {
             && lhs.isNarrow == rhs.isNarrow
             && lhs.isLaunchFailureRestarting == rhs.isLaunchFailureRestarting
             && lhs.revealRequest == rhs.revealRequest
-            && lhs.runtime?.cache.version == rhs.runtime?.cache.version
+            && runtimeCardPresentationsMatch(lhs.runtime, rhs.runtime)
+            && lhs.openActionIDs == rhs.openActionIDs
             && lhs.disclosureSnapshot == rhs.disclosureSnapshot
     }
 

@@ -20,12 +20,15 @@ struct SemanticChatReadMutationTests {
         let rowID = try #require(beforeRows.rows.first?.id)
         let before = try await entries(source, inputID, rowID)
         let oldCursor = try #require(before.nextCursor)
+        let timelineBefore = try await timeline(source)
 
         client.yield(.commandExecution(itemId: "command-0", command: nil, outputDelta: " UPDATED"))
         try await waitUntil { output(source, "command-0") == "output-0 UPDATED" }
         let bodyRows = try await rows(source, inputID)
         let continued = try await entries(source, inputID, rowID, cursor: oldCursor)
+        let timelineAfterBody = try await timeline(source)
 
+        #expect(timelineAfterBody.revision == timelineBefore.revision)
         #expect(bodyRows.card.revision == beforeRows.card.revision)
         #expect(bodyRows.card.contentRevision > beforeRows.card.contentRevision)
         #expect(continued.entries.map(\.id) == ["command-0", "command-1", "command-2", "command-3", "command-4"])
@@ -33,7 +36,9 @@ struct SemanticChatReadMutationTests {
         client.yield(.itemCompleted(itemId: "command-0"))
         try await waitUntil { completed(source, "command-0") }
         let completedRows = try await rows(source, inputID)
+        let timelineAfterCompletion = try await timeline(source)
 
+        #expect(timelineAfterCompletion.revision == timelineBefore.revision)
         #expect(completedRows.card.revision > bodyRows.card.revision)
         #expect(completedRows.rows.first?.totalEntryCount == 55)
         await #expect(throws: SessionRuntimeContentError.staleContent) {
@@ -49,12 +54,18 @@ struct SemanticChatReadMutationTests {
         client.yield(.turnStarted)
         try await waitUntil { source.status == .running }
         let inputID = try #require(source.transcript.first?.id)
-        _ = try await source.runtimeChatReadContent(for: request(source, .chatReadTail))
+        let before = try await timeline(source)
+        let historyBeforeResponse = try await source.runtimeChatReadContent(for: request(source, .inputHistory(before: nil)))
         client.yield(.reasoningDelta(itemId: "before-work", "検討します"))
         try await waitUntil { source.transcript.count == 2 }
         let response = try await source.runtimeChatReadContent(for: request(source, .chatReadTail))
         guard case .chatReadPage(let page) = response else { Issue.record("会話ページではありません"); return }
+        let historyAfterResponse = try await source.runtimeChatReadContent(for: request(source, .inputHistory(before: nil)))
+        guard case .inputHistoryPage(let historyBefore) = historyBeforeResponse,
+              case .inputHistoryPage(let historyAfter) = historyAfterResponse else { Issue.record("入力履歴ではありません"); return }
         #expect(page.blocks.map(\.id) == [inputID, "before-work", "status-card-\(inputID)"])
+        #expect(page.revision != before.revision)
+        #expect(historyAfter.revision == historyBefore.revision)
         let cardRows = try await rows(source, inputID)
         #expect(cardRows.rows.isEmpty)
     }
@@ -277,6 +288,12 @@ struct SemanticChatReadMutationTests {
     private func completed(_ source: ChatSessionViewModel, _ id: String) -> Bool {
         guard case .commandExecution(_, _, _, _, let completedAt, _) = source.transcript.first(where: { $0.id == id }) else { return false }
         return completedAt != nil
+    }
+
+    private func timeline(_ source: ChatSessionViewModel) async throws -> SessionRuntimeChatReadPage {
+        let response = try await source.runtimeChatReadContent(for: request(source, .chatReadTail))
+        guard case .chatReadPage(let page) = response else { throw ReadError.unexpected }
+        return page
     }
 
     private func request(_ source: ChatSessionViewModel, _ target: SessionRuntimeContentRequest.Target) -> SessionRuntimeContentRequest {

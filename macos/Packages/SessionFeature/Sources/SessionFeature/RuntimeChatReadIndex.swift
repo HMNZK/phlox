@@ -245,6 +245,23 @@ private final class RuntimeChatReadIndex {
         let inputID: String?
         let content: Content
     }
+    private struct BlockStructureKey: Equatable {
+        enum Kind: Equatable { case item(String), commandGroup, card }
+        let id: String
+        let ownerInputID: String?
+        let kind: Kind
+
+        init(_ block: Block) {
+            id = block.id
+            ownerInputID = block.inputID
+            kind = switch block.content {
+            case .item(let item): .item(item.value.readKind)
+            case .group: .commandGroup
+            case .card: .card
+            }
+        }
+    }
+
     struct Interval {
         let start: Int
         var end: Int
@@ -277,6 +294,8 @@ private final class RuntimeChatReadIndex {
     private var itemPositionByID: [String: Int] = [:]
     var tailStart: Int { intervals.last?.start ?? 0 }
     private var nextRevision: UInt64 = 1
+    private var timelineStructureRevision: UInt64 = 1
+    private var historyStructureRevision: UInt64 = 1
 
     init(items source: [ChatItem], executionID: UUID, transcriptRevision: Int, liveState: AgentStatusLiveState,
          usesCards: Bool) {
@@ -292,6 +311,8 @@ private final class RuntimeChatReadIndex {
         var baseline = affected < intervals.count ? intervals[affected].baseline : nil
         let inputStart = affected < intervals.count
             ? intervals[affected].inputID.flatMap { inputPositions[$0] } ?? 0 : 0
+        let oldBlockKeys = blocks.dropFirst(blockStart).map(BlockStructureKey.init)
+        let oldInputIDs = inputItems.dropFirst(inputStart).map { $0.value.id }
         for id in sourceIDs.dropFirst(begin) {
             items.removeValue(forKey: id)
             if let action = actionByItem.removeValue(forKey: id) {
@@ -331,6 +352,16 @@ private final class RuntimeChatReadIndex {
             appendInterval(source, range: start..<source.count, baseline: baseline,
                 running: nextLive.isProcessing, isInput: hasInput)
         }
+        let preservesTimelinePrefix = oldBlockKeys.count <= blocks.count - blockStart
+            && oldBlockKeys.enumerated().allSatisfy { offset, key in
+                key == BlockStructureKey(self.blocks[blockStart + offset])
+            }
+        let preservesHistoryPrefix = oldInputIDs.count <= inputItems.count - inputStart
+            && oldInputIDs.enumerated().allSatisfy { offset, id in
+                id == self.inputItems[inputStart + offset].value.id
+            }
+        if !preservesTimelinePrefix { timelineStructureRevision &+= 1 }
+        if !preservesHistoryPrefix { historyStructureRevision &+= 1 }
         itemCount = source.count
         priorActionsForRebuild.removeAll()
     }
@@ -479,6 +510,7 @@ private final class RuntimeChatReadIndex {
                         items[value.id] = item
                         let position = blocks.count - 1
                         blocks.insert(.init(id: value.id, inputID: last.inputID, content: .item(item)), at: position)
+                        timelineStructureRevision &+= 1
                         blockPositionByID[value.id] = position; blockPositionByID[card.id] = position + 1
                         itemBlockID[value.id] = value.id
                         itemPositionByID[value.id] = sourceIDs.count; sourceIDs.append(value.id)
@@ -576,10 +608,10 @@ extension RuntimeChatReadIndex {
         case .chatReadTail:
             response = .chatReadPage(try timelineBefore(request, end: blocks.count, usage: usage))
         case .chatReadBefore(let cursor):
-            try validate(cursor, scope: "timeline", revision: 1, ids: blocks.mapAt(cursor.index, \.id))
+            try validate(cursor, scope: "timeline", revision: timelineStructureRevision, ids: blocks.mapAt(cursor.index, \.id))
             response = .chatReadPage(try timelineBefore(request, end: cursor.index, usage: usage))
         case .chatReadAfter(let cursor):
-            try validate(cursor, scope: "timeline", revision: 1, ids: blocks.mapAt(cursor.index, \.id))
+            try validate(cursor, scope: "timeline", revision: timelineStructureRevision, ids: blocks.mapAt(cursor.index, \.id))
             response = .chatReadPage(try timeline(request, start: cursor.index + 1, usage: usage))
         case .chatReadAround(let inputID):
             guard let position = inputBlockPositions[inputID] else { throw SessionRuntimeContentError.notFound }
@@ -627,17 +659,17 @@ extension RuntimeChatReadIndex {
             let start = try nextStart(cursor, scope: scope, revision: revision, count: action.detailItems.count) {
                 action.detailItems[$0].value.id
             }
-            let values = try page(from: start, count: action.detailItems.count) { try action.detailItems[$0].reference() }
-            response = .actionItemsPage(.init(sessionID: request.sessionID, executionID: executionID,
-                inputID: inputID, actionID: actionID, revision: revision, items: values,
-                nextCursor: nextCursor(scope: scope, revision: revision, start: start, count: values.count,
-                    total: action.detailItems.count, id: { action.detailItems[$0].value.id })))
+            response = try actionItems(request, inputID: inputID, action: action, start: start)
+        case .chatActionItemsFrom(let inputID, let actionID, let itemID):
+            guard let action = actions[actionID], action.inputID == inputID,
+                  let start = action.accumulator.index(ofItemID: itemID) else { throw SessionRuntimeContentError.notFound }
+            response = try actionItems(request, inputID: inputID, action: action, start: start)
         case .inputHistory(let cursor):
-            if let cursor { try validate(cursor, scope: "history", revision: 1, ids: inputItems.mapAt(cursor.index, \.value.id)) }
+            if let cursor { try validate(cursor, scope: "history", revision: historyStructureRevision, ids: inputItems.mapAt(cursor.index, \.value.id)) }
             let end = cursor?.index ?? inputItems.count
             response = .inputHistoryPage(try history(request, start: max(0, end - SessionRuntimeChatReadLimits.maximumItemsPerPage), end: end, backwards: true))
         case .inputHistoryAfter(let cursor):
-            try validate(cursor, scope: "history", revision: 1, ids: inputItems.mapAt(cursor.index, \.value.id))
+            try validate(cursor, scope: "history", revision: historyStructureRevision, ids: inputItems.mapAt(cursor.index, \.value.id))
             response = .inputHistoryPage(try history(request, start: cursor.index + 1, end: inputItems.count))
         default: throw SessionRuntimeContentError.invalidRequest
         }
@@ -645,6 +677,16 @@ extension RuntimeChatReadIndex {
             throw SessionRuntimeContentError.invalidRequest
         }
         return response
+    }
+
+    private func actionItems(_ request: SessionRuntimeContentRequest, inputID: String?, action: Action, start: Int) throws -> SessionRuntimeContentResponse {
+        let revision = inputID.flatMap { intervalsByInput[$0] }.flatMap { intervals[$0].card?.revision } ?? 1
+        let scope = "action:\(inputID ?? ""): \(action.id)"
+        let values = try page(from: start, count: action.detailItems.count) { try action.detailItems[$0].reference() }
+        return .actionItemsPage(.init(sessionID: request.sessionID, executionID: executionID,
+            inputID: inputID, actionID: action.id, revision: revision, items: values,
+            nextCursor: nextCursor(scope: scope, revision: revision, start: start, count: values.count,
+                total: action.detailItems.count, id: { action.detailItems[$0].value.id })))
     }
 
     private func cardRows(_ request: SessionRuntimeContentRequest, inputID: String, card: Card, start: Int) throws -> SessionRuntimeContentResponse {
@@ -716,12 +758,12 @@ extension RuntimeChatReadIndex {
     private func makeTimeline(_ request: SessionRuntimeContentRequest, start: Int,
                               values: [SessionRuntimeChatReadBlock], usage: [String: TurnUsage]) -> SessionRuntimeChatReadPage {
         let finish = start + values.count
-        let older = start > 0 && start < blocks.count ? cursor("timeline", revision: 1, index: start, id: blocks[start].id) : nil
-        let newer = finish < blocks.count && finish > 0 ? cursor("timeline", revision: 1, index: finish - 1, id: blocks[finish - 1].id) : nil
+        let older = start > 0 && start < blocks.count ? cursor("timeline", revision: timelineStructureRevision, index: start, id: blocks[start].id) : nil
+        let newer = finish < blocks.count && finish > 0 ? cursor("timeline", revision: timelineStructureRevision, index: finish - 1, id: blocks[finish - 1].id) : nil
         var visibleUsage: [String: TurnUsage] = [:]
         for value in values { if let valueUsage = usage[value.id] { visibleUsage[value.id] = valueUsage } }
         return .init(sessionID: request.sessionID, executionID: executionID, transcriptRevision: transcriptRevision,
-            revision: 1, totalBlockCount: blocks.count, startIndex: start, blocks: values, olderCursor: older,
+            revision: timelineStructureRevision, totalBlockCount: blocks.count, startIndex: start, blocks: values, olderCursor: older,
             newerCursor: newer, latestHeader: intervals.last?.card?.header.bounded, turnUsageByItemID: visibleUsage)
     }
 
@@ -738,11 +780,11 @@ extension RuntimeChatReadIndex {
         let values = backwards ? try pageBefore(end: end, value: value) : try page(from: start, count: end, value: value)
         let start = backwards ? end - values.count : start
         let finish = start + values.count
-        return .init(sessionID: request.sessionID, executionID: executionID, revision: 1, totalCount: inputItems.count,
+        return .init(sessionID: request.sessionID, executionID: executionID, revision: historyStructureRevision, totalCount: inputItems.count,
             entries: values,
-            olderCursor: start > 0 ? cursor("history", revision: 1, index: start, id: inputItems[start].value.id) : nil,
+            olderCursor: start > 0 ? cursor("history", revision: historyStructureRevision, index: start, id: inputItems[start].value.id) : nil,
             newerCursor: finish < inputItems.count && finish > 0
-                ? cursor("history", revision: 1, index: finish - 1, id: inputItems[finish - 1].value.id) : nil)
+                ? cursor("history", revision: historyStructureRevision, index: finish - 1, id: inputItems[finish - 1].value.id) : nil)
     }
 
     private func pageBefore<Value: Encodable>(end: Int, value: (Int) throws -> Value) throws -> [Value] {

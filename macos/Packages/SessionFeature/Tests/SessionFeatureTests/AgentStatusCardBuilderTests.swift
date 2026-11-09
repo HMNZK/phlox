@@ -1179,7 +1179,7 @@ struct AgentStatusCardAfterAllTasksTests {
         #expect(card.rows.map(\.isTextOnly) == [false, false, true])
 
         #expect(TranscriptRenderBudget.weight(of: .statusCard(card))
-            == TranscriptRenderBudget.otherBlockUnits
+            == TranscriptRenderBudget.statusCardBaseUnits
             + 3 * TranscriptRenderBudget.statusCardRowUnits
             + 1 * TranscriptRenderBudget.statusCardEntryUnits)
     }

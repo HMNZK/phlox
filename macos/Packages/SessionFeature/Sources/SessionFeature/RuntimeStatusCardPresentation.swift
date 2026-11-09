@@ -3,15 +3,59 @@ import AgentDomain
 import DesignSystem
 
 @MainActor
-final class RuntimeChatItemActions {
-    let restart: (() -> Void)?
-    let close: (() -> Void)?
-    let isRestarting: Bool
+final class RuntimeChatItemActionRouter {
+    private var restart: (() -> Void)?
+    private var close: (() -> Void)?
 
-    init(restart: (() -> Void)?, close: (() -> Void)?, isRestarting: Bool) {
+    init(restart: (() -> Void)? = nil, close: (() -> Void)? = nil) {
         self.restart = restart
         self.close = close
+    }
+
+    func install(restart: (() -> Void)?, close: (() -> Void)?) {
+        self.restart = restart
+        self.close = close
+    }
+
+    func performRestart() { restart?() }
+    func performClose() { close?() }
+}
+
+@MainActor
+final class RuntimeChatItemActions {
+    private let router: RuntimeChatItemActionRouter
+    private let incomingRestart: (() -> Void)?
+    private let incomingClose: (() -> Void)?
+    nonisolated let canRestart: Bool
+    nonisolated let canClose: Bool
+    nonisolated let isRestarting: Bool
+
+    var restart: (() -> Void)? {
+        guard canRestart else { return nil }
+        let router = router
+        return { router.performRestart() }
+    }
+    var close: (() -> Void)? {
+        guard canClose else { return nil }
+        let router = router
+        return { router.performClose() }
+    }
+
+    init(restart: (() -> Void)?, close: (() -> Void)?, isRestarting: Bool,
+         router: RuntimeChatItemActionRouter? = nil) {
+        self.router = router ?? RuntimeChatItemActionRouter(restart: restart, close: close)
+        incomingRestart = restart
+        incomingClose = close
+        canRestart = restart != nil
+        canClose = close != nil
         self.isRestarting = isRestarting
+    }
+
+    func installHandlers() { router.install(restart: incomingRestart, close: incomingClose) }
+
+    nonisolated func hasSameRenderState(as other: RuntimeChatItemActions) -> Bool {
+        router === other.router && canRestart == other.canRestart
+            && canClose == other.canClose && isRestarting == other.isRestarting
     }
 }
 
@@ -49,9 +93,12 @@ struct RuntimeStatusCardPresentation: Sendable {
     }
 
     @MainActor
-    func loadEntries(_ rowID: String, next: Bool = false) {
-        guard next || cache.entries[rowID] == nil else { return }
-        Task { await perform { try await viewModel.loadRuntimeCardEntries(inputID, rowID: rowID, next: next) } }
+    func loadEntries(_ rowID: String, next: Bool = false, endingAtID: String? = nil, startingAtID: String? = nil) {
+        guard next || endingAtID != nil || cache.entries[rowID] == nil else { return }
+        Task { await perform {
+            try await viewModel.loadRuntimeCardEntries(inputID, rowID: rowID, next: next,
+                aroundEntryID: endingAtID, startingAtID: startingAtID)
+        } }
     }
 
     @MainActor
@@ -76,6 +123,33 @@ struct RuntimeStatusCardPresentation: Sendable {
     }
 }
 
+func runtimeCardSnapshotsMatch(_ lhs: RuntimeCardReadCache?, _ rhs: RuntimeCardReadCache?) -> Bool {
+    lhs?.version == rhs?.version && lhs == rhs
+}
+
+extension RuntimeStatusCardPresentation {
+    nonisolated func hasSameRenderState(as other: Self) -> Bool {
+        inputID == other.inputID && viewModel === other.viewModel
+            && runtimeCardSnapshotsMatch(cache, other.cache)
+            && revealActionID == other.revealActionID && revealSerial == other.revealSerial
+            && {
+                switch (itemActions, other.itemActions) {
+                case (nil, nil): true
+                case (.some(let lhs), .some(let rhs)): lhs.hasSameRenderState(as: rhs)
+                default: false
+                }
+            }()
+    }
+}
+
+func runtimeCardPresentationsMatch(_ lhs: RuntimeStatusCardPresentation?, _ rhs: RuntimeStatusCardPresentation?) -> Bool {
+    switch (lhs, rhs) {
+    case (nil, nil): true
+    case (.some(let lhs), .some(let rhs)): lhs.hasSameRenderState(as: rhs)
+    default: false
+    }
+}
+
 extension SessionRuntimeActionSummary {
     var action: AgentStatusAction {
         AgentStatusAction(items: [], label: label, state: state, duration: duration,
@@ -89,7 +163,6 @@ struct RuntimeCardEntriesView: View {
     let scale: CGFloat
     let isTimelineVisible: Bool
     var actionDisclosure: Binding<AgentStatusCardDisclosure>? = nil
-    @State private var entryEnd: Int?
 
     private func actionBinding(_ actionID: String) -> Binding<Bool>? {
         guard let actionDisclosure else { return nil }
@@ -100,8 +173,10 @@ struct RuntimeCardEntriesView: View {
     private var page: SessionRuntimeCardEntriesPage? { presentation.cache.entries[rowID] }
     private var visibleEntries: [SessionRuntimeCardEntry] {
         guard let page else { return [] }
-        let end = min(entryEnd ?? page.entries.count, page.entries.count)
-        let candidates = Array(page.entries.prefix(end).suffix(AgentStatusCardDisclosure.initialEntryLimit))
+        let candidates: [SessionRuntimeCardEntry]
+        if let firstID = presentation.cache.entryStartIDs[rowID], let start = page.entries.firstIndex(where: { $0.id == firstID }) {
+            candidates = Array(page.entries.dropFirst(start).suffix(AgentStatusCardDisclosure.initialEntryLimit))
+        } else { candidates = Array(page.entries.suffix(AgentStatusCardDisclosure.initialEntryLimit)) }
         let weights = candidates.map { entry -> Int in
             switch entry {
             case .action: TranscriptRenderBudget.statusCardEntryUnits
@@ -128,18 +203,19 @@ struct RuntimeCardEntriesView: View {
                             isTimelineVisible: isTimelineVisible, runtime: presentation, openBinding: actionBinding(summary.id))
                     }
                 }
-                if (entryEnd ?? page.entries.count) - visibleEntries.count > 0 || page.nextCursor != nil {
+                let start = visibleEntries.first.flatMap { first in page.entries.firstIndex { $0.id == first.id } } ?? 0
+                if start > 0 || page.nextCursor != nil {
                     Button("さらに表示") {
-                        let start = (entryEnd ?? page.entries.count) - visibleEntries.count
-                        if start > 0 { entryEnd = start }
-                        else { entryEnd = nil; presentation.loadEntries(rowID, next: true) }
+                        if start > 0 {
+                            presentation.loadEntries(rowID, endingAtID: page.entries[start - 1].id,
+                                startingAtID: page.entries.first?.id)
+                        } else { presentation.loadEntries(rowID, next: true) }
                     }
                         .buttonStyle(.plain).font(DSFont.meta)
                         .accessibilityIdentifier("AgentStatusCard.showMore")
                 }
-                if entryEnd != nil || presentation.cache.entryIsLatest[rowID] == false {
+                if presentation.cache.entryIsLatest[rowID] == false {
                     Button("最新の作業に戻る") {
-                        entryEnd = nil
                         Task { try? await presentation.viewModel.loadRuntimeCardEntries(presentation.inputID, rowID: rowID) }
                     }
                     .buttonStyle(.plain).font(DSFont.meta)
@@ -157,11 +233,7 @@ struct RuntimeCardEntriesView: View {
             }
         }
         .task(id: presentation.contentVersion) { presentation.loadEntries(rowID) }
-        .onChange(of: page?.entries.first?.id) { _, _ in entryEnd = nil }
-        .onChange(of: presentation.revealSerial, initial: true) { _, _ in
-            if let actionID = presentation.revealActionID,
-               let index = page?.entries.firstIndex(where: { $0.id == actionID }) { entryEnd = index + 1 }
-        }
+
     }
 }
 

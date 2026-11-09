@@ -329,15 +329,9 @@ extension TranscriptWindow {
 
     mutating func reveal(itemID: String, in blocks: [SessionRuntimeChatReadBlock]) -> Bool {
         guard let target = blocks.firstIndex(where: { $0.id == itemID || $0.ownerInputID == itemID }) else { return false }
-        limit = maxLimit
-        var cost = 0
-        var count = 0
-        for block in blocks[target...].prefix(maxLimit - contextDefaultLimit) {
-            let weight = TranscriptRenderBudget.weight(of: block)
-            guard count == 0 || weight <= TranscriptRenderBudget.defaultUnits * (Self.maxStages - 1) - cost else { break }
-            cost += weight
-            count += 1
-        }
+        // A remote jump starts a new one-stage window; scrolling can expand it normally.
+        limit = contextDefaultLimit
+        let count = runtimeForwardCount(Array(blocks[target...]), maxCount: contextDefaultLimit)
         let end = target + count
         if end == blocks.count { followTail() }
         else { pinRuntime(to: blocks[end - 1]) }

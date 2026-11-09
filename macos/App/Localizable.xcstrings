@@ -14344,6 +14344,40 @@
           }
         }
       }
+    },
+    "statusCard.unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記録なし"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No record"
+          }
+        }
+      }
+    },
+    "0.1 秒未満": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0.1 秒未満"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Less than 0.1 seconds"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

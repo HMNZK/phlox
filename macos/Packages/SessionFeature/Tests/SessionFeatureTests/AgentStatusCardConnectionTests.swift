@@ -536,6 +536,12 @@ struct AgentStatusCardEdgeTests {
 
 @Suite("状態カード: 作業の完了と短時間の表示")
 struct AgentStatusCardLiveWorkTests {
+    private func action(in card: AgentStatusCard) throws -> AgentStatusAction {
+        try #require(card.rows.flatMap(\.entries).compactMap {
+            if case .action(let action) = $0 { action } else { nil }
+        }.first)
+    }
+
     @Test("タスク外の全作業が完了したら、カードの完了後も完了印で表示する")
     func completedOutsideWorkShowsDoneMark() throws {
         let items = [
@@ -552,5 +558,122 @@ struct AgentStatusCardLiveWorkTests {
     @Test("0.1 秒未満で完了した作業をゼロ秒に丸めない")
     func shortCompletedWorkShowsLessThanTenth() {
         #expect(AgentStatusDurationFormat.action(0.015) == "<0.1s")
+    }
+
+    @Test("実行中の作業は開始からの経過と読み上げが同じ時刻で進む")
+    func runningWorkCountsElapsedTime() throws {
+        let running = try #require(card([user("u1"), command("c1", "sleep 12", at: 3)], live(processing: true)))
+        let action = try action(in: running)
+
+        #expect(running.rows.first?.markKind == .running)
+        #expect(action.elapsed(at: t(7)) == 4)
+        #expect(action.elapsed(at: t(10)) == 7)
+        #expect(action.spokenLabel(now: t(7), locale: ja) == "実行。sleep 12 を実行中。4.0 秒。展開できます")
+        #expect(action.spokenLabel(now: t(10), locale: ja) == "実行。sleep 12 を実行中。7.0 秒。展開できます")
+    }
+
+    @Test("完了が記録された作業はカードが実行中でも所要時間と完了印を固定する")
+    func completedWorkStopsItsClockWhileTurnRuns() throws {
+        let running = try #require(card(
+            [user("u1"), command("c1", "sleep 12", at: 3, done: 15)], live(processing: true)
+        ))
+        let action = try action(in: running)
+
+        #expect(running.header.isLive)
+        #expect(running.rows.first?.markKind == .done)
+        #expect(action.elapsed(at: t(18)) == 12)
+        #expect(action.elapsed(at: t(29)) == 12)
+    }
+
+    @Test("完了済みと実行中の作業が混在したらタスク外の行は実行中を示す")
+    func runningWorkTakesPriorityOverCompletedWork() throws {
+        let running = try #require(card(
+            [user("u1"), command("c1", "pwd", at: 1, done: 2), command("c2", "sleep 12", at: 3)],
+            live(processing: true)
+        ))
+
+        #expect(running.rows.first?.markKind == .running)
+        #expect(running.rows.first?.spokenLabel(isExpanded: true, locale: ja) == "進行中。タスク外の作業 · 2 件。展開済み")
+    }
+
+    @Test("中断で終わった未終了作業は中断印にし時計を止める")
+    func interruptedWorkDoesNotBecomeCompleted() throws {
+        let stopped = try #require(card(
+            [user("u1", end: ended(.interrupted, at: 9)), command("c1", "sleep 12", at: 3)],
+            live(processing: false)
+        ))
+        let action = try action(in: stopped)
+
+        #expect(stopped.rows.first?.markKind == .stopped)
+        #expect(action.elapsed(at: t(20)) == nil)
+        #expect(stopped.rows.first?.spokenLabel(isExpanded: false, locale: ja) == "中断。タスク外の作業 · 1 件。折りたたみ済み")
+    }
+
+    @Test("ターンが完了しても作業の完了記録が無ければ完了印と時間を推定しない")
+    func missingCompletionRecordRemainsUnknown() throws {
+        let finished = try #require(card(
+            [user("u1", end: ended(.completed, at: 9)), command("c1", "pwd", at: 3)],
+            live(processing: false)
+        ))
+        let action = try action(in: finished)
+
+        #expect(finished.rows.first?.markKind == .unknown)
+        #expect(action.elapsed(at: t(20)) == nil)
+        #expect(finished.rows.first?.spokenLabel(isExpanded: false, locale: ja) == "記録なし。タスク外の作業 · 1 件。折りたたみ済み")
+    }
+
+    @Test("古い会話の作業に完了印や推定時間を出さない")
+    func legacyWorkWithoutTurnEndRemainsUnknown() throws {
+        let legacy = try #require(card([user("u1"), command("c1", "pwd", at: 3)], live(processing: false)))
+        let action = try action(in: legacy)
+
+        #expect(legacy.rows.first?.markKind == .unknown)
+        #expect(action.elapsed(at: t(20)) == nil)
+    }
+
+    @Test("完了済みサブエージェントは完了印を出し、開始時刻が無いので時間は出さない")
+    func completedSubAgentHasNoInventedDuration() throws {
+        let finished = try #require(card([
+            user("u1", end: ended(.completed, at: 9)),
+            .subAgentMarker(id: "s1", subagentType: "explore", description: "構成確認", status: .completed),
+        ], live(processing: false)))
+        let action = try action(in: finished)
+
+        #expect(finished.rows.first?.markKind == .done)
+        #expect(action.elapsed(at: t(20)) == nil)
+    }
+
+    @Test("失敗したサブエージェントを含むタスク外の行を完了扱いしない")
+    func failedSubAgentTakesPriorityOverCompletedWork() throws {
+        let finished = try #require(card([
+            user("u1", end: ended(.completed, at: 9)),
+            command("c1", "pwd", at: 3, done: 4),
+            .subAgentMarker(id: "s1", subagentType: "explore", description: "構成確認", status: .failed),
+        ], live(processing: false)))
+
+        #expect(finished.rows.first?.markKind == .failed)
+        #expect(finished.rows.first?.spokenLabel(isExpanded: false, locale: ja) == "失敗。タスク外の作業 · 2 件。折りたたみ済み")
+    }
+
+    @Test("手動で開いたタスク外の行は完了印に変わっても開いたまま")
+    func manuallyOpenedOutsideWorkStaysOpenAfterCompletion() throws {
+        let running = try #require(card([user("u1"), command("c1", "sleep 12", at: 3)], live(processing: true)))
+        let finished = try #require(card([
+            user("u1", end: ended(.completed, at: 20)), command("c1", "sleep 12", at: 3, done: 15),
+        ], live(processing: false)))
+        let runningRow = try #require(running.rows.first)
+        let finishedRow = try #require(finished.rows.first)
+        var disclosure = AgentStatusCardDisclosure()
+        disclosure.toggle(runningRow, in: running)
+        disclosure.toggle(runningRow, in: running)
+
+        #expect(disclosure.isManuallyOpened(finishedRow, in: finished))
+        #expect(disclosure.isExpanded(finishedRow, in: finished))
+        #expect(finishedRow.markKind == .done)
+    }
+
+    @Test("短時間の所要時間は読み上げでもゼロ秒にしない")
+    func shortDurationSpeechDoesNotSayZero() {
+        #expect(AgentStatusDurationFormat.spoken(0.015, locale: ja, fractional: true) == "0.1 秒未満")
     }
 }

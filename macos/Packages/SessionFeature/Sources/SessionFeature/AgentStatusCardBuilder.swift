@@ -123,6 +123,28 @@ struct AgentStatusTask: Identifiable, Equatable {
 struct AgentStatusOutsideGroup: Identifiable, Equatable {
     let id: String
     let entries: [AgentStatusEntry]
+
+    var state: AgentStatusWorkState {
+        AgentStatusWorkState.aggregate(entries.compactMap {
+            if case .action(let action) = $0 { action.state } else { nil }
+        })
+    }
+}
+
+enum AgentStatusWorkState: Equatable {
+    case running
+    case completed
+    case interrupted
+    case failed
+    case unknown
+
+    static func aggregate(_ states: [Self]) -> Self {
+        if states.contains(.running) { return .running }
+        if states.contains(.failed) { return .failed }
+        if states.contains(.interrupted) { return .interrupted }
+        if states.isEmpty || states.contains(.unknown) { return .unknown }
+        return .completed
+    }
 }
 
 /// カードの中の 1 件。作業の行か、そのまま出す item（文章・思考・質問・エラーなど）。
@@ -201,11 +223,18 @@ struct AgentStatusAction: Identifiable, Equatable {
     /// まとめた元の item（開いたときに今のツールカードの中身を出す）。
     let items: [ChatItem]
     let label: Label
-    let isRunning: Bool
+    let state: AgentStatusWorkState
     /// 開始から結果が届くまで。結果の時刻が無い（実行中・旧記録・サブエージェント）なら nil。
     let duration: TimeInterval?
 
     var id: String { items[0].id }
+    var isRunning: Bool { state == .running }
+    var startedAt: Date? { items[0].timestamp == .distantPast ? nil : items[0].timestamp }
+
+    func elapsed(at now: Date) -> TimeInterval? {
+        if isRunning { return startedAt.map { max(0, now.timeIntervalSince($0)) } }
+        return state == .completed ? duration : nil
+    }
 
     func text(locale: Locale, bundle: Bundle = .main) -> String {
         label.text(running: isRunning, locale: locale, bundle: bundle)
@@ -225,6 +254,7 @@ enum AgentStatusDurationFormat {
 
     /// 作業の行: 10 秒未満は 1.9s、60 秒未満は 14s、それ以上は m:ss。
     static func action(_ seconds: TimeInterval) -> String {
+        if seconds < 0.1 { return "<0.1s" }
         if seconds < 10 { return String(format: "%.1fs", max(0, seconds)) }
         if seconds < 60 { return "\(Int(seconds))s" }
         return clock(seconds)
@@ -238,6 +268,7 @@ extension AgentStatusDurationFormat {
         func format(_ key: String, _ arguments: CVarArg...) -> String {
             String(format: AppLocalizedString.string(key, locale: locale, bundle: bundle), arguments: arguments)
         }
+        if fractional, seconds < 0.1 { return format("0.1 秒未満") }
         if fractional, seconds < 10 { return format("%.1f 秒", max(0, seconds)) }
         let total = Int(max(0, seconds))
         if total >= 3600 { return format("%1$lld 時間 %2$lld 分", total / 3600, total % 3600 / 60) }
@@ -529,9 +560,9 @@ enum AgentStatusCardBuilder {
             }
             if isWork(item) { lastWorkID = item.id }
             if let owner = effective?.owner, shownIndex[owner] != nil {
-                append(item, to: &taskEntries[owner, default: []], running: running)
+                append(item, to: &taskEntries[owner, default: []], running: running, turnEnd: turnEnd)
             } else {
-                append(item, to: &outsideEntries[outsideAnchor(effective, seenOwnSnapshot, shownIndex), default: []], running: running)
+                append(item, to: &outsideEntries[outsideAnchor(effective, seenOwnSnapshot, shownIndex), default: []], running: running, turnEnd: turnEnd)
             }
         }
 
@@ -669,39 +700,56 @@ enum AgentStatusCardBuilder {
     }
 
     /// 文章などは item のまま足す。作業は、直前の行が同じまとめられる種類なら 1 行にまとめる。
-    private static func append(_ item: ChatItem, to entries: inout [AgentStatusEntry], running: Bool) {
+    private static func append(_ item: ChatItem, to entries: inout [AgentStatusEntry], running: Bool, turnEnd: ChatTurnEnd?) {
         guard isWork(item) else {
             entries.append(.item(item))
             return
         }
         if let kind = mergeKind(item), case .action(let last)? = entries.last, mergeKind(last.items[0]) == kind {
-            entries[entries.count - 1] = .action(makeAction(last.items + [item], running: running))
+            entries[entries.count - 1] = .action(makeAction(last.items + [item], running: running, turnEnd: turnEnd))
         } else {
-            entries.append(.action(makeAction([item], running: running)))
+            entries.append(.action(makeAction([item], running: running, turnEnd: turnEnd)))
         }
     }
 
-    private static func makeAction(_ items: [ChatItem], running: Bool) -> AgentStatusAction {
+    private static func makeAction(_ items: [ChatItem], running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusAction {
         var completions: [Date] = []
-        var unfinished = false
+        var states: [AgentStatusWorkState] = []
+        let unfinished: AgentStatusWorkState
+        if running {
+            unfinished = .running
+        } else {
+            switch turnEnd?.outcome {
+            case .interrupted, .error, .superseded: unfinished = .interrupted
+            case .completed, nil: unfinished = .unknown
+            }
+        }
         for item in items {
             switch item {
             case .commandExecution(_, _, _, _, let completedAt, _), .fileChange(_, _, _, let completedAt):
-                if let completedAt { completions.append(completedAt) } else { unfinished = true }
+                if let completedAt {
+                    completions.append(completedAt)
+                    states.append(.completed)
+                } else {
+                    states.append(unfinished)
+                }
             case .subAgentMarker(_, _, _, let status):
-                unfinished = unfinished || status == .running
+                switch status {
+                case .running: states.append(unfinished)
+                case .completed: states.append(.completed)
+                case .failed: states.append(.failed)
+                case .stopped: states.append(.interrupted)
+                }
             default:
                 break
             }
         }
         // 時刻を持たないサブエージェント（.distantPast）と、結果の時刻が無い作業は所要時間を出さない。
-        let duration: TimeInterval? = !unfinished && completions.count == items.count
+        let duration: TimeInterval? = completions.count == items.count && items[0].timestamp != .distantPast
             ? completions.max().map { $0.timeIntervalSince(items[0].timestamp) }
             : nil
         return AgentStatusAction(
-            items: items, label: label(for: items),
-            // 終わったカードでは、結果の時刻が無くても「〜中」にしない（旧会話・中断した作業）。
-            isRunning: running && unfinished, duration: duration
+            items: items, label: label(for: items), state: .aggregate(states), duration: duration
         )
     }
 

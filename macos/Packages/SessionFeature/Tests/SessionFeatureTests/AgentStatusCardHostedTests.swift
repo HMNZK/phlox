@@ -233,4 +233,85 @@ struct AgentStatusCardHostedTests {
         #expect(!stay.contains { $0.contains("rg Retry-After") })
         #expect(jumped.contains { $0.contains("rg Retry-After") })
     }
+
+    @Test("実画面の作業時計と読み上げが進み、完了後は記録された所要時間を表示する")
+    func runningActionClockUpdatesInHostedView() async throws {
+        let startedAt = Date().addingTimeInterval(-3)
+        func action(completedAt: Date?) throws -> AgentStatusAction {
+            let blocks = AgentStatusCardBuilder.build(items: [
+                .userMessage(id: "u-clock", text: "時計を確認", timestamp: startedAt.addingTimeInterval(-1)),
+                .commandExecution(id: "c-clock", command: "sleep 12", output: "出力", timestamp: startedAt, completedAt: completedAt),
+            ], liveState: AgentStatusLiveState(
+                isProcessing: completedAt == nil, activityState: .running, hangAssessment: nil, isAwaitingReply: false
+            ))
+            let card = try #require(blocks.compactMap {
+                if case .statusCard(let card) = $0 { card } else { nil }
+            }.first)
+            return try #require(card.rows.flatMap(\.entries).compactMap {
+                if case .action(let action) = $0 { action } else { nil }
+            }.first)
+        }
+        let running = try action(completedAt: nil)
+        let locale = Locale(identifier: "ja")
+        let getter = NSSelectorFromString("accessibilityAttributeValue:")
+        let setter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        _ = NSApplication.shared
+        let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
+
+        let hosting = NSHostingView(rootView: AgentStatusActionRow(
+            action: running, scale: 1, isTimelineVisible: true
+        ).environment(\.locale, locale))
+        hosting.frame = NSRect(x: 0, y: 0, width: 640, height: 64)
+        let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+        window.contentView = hosting
+        defer { window.close() }
+        window.orderBack(nil)
+
+        func changedLabel(after previous: String?) async throws -> String {
+            let deadline = ContinuousClock.now + .seconds(5)
+            while true {
+                hosting.layoutSubtreeIfNeeded()
+                if let label = Self.collectIdentifiers(from: hosting).first(where: {
+                    $0.hasPrefix("label:実行。sleep 12 を実行中。") && $0.contains(" 秒。") && $0 != previous
+                }) { return label }
+                try #require(ContinuousClock.now < deadline, "実行中の時間と読み上げが更新されない")
+                try await Task.sleep(for: .milliseconds(25))
+            }
+        }
+
+        func capture(_ name: String) throws {
+            guard let directory = ProcessInfo.processInfo.environment["PHLOX_CARD_RUNTIME_CAPTURE_DIR"] else { return }
+            try #require(directory.hasPrefix("/"), "撮影先は絶対パスにする")
+            let output = URL(fileURLWithPath: directory, isDirectory: true)
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+            let bitmap = try #require(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+            hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+            let png = try #require(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: output.appendingPathComponent(name + ".png"))
+        }
+
+        let before = try await changedLabel(after: nil)
+        try capture("action-clock-before")
+        let after = try await changedLabel(after: before)
+        try capture("action-clock-after")
+        #expect(before != after)
+
+        let completed = try action(completedAt: startedAt.addingTimeInterval(2.4))
+        hosting.rootView = AgentStatusActionRow(
+            action: completed, scale: 1, isTimelineVisible: true
+        ).environment(\.locale, locale)
+        let completedLabel = "label:実行。sleep 12。2.4 秒。展開できます"
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !Self.collectIdentifiers(from: hosting).contains(completedLabel) {
+            try #require(ContinuousClock.now < deadline, "完了後の所要時間に切り替わらない")
+            try await Task.sleep(for: .milliseconds(25))
+            hosting.layoutSubtreeIfNeeded()
+        }
+        try capture("action-clock-completed")
+        #expect(Self.collectIdentifiers(from: hosting).contains(completedLabel))
+    }
 }

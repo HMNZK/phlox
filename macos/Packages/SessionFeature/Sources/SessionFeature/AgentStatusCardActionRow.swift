@@ -13,11 +13,10 @@ extension AgentStatusAction {
         return true
     }
 
-    func spokenLabel(locale: Locale, bundle: Bundle = .main) -> String {
-        // 見本: 「編集。client.go。0.6 秒。展開できます」。実行中の行は「〜中」まで読む。
+    func spokenLabel(now: Date? = nil, locale: Locale, bundle: Bundle = .main) -> String {
         let subject = (isRunning ? nil : label.singleFile) ?? text(locale: locale, bundle: bundle)
         var parts = [AppLocalizedString.string(label.spokenKindKey, locale: locale, bundle: bundle), subject]
-        if let duration {
+        if let duration = now.flatMap({ elapsed(at: $0) }) ?? duration {
             parts.append(AgentStatusDurationFormat.spoken(duration, locale: locale, bundle: bundle, fractional: true))
         }
         if isExpandable { parts.append(AppLocalizedString.string("展開できます", locale: locale, bundle: bundle)) }
@@ -28,27 +27,26 @@ extension AgentStatusAction {
 struct AgentStatusActionRow: View {
     let action: AgentStatusAction
     let scale: CGFloat
+    let isTimelineVisible: Bool
     @State private var isOpen: Bool
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var bundle
 
-    init(action: AgentStatusAction, scale: CGFloat, startsOpen: Bool = false) {
+    init(action: AgentStatusAction, scale: CGFloat, isTimelineVisible: Bool, startsOpen: Bool = false) {
         self.action = action
         self.scale = scale
+        self.isTimelineVisible = isTimelineVisible
         _isOpen = State(initialValue: startsOpen)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if action.isExpandable {
-                Button { isOpen.toggle() } label: { rowContent }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text(verbatim: action.spokenLabel(locale: locale, bundle: bundle)))
-                    .accessibilityValue(Text(AppLocalizedString.string(isOpen ? "展開中" : "折りたたみ中", locale: locale, bundle: bundle)))
+            if action.isRunning, action.startedAt != nil {
+                TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
+                    header(now: context.date)
+                }
             } else {
-                rowContent
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: action.spokenLabel(locale: locale, bundle: bundle)))
+                header(now: nil)
             }
             if isOpen, action.isExpandable {
                 detail
@@ -57,7 +55,21 @@ struct AgentStatusActionRow: View {
         .accessibilityIdentifier("AgentStatusCard.action.\(action.id)")
     }
 
-    private var rowContent: some View {
+    @ViewBuilder
+    private func header(now: Date?) -> some View {
+        if action.isExpandable {
+            Button { isOpen.toggle() } label: { rowContent(now: now) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(verbatim: action.spokenLabel(now: now, locale: locale, bundle: bundle)))
+                .accessibilityValue(Text(AppLocalizedString.string(isOpen ? "展開中" : "折りたたみ中", locale: locale, bundle: bundle)))
+        } else {
+            rowContent(now: now)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: action.spokenLabel(now: now, locale: locale, bundle: bundle)))
+        }
+    }
+
+    private func rowContent(now: Date?) -> some View {
         HStack(spacing: 8) {
             Image(systemName: action.label.symbolName)
                 .font(.system(size: 12 * scale))
@@ -69,7 +81,7 @@ struct AgentStatusActionRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if let duration = action.duration {
+            if let duration = now.flatMap({ action.elapsed(at: $0) }) ?? action.duration {
                 Text(verbatim: AgentStatusDurationFormat.action(duration))
                     .font(.system(size: 11.5 * scale))
                     .monospacedDigit()

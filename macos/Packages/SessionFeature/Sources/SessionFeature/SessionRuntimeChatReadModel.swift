@@ -138,7 +138,7 @@ public struct SessionRuntimeActionItemsPage: Codable, Sendable, Equatable {
     public let nextCursor: SessionRuntimeChatReadCursor?
 }
 
-public struct SessionRuntimeInputHistorySummary: Identifiable, Codable, Sendable {
+public struct SessionRuntimeInputHistorySummary: Identifiable, Codable, Sendable, Equatable {
     public let id: String
     public let preview: SessionRuntimeTextPreview
     public let timestamp: Date
@@ -146,7 +146,7 @@ public struct SessionRuntimeInputHistorySummary: Identifiable, Codable, Sendable
     public let content: SessionRuntimeChatItemReference
 }
 
-public struct SessionRuntimeInputHistoryPage: Codable, Sendable {
+public struct SessionRuntimeInputHistoryPage: Codable, Sendable, Equatable {
     public let sessionID: SessionID
     public let executionID: UUID
     public let revision: UInt64

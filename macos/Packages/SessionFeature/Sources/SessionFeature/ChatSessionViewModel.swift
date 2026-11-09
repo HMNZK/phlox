@@ -122,9 +122,9 @@ public final class ChatSessionViewModel: Identifiable {
     public var runtimeSupportsChatReadModel = false {
         didSet {
             if oldValue != runtimeSupportsChatReadModel {
-                let generation = runtimeChatRead.generation &+ 1
+                let generation = runtimeChatRead.control.timelineGeneration &+ 1
                 runtimeChatRead = RuntimeChatReadProjection()
-                runtimeChatRead.generation = generation
+                runtimeChatRead.control.timelineGeneration = generation
             }
         }
     }
@@ -5016,9 +5016,9 @@ extension ChatSessionViewModel {
             shrank = chat.transcriptItemCount < oldChat.transcriptItemCount
         } else { shrank = false }
         if executionChanged || shrank {
-            let generation = runtimeChatRead.generation &+ 1
+            let generation = runtimeChatRead.control.timelineGeneration &+ 1
             runtimeChatRead = RuntimeChatReadProjection()
-            runtimeChatRead.generation = generation
+            runtimeChatRead.control.timelineGeneration = generation
         }
         if runtimeContentTask != nil { runtimeContentRefreshPending = true }
         if transcriptChanged {

@@ -10,7 +10,6 @@ struct RuntimeChatReadProjection {
     var followsTail = true
     var anchorInputID: String?
     var anchorItemID: String?
-    var generation: UInt64 = 0
     var appliedIntentToken: UUID?
     var isLoading = false
     var isLoadingHistory = false
@@ -27,6 +26,9 @@ struct RuntimeChatReadProjection {
 @MainActor
 final class RuntimeChatReadControl {
     var timelineLoadTask: Task<Void, Error>?
+    var timelineGeneration: UInt64 = 0
+    var historyGeneration: UInt64 = 0
+    var latestHistoryGeneration: UInt64 = 0
     var queueTail: Task<Void, Never>?
     var inFlight: [Data: RuntimeChatReadFlight] = [:]
     var renderedSpans: [UUID: RuntimeChatRenderedSpan] = [:]
@@ -122,7 +124,6 @@ extension ChatSessionViewModel {
             target = .chatReadAround(inputID: inputID)
         } else { target = .chatReadTail }
         try await startRuntimeChatRead(target: target, preservingWindow: true, intentToken: nil)
-        try await loadRuntimeInputHistory(refreshLatest: true)
     }
 
     func loadRuntimeChatRead(target: SessionRuntimeContentRequest.Target, intentToken: UUID? = nil) async throws {
@@ -136,25 +137,30 @@ extension ChatSessionViewModel {
         let committedIntent = intentToken ?? (preservingWindow ? nil : UUID())
         let epoch = old.epoch
         let cardOperationGeneration = old.control.cardOperationGeneration
+        let historyGeneration = old.control.historyGeneration
+        let latestHistoryGeneration = old.control.latestHistoryGeneration
+        let showsProgress = !preservingWindow || old.page == nil
         let span = old.control.renderedSpans.count == 1 ? old.control.renderedSpans.values.first : nil
         let rendered = span.flatMap { hint -> RuntimeChatRenderedSpan? in
             hint.executionID == executionID && hint.epoch == epoch && hint.intentToken == old.appliedIntentToken ? hint : nil
         }
-        runtimeChatRead.generation &+= 1
-        let generation = runtimeChatRead.generation
+        runtimeChatRead.control.timelineGeneration &+= 1
+        let generation = runtimeChatRead.control.timelineGeneration
         let execution = executionID
-        runtimeChatRead.isLoading = true
+        if showsProgress { runtimeChatRead.isLoading = true }
         let task = Task {
             defer {
-                if runtimeChatRead.generation == generation {
-                    runtimeChatRead.isLoading = false
+                if runtimeChatRead.control.timelineGeneration == generation {
+                    if showsProgress { runtimeChatRead.isLoading = false }
                     runtimeChatRead.control.timelineLoadTask = nil
                     scheduleRuntimeContentCatchUpIfReady(control: old.control, execution: execution, epoch: epoch)
                 }
             }
-            try await applyRuntimeChatRead(target: target, generation: generation, execution: execution,
+            let historyFailure = try await applyRuntimeChatRead(target: target, generation: generation, execution: execution,
                 epoch: epoch, old: old, cardOperationGeneration: cardOperationGeneration,
+                historyGeneration: historyGeneration, latestHistoryGeneration: latestHistoryGeneration,
                 preservingWindow: preservingWindow, rendered: rendered, intentToken: committedIntent)
+            if let historyFailure { throw historyFailure }
         }
         runtimeChatRead.control.timelineLoadTask = task
         try await task.value
@@ -163,8 +169,9 @@ extension ChatSessionViewModel {
     private func applyRuntimeChatRead(target: SessionRuntimeContentRequest.Target,
                                       generation: UInt64, execution: UUID, epoch: UUID,
                                       old: RuntimeChatReadProjection, cardOperationGeneration: UInt64,
+                                      historyGeneration: UInt64, latestHistoryGeneration: UInt64,
                                       preservingWindow: Bool,
-                                      rendered: RuntimeChatRenderedSpan?, intentToken: UUID?) async throws {
+                                      rendered: RuntimeChatRenderedSpan?, intentToken: UUID?) async throws -> Error? {
         do {
             let context = RuntimeReadTransactionContext(executionID: execution, epoch: epoch,
                 generation: generation, cardOperationGeneration: cardOperationGeneration)
@@ -184,14 +191,19 @@ extension ChatSessionViewModel {
                         old: old.cards[summary.inputID], context: context)
                 }
             }
+            let latestHistory: Result<SessionRuntimeInputHistoryPage, Error>?
+            if preservingWindow {
+                do { latestHistory = .success(try await readRuntimeInputHistoryPage(.inputHistory(before: nil))) }
+                catch { latestHistory = .failure(error) }
+            } else { latestHistory = nil }
             guard executionID == execution, runtimeChatRead.epoch == epoch,
-                  generation == runtimeChatRead.generation else { return }
+                  generation == runtimeChatRead.control.timelineGeneration else { return nil }
             // A row/detail operation performed while this transaction waited wins.
             let affected = Set(old.cards.keys).union(prepared.keys)
             guard runtimeChatRead.control.cardOperationGeneration == cardOperationGeneration,
                   affected.allSatisfy({ runtimeChatRead.cards[$0]?.version == old.cards[$0]?.version }) else {
                 if preservingWindow { runtimeChatRead.control.needsContentCatchUp = true }
-                return
+                return nil
             }
             guard prepared.count <= TranscriptWindow.defaultLimit * TranscriptWindow.maxStages,
                   prepared.values.reduce(0, { $0 + $1.byteCounts.values.reduce(0, +) }) <= 4 * 1024 * 1024 else {
@@ -216,13 +228,18 @@ extension ChatSessionViewModel {
                 next.anchorInputID = page.blocks.compactMap(\.ownerInputID).first
             }
             next.error = nil
+            let historyFailure = latestHistory.flatMap {
+                applyRuntimeLatestHistory($0, to: &next, historyGeneration: historyGeneration,
+                    latestHistoryGeneration: latestHistoryGeneration)
+            }
             runtimeChatRead = next
+            return historyFailure
         } catch {
             guard executionID == execution, runtimeChatRead.epoch == epoch,
-                  generation == runtimeChatRead.generation else { return }
+                  generation == runtimeChatRead.control.timelineGeneration else { return nil }
             guard runtimeChatRead.control.cardOperationGeneration == cardOperationGeneration else {
                 if preservingWindow { runtimeChatRead.control.needsContentCatchUp = true }
-                return
+                return nil
             }
             runtimeChatRead.error = error.localizedDescription
             throw error
@@ -261,7 +278,7 @@ extension ChatSessionViewModel {
     private func validateRuntimeReadContext(_ context: RuntimeReadTransactionContext?) throws {
         guard let context else { return }
         guard executionID == context.executionID, runtimeChatRead.epoch == context.epoch,
-              runtimeChatRead.generation == context.generation,
+              runtimeChatRead.control.timelineGeneration == context.generation,
               runtimeChatRead.control.cardOperationGeneration == context.cardOperationGeneration else {
             throw CancellationError()
         }
@@ -504,6 +521,7 @@ extension ChatSessionViewModel {
         guard usesRuntimeChatReadModel, !runtimeChatRead.isLoadingHistory else { return }
         let execution = executionID
         let epoch = runtimeChatRead.epoch
+        let control = runtimeChatRead.control
         let target: SessionRuntimeContentRequest.Target
         if earlier {
             guard let cursor = runtimeChatRead.history?.olderCursor else { return }
@@ -512,24 +530,61 @@ extension ChatSessionViewModel {
             guard let cursor = runtimeChatRead.history?.newerCursor else { return }
             target = .inputHistoryAfter(cursor: cursor)
         } else { target = .inputHistory(before: nil) }
-        runtimeChatRead.isLoadingHistory = true
-        defer { if executionID == execution, runtimeChatRead.epoch == epoch { runtimeChatRead.isLoadingHistory = false } }
+        control.historyGeneration &+= 1
+        let generation = control.historyGeneration
+        if !earlier && !newer { control.latestHistoryGeneration &+= 1 }
+        let showsProgress = !refreshLatest || runtimeChatRead.history == nil
+        if showsProgress { runtimeChatRead.isLoadingHistory = true }
+        defer {
+            if showsProgress, executionID == execution, runtimeChatRead.epoch == epoch {
+                runtimeChatRead.isLoadingHistory = false
+            }
+        }
         do {
-            let response = try await readRuntimeChat(target)
-            guard executionID == execution, runtimeChatRead.epoch == epoch else {
-                throw SessionRuntimeContentError.staleContent
+            let page = try await readRuntimeInputHistoryPage(target)
+            guard executionID == execution, runtimeChatRead.epoch == epoch,
+                  control.historyGeneration == generation else { return }
+            guard page.revision >= (runtimeChatRead.history?.revision ?? 0) else { throw SessionRuntimeContentError.staleContent }
+            var next = runtimeChatRead
+            if !refreshLatest || next.history == nil || next.history?.newerCursor == nil || next.history?.revision != page.revision {
+                if next.history != page { next.history = page }
             }
-            guard case .inputHistoryPage(let page) = response, page.sessionID == id,
-                  page.executionID == execution else { throw SessionRuntimeContentError.staleContent }
-            if !refreshLatest || runtimeChatRead.history == nil || runtimeChatRead.history?.newerCursor == nil
-                || runtimeChatRead.history?.revision != page.revision {
-                runtimeChatRead.history = page
+            if !earlier && !newer {
+                let latest = Array(page.entries.suffix(12))
+                if next.latestHistory != latest { next.latestHistory = latest }
             }
-            if !earlier && !newer { runtimeChatRead.latestHistory = Array(page.entries.suffix(12)) }
-            runtimeChatRead.historyError = nil
+            next.historyError = nil
+            if next.history != runtimeChatRead.history || next.latestHistory != runtimeChatRead.latestHistory
+                || next.historyError != runtimeChatRead.historyError { runtimeChatRead = next }
         } catch {
-            if executionID == execution, runtimeChatRead.epoch == epoch { runtimeChatRead.historyError = error.localizedDescription }
+            guard executionID == execution, runtimeChatRead.epoch == epoch,
+                  control.historyGeneration == generation else { return }
+            runtimeChatRead.historyError = error.localizedDescription
             throw error
+        }
+    }
+
+    private func applyRuntimeLatestHistory(_ result: Result<SessionRuntimeInputHistoryPage, Error>,
+                                           to next: inout RuntimeChatReadProjection, historyGeneration: UInt64,
+                                           latestHistoryGeneration: UInt64) -> Error? {
+        switch result {
+        case .success(let page):
+            guard page.revision >= (next.history?.revision ?? 0) else { return nil }
+            let newScope = next.history?.revision != page.revision
+            let panelUnchanged = next.control.historyGeneration == historyGeneration
+            if newScope || (panelUnchanged && (next.history == nil || next.history?.newerCursor == nil)) {
+                if next.history != page { next.history = page }
+            }
+            if next.control.latestHistoryGeneration == latestHistoryGeneration {
+                let latest = Array(page.entries.suffix(12))
+                if next.latestHistory != latest { next.latestHistory = latest }
+            }
+            if panelUnchanged || newScope { next.historyError = nil }
+            return nil
+        case .failure(let error):
+            guard next.control.historyGeneration == historyGeneration else { return nil }
+            next.historyError = error.localizedDescription
+            return error
         }
     }
 

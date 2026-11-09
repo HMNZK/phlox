@@ -533,3 +533,24 @@ struct AgentStatusCardEdgeTests {
         #expect(AgentStatusCardBuilder.latestHeader(items: items, liveState: live(processing: true)) == nil)
     }
 }
+
+@Suite("状態カード: 作業の完了と短時間の表示")
+struct AgentStatusCardLiveWorkTests {
+    @Test("タスク外の全作業が完了したら、カードの完了後も完了印で表示する")
+    func completedOutsideWorkShowsDoneMark() throws {
+        let items = [
+            user("u1", end: ended(.completed, at: 9)),
+            command("c1", "screencapture -x card.png", at: 3, done: 3.015),
+        ]
+
+        let finished = try #require(card(items, live(processing: false)))
+        let outside = try #require(finished.rows.first)
+
+        #expect(outside.markKind == .done)
+    }
+
+    @Test("0.1 秒未満で完了した作業をゼロ秒に丸めない")
+    func shortCompletedWorkShowsLessThanTenth() {
+        #expect(AgentStatusDurationFormat.action(0.015) == "<0.1s")
+    }
+}

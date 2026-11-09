@@ -1,7 +1,6 @@
 import SwiftUI
 import DesignSystem
 
-/// チャットの過去入力へ素早く移動するための、左端の入力履歴スクラバー。
 /// スクラバーの横線とパネルの行は共有の「選択位置」で連動し、選択中の入力を
 /// 両方で強調する。線・行のいずれをクリックしてもその入力へジャンプする。
 struct ChatInputHistoryScrubber: View {
@@ -9,6 +8,14 @@ struct ChatInputHistoryScrubber: View {
     /// スクロール位置に連動する「現在読んでいる入力」。ホバー中でなければこれを強調する。
     let currentPositionID: String?
     let onJump: (String) -> Void
+    var hasEarlier = false
+    var isLoading = false
+    var loadError: String?
+    var onLoadEarlier: (() -> Void)?
+    var onRetry: (() -> Void)?
+    var latestEntries: [InputHistoryEntry]?
+    var hasNewer = false
+    var onLoadNewer: (() -> Void)?
 
     private static let tickCap = 12
     private static let panelWidth: CGFloat = 320
@@ -30,23 +37,39 @@ struct ChatInputHistoryScrubber: View {
         entries: [InputHistoryEntry],
         currentPositionID: String? = nil,
         onJump: @escaping (String) -> Void,
-        initiallyExpanded: Bool = false
+        initiallyExpanded: Bool = false,
+        hasEarlier: Bool = false,
+        isLoading: Bool = false,
+        loadError: String? = nil,
+        onLoadEarlier: (() -> Void)? = nil,
+        onRetry: (() -> Void)? = nil,
+        latestEntries: [InputHistoryEntry]? = nil,
+        hasNewer: Bool = false,
+        onLoadNewer: (() -> Void)? = nil
     ) {
         self.entries = entries
         self.currentPositionID = currentPositionID
         self.onJump = onJump
+        self.hasEarlier = hasEarlier
+        self.isLoading = isLoading
+        self.loadError = loadError
+        self.onLoadEarlier = onLoadEarlier
+        self.onRetry = onRetry
+        self.latestEntries = latestEntries
+        self.hasNewer = hasNewer
+        self.onLoadNewer = onLoadNewer
         _isPanelPresented = State(initialValue: initiallyExpanded)
     }
 
     /// スクラバーとパネルで共有する選択位置。ホバー中はその id、
     /// 非ホバー時はスクロール連動の現在位置、無ければ最新入力。
-    private var selectedID: String? { activeID ?? currentPositionID ?? entries.last?.id }
+    private var selectedID: String? { activeID ?? currentPositionID ?? latestEntries?.last?.id ?? entries.last?.id }
 
     var body: some View {
         let _ = themeID
         // 戻る先が複数あるときだけ出す。入力欄の右上に縦の目盛り 12 本（PhloxReply.dc.html の ticks）。
         // 履歴のパネルは目盛りの上に開く。
-        if entries.count > 1 {
+        if (latestEntries ?? entries).count > 1 || entries.count > 1 || isLoading || loadError != nil || hasEarlier || hasNewer {
             scrubber
                 .overlay(alignment: .topTrailing) {
                     if isPanelPresented {
@@ -61,6 +84,9 @@ struct ChatInputHistoryScrubber: View {
                 .onDisappear(perform: cancelPendingClose)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("入力履歴")
+                .accessibilityIdentifier("ChatInputHistoryScrubber")
+                .accessibilityAction { isPanelPresented.toggle() }
+                .accessibilityAction(named: Text("入力履歴を表示")) { isPanelPresented = true }
                 .help("ポインタを置くと入力履歴を表示")
         }
     }
@@ -68,9 +94,18 @@ struct ChatInputHistoryScrubber: View {
     /// 下揃えの縦の目盛り。今読んでいる入力をアクセントで高く、他は弱い文字色 45%（高さ 6/8/10 の繰り返し）。
     /// 各目盛りは幅 6 のヒット領域を持ち、ホバーで選択、クリックでジャンプする。
     private var scrubber: some View {
-        let ticks = InputHistoryPolicy.scrubberTicks(from: entries, cap: Self.tickCap)
+        let ticks = InputHistoryPolicy.scrubberTicks(from: latestEntries ?? entries, cap: Self.tickCap)
         let selected = selectedID
         return HStack(alignment: .bottom, spacing: 0) {
+            if ticks.isEmpty {
+                Button { isPanelPresented.toggle() } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(DSFont.meta)
+                        .foregroundStyle(DSColor.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("入力履歴")
+            }
             ForEach(Array(ticks.enumerated()), id: \.element.id) { offset, tick in
                 let isSelected = tick.id == selected
                 Button {
@@ -100,6 +135,17 @@ struct ChatInputHistoryScrubber: View {
         let selected = selectedID
         return ScrollView {
             LazyVStack(spacing: DSSpacing.xxs) {
+                if hasEarlier {
+                    Button("以前の入力を読み込む") { onLoadEarlier?() }
+                        .disabled(isLoading)
+                        .accessibilityIdentifier("ChatInputHistoryScrubber.loadEarlier")
+                }
+                if isLoading { ProgressView().controlSize(.small) }
+                if let loadError {
+                    Text(loadError).font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+                    Button("再試行") { onRetry?() }
+                }
+
                 ForEach(entries) { entry in
                     ChatInputHistoryRow(
                         entry: entry,
@@ -107,6 +153,11 @@ struct ChatInputHistoryScrubber: View {
                         onHover: { activeID = entry.id },
                         onJump: jump
                     )
+                }
+                if hasNewer {
+                    Button("以後の入力を読み込む") { onLoadNewer?() }
+                        .disabled(isLoading)
+                        .accessibilityIdentifier("ChatInputHistoryScrubber.loadNewer")
                 }
             }
             .padding(DSSpacing.s)

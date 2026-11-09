@@ -42,7 +42,7 @@ extension AgentStatusRow {
         case .task(let task):
             return task.title
         case .outside(let group):
-            let count = group.entries.filter { if case .action = $0 { true } else { false } }.count
+            let count = group.totalActionCount ?? group.entries.filter { if case .action = $0 { true } else { false } }.count
             return String(
                 format: AppLocalizedString.string("タスク外の作業 · %lld 件", locale: locale, bundle: bundle), count
             )
@@ -108,6 +108,8 @@ struct AgentStatusTaskRow: View {
     let makeItemView: (ChatItem) -> ChatItemView
     let onToggle: () -> Void
     let onShowMore: () -> Void
+    var runtime: RuntimeStatusCardPresentation? = nil
+    var actionDisclosure: Binding<AgentStatusCardDisclosure>? = nil
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var bundle
 
@@ -269,7 +271,19 @@ struct AgentStatusTaskRow: View {
 
     // MARK: - 開いた中身
 
+    @ViewBuilder
     private var entries: some View {
+        if let runtime {
+            RuntimeCardEntriesView(presentation: runtime, rowID: row.id,
+                scale: scale, isTimelineVisible: isTimelineVisible, actionDisclosure: actionDisclosure)
+                .padding(.leading, AgentStatusCardLayout.actionIndent(isNarrow: isNarrow))
+                .padding(.vertical, 4)
+        } else {
+            localEntries
+        }
+    }
+
+    private var localEntries: some View {
         let window = AgentStatusCardDisclosure.window(row.entries, limit: entryLimit)
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(window.visible) { entry in

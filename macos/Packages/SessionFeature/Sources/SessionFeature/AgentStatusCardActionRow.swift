@@ -28,15 +28,33 @@ struct AgentStatusActionRow: View {
     let action: AgentStatusAction
     let scale: CGFloat
     let isTimelineVisible: Bool
-    @State private var isOpen: Bool
+    var runtime: RuntimeStatusCardPresentation?
+    private let startsOpen: Bool
+    @State private var localIsOpen: Bool
+    @Binding private var boundIsOpen: Bool?
+    private let hasOpenBinding: Bool
+    private var isOpen: Bool {
+        get { boundIsOpen ?? localIsOpen }
+        nonmutating set {
+            if hasOpenBinding { boundIsOpen = newValue }
+            else { localIsOpen = newValue }
+        }
+    }
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var bundle
 
-    init(action: AgentStatusAction, scale: CGFloat, isTimelineVisible: Bool, startsOpen: Bool = false) {
+    init(action: AgentStatusAction, scale: CGFloat, isTimelineVisible: Bool, startsOpen: Bool = false, runtime: RuntimeStatusCardPresentation? = nil, openBinding: Binding<Bool>? = nil) {
         self.action = action
         self.scale = scale
         self.isTimelineVisible = isTimelineVisible
-        _isOpen = State(initialValue: startsOpen)
+        self.runtime = runtime
+        self.startsOpen = startsOpen
+        _localIsOpen = State(initialValue: startsOpen)
+        hasOpenBinding = openBinding != nil
+        if let openBinding {
+            _boundIsOpen = Binding<Bool?>(get: { openBinding.wrappedValue },
+                set: { if let value = $0 { openBinding.wrappedValue = value } })
+        } else { _boundIsOpen = .constant(nil) }
     }
 
     var body: some View {
@@ -49,10 +67,13 @@ struct AgentStatusActionRow: View {
                 header(now: nil)
             }
             if isOpen, action.isExpandable {
-                detail
+                if let runtime {
+                    runtimeDetail(runtime)
+                } else { detail }
             }
         }
         .accessibilityIdentifier("AgentStatusCard.action.\(action.id)")
+        .onChange(of: startsOpen, initial: true) { _, shouldOpen in if shouldOpen { isOpen = true } }
     }
 
     @ViewBuilder
@@ -126,6 +147,32 @@ struct AgentStatusActionRow: View {
         }
     }
 
+    private func runtimeDetail(_ runtime: RuntimeStatusCardPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let page = runtime.cache.actions[action.id] {
+                ForEach(page.items, id: \.id) { reference in
+                    RuntimeChatItemReferenceView(reference: reference, viewModel: runtime.viewModel,
+                        isActionDetail: true, actionScale: scale, actions: runtime.itemActions)
+                }
+                if page.nextCursor != nil {
+                    Button("さらに表示") { runtime.loadAction(action.id, next: true) }
+                }
+                if runtime.cache.actionPageOffsets[action.id, default: 0] > 0 {
+                    Button("先頭の詳細に戻る") {
+                        Task { try? await runtime.viewModel.loadRuntimeActionItems(runtime.inputID, actionID: action.id) }
+                    }
+                    .font(DSFont.meta)
+                }
+            } else {
+                Button("詳細を読み込む") { runtime.loadAction(action.id) }
+                    .font(DSFont.meta)
+                    .accessibilityIdentifier("AgentStatusCard.reloadActionItems.\(action.id)")
+            }
+        }
+        .padding(.leading, AgentStatusCardLayout.textIndent)
+        .task(id: runtime.contentVersion) { runtime.loadAction(action.id) }
+    }
+
     /// 開いた中身。今のセルの部品を再利用する（コマンドの出力・ファイルの差分）。
     private var detail: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -147,7 +194,7 @@ struct AgentStatusActionRow: View {
 }
 
 /// コマンドを開いた中身: 「$ コマンド」と終了コード、その下に出力（見本 `.wd`）。
-private struct AgentStatusCommandDetail: View {
+struct AgentStatusCommandDetail: View {
     let command: String?
     let output: String
     let scale: CGFloat

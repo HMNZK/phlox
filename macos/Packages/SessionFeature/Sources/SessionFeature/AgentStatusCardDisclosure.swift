@@ -4,17 +4,26 @@ import Foundation
 // 自動の開閉は組み立ての結果（実行中か・進行中のタスクか）から決め、手で開閉したものは
 // カード id と行 id（タスクは `task-<タスク id>`）の組で覚える。
 
-struct AgentStatusCardDisclosure: Equatable {
+struct AgentStatusCardDisclosure: Equatable, Sendable {
     /// 作業が多い行で最初に出す件数（要件 FR-15）。
     static let initialEntryLimit = 30
 
-    private struct Key: Hashable {
+    private struct Key: Hashable, Sendable {
         let cardID: String
         let rowID: String
     }
 
     private var overrides: [Key: Bool] = [:]
     private var limits: [Key: Int] = [:]
+    private var actionOverrides: [Key: Bool] = [:]
+
+    func isActionOpen(_ actionID: String, cardID: String) -> Bool {
+        actionOverrides[Key(cardID: cardID, rowID: actionID)] ?? false
+    }
+
+    mutating func setActionOpen(_ open: Bool, actionID: String, cardID: String) {
+        actionOverrides[Key(cardID: cardID, rowID: actionID)] = open
+    }
 
     // MARK: - 開閉
 
@@ -29,10 +38,8 @@ struct AgentStatusCardDisclosure: Equatable {
         case .outside(let group):
             // 作業の無い行（文章だけ）は見出しを持たず、いつも出る。開閉の対象ではない。
             guard !row.isTextOnly else { return false }
-            let hasTask = card.rows.contains { if case .task = $0 { true } else { false } }
-            let hasRunningAction = group.entries.contains {
-                if case .action(let action) = $0 { action.isRunning } else { false }
-            }
+            let hasTask = card.hasTask ?? card.rows.contains { if case .task = $0 { true } else { false } }
+            let hasRunningAction = group.state == .running
             return !hasTask || hasRunningAction
         }
     }
@@ -55,6 +62,11 @@ struct AgentStatusCardDisclosure: Equatable {
             overrides[key] = true
             limits[key] = max(entryLimit(row, in: card), row.entries.count - index)
         }
+    }
+
+    mutating func reveal(rowID: String, in card: AgentStatusCard) {
+        guard card.rows.contains(where: { $0.id == rowID }) else { return }
+        overrides[Key(cardID: card.id, rowID: rowID)] = true
     }
 
     /// 今の見た目と反対にして、手の状態として覚える。
@@ -90,7 +102,7 @@ struct AgentStatusRevealRequest: Equatable {
 extension AgentStatusEntry {
     func contains(itemID: String) -> Bool {
         switch self {
-        case .action(let action): action.items.contains { $0.id == itemID }
+        case .action(let action): action.id == itemID || action.items.contains { $0.id == itemID }
         case .item(let item): item.id == itemID
         }
     }
@@ -105,12 +117,20 @@ extension AgentStatusRow {
     }
 
     /// 開ける行か。作業の無いタスク（未着手など）は開けない。
-    var isExpandable: Bool { !entries.isEmpty && !isTextOnly }
+    var totalEntryCount: Int {
+        switch self {
+        case .task(let task): task.totalEntryCount ?? task.entries.count
+        case .outside(let group): group.totalEntryCount ?? group.entries.count
+        }
+    }
+
+    var isExpandable: Bool { totalEntryCount > 0 && !isTextOnly }
 
     /// 作業を含まないタスク外の行（途中の文章だけ）。「タスク外の作業 · 0 件」の見出しは付けず、
     /// 文章だけを元の位置に出す。終わったカードでも出る（閉じるのはタスクだけ。FR-8）。
     var isTextOnly: Bool {
         guard case .outside(let group) = self else { return false }
+        if let count = group.totalActionCount { return count == 0 }
         return !group.entries.contains { if case .action = $0 { true } else { false } }
     }
 }

@@ -319,7 +319,7 @@ struct CommandCardOutput: View {
 
 /// 束の中の 1 ツール 1 行（高さ 24）: ツール名 44 幅 → 等幅の引数 → 右に結果（「120 行」「実行中」）。
 /// 押すと、その行の出力を下に出す。
-private struct CommandGroupToolRow: View {
+struct CommandGroupToolRow: View {
     let row: CommandGroupRow
     @State private var showsOutput = false
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id

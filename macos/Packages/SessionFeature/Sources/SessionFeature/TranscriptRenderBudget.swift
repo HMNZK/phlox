@@ -41,9 +41,15 @@ enum TranscriptRenderBudget {
         defaultLimit: Int,
         minimumBlocks: Int
     ) -> Int {
-        guard !blocks.isEmpty, requestedLimit > 0 else { return 0 }
+        allowedBlockCount(weights: blocks.map(weight), requestedLimit: requestedLimit,
+            defaultLimit: defaultLimit, minimumBlocks: minimumBlocks)
+    }
 
-        let candidateCount = min(blocks.count, requestedLimit)
+    static func allowedBlockCount(weights: [Int], requestedLimit: Int,
+                                  defaultLimit: Int, minimumBlocks: Int) -> Int {
+        guard !weights.isEmpty, requestedLimit > 0 else { return 0 }
+
+        let candidateCount = min(weights.count, requestedLimit)
         let normalizedDefaultLimit = max(1, defaultLimit)
         let scale = max(1, requestedLimit / normalizedDefaultLimit)
         // 最新ブロックは単体で予算を超えても必ず含める。minimumBlocks は reveal 由来の
@@ -62,11 +68,11 @@ enum TranscriptRenderBudget {
         // max(bc(1), min(candidate(1), minimumStep)) となり、既定窓の返り値を変えない。
         for stage in 1...scale {
             let stageCandidateCount = min(
-                blocks.count,
+                weights.count,
                 saturatedProduct(normalizedDefaultLimit, stage)
             )
-            let stageBudgetedCount = countWithinBudget(
-                blocks.suffix(stageCandidateCount),
+            let stageBudgetedCount = countWithinWeightBudget(
+                weights.suffix(stageCandidateCount),
                 budget: saturatedProduct(defaultUnits, stage)
             )
             let guaranteedCount = stage == 1
@@ -119,6 +125,29 @@ enum TranscriptRenderBudget {
                 return otherBlockUnits
             }
         }
+    }
+
+    static func weight(of block: SessionRuntimeChatReadBlock) -> Int {
+        switch block.content {
+        case .item(.inline(let item)): weight(of: .single(item))
+        case .item(.deferred(let marker)):
+            max(otherBlockUnits, marker.preview.text.count * textCharacterUnits)
+        case .card(let card):
+            otherBlockUnits + min(card.totalRowCount, 12) * statusCardRowUnits
+                + (card.header.isLive ? 30 * statusCardEntryUnits : 0)
+        case .commandGroup: otherBlockUnits
+        }
+    }
+
+    private static func countWithinWeightBudget(_ weights: ArraySlice<Int>, budget: Int) -> Int {
+        var used = 0
+        var count = 0
+        for weight in weights.reversed() {
+            guard weight <= budget - used else { break }
+            used += weight
+            count += 1
+        }
+        return count
     }
 
     private static func saturatedProduct(_ lhs: Int, _ rhs: Int) -> Int {

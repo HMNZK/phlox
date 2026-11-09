@@ -23,6 +23,7 @@ public final class SessionRuntimeClient {
     private var supportsSnapshotUpdates = false
     public private(set) var supportsOverview = false
     public private(set) var supportsSessionContent = false
+    public private(set) var supportsChatReadModel = false
     private var pendingOperationBytes = 0
     private var pendingOperationCount = 0
     private var pendingUrgentOperationBytes = 0
@@ -65,6 +66,7 @@ public final class SessionRuntimeClient {
         supportsSnapshotUpdates = handshake.supportsSnapshotUpdates == true
         supportsOverview = handshake.supportsOverview == true
         supportsSessionContent = handshake.supportsSessionContent == true
+        supportsChatReadModel = supportsSessionContent && handshake.supportsChatReadModel == true
     }
 
     public func snapshot() async throws -> DashboardRuntimeSnapshot {
@@ -76,7 +78,9 @@ public final class SessionRuntimeClient {
     }
 
     public func content(_ contentRequest: SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse {
-        guard supportsSessionContent else { throw SessionRuntimeConnectionError.incompatibleProtocol }
+        guard supportsSessionContent, !contentRequest.target.requiresChatReadModel || supportsChatReadModel else {
+            throw SessionRuntimeConnectionError.incompatibleProtocol
+        }
         let encodedRequest = try JSONEncoder().encode(contentRequest).base64EncodedString()
         guard encodedRequest.utf8.count <= SessionRuntimeContentLimits.maximumEncodedRequestBytes else {
             throw SessionRuntimeContentError.invalidRequest

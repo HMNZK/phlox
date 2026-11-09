@@ -499,6 +499,97 @@ import Testing
         withExtendedLifetime(lease) {}
     }
 
+    @Test @MainActor func reconnectingToLegacyServiceRejectsSemanticReadsButKeepsRawContentAvailable() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let sessionID = SessionID()
+        let executionID = UUID()
+        var reads = 0
+        let transport = try SessionRuntimeTransport(generation: generation, storeURL: fixture.url,
+            snapshot: { .init(projects: [], sessions: [], availableAgentKinds: []) },
+            content: { request in
+                reads += 1
+                return .chatPage(.init(sessionID: request.sessionID, executionID: request.executionID,
+                    transcriptRevision: 13, totalCount: 0, startIndex: 0,
+                    entries: [], olderCursor: nil, turnUsageByItemID: [:]))
+            }, supportsChatReadModel: true, command: { _ in .none })
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let client = SessionRuntimeClient(endpoint: try .init(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url)))
+        let semantic = SessionRuntimeContentRequest(sessionID: sessionID, executionID: executionID, target: .chatReadTail)
+        let raw = SessionRuntimeContentRequest(sessionID: sessionID, executionID: executionID, target: .chatTail)
+
+        try await client.handshake()
+        #expect(client.supportsChatReadModel)
+        _ = try await client.content(semantic)
+        let legacy = try JSONDecoder().decode(SessionRuntimeHandshake.self,
+            from: Data("{\"protocolVersion\":1,\"generation\":\"\(generation)\",\"supportsSessionContent\":true}".utf8))
+        try client.acceptHandshake(legacy)
+        await #expect(throws: SessionRuntimeConnectionError.incompatibleProtocol) { try await client.content(semantic) }
+        #expect(reads == 1)
+        #expect(!client.supportsChatReadModel)
+        #expect(client.supportsSessionContent)
+        guard case .chatPage(let page) = try await client.content(raw) else {
+            Issue.record("Legacy raw content was unavailable")
+            return
+        }
+        #expect(page.transcriptRevision == 13)
+        #expect(reads == 2)
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
+    @Test @MainActor func pendingSemanticReadLeavesHandshakeAndInterruptAvailable() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let probe = RuntimePendingTurn()
+        let sessionID = SessionID()
+        let executionID = UUID()
+        let transport = try SessionRuntimeTransport(generation: generation, storeURL: fixture.url,
+            snapshot: { .init(projects: [], sessions: [], availableAgentKinds: []) },
+            content: { request in
+                await probe.start()
+                return .chatPage(.init(sessionID: request.sessionID, executionID: request.executionID,
+                    transcriptRevision: 17, totalCount: 0, startIndex: 0,
+                    entries: [], olderCursor: nil, turnUsageByItemID: [:]))
+            }, supportsChatReadModel: true, command: { command in
+                if case .session(_, _, .interrupt) = command { probe.interrupt() }
+                return .none
+            })
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let endpoint = try SessionRuntimeEndpoint(url: url, generation: generation,
+            token: SessionRuntimeCredentialStore.load(storeURL: fixture.url))
+        let client = SessionRuntimeClient(endpoint: endpoint)
+        try await client.handshake()
+        let reading = Task { try await client.content(.init(sessionID: sessionID,
+            executionID: executionID, target: .chatReadTail)) }
+        var entered = probe.entered.stream.makeAsyncIterator()
+        _ = await entered.next()
+        let watchdog = Task {
+            do { try await Task.sleep(for: .seconds(2)) }
+            catch { return }
+            probe.release()
+        }
+        defer { watchdog.cancel(); probe.release() }
+
+        try await SessionRuntimeClient(endpoint: endpoint).handshake()
+        _ = try await client.command(.session(sessionID, executionID, .interrupt))
+        guard case .chatPage(let page) = try await reading.value else {
+            Issue.record("Pending semantic read failed")
+            return
+        }
+        #expect(page.transcriptRevision == 17)
+        #expect(probe.interruptedWhilePending)
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
     @Test @MainActor func ptyContentCanExceedChatPageLimitWithoutUsingFullDashboardSnapshot() async throws {
         let fixture = try RuntimeTransportFixture()
         defer { fixture.remove() }

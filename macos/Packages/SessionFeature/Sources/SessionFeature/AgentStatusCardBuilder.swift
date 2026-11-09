@@ -5,10 +5,9 @@ import DesignSystem
 import StructuredChatKit
 
 // エージェント状態カード（agent-status-card-design.md §4、ADR 0226）。
-// 会話ログから入力 1 回ごとのカードを、表示のたびに組み立てる。カードは保存しない。
 
 /// 組み立てに使う、実行中の状態。
-struct AgentStatusLiveState: Equatable {
+struct AgentStatusLiveState: Equatable, Sendable {
     /// `showsProcessingIndicator`（バックグラウンドタスク・サブエージェントが動く間も true）。
     var isProcessing: Bool
     var activityState: AgentActivityState
@@ -16,17 +15,19 @@ struct AgentStatusLiveState: Equatable {
     var isAwaitingReply: Bool
 }
 
-struct AgentStatusCard: Identifiable, Equatable {
+struct AgentStatusCard: Identifiable, Equatable, Sendable {
     /// `status-card-<起点の userMessage の id>`。
     let id: String
     let header: AgentStatusHeader
     /// タスクの行とタスク外の作業の行。タスクは最新のスナップショットの順、タスク外は時系列の位置。
     let rows: [AgentStatusRow]
+    var totalRowCount: Int? = nil
+    var hasTask: Bool? = nil
 }
 
 /// 見出し（1 行目）。経過は表示側が `startedAt` と今の時刻から数える（実行中でないカードは時刻で変わらない）。
-struct AgentStatusHeader: Equatable {
-    enum State: Equatable {
+public struct AgentStatusHeader: Equatable, Codable, Sendable {
+    public enum State: Equatable, Codable, Sendable {
         case running
         case stalled
         case awaitingReply
@@ -89,7 +90,7 @@ struct AgentStatusHeader: Equatable {
     }
 }
 
-enum AgentStatusRow: Identifiable, Equatable {
+enum AgentStatusRow: Identifiable, Equatable, Sendable {
     case task(AgentStatusTask)
     case outside(AgentStatusOutsideGroup)
 
@@ -101,8 +102,8 @@ enum AgentStatusRow: Identifiable, Equatable {
     }
 }
 
-struct AgentStatusTask: Identifiable, Equatable {
-    enum State: Equatable {
+public struct AgentStatusTask: Identifiable, Equatable, Sendable {
+    public enum State: Equatable, Codable, Sendable {
         case pending
         case inProgress
         case completed
@@ -110,7 +111,7 @@ struct AgentStatusTask: Identifiable, Equatable {
         case interrupted
     }
 
-    let id: String
+    public let id: String
     let title: String
     let state: State
     /// この入力の中で最初に進行中として現れたスナップショットの時刻。
@@ -118,20 +119,24 @@ struct AgentStatusTask: Identifiable, Equatable {
     /// 完了：最初に完了として現れた時刻。中断：入力の終わった時刻。それ以外は nil。
     let endedAt: Date?
     let entries: [AgentStatusEntry]
+    var totalEntryCount: Int? = nil
 }
 
-struct AgentStatusOutsideGroup: Identifiable, Equatable {
+struct AgentStatusOutsideGroup: Identifiable, Equatable, Sendable {
     let id: String
     let entries: [AgentStatusEntry]
+    var totalEntryCount: Int? = nil
+    var totalActionCount: Int? = nil
+    var aggregateState: AgentStatusWorkState? = nil
 
     var state: AgentStatusWorkState {
-        AgentStatusWorkState.aggregate(entries.compactMap {
+        aggregateState ?? AgentStatusWorkState.aggregate(entries.compactMap {
             if case .action(let action) = $0 { action.state } else { nil }
         })
     }
 }
 
-enum AgentStatusWorkState: Equatable {
+public enum AgentStatusWorkState: Hashable, Codable, Sendable {
     case running
     case completed
     case interrupted
@@ -148,7 +153,7 @@ enum AgentStatusWorkState: Equatable {
 }
 
 /// カードの中の 1 件。作業の行か、そのまま出す item（文章・思考・質問・エラーなど）。
-enum AgentStatusEntry: Identifiable, Equatable {
+enum AgentStatusEntry: Identifiable, Equatable, Sendable {
     case action(AgentStatusAction)
     case item(ChatItem)
 
@@ -161,8 +166,8 @@ enum AgentStatusEntry: Identifiable, Equatable {
 }
 
 /// 作業の行。同じ種類（読み込み・検索・編集）が続いたら 1 行にまとめる。
-struct AgentStatusAction: Identifiable, Equatable {
-    enum Label: Equatable {
+public struct AgentStatusAction: Identifiable, Equatable, Sendable {
+    public enum Label: Equatable, Codable, Sendable {
         case read(file: String, more: Int)
         case search(query: String, hits: Int)
         case searches(times: Int, hits: Int)
@@ -227,9 +232,13 @@ struct AgentStatusAction: Identifiable, Equatable {
     /// 開始から結果が届くまで。結果の時刻が無い（実行中・旧記録・サブエージェント）なら nil。
     let duration: TimeInterval?
 
-    var id: String { items[0].id }
+    var totalItemCount: Int? = nil
+    var remoteID: String? = nil
+    var remoteStartedAt: Date? = nil
+
+    public var id: String { remoteID ?? items[0].id }
     var isRunning: Bool { state == .running }
-    var startedAt: Date? { items[0].timestamp == .distantPast ? nil : items[0].timestamp }
+    var startedAt: Date? { remoteStartedAt ?? items.first.flatMap { $0.timestamp == .distantPast ? nil : $0.timestamp } }
 
     func elapsed(at now: Date) -> TimeInterval? {
         if isRunning { return startedAt.map { max(0, now.timeIntervalSince($0)) } }
@@ -295,6 +304,12 @@ enum AgentStatusCardBuilder {
         let (prefixEnd, segments) = segments(items, liveState: liveState)
         return ChatTranscriptGrouping.blocks(from: Array(items[..<prefixEnd]))
             + segments.flatMap { segmentBlocks(SegmentPlan($0, in: items), liveState: liveState) }
+    }
+
+    static func buildInputInterval(items: [ChatItem], baseline: ChatItem?, liveState: AgentStatusLiveState) -> [ChatTranscriptBlock] {
+        guard !items.isEmpty else { return [] }
+        return segmentBlocks(SegmentPlan(Segment(range: items.indices, baseline: baseline.flatMap(Snapshot.init),
+            running: liveState.isProcessing), in: items), liveState: liveState)
     }
 
     /// 末尾 `blockLimit` ブロックだけを組み立てる（`build` してから窓で切った結果と同じ）。
@@ -454,7 +469,7 @@ enum AgentStatusCardBuilder {
 
     // MARK: - 区間
 
-    private struct Snapshot {
+    struct Snapshot {
         let tasks: [AgentTaskItem]
         let at: Date
         let isLegacy: Bool
@@ -547,34 +562,54 @@ enum AgentStatusCardBuilder {
         // かつそのタスクがカードに出るならそのタスク、それ以外はタスク外（D4。時刻は使わない）。
         let shownIndex = Dictionary(shown.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         var effective = baseline
+        var effectiveOwner = baseline?.owner
         var seenOwnSnapshot = false
-        var taskEntries: [String: [AgentStatusEntry]] = [:]
-        var outsideEntries: [Int: [AgentStatusEntry]] = [:]
+        var anchor = outsideAnchor(effective, false, shownIndex)
+        var taskEntries: [String: EntryAccumulator] = [:]
+        var outsideEntries: [Int: EntryAccumulator] = [:]
         var lastWorkID: String?
         for index in body.indices[..<belowStart] where !aboveSet.contains(index) {
             let item = body[index]
             if let snapshot = Snapshot(item) {
                 effective = snapshot
                 seenOwnSnapshot = true
+                effectiveOwner = snapshot.owner
+                anchor = outsideAnchor(effective, seenOwnSnapshot, shownIndex)
                 continue
             }
             if isWork(item) { lastWorkID = item.id }
-            if let owner = effective?.owner, shownIndex[owner] != nil {
-                append(item, to: &taskEntries[owner, default: []], running: running, turnEnd: turnEnd)
+            if let owner = effectiveOwner, shownIndex[owner] != nil {
+                let accumulator = taskEntries[owner] ?? EntryAccumulator()
+                taskEntries[owner] = accumulator
+                accumulator.append(item)
             } else {
-                append(item, to: &outsideEntries[outsideAnchor(effective, seenOwnSnapshot, shownIndex), default: []], running: running, turnEnd: turnEnd)
+                let accumulator = outsideEntries[anchor] ?? EntryAccumulator()
+                outsideEntries[anchor] = accumulator
+                accumulator.append(item)
             }
         }
 
+        var times: [String: TaskTimes] = [:]
+        for snapshot in snapshots where !snapshot.isLegacy {
+            for task in snapshot.tasks {
+                if times[task.id]?.startedAt == nil, task.status == .inProgress {
+                    times[task.id, default: TaskTimes()].startedAt = snapshot.at
+                }
+                if times[task.id]?.startedAt != nil, times[task.id]?.completedAt == nil, task.status == .completed {
+                    times[task.id, default: TaskTimes()].completedAt = snapshot.at
+                }
+            }
+        }
         var rows: [AgentStatusRow] = []
         for position in 0...shown.count {
-            if let entries = outsideEntries[position] {
+            if let accumulator = outsideEntries[position] {
+                let entries = accumulator.materialize(running: running, turnEnd: turnEnd)
                 rows.append(.outside(AgentStatusOutsideGroup(id: "outside-\(entries[0].id)", entries: entries)))
             }
             if position < shown.count {
                 let task = shown[position]
                 rows.append(.task(makeTask(
-                    task, snapshots: snapshots, entries: taskEntries[task.id] ?? [], running: running, turnEnd: turnEnd
+                    task, times: times[task.id] ?? TaskTimes(), entries: taskEntries[task.id]?.materialize(running: running, turnEnd: turnEnd) ?? [], running: running, turnEnd: turnEnd
                 )))
             }
         }
@@ -595,22 +630,22 @@ enum AgentStatusCardBuilder {
 
     /// タスク外の作業を出す位置（タスクの行の何番目の前か）。この区間のスナップショットがまだ無い
     /// （タスク登録前）ならタスクの上、それ以外は、その時点で完了しているタスクのうち最後のものの下。
-    private static func outsideAnchor(_ effective: Snapshot?, _ seenOwnSnapshot: Bool, _ shownIndex: [String: Int]) -> Int {
+    static func outsideAnchor(_ effective: Snapshot?, _ seenOwnSnapshot: Bool, _ shownIndex: [String: Int]) -> Int {
         guard seenOwnSnapshot, let effective else { return 0 }
         let completed = effective.tasks.filter { $0.status == .completed }.compactMap { shownIndex[$0.id] }
         return completed.max().map { $0 + 1 } ?? 0
     }
 
-    private static func makeTask(
-        _ task: AgentTaskItem, snapshots: [Snapshot], entries: [AgentStatusEntry], running: Bool, turnEnd: ChatTurnEnd?
-    ) -> AgentStatusTask {
+    private struct TaskTimes {
         var startedAt: Date?
         var completedAt: Date?
-        for snapshot in snapshots where !snapshot.isLegacy {
-            guard let status = snapshot.tasks.first(where: { $0.id == task.id })?.status else { continue }
-            if startedAt == nil, status == .inProgress { startedAt = snapshot.at }
-            if startedAt != nil, completedAt == nil, status == .completed { completedAt = snapshot.at }
-        }
+    }
+
+    private static func makeTask(
+        _ task: AgentTaskItem, times: TaskTimes, entries: [AgentStatusEntry], running: Bool, turnEnd: ChatTurnEnd?
+    ) -> AgentStatusTask {
+        let startedAt = times.startedAt
+        let completedAt = times.completedAt
         let state: AgentStatusTask.State = switch task.status {
         case .pending: .pending
         case .completed: .completed
@@ -626,7 +661,7 @@ enum AgentStatusCardBuilder {
         )
     }
 
-    private static func makeHeader(
+    static func makeHeader(
         current: AgentStatusAction.Label?, startedAt: Date, turnEnd: ChatTurnEnd?, running: Bool,
         liveState: AgentStatusLiveState
     ) -> AgentStatusHeader {
@@ -666,21 +701,21 @@ enum AgentStatusCardBuilder {
 
     // MARK: - 作業の行
 
-    fileprivate static func isWork(_ item: ChatItem) -> Bool {
+    static func isWork(_ item: ChatItem) -> Bool {
         switch item {
         case .commandExecution, .fileChange, .subAgentMarker: true
         default: false
         }
     }
 
-    fileprivate static func isEmptyFileChange(_ item: ChatItem) -> Bool {
+    static func isEmptyFileChange(_ item: ChatItem) -> Bool {
         if case .fileChange(_, let changes, _, _) = item { changes.isEmpty } else { false }
     }
 
     /// まとめてよい種類（読み込み・検索・編集）。それ以外は nil（実行・書き込み・その他はまとめない）。
-    private enum MergeKind { case read, search, edit }
+    enum MergeKind { case read, search, edit }
 
-    private static func mergeKind(_ item: ChatItem) -> MergeKind? {
+    static func mergeKind(_ item: ChatItem) -> MergeKind? {
         switch item {
         case .commandExecution(_, let command, _, _, _, let intent) where intent == nil:
             switch ChatCommandToolLabel.derive(command: command).label {
@@ -699,94 +734,153 @@ enum AgentStatusCardBuilder {
         !changes.isEmpty && changes.allSatisfy { $0.kind == "write" }
     }
 
-    /// 文章などは item のまま足す。作業は、直前の行が同じまとめられる種類なら 1 行にまとめる。
-    private static func append(_ item: ChatItem, to entries: inout [AgentStatusEntry], running: Bool, turnEnd: ChatTurnEnd?) {
-        guard isWork(item) else {
-            entries.append(.item(item))
-            return
+    private final class EntryAccumulator {
+        enum Entry {
+            case item(ChatItem)
+            case action(ActionAccumulator)
         }
-        if let kind = mergeKind(item), case .action(let last)? = entries.last, mergeKind(last.items[0]) == kind {
-            entries[entries.count - 1] = .action(makeAction(last.items + [item], running: running, turnEnd: turnEnd))
-        } else {
-            entries.append(.action(makeAction([item], running: running, turnEnd: turnEnd)))
+        var entries: [Entry] = []
+
+        func append(_ item: ChatItem) {
+            guard isWork(item) else { entries.append(.item(item)); return }
+            if let kind = mergeKind(item), case .action(let last)? = entries.last,
+               mergeKind(last.items[0]) == kind {
+                last.append(item)
+            } else {
+                let action = ActionAccumulator()
+                action.append(item)
+                entries.append(.action(action))
+            }
+        }
+
+        func materialize(running: Bool, turnEnd: ChatTurnEnd?) -> [AgentStatusEntry] {
+            entries.map {
+                switch $0 {
+                case .item(let item): .item(item)
+                case .action(let action): .action(action.materialize(running: running, turnEnd: turnEnd))
+                }
+            }
         }
     }
 
-    private static func makeAction(_ items: [ChatItem], running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusAction {
-        var completions: [Date] = []
-        var states: [AgentStatusWorkState] = []
-        let unfinished: AgentStatusWorkState
-        if running {
-            unfinished = .running
-        } else {
-            switch turnEnd?.outcome {
-            case .interrupted, .error, .superseded: unfinished = .interrupted
-            case .completed, nil: unfinished = .unknown
-            }
+    final class ActionAccumulator: @unchecked Sendable {
+        private(set) var items: [ChatItem] = []
+        private var positions: [String: Int] = [:]
+        private var files: [String: Int] = [:]
+        private var hits = 0
+        private(set) var nonBlankOutputCount = 0
+        private var states: [AgentStatusWorkState: Int] = [:]
+        private var completions: [String: Date] = [:]
+        private var latestCompletion: Date?
+
+        init(items: [ChatItem] = []) {
+            for item in items { append(item) }
         }
-        for item in items {
+
+        func append(_ item: ChatItem) {
+            positions[item.id] = items.count
+            items.append(item)
+            contribute(item, sign: 1)
+        }
+
+        func replace(_ item: ChatItem) {
+            guard let index = positions[item.id] else { return }
+            let completionChanged = completionDate(items[index]) != completionDate(item)
+            contribute(items[index], sign: -1, updateCompletion: completionChanged)
+            items[index] = item
+            contribute(item, sign: 1, updateCompletion: completionChanged)
+        }
+
+        private func completionDate(_ item: ChatItem) -> Date? {
             switch item {
-            case .commandExecution(_, _, _, _, let completedAt, _), .fileChange(_, _, _, let completedAt):
-                if let completedAt {
-                    completions.append(completedAt)
-                    states.append(.completed)
-                } else {
-                    states.append(unfinished)
-                }
-            case .subAgentMarker(_, _, _, let status):
-                switch status {
-                case .running: states.append(unfinished)
-                case .completed: states.append(.completed)
-                case .failed: states.append(.failed)
-                case .stopped: states.append(.interrupted)
-                }
-            default:
-                break
+            case .commandExecution(_, _, _, _, let at, _), .fileChange(_, _, _, let at): at
+            default: nil
             }
         }
-        // 時刻を持たないサブエージェント（.distantPast）と、結果の時刻が無い作業は所要時間を出さない。
-        let duration: TimeInterval? = completions.count == items.count && items[0].timestamp != .distantPast
-            ? completions.max().map { $0.timeIntervalSince(items[0].timestamp) }
-            : nil
-        return AgentStatusAction(
-            items: items, label: label(for: items), state: .aggregate(states), duration: duration
-        )
-    }
 
-    private static func label(for items: [ChatItem]) -> AgentStatusAction.Label {
-        switch items[0] {
-        case .subAgentMarker(_, let type, let description, let status):
-            return .subAgent(description: description, type: type, status: status)
-        case .fileChange(_, let changes, _, _) where isWrite(changes):
-            return .write(file: fileName(changes[0].path))
-        case .fileChange:
-            var paths: [String] = []
-            for case .fileChange(_, let changes, _, _) in items {
-                for change in changes where !paths.contains(change.path) { paths.append(change.path) }
-            }
-            return paths.count == 1 ? .edit(file: fileName(paths[0])) : .editFiles(count: paths.count)
-        case .commandExecution(_, let command, _, _, _, let intent):
-            if let intent { return .run(intent: intent) }
-            let (tool, body) = ChatCommandToolLabel.derive(command: command)
-            switch mergeKind(items[0]) {
-            case .read:
-                var files: [String] = []
-                for case .commandExecution(_, let command, _, _, _, _) in items {
-                    let file = fileName(ChatCommandToolLabel.derive(command: command).body)
-                    if !files.contains(file) { files.append(file) }
+        private func contribute(_ item: ChatItem, sign: Int, updateCompletion: Bool = true) {
+            let paths: [String]
+            let state: AgentStatusWorkState
+            var completion: Date?
+            switch item {
+            case .commandExecution(_, let command, let output, _, let at, _):
+                let derived = ChatCommandToolLabel.derive(command: command)
+                paths = mergeKind(item) == .read ? [fileName(derived.body)] : []
+                if mergeKind(item) == .search { hits += sign * hitCount(output) }
+                if output.contains(where: { !$0.isWhitespace }) { nonBlankOutputCount += sign }
+                completion = at
+                state = at == nil ? .running : .completed
+            case .fileChange(_, let changes, _, let at):
+                paths = changes.map(\.path)
+                completion = at
+                state = at == nil ? .running : .completed
+            case .subAgentMarker(_, _, _, let status):
+                paths = []
+                state = switch status {
+                case .running: .running
+                case .completed: .completed
+                case .failed: .failed
+                case .stopped: .interrupted
                 }
-                return .read(file: files[0], more: files.count - 1)
-            case .search:
-                let hits = items.reduce(0) { total, item in
-                    guard case .commandExecution(_, _, let output, _, _, _) = item else { return total }
-                    return total + hitCount(output)
-                }
-                return items.count == 1 ? .search(query: body, hits: hits) : .searches(times: items.count, hits: hits)
-            case .edit, nil:
-                return tool == "Bash" ? .command(unwrappingShell(body)) : .tool(tool)
+            default: return
             }
-        default:
-            return .command("")
+            for path in paths {
+                files[path, default: 0] += sign
+                if files[path] == 0 { files.removeValue(forKey: path) }
+            }
+            states[state, default: 0] += sign
+            guard updateCompletion else { return }
+            if sign > 0, let completion {
+                completions[item.id] = completion
+                latestCompletion = max(latestCompletion ?? completion, completion)
+            } else if sign < 0, let removed = completions.removeValue(forKey: item.id), removed == latestCompletion {
+                latestCompletion = completions.values.max()
+            }
+        }
+
+        func materialize(running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusAction {
+            AgentStatusAction(items: items, label: label, state: state(running: running, turnEnd: turnEnd), duration: duration)
+        }
+
+        var duration: TimeInterval? {
+            guard completions.count == items.count, let first = items.first,
+                  first.timestamp != .distantPast, let latestCompletion else { return nil }
+            return latestCompletion.timeIntervalSince(first.timestamp)
+        }
+
+        func state(running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusWorkState {
+            let unfinished: AgentStatusWorkState
+            if running { unfinished = .running }
+            else {
+                unfinished = switch turnEnd?.outcome {
+                case .interrupted, .error, .superseded: .interrupted
+                case .completed, nil: .unknown
+                }
+            }
+            return .aggregate(states.compactMap { state, count in
+                count > 0 ? (state == .running ? unfinished : state) : nil
+            })
+        }
+
+        var label: AgentStatusAction.Label {
+            guard let first = items.first else { return .command("") }
+            switch first {
+            case .subAgentMarker(_, let type, let description, let status):
+                return .subAgent(description: description, type: type, status: status)
+            case .fileChange(_, let changes, _, _) where isWrite(changes):
+                return .write(file: fileName(changes[0].path))
+            case .fileChange:
+                return files.count == 1 ? .edit(file: fileName(files.keys.first!)) : .editFiles(count: files.count)
+            case .commandExecution(_, let command, _, _, _, let intent):
+                if let intent { return .run(intent: intent) }
+                let (tool, body) = ChatCommandToolLabel.derive(command: command)
+                switch mergeKind(first) {
+                case .read: return .read(file: fileName(body), more: max(0, files.count - 1))
+                case .search: return items.count == 1 ? .search(query: body, hits: hits) : .searches(times: items.count, hits: hits)
+                case .edit, nil: return tool == "Bash" ? .command(unwrappingShell(body)) : .tool(tool)
+                }
+            default: return .command("")
+            }
         }
     }
 

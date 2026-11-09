@@ -282,3 +282,86 @@ extension TranscriptWindow {
         self.init(presentationContext: context)
     }
 }
+
+struct RuntimeChatReadSlice {
+    let blocks: [SessionRuntimeChatReadBlock]
+    let hiddenBlockCount: Int
+    let hiddenNewerBlockCount: Int
+}
+
+extension TranscriptWindow {
+    func slice(of blocks: [SessionRuntimeChatReadBlock]) -> RuntimeChatReadSlice {
+        let end = lastBlockID.flatMap { id in blocks.firstIndex { $0.id == id } }.map { $0 + 1 } ?? blocks.count
+        let candidate = Array(blocks[..<end].suffix(limit))
+        let count = TranscriptRenderBudget.allowedBlockCount(weights: candidate.map(TranscriptRenderBudget.weight),
+            requestedLimit: limit, defaultLimit: contextDefaultLimit,
+            minimumBlocks: TranscriptRenderBudget.minimumBlocks)
+        return RuntimeChatReadSlice(blocks: Array(candidate.suffix(count)),
+            hiddenBlockCount: end - count, hiddenNewerBlockCount: blocks.count - end)
+    }
+
+    mutating func loadEarlier(in blocks: [SessionRuntimeChatReadBlock]) -> String? {
+        let current = slice(of: blocks)
+        guard current.hiddenBlockCount > 0, let first = current.blocks.first else { return nil }
+        if limit < maxLimit { expand(); return first.id }
+        let end = blocks.firstIndex { $0.id == current.blocks.last?.id }.map { $0 + 1 } ?? blocks.count
+        let stage = runtimeForwardCount(Array(current.blocks.reversed()), maxCount: contextDefaultLimit)
+        var nextEnd = max(1, end - stage)
+        while nextEnd > 1 {
+            pinRuntime(to: blocks[nextEnd - 1])
+            if slice(of: blocks).hiddenBlockCount < current.hiddenBlockCount { return first.id }
+            nextEnd -= 1
+        }
+        pinRuntime(to: blocks[max(0, current.hiddenBlockCount - 1)])
+        return first.id
+    }
+
+    mutating func loadNewer(in blocks: [SessionRuntimeChatReadBlock]) -> String? {
+        let current = slice(of: blocks)
+        guard current.hiddenNewerBlockCount > 0, let bottom = current.blocks.last,
+              let end = blocks.firstIndex(where: { $0.id == bottom.id }) else { return nil }
+        let stage = runtimeForwardCount(Array(blocks[(end + 1)...]), maxCount: contextDefaultLimit)
+        let nextEnd = min(blocks.count, end + 1 + stage)
+        if nextEnd == blocks.count { followTail() }
+        else { pinRuntime(to: blocks[nextEnd - 1]) }
+        return bottom.id
+    }
+
+    mutating func reveal(itemID: String, in blocks: [SessionRuntimeChatReadBlock]) -> Bool {
+        guard let target = blocks.firstIndex(where: { $0.id == itemID || $0.ownerInputID == itemID }) else { return false }
+        limit = maxLimit
+        var cost = 0
+        var count = 0
+        for block in blocks[target...].prefix(maxLimit - contextDefaultLimit) {
+            let weight = TranscriptRenderBudget.weight(of: block)
+            guard count == 0 || weight <= TranscriptRenderBudget.defaultUnits * (Self.maxStages - 1) - cost else { break }
+            cost += weight
+            count += 1
+        }
+        let end = target + count
+        if end == blocks.count { followTail() }
+        else { pinRuntime(to: blocks[end - 1]) }
+        return true
+    }
+
+    private func runtimeForwardCount(_ blocks: [SessionRuntimeChatReadBlock], maxCount: Int) -> Int {
+        var used = 0
+        var count = 0
+        for block in blocks.prefix(maxCount) {
+            let weight = TranscriptRenderBudget.weight(of: block)
+            guard count == 0 || weight <= TranscriptRenderBudget.defaultUnits - used else { break }
+            used += weight
+            count += 1
+        }
+        return count
+    }
+
+    mutating func keepRuntimeEnd(at blockID: String, in blocks: [SessionRuntimeChatReadBlock]) {
+        if let block = blocks.first(where: { $0.id == blockID }) { pinRuntime(to: block) }
+    }
+
+    private mutating func pinRuntime(to block: SessionRuntimeChatReadBlock) {
+        lastBlockID = block.id
+        lastItemID = block.id
+    }
+}

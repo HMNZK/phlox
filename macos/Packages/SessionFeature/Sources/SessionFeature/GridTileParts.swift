@@ -205,11 +205,15 @@ struct GridTileCompactBody: View {
                 if !trimmed.isEmpty { return trimmed }
             }
         }
+        if let overview = viewModel.runtimeOverview,
+           case .chat(let chat) = overview.kind {
+            return chat.lastAgentText?.displayText
+        }
         return nil
     }
 
     private var pendingQuestion: (requestId: String, questions: [ChatUserQuestion])? {
-        for item in viewModel.transcript {
+        for item in viewModel.replyItems {
             guard case .userQuestion(_, let requestId, let questions, _, .pending, _) = item,
                   !ChatSessionViewModel.isToolPermissionQuestion(questions) else { continue }
             return (requestId, questions)
@@ -243,6 +247,16 @@ struct GridTileCompactBody: View {
                         .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: true, compact: true))
                         .font(DSFont.stateLabel)
                 }
+            }
+        } else if let preview = viewModel.runtimePendingQuestionPreview {
+            card(.question) {
+                Text(verbatim: preview)
+                    .font(DSFont.auxiliary.weight(.semibold))
+                    .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(isSmall ? 1 : 3)
+                Button { onOpen() } label: { Text("開いて回答") }
+                    .buttonStyle(ApprovalPrimaryButtonStyle(progress: 1, isArmed: true, compact: true))
+                    .font(DSFont.stateLabel)
             }
         } else if case .error(let message) = viewModel.displayStatus {
             card(.error) {
@@ -372,19 +386,28 @@ private struct GridTileApprovalCard: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             HStack(spacing: 5) {
-                Button { respond(.accept) } label: { Text("許可") }
-                    .buttonStyle(ApprovalPrimaryButtonStyle(progress: isArmed ? 1 : 0, isArmed: isArmed, compact: true))
-                    .font(DSFont.stateLabel)
-                if isSmall {
+                if approval.requiresDetail {
+                    Text("詳細を読み込み中…")
+                        .font(DSFont.stateLabel)
+                        .foregroundStyle(DSColor.textSecondary)
                     Button { onOpen() } label: { Text("開く") }
                         .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                 } else {
-                    if approval.supportsSessionScope {
+                    Button { respond(.accept) } label: { Text("許可") }
+                        .buttonStyle(ApprovalPrimaryButtonStyle(progress: isArmed ? 1 : 0, isArmed: isArmed, compact: true))
+                        .font(DSFont.stateLabel)
+                    if isSmall {
+                        Button { onOpen() } label: { Text("開く") }
+                            .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
+                    }
+                    if !isSmall && approval.supportsSessionScope {
                         Button { respond(.acceptForSession) } label: { Text("このセッション中は許可") }
                             .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
                     }
-                    Button { respond(.decline) } label: { Text("拒否") }
-                        .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
+                    if !isSmall {
+                        Button { respond(.decline) } label: { Text("拒否") }
+                            .buttonStyle(ApprovalSecondaryButtonStyle(compact: true))
+                    }
                 }
             }
             .font(.system(size: 11.5))
@@ -395,12 +418,14 @@ private struct GridTileApprovalCard: View {
         .padding(.vertical, 7)
         .background(DSColor.attentionTint(.approval), in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DSColor.attentionMark(.approval), lineWidth: 1))
-        .task(id: approval.id) {
-            viewModel.markApprovalPresented(approval.id)
-            isArmed = viewModel.isApprovalArmed(approval.id)
+        .task(id: approval) {
+            viewModel.markApprovalPresented(approval)
+            isArmed = viewModel.isApprovalArmed(approval)
+            guard !approval.requiresDetail else { return }
             guard !isArmed else { return }
             try? await Task.sleep(for: .seconds(ReplyApproval.armDelay))
-            isArmed = true
+            guard !Task.isCancelled else { return }
+            isArmed = viewModel.isApprovalArmed(approval)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("承認待ち · \(ApprovalCard.kindLabel(approval.kind, locale: locale))"))

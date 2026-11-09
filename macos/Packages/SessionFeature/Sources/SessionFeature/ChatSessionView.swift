@@ -45,6 +45,13 @@ public struct ChatSessionView: View {
                 .environment(\.replySubjectMaxHeight, ApprovalCard.subjectMaxHeight(availableHeight: geometry.size.height))
         }
         .background(DSColor.chatBackground)
+        .task(id: viewModel.executionID) {
+            if viewModel.isRuntimeProjection {
+                do { try await viewModel.refreshRuntimeContent() }
+                catch SessionRuntimeContentError.staleContent { }
+                catch { }
+            }
+        }
         // esc 状態機械（非フォーカス時の経路）＋履歴ピッカー overlay＋下書き復元を一括で付ける（task-9）。
         .chatEscapeHandling(viewModel: viewModel)
         // cancelOperation フォールバック（フォーカス無し等で .onKeyPress が発火しない経路）。
@@ -143,7 +150,8 @@ public struct ChatSessionView: View {
                             // 入力欄の上に箱・候補・ツールチップが開いている間は、重なるので隠す。
                             .onPreferenceChange(ComposerPopupOpenKey.self) { isComposerPopupOpen = $0 }
                             .overlay(alignment: .topTrailing) {
-                                if !isComposerPopupOpen {
+                                if !isComposerPopupOpen,
+                                   !viewModel.isRuntimeProjection || (viewModel.hasLoadedRuntimeTranscript && !viewModel.hasMoreRuntimeTranscript) {
                                     ChatInputHistoryScrubber(
                                         entries: viewModel.inputHistoryEntries,
                                         currentPositionID: currentInputPositionID,

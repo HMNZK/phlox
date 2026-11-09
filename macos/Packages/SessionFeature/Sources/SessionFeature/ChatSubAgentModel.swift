@@ -33,6 +33,7 @@ final class ChatSubAgentModel {
 
     func markStoppable(_ id: String) {
         stoppableIDs.insert(id)
+        presentationChanged?()
     }
 
     /// 停止要求を出せるなら確認待ちにして、その試行番号を返す（実行中で止められ、確認待ちでないとき）。二重押しは nil。
@@ -40,6 +41,7 @@ final class ChatSubAgentModel {
         guard stoppableIDs.contains(id), !stopPendingIDs.contains(id),
               subAgents.first(where: { $0.id == id })?.status == .running else { return nil }
         stopPendingIDs.insert(id)
+        presentationChanged?()
         let attempt = (stopAttempts[id] ?? 0) + 1
         stopAttempts[id] = attempt
         return attempt
@@ -50,6 +52,7 @@ final class ChatSubAgentModel {
     @discardableResult
     func stopFailed(_ id: String, attempt: Int) -> Bool {
         guard stopAttempts[id] == attempt, stopPendingIDs.remove(id) != nil else { return false }
+        presentationChanged?()
         return true
     }
 
@@ -73,6 +76,20 @@ final class ChatSubAgentModel {
         return snapshot
     }
 
+    func makeRuntimePresentationSnapshot() -> SessionRuntimeSubAgentSnapshot {
+        var snapshot = SessionRuntimeSubAgentSnapshot()
+        snapshot.subAgents = subAgents.map {
+            SubAgentRef(id: $0.id, subagentType: boundedRuntimeDisplay($0.subagentType),
+                description: boundedRuntimeDisplay($0.description), status: $0.status,
+                startedAt: $0.startedAt, summary: $0.summary.map(boundedRuntimeDisplay),
+                outputFile: $0.outputFile)
+        }
+        snapshot.dismissedIDs = dismissedSubAgentIDs
+        snapshot.stoppableIDs = stoppableIDs
+        snapshot.stopPendingIDs = stopPendingIDs
+        return snapshot
+    }
+
     func applyRuntimeSnapshot(_ snapshot: SessionRuntimeSubAgentSnapshot) {
         isRuntimeProjection = true
         subAgents = snapshot.subAgents
@@ -87,6 +104,7 @@ final class ChatSubAgentModel {
     @ObservationIgnored private(set) var dedupScanMetricsForTesting = DedupScanMetrics(callCount: 0, characterCount: 0)
     @ObservationIgnored private var markerSink: (@MainActor (ChatItem) -> Void)?
     @ObservationIgnored private var outputTouched: (@MainActor () -> Void)?
+    @ObservationIgnored private var presentationChanged: (@MainActor () -> Void)?
 
     private struct CachedDedupText {
         let source: String
@@ -99,10 +117,12 @@ final class ChatSubAgentModel {
 
     func configure(
         markerSink: @escaping @MainActor (ChatItem) -> Void,
-        outputTouched: @escaping @MainActor () -> Void
+        outputTouched: @escaping @MainActor () -> Void,
+        presentationChanged: @escaping @MainActor () -> Void
     ) {
         self.markerSink = markerSink
         self.outputTouched = outputTouched
+        self.presentationChanged = presentationChanged
     }
 
     func resetDedupScanMetricsForTesting() {
@@ -111,6 +131,7 @@ final class ChatSubAgentModel {
 
     func dismissSubAgent(_ id: String) {
         dismissedSubAgentIDs.insert(id)
+        presentationChanged?()
     }
 
     func isDismissed(_ id: String) -> Bool {

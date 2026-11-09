@@ -36,9 +36,20 @@ public struct InputHistoryCursor: Equatable, Sendable {
 
     public init() {}
 
+    /// 以前のページを先頭へ追加しても、呼び戻し中の入力を指す位置を保つ。
+    public mutating func didPrependEntries(_ count: Int) {
+        guard count > 0, let index else { return }
+        self.index = index + count
+    }
+
     /// 呼び戻す文。動けない（履歴が無い・端にいる・呼び戻していない）ときは nil。
     public mutating func recall(_ direction: Direction, entries: [String], currentText: String) -> String? {
         if let recalledText, recalledText != currentText { self = InputHistoryCursor() }
+        if let index, index >= entries.count || entries[index] != recalledText {
+            let draft = savedDraft
+            self = InputHistoryCursor()
+            return draft
+        }
         switch direction {
         case .older:
             let next: Int

@@ -11752,6 +11752,17 @@
         }
       }
     },
+    "変更元を確認できませんでした。外部の変更を上書きすると失われ、元に戻せません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't identify who changed the file. Overwriting external changes discards them and can't be undone."
+          }
+        }
+      }
+    },
     "リモートが設定されていません。プッシュするにはリモートを追加してください。": {
       "extractionState": "manual",
       "localizations": {

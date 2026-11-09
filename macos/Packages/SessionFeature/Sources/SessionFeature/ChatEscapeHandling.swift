@@ -14,7 +14,7 @@ func performChatEscape(_ viewModel: ChatSessionViewModel) {
         viewModel.handleEscapeKey()
         return
     }
-    if case .userQuestion(_, let requestId, _, _, .pending, _)? = ChatReplyArea<EmptyView>.pendingQuestionItem(in: viewModel.transcript) {
+    if case .userQuestion(_, let requestId, _, _, .pending, _)? = ChatReplyArea<EmptyView>.pendingQuestionItem(in: viewModel.replyItems) {
         Task { await viewModel.dismissUserQuestion(requestId: requestId) }
         return
     }

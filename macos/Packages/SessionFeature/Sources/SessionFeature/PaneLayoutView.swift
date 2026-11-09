@@ -345,11 +345,18 @@ private struct PaneTileView: View {
         switch session {
         case .pty(let session):
             // 端末の面は上下 8・左右 10 の余白まで同じ色で塗る（PhloxGrid の isPty）。
-            TerminalView(coordinator: session.terminalCoordinator)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
-                .background(SessionView.terminalBackground)
+            Group {
+                if !session.isRuntimeProjection || session.isRuntimeDisplayLoaded {
+                    TerminalView(coordinator: session.terminalCoordinator)
+                } else {
+                    ProgressView("端末を読み込み中")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+            .background(SessionView.terminalBackground)
         case .appServer(let chat):
             if GridTileSize.showsConversationColumn(size) {
                 GridChatColumn(viewModel: chat, onFocusGained: onSelect)

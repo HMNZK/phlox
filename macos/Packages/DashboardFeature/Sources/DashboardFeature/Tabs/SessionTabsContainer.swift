@@ -121,7 +121,9 @@ struct SessionTabsContainer<Conversation: View>: View {
             RestoredFileTabView(
                 files: files, projectID: project.id, path: path, workingDirectory: project.directoryPath,
                 currentWorkingDirectory: { viewModel.projects.first { $0.id == project.id }?.directoryPath },
-                lastWriter: { document in document.lastWriter(among: viewModel.sessionNodes, excluding: node?.id) },
+                lastWriter: { document in
+                    try await viewModel.lastWriterForConflict(document, excluding: node?.id)
+                },
                 isFocused: router.tabs.layout(for: project.id).selected == .file(path),
                 openBrowser: { router.openBrowser($0, for: project.id) },
                 openFile: { root, path in
@@ -677,7 +679,7 @@ private struct RestoredFileTabView: View {
     let path: String
     let workingDirectory: String
     let currentWorkingDirectory: () -> String?
-    let lastWriter: (FileTabDocument) -> String?
+    let lastWriter: @MainActor (FileTabDocument) async throws -> String?
     let isFocused: Bool
     let openBrowser: (URL) -> Void
     let openFile: (String, String) -> Void
@@ -711,7 +713,7 @@ private struct RestoredFileTabView: View {
 /// ファイルの子タブ。編集・保存・外部変更との競合（上書き／キャンセル）。
 struct FileTabView: View {
     @Bindable var document: FileTabDocument
-    let lastWriter: (FileTabDocument) -> String?
+    let lastWriter: @MainActor (FileTabDocument) async throws -> String?
     let isFocused: Bool
     let openFile: (String, String) -> Void
     let openBrowser: ((URL) -> Void)?
@@ -719,13 +721,14 @@ struct FileTabView: View {
     @State private var showsIsolationExplanation = false
     @State private var showsConflictAlert = false
     @State private var conflictWriter: String?
+    @State private var conflictWriterLookupFailed = false
     @State private var saveError: String?
     @State private var emphasizesMarkdownReason = false
     @Environment(\.fileTabRecoveryPasteboardName) private var fileTabRecoveryPasteboardName
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var localizationBundle
 
-    init(document: FileTabDocument, lastWriter: @escaping (FileTabDocument) -> String?,
+    init(document: FileTabDocument, lastWriter: @escaping @MainActor (FileTabDocument) async throws -> String?,
          isFocused: Bool, openFile: @escaping (String, String) -> Void,
          openBrowser: ((URL) -> Void)? = nil, htmlPreview: HTMLPreviewModel? = nil,
          markdownEditor: MarkdownBlockEditor? = nil,
@@ -810,9 +813,11 @@ struct FileTabView: View {
             DSDialog(
                 .irreversible,
                 title: String(format: AppLocalizedString.string("%@ は外部で変更されています", locale: locale), document.fileName),
-                message: conflictWriter.map {
-                    String(format: AppLocalizedString.string("開いてから別のセッション（%@）が書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale), $0)
-                } ?? AppLocalizedString.string("開いてから別のセッションが書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale),
+                message: conflictWriterLookupFailed
+                    ? AppLocalizedString.string("変更元を確認できませんでした。外部の変更を上書きすると失われ、元に戻せません。", locale: locale)
+                    : (conflictWriter.map {
+                        String(format: AppLocalizedString.string("開いてから別のセッション（%@）が書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale), $0)
+                    } ?? AppLocalizedString.string("開いてから別のセッションが書き換えました。上書きすると、その変更は失われ、元に戻せません。", locale: locale)),
                 buttons: [
                     DSDialogButton("上書き", role: .destructive) {
                         showsConflictAlert = false
@@ -1192,7 +1197,13 @@ struct FileTabView: View {
         do {
             saveError = nil
             if try await document.save() == .conflictDetected {
-                conflictWriter = lastWriter(document)
+                conflictWriterLookupFailed = false
+                do { conflictWriter = try await lastWriter(document) }
+                catch {
+                    conflictWriter = nil
+                    conflictWriterLookupFailed = true
+                    saveError = error.localizedDescription
+                }
                 showsConflictAlert = true
             }
         } catch {

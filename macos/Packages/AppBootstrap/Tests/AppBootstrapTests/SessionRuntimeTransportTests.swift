@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import AgentDomain
+import SessionFeature
 @testable import DashboardFeature
 import Testing
 @testable import AppBootstrap
@@ -414,6 +415,135 @@ import Testing
         #expect(SessionRuntimeTransport.maximumCommandReplyBytes == 128 * 1024 * 1024)
     }
 
+    @Test @MainActor func overviewUsesItsOwnAuthenticatedEndpointWithoutFullSnapshot() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let transport = try SessionRuntimeTransport(
+            generation: generation, storeURL: fixture.url,
+            snapshot: { throw SessionRuntimeConnectionError.rejected("Full snapshot must not run") },
+            overview: { .init(projects: [], sessions: [], availableAgentKinds: [.codex]) },
+            command: { _ in .none }
+        )
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let token = try SessionRuntimeCredentialStore.load(storeURL: fixture.url)
+
+        let valid = try await runtimeHTTPOverview(url: url, token: token, generation: generation)
+        let unauthorized = try await runtimeHTTPOverview(url: url, token: "wrong-token", generation: generation)
+        let stale = try await runtimeHTTPOverview(url: url, token: token, generation: UUID())
+
+        #expect(valid.status == 200)
+        #expect(try JSONDecoder().decode(SessionRuntimeOverviewEnvelope.self, from: valid.data).overview.availableAgentKinds == [.codex])
+        #expect(unauthorized.status == 401)
+        #expect(stale.status == 409)
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
+    @Test @MainActor func contentEndpointAuthenticatesAndDistinguishesStalePage() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let sessionID = SessionID()
+        let executionID = UUID()
+        let transport = try SessionRuntimeTransport(
+            generation: generation, storeURL: fixture.url,
+            snapshot: { throw SessionRuntimeConnectionError.rejected("Full snapshot must not run") },
+            content: { request in
+                if case .chatBefore = request.target { throw SessionRuntimeContentError.staleContent }
+                if case .chatPresentation = request.target { throw SessionRuntimeContentError.invalidRequest }
+                return .chatPage(.init(sessionID: request.sessionID, executionID: request.executionID,
+                    transcriptRevision: 7, totalCount: 0, startIndex: 0,
+                    entries: [], olderCursor: nil, turnUsageByItemID: [:]))
+            }, command: { _ in .none }
+        )
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let token = try SessionRuntimeCredentialStore.load(storeURL: fixture.url)
+        let tail = SessionRuntimeContentRequest(sessionID: sessionID, executionID: executionID, target: .chatTail)
+        let old = SessionRuntimeContentRequest(sessionID: sessionID, executionID: executionID,
+            target: .chatBefore(cursor: .init(index: 1, anchorID: "item", prefixDigest: "digest")))
+        let invalid = SessionRuntimeContentRequest(sessionID: sessionID, executionID: executionID,
+            target: .chatPresentation(offset: 0, digest: nil))
+
+        let valid = try await runtimeHTTPContent(url: url, token: token, generation: generation, request: tail)
+        let unauthorized = try await runtimeHTTPContent(url: url, token: "wrong-token", generation: generation, request: tail)
+        let staleGeneration = try await runtimeHTTPContent(url: url, token: token, generation: UUID(), request: tail)
+        let stalePage = try await runtimeHTTPContent(url: url, token: token, generation: generation, request: old)
+        let malformed = try await runtimeHTTPContent(url: url, token: token, generation: generation, encodedRequest: "not-base64")
+
+        #expect(valid.status == 200)
+        #expect(valid.data.count <= SessionRuntimeContentLimits.maximumResponseBytes)
+        #expect(unauthorized.status == 401)
+        #expect(staleGeneration.status == 409)
+        #expect(stalePage.status == 412)
+        #expect(malformed.status == 400)
+        let client = SessionRuntimeClient(endpoint: try SessionRuntimeEndpoint(url: url, generation: generation, token: token))
+        try await client.handshake()
+        #expect(client.supportsSessionContent)
+        guard case .chatPage(let page) = try await client.content(tail) else {
+            Issue.record("Client did not decode the chat page")
+            return
+        }
+        #expect(page.transcriptRevision == 7)
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            try await client.content(old)
+        }
+        await #expect(throws: SessionRuntimeContentError.invalidRequest) {
+            try await client.content(invalid)
+        }
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
+    @Test @MainActor func ptyContentCanExceedChatPageLimitWithoutUsingFullDashboardSnapshot() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let generation = UUID()
+        let sessionID = SessionID()
+        let executionID = UUID()
+        let overview = SessionRuntimeSessionOverview(id: sessionID, startedAt: .distantPast,
+            agentRef: .builtin(.claudeCode), workingDirectory: "/work",
+            executionID: executionID, title: "Terminal", projectID: nil,
+            parentSessionID: nil, launchContext: .interactive,
+            status: .idle, displayStatus: .idle,
+            statusEnteredAt: nil, displayStatusEnteredAt: nil,
+            hasUnseenCompletion: false, lastOutputAt: nil, lastTurnCompletedAt: nil,
+            kind: .pty(.init(completedTurnSeq: 3, hasProducedOutput: true,
+                isRestored: true, isReadyForInput: true, displayRevision: 17)))
+        let projected = try SessionViewModel(projection: overview) { _, _ in .none }
+        var largePTY = try projected.makeRuntimeSnapshot()
+        largePTY.nativeSessionID = String(repeating: "x", count: 5 * 1024 * 1024)
+        let largeResponse = largePTY
+        let transport = try SessionRuntimeTransport(generation: generation, storeURL: fixture.url,
+            snapshot: { throw SessionRuntimeConnectionError.rejected("Full snapshot must not run") },
+            content: { _ in .ptySnapshot(snapshot: largeResponse, displayRevision: 17) }, command: { _ in .none })
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let token = try SessionRuntimeCredentialStore.load(storeURL: fixture.url)
+        let request = SessionRuntimeContentRequest(sessionID: sessionID, executionID: executionID,
+            target: .ptySnapshot(displayRevision: 17))
+
+        let response = try await runtimeHTTPContent(url: url, token: token,
+            generation: generation, request: request)
+
+        #expect(response.status == 200)
+        #expect(response.data.count > SessionRuntimeContentLimits.maximumResponseBytes)
+        #expect(response.data.count < SessionRuntimeTransport.maximumSnapshotBytes)
+        guard case .ptySnapshot(_, let capturedRevision) = try JSONDecoder().decode(
+            SessionRuntimeContentResponse.self, from: response.data) else {
+            Issue.record("PTY content response was not decoded")
+            return
+        }
+        #expect(capturedRevision == 17)
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
     @Test @MainActor func largeCommandAndReplyUseTheirOwnLimits() async throws {
         let fixture = try RuntimeTransportFixture()
         defer { fixture.remove() }
@@ -599,6 +729,32 @@ private func runtimeHTTPCommand(_ operation: SessionRuntimeOperation, endpoint: 
         #expect(status == 200)
         return data
     }
+}
+
+private func runtimeHTTPOverview(url: URL, token: String, generation: UUID) async throws -> (status: Int, data: Data) {
+    var request = URLRequest(url: url.appendingPathComponent("overview"), timeoutInterval: 5)
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue(String(SessionRuntimeEndpoint.protocolVersion), forHTTPHeaderField: "X-Phlox-Runtime-Protocol")
+    request.setValue(generation.uuidString, forHTTPHeaderField: "X-Phlox-Runtime-Generation")
+    let (data, response) = try await URLSession.shared.data(for: request)
+    return ((response as? HTTPURLResponse)?.statusCode ?? -1, data)
+}
+
+private func runtimeHTTPContent(url: URL, token: String, generation: UUID,
+                                request: SessionRuntimeContentRequest) async throws -> (status: Int, data: Data) {
+    try await runtimeHTTPContent(url: url, token: token, generation: generation,
+        encodedRequest: JSONEncoder().encode(request).base64EncodedString())
+}
+
+private func runtimeHTTPContent(url: URL, token: String, generation: UUID,
+                                encodedRequest: String) async throws -> (status: Int, data: Data) {
+    var request = URLRequest(url: url.appendingPathComponent("session-content"), timeoutInterval: 5)
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue(String(SessionRuntimeEndpoint.protocolVersion), forHTTPHeaderField: "X-Phlox-Runtime-Protocol")
+    request.setValue(generation.uuidString, forHTTPHeaderField: "X-Phlox-Runtime-Generation")
+    request.setValue(encodedRequest, forHTTPHeaderField: "X-Phlox-Runtime-Content-Request")
+    let (data, response) = try await URLSession.shared.data(for: request)
+    return ((response as? HTTPURLResponse)?.statusCode ?? -1, data)
 }
 
 private actor RuntimeKeyRecorder {

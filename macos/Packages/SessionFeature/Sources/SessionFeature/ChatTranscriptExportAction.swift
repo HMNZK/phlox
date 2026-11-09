@@ -11,9 +11,9 @@ import DesignSystem
 /// Phlox が自分で持っている transcript から同じものを作る。
 @MainActor
 public enum ChatTranscriptExportAction {
-    static func markdown(for session: ChatSessionViewModel, exportedAt: Date = Date()) -> String {
+    static func markdown(items: [ChatItem], for session: ChatSessionViewModel, exportedAt: Date = Date()) -> String {
         ChatTranscriptExporter.markdown(
-            items: session.transcript,
+            items: items,
             metadata: ChatTranscriptExportMetadata(
                 sessionTitle: session.displayName,
                 agentName: agentName(for: session.agentRef),
@@ -33,6 +33,18 @@ public enum ChatTranscriptExportAction {
     /// 保存ダイアログを出して Markdown を書き出す。
     /// - Parameter showsOptions: 前段で書き出しの設定を選んでいない入口（メニューの ⇧⌘E）では、先に設定を選ぶ画面を出す（09 D9）。
     public static func save(session: ChatSessionViewModel, locale: Locale, showsOptions: Bool = false) {
+        Task {
+            do {
+                try await session.loadAllRuntimeContent()
+                let items = session.transcript
+                saveLoaded(session: session, items: items, locale: locale, showsOptions: showsOptions)
+            } catch {
+                showLoadError(error, locale: locale)
+            }
+        }
+    }
+
+    private static func saveLoaded(session: ChatSessionViewModel, items: [ChatItem], locale: Locale, showsOptions: Bool) {
         if showsOptions {
             let choice = ExportOptionsChoice()
             let chosen = DSDialogModal.run(
@@ -55,7 +67,7 @@ public enum ChatTranscriptExportAction {
             exportedAt: exportedAt
         )
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let text = markdown(for: session, exportedAt: exportedAt)
+        let text = markdown(items: items, for: session, exportedAt: exportedAt)
         do {
             try Data(text.utf8).write(to: url, options: .atomic)
         } catch {
@@ -76,9 +88,24 @@ public enum ChatTranscriptExportAction {
 
     /// クリップボードへ Markdown をコピーする。
     public static func copyToPasteboard(session: ChatSessionViewModel) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(markdown(for: session), forType: .string)
+        Task {
+            do {
+                try await session.loadAllRuntimeContent()
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(markdown(items: session.transcript, for: session), forType: .string)
+            } catch {
+                showLoadError(error, locale: .current)
+            }
+        }
+    }
+
+    private static func showLoadError(_ error: Error, locale: Locale) {
+        _ = DSDialogModal.run(.notice,
+            title: AppLocalizedString.string("会話を読み込めませんでした", locale: locale),
+            message: AppLocalizedString.string("履歴を取得してからやり直してください。", locale: locale),
+            log: error.localizedDescription,
+            buttons: [("OK", .primary)], locale: locale)
     }
 }
 

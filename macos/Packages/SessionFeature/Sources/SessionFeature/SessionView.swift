@@ -17,12 +17,28 @@ public struct SessionView: View {
         let _ = themeID
         VStack(alignment: .leading, spacing: 0) {
             TerminalSessionHeader(viewModel: viewModel)
-            TerminalView(coordinator: viewModel.terminalCoordinator)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .padding(.vertical, 12)
-                .padding(.horizontal, 16)
-                .background(Self.terminalBackground)
+            if viewModel.isRuntimeProjection, let error = viewModel.runtimeConnectionError {
+                Text(verbatim: error)
+                    .font(DSFont.auxiliary)
+                    .foregroundStyle(DSColor.attentionInk(.error))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .accessibilityIdentifier("SessionView.runtimeContentError")
+            }
+            Group {
+                if !viewModel.isRuntimeProjection || viewModel.isRuntimeDisplayLoaded {
+                    TerminalView(coordinator: viewModel.terminalCoordinator)
+                } else {
+                    ProgressView("端末を読み込み中")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .background(Self.terminalBackground)
         }
         .background(DSColor.background)
     }

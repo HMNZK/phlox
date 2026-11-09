@@ -185,7 +185,8 @@ struct ChatComposer: View {
     }
 
     private var hasPendingBlockingReplyCard: Bool {
-        !viewModel.replyApprovals.isEmpty || ChatReplyArea<EmptyView>.hasPendingBlockingQuestion(in: viewModel.transcript)
+        !viewModel.replyApprovals.isEmpty || viewModel.runtimePendingQuestionPreview != nil
+            || ChatReplyArea<EmptyView>.hasPendingBlockingQuestion(in: viewModel.replyItems)
     }
 
     /// 状態ごとの案内（PhloxReply.dc.html の placeholder）。
@@ -195,7 +196,8 @@ struct ChatComposer: View {
             key = "起動しています…"
         } else if !viewModel.replyApprovals.isEmpty {
             key = "承認待ちの間も入力できます（送信は承認後）"
-        } else if ChatReplyArea<EmptyView>.hasPendingQuestion(in: viewModel.transcript) {
+        } else if viewModel.runtimePendingQuestionPreview != nil
+            || ChatReplyArea<EmptyView>.hasPendingQuestion(in: viewModel.replyItems) {
             key = "質問に答えるか、ここから別の指示を送れます"
         } else if isRunning {
             key = "実行中です。中断は Esc か ■"

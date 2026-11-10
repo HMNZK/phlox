@@ -1317,6 +1317,44 @@
         "id": "codex-independent-release_scenario_review"
       },
       "independent": true
+    },
+    {
+      "baseOID": "060176b50729260757c72c69d9a653f8f14b0324",
+      "targetOID": "91016689a9bff36e64c9987cd3a6576a9788b655",
+      "diffSHA256": "db61879f52e60a25d5095ae2bd3ca31b588202aa3d4f59882c77d8a15de329f5",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "最終feed/captureの内容・シナリオレビューpass。製品コードは913固定から不変、影響4IDは完全で旧6シナリオ/必須実機5件を維持。独立4検査で175由来と910最終入力・Mac/iOS来歴/設定/DMG/ZIP/IPAのhash対応、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。913正式5runを原JSONから再集計し、単発外れ値を含む記述と一致。devices/executionsは空で正本実機ゲートがnot_run拒否することも確認。本passは公開承認・最終候補quality合格・GUI受入・人の実機証言ではない。",
+      "reviewedAt": "2026-11-10T05:46:38.738573+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "91016689a9bff36e64c9987cd3a6576a9788b655",
+      "diffSHA256": "db61879f52e60a25d5095ae2bd3ca31b588202aa3d4f59882c77d8a15de329f5",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "最終feed/captureの内容・シナリオレビューpass。製品コードは913固定から不変、影響4IDは完全で旧6シナリオ/必須実機5件を維持。独立4検査で175由来と910最終入力・Mac/iOS来歴/設定/DMG/ZIP/IPAのhash対応、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。913正式5runを原JSONから再集計し、単発外れ値を含む記述と一致。devices/executionsは空で正本実機ゲートがnot_run拒否することも確認。本passは公開承認・最終候補quality合格・GUI受入・人の実機証言ではない。",
+      "reviewedAt": "2026-11-10T05:46:38.738573+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
     }
   ]
 }

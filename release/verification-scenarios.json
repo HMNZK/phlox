@@ -104,6 +104,7 @@
         "macos/App/SessionRuntimeHost.swift",
         "macos/scripts/tests/session-runtime-semantic-chat.test.py",
         "macos/UITests/IsolatedPhloxApplication.swift",
+        "macos/UITests/IsolatedLaunchOptionsTests.swift",
         "macos/UITests/RuntimeCardsAcceptanceTests.swift"
       ],
       "testIDs": [
@@ -113,7 +114,8 @@
         "macos/Packages/SessionFeature/Tests/SessionFeatureTests/RuntimeReadPublicationTests.swift::RuntimeReadPublicationTests",
         "macos/Packages/SessionFeature/Tests/SessionFeatureTests/RuntimeReadCacheHostedTests.swift::RuntimeReadCacheHostedTests",
         "macos/scripts/tests/session-runtime-semantic-chat.test.py::SemanticChatAcceptance",
-        "macos/UITests/RuntimeCardsAcceptanceTests.swift::RuntimeCardsAcceptanceTests"
+        "macos/UITests/RuntimeCardsAcceptanceTests.swift::RuntimeCardsAcceptanceTests",
+        "macos/UITests/IsolatedLaunchOptionsTests.swift::IsolatedLaunchOptionsTests"
       ],
       "procedure": "固定候補の標準パッケージ入口で列挙した意味取得・競合・表示テストを実行する。別途、所有を記録した固有bundle IDの隔離アプリでsemantic-chat受入を実行し、本文末尾の外に入力起点があるカード、最新12目盛り、履歴追加ページ、古い入力への直接ジャンプ、巨大入力の明示全文取得/呼戻し、展開詳細と読位置の更新/再接続を観察する。旧サービスには新しい取得要求を送らず、更新案内と従来表示を保つことも確認する。",
       "expected": "取得ページ境界でカードの所属/順序/状態/時刻/最終返答位置が変わらない。入力履歴は本文全件取得を待たず操作でき、直接ジャンプで間の本文を取得しない。プレビューを入力へ呼び戻さず、巨大本文の取得は明示操作時だけ。遅い応答で後続操作を上書きせず、詳細・手動開閉・読位置を保つ。新能力は対応サービスだけで使う。製品検査とfixture自己検査を区別する。",

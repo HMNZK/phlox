@@ -56,27 +56,18 @@ struct RuntimeChatTranscriptView: View {
         return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: TranscriptTypography.itemGap) {
-                    if page?.olderCursor != nil || slice.hiddenBlockCount > 0 {
-                        Button("以前のメッセージを読み込む") { load(.top, proxy: proxy) }
-                            .disabled(viewModel.runtimeChatRead.isLoading)
-                            .font(DSFont.meta)
-                            .accessibilityIdentifier("ChatTranscript.loadEarlier")
-                    }
-                    ForEach(visibleBlocks, id: \.id) { block in
-                        blockView(block)
-                            .id(block.id)
-                            .background {
-                                GeometryReader { geometry in
-                                    Color.clear.preference(key: RuntimeChatBlockOffsets.self,
-                                        value: [block.id: geometry.frame(in: .named("runtime-chat-content")).minY])
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(visibleBlocks.enumerated()), id: \.element.id) { index, block in
+                            blockView(block)
+                                .padding(.top, index == 0 ? 0 : TranscriptTypography.itemGap)
+                                .id(block.id)
+                                .background {
+                                    GeometryReader { geometry in
+                                        Color.clear.preference(key: RuntimeChatBlockOffsets.self,
+                                            value: [block.id: geometry.frame(in: .named("runtime-chat-content")).minY])
+                                    }
                                 }
-                            }
-                    }
-                    if page?.newerCursor != nil || slice.hiddenNewerBlockCount > 0 {
-                        Button("以後のメッセージを読み込む") { load(.bottom, proxy: proxy) }
-                            .disabled(viewModel.runtimeChatRead.isLoading)
-                            .font(DSFont.meta)
-                            .accessibilityIdentifier("ChatTranscript.loadNewer")
+                        }
                     }
                     if let error = viewModel.runtimeChatRead.error {
                         Text(error).font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
@@ -110,18 +101,37 @@ struct RuntimeChatTranscriptView: View {
                     ChatAutoFollowScrollObserver(controller: autoFollow,
                         onViewportCenterChanged: updatePosition,
                         onDetachedChanged: { detached = $0 },
-                        onScrollPastTop: { loadingEdge = .top },
-                        onScrollPastBottom: { loadingEdge = .bottom },
+                        onScrollPastTop: { beginLoading(.top) },
+                        onScrollPastBottom: { beginLoading(.bottom) },
                         onScrollAwayFromEdge: { loadingEdge = nil },
-                        onScrollReleased: {
-                            if let edge = loadingEdge { load(edge, proxy: proxy) }
-                            loadingEdge = nil
-                        }, hasNewerHidden: page?.newerCursor != nil || slice.hiddenNewerBlockCount > 0)
+                        onScrollReleased: { finishLoading(proxy) },
+                        hasNewerHidden: canLoad(.bottom))
+                        .id(viewModel.executionID)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("チャット履歴")
+                .accessibilityIdentifier("ChatTranscript.history")
+                .accessibilityAction(named: Text("以前のメッセージを読み込む")) {
+                    beginLoading(.top)
+                    finishLoading(proxy)
+                }
+                .accessibilityAction(named: Text("以後のメッセージを読み込む")) {
+                    beginLoading(.bottom)
+                    finishLoading(proxy)
                 }
             }
             .onPreferenceChange(RuntimeChatBlockOffsets.self) { offsets = $0 }
             .overlay(alignment: .top) {
-                if viewModel.runtimeChatRead.isLoading { ProgressView().controlSize(.small).padding() }
+                if loadingEdge == .top || (loadingEdge == nil && viewModel.runtimeChatRead.isLoading) {
+                    CometLoader().padding(12).allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if loadingEdge == .bottom {
+                    CometLoader(label: "以後のメッセージを読み込み中")
+                        .padding(.bottom, bottomMargin + 12)
+                        .allowsHitTesting(false)
+                }
             }
             .overlay(alignment: .bottom) {
                 if detached || page?.newerCursor != nil || slice.hiddenNewerBlockCount > 0 {
@@ -148,14 +158,19 @@ struct RuntimeChatTranscriptView: View {
         .onChange(of: renderedSpan, initial: true) { _, span in
             control.renderedSpans[renderOwner] = span
         }
-        .onDisappear { control.renderedSpans.removeValue(forKey: renderOwner) }
+        .onDisappear {
+            loadingEdge = nil
+            jumpGeneration += 1
+            control.renderedSpans.removeValue(forKey: renderOwner)
+        }
+        .onChange(of: viewModel.executionID) { _, _ in
+            loadingEdge = nil
+            jumpGeneration += 1
+        }
         .task(id: viewModel.executionID) {
             do { try await viewModel.refreshRuntimeContent() }
             catch { viewModel.runtimeChatRead.error = error.localizedDescription }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("チャット履歴")
-        .accessibilityIdentifier("ChatTranscript.history")
     }
 
     @ViewBuilder
@@ -183,7 +198,10 @@ struct RuntimeChatTranscriptView: View {
     }
 
     private func load(_ edge: VerticalEdge, proxy: ScrollViewProxy) {
-        guard !viewModel.runtimeChatRead.isLoading else { return }
+        guard !viewModel.runtimeChatRead.isLoading, canLoad(edge) else {
+            loadingEdge = nil
+            return
+        }
         revealRequest = nil
         pendingJump = nil
         autoFollow.userInitiatedJump()
@@ -192,11 +210,13 @@ struct RuntimeChatTranscriptView: View {
         if edge == .top, slice.hiddenBlockCount > 0 {
             let keep = window.loadEarlier(in: blocks)
             if let keep { Task { @MainActor in proxy.scrollTo(keep, anchor: .top) } }
+            loadingEdge = nil
             return
         }
         if edge == .bottom, slice.hiddenNewerBlockCount > 0 {
             let keep = window.loadNewer(in: blocks)
             if let keep { Task { @MainActor in proxy.scrollTo(keep, anchor: .top) } }
+            loadingEdge = nil
             return
         }
         let cursor = edge == .top ? page?.olderCursor : page?.newerCursor
@@ -205,6 +225,7 @@ struct RuntimeChatTranscriptView: View {
         let generation = jumpGeneration
         let intent = RuntimeChatReadIntent(epoch: viewModel.runtimeChatRead.epoch, token: UUID())
         Task {
+            defer { if generation == jumpGeneration { loadingEdge = nil } }
             do {
                 try await viewModel.loadRuntimeChatRead(target: edge == .top ? .chatReadBefore(cursor: cursor) : .chatReadAfter(cursor: cursor),
                     intentToken: intent.token)
@@ -225,6 +246,7 @@ struct RuntimeChatTranscriptView: View {
     }
 
     private func jump(_ inputID: String, proxy: ScrollViewProxy) {
+        loadingEdge = nil
         revealRequest = nil
         let requestedJump = RuntimeChatPendingJump(itemID: inputID, epoch: viewModel.runtimeChatRead.epoch,
             intentToken: UUID())
@@ -253,6 +275,7 @@ struct RuntimeChatTranscriptView: View {
     }
 
     private func latest(_ proxy: ScrollViewProxy) {
+        loadingEdge = nil
         revealRequest = nil
         pendingJump = nil
         jumpGeneration += 1
@@ -270,6 +293,24 @@ struct RuntimeChatTranscriptView: View {
                 proxy.scrollTo("chat-bottom", anchor: .bottom)
             } catch { }
         }
+    }
+
+    private func canLoad(_ edge: VerticalEdge) -> Bool {
+        edge == .top ? page?.olderCursor != nil || slice.hiddenBlockCount > 0
+            : page?.newerCursor != nil || slice.hiddenNewerBlockCount > 0
+    }
+
+    private func beginLoading(_ edge: VerticalEdge) {
+        guard loadingEdge == nil, !viewModel.runtimeChatRead.isLoading, canLoad(edge) else { return }
+        jumpGeneration += 1
+        autoFollow.userInitiatedJump()
+        detached = true
+        loadingEdge = edge
+    }
+
+    private func finishLoading(_ proxy: ScrollViewProxy) {
+        guard let edge = loadingEdge else { return }
+        load(edge, proxy: proxy)
     }
 }
 

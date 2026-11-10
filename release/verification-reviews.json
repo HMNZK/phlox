@@ -1245,6 +1245,40 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "Independent final scenario review covers the 1.14.7 appcast addition and version bump, matching release notes, URL and runtime protocol. No required scenario or test weakened. Actual ZIP signature and size require the distribution gate; physical observations remain unverified. Full report: .verification/release-1.14.7-20261109/claude-final-review.txt."
+    },
+    {
+      "baseOID": "060176b50729260757c72c69d9a653f8f14b0324",
+      "targetOID": "c06da8a3410048e74eb7b128d93da91bc4b18f1f",
+      "diffSHA256": "08f17e9dc66f6dcbbec7333ed534da08f0db1b9165e0fda7973ffdf07ef99f99",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "decision": "needs_changes",
+      "reason": "要修正。既存catalogの影響ID集合は完全だが、Macの長会話カード・独立入力履歴の要件/手順/期待値/テストの対応が無い。さらに新RuntimeChatTranscriptViewはADR0217の60pt引いたままのComet表示とボタン廃止の契約を維持しない。旧履歴テストは新経路を通らない。AIレビューは実機合格・人の承認ではない。",
+      "reviewedAt": "2026-11-10T03:57:03.586441+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "c06da8a3410048e74eb7b128d93da91bc4b18f1f",
+      "diffSHA256": "08f17e9dc66f6dcbbec7333ed534da08f0db1b9165e0fda7973ffdf07ef99f99",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "decision": "needs_changes",
+      "reason": "要修正。既存catalogの影響ID集合は完全だが、Macの長会話カード・独立入力履歴の要件/手順/期待値/テストの対応が無い。さらに新RuntimeChatTranscriptViewはADR0217の60pt引いたままのComet表示とボタン廃止の契約を維持しない。旧履歴テストは新経路を通らない。AIレビューは実機合格・人の承認ではない。",
+      "reviewedAt": "2026-11-10T03:57:03.586441+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
     }
   ]
 }

@@ -280,6 +280,95 @@ struct ChatHistoryLoadingTests {
         try snapshot(host, name: grid ? "history-grid-expanded" : "history-single-expanded")
     }
 
+    @Test(arguments: [false, true])
+    func semanticHistoryKeepsPullLoaderUntilCancellation(grid: Bool) async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let model = try await semanticModel()
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: model,
+            presentationContext: grid ? .gridTile : .single))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { element(host, "ChatTranscript.history") != nil }
+        try await model.refreshRuntimeContent()
+        try await wait(host) { !model.runtimeChatRead.isLoading }
+        #expect(element(host, "ChatTranscript.loadEarlier") == nil)
+        #expect(element(host, "ChatTranscript.loadNewer") == nil)
+        let before = model.runtimeChatRead.page?.blocks.map(\.id)
+        let scroll = try #require(scrollViews(host).first)
+        let previousHeight = try #require(scroll.documentView).frame.height
+        let wheel = try startHistoryPull(host)
+        try await wait(host) { element(host, "ChatTranscript.historyLoading") != nil }
+        let progress = try #require(element(host, "ChatTranscript.historyLoading"))
+        #expect(attribute(progress, "accessibilityRole") as? NSAccessibility.Role == .busyIndicator)
+        #expect(model.runtimeChatRead.page?.blocks.map(\.id) == before)
+        #expect(scroll.documentView?.frame.height == previousHeight)
+        wheel.testPhase = .cancelled
+        NSApp.sendEvent(wheel)
+        try await wait(host) { element(host, "ChatTranscript.historyLoading") == nil }
+        #expect(model.runtimeChatRead.page?.blocks.map(\.id) == before)
+        #expect(scroll.documentView?.frame.height == previousHeight)
+    }
+
+    @Test(arguments: [false, true])
+    func semanticHistoryExpandsOnReleaseAndKeepsAnchor(grid: Bool) async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let model = try await semanticModel()
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: model,
+            presentationContext: grid ? .gridTile : .single))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { element(host, "ChatTranscript.history") != nil }
+        try await model.refreshRuntimeContent()
+        try await wait(host) { !model.runtimeChatRead.isLoading }
+        let scroll = try #require(scrollViews(host).first)
+        let wheel = try startHistoryPull(host)
+        try await wait(host) { element(host, "ChatTranscript.historyLoading") != nil }
+        let previousHeight = try #require(scroll.documentView).frame.height
+        wheel.testPhase = .ended
+        NSApp.sendEvent(wheel)
+        try await wait(host) { scroll.documentView!.frame.height > previousHeight }
+        try await wait(host) { scroll.contentView.bounds.minY > 0 }
+        let insertedHeight = try #require(scroll.documentView).frame.height - previousHeight
+        #expect(abs(scroll.contentView.bounds.minY - insertedHeight) < 3)
+        #expect(element(host, "ChatTranscript.historyLoading") == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func semanticHistoryExposesAccessibleHistoryActions(grid: Bool) async throws {
+        let restoreAccessibility = enableAccessibility()
+        defer { restoreAccessibility() }
+        let model = try await semanticModel()
+        let host = NSHostingView(rootView: ChatTranscriptView(viewModel: model,
+            presentationContext: grid ? .gridTile : .single))
+        let window = makeWindow(host)
+        defer { window.close() }
+        try await wait(host) { element(host, "ChatTranscript.history") != nil }
+        try await model.refreshRuntimeContent()
+        try await wait(host) { !model.runtimeChatRead.isLoading }
+        let scroll = try #require(scrollViews(host).first)
+        let previousHeight = try #require(scroll.documentView).frame.height
+        try loadEarlier(host)
+        try await wait(host) { scroll.documentView!.frame.height > previousHeight }
+        let history = try #require(element(host, "ChatTranscript.history"))
+        let actions = try #require(attribute(history, "accessibilityCustomActions") as? [NSAccessibilityCustomAction])
+        #expect(actions.contains { $0.name == "以後のメッセージを読み込む" })
+    }
+
+    private func semanticModel() async throws -> ChatSessionViewModel {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
+            agentRef: .builtin(.codex), workingDirectory: "/unused-history-test")
+        snapshot.transcript = items
+        snapshot.transcriptRevision = 7
+        let source = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        let model = ChatSessionViewModel(projection: source.makeRuntimeOverview()) { _, _ in .none }
+        model.runtimeSupportsChatReadModel = true
+        model.runtimeContentLoader = { try await source.runtimeChatReadContent(for: $0) }
+        try await model.refreshRuntimeContent()
+        return model
+    }
+
     @Test func applicationScrollEventStartsLoader() async throws {
         let restoreAccessibility = enableAccessibility()
         defer { restoreAccessibility() }

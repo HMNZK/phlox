@@ -1279,6 +1279,44 @@
         "id": "codex-independent-release_scenario_review"
       },
       "independent": true
+    },
+    {
+      "baseOID": "060176b50729260757c72c69d9a653f8f14b0324",
+      "targetOID": "91351f8e5a44d14dab099dbf5e2098e28869ea73",
+      "diffSHA256": "15d30e1685a70d1c8b831f2099779218eee83d0d2ff245303c4cc03e74fa2374",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "コード差分・シナリオ内容レビューpass（暫定コード確定記録）。成功後の窓更新と同じ同期区間でloadingEdgeを解除し、既存の世代/intent guard・失敗deferを維持する1行修正を確認。固定ソースはRelease57件greenの診断版と同一hashで、既存履歴/AX/位置/通信/全文/閾値の条件縮小なし。影響4IDは完全、旧6シナリオ/必須実機5件と品質・配布照合要件は不変。A→B診断の限界を明記し正式結果へ流用しない。AIレビューは913固定の正式性能・最終候補quality・配布/native/実機合格・人の承認を代行しない。",
+      "reviewedAt": "2026-11-10T05:09:41.217515+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "91351f8e5a44d14dab099dbf5e2098e28869ea73",
+      "diffSHA256": "15d30e1685a70d1c8b831f2099779218eee83d0d2ff245303c4cc03e74fa2374",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "コード差分・シナリオ内容レビューpass（暫定コード確定記録）。成功後の窓更新と同じ同期区間でloadingEdgeを解除し、既存の世代/intent guard・失敗deferを維持する1行修正を確認。固定ソースはRelease57件greenの診断版と同一hashで、既存履歴/AX/位置/通信/全文/閾値の条件縮小なし。影響4IDは完全、旧6シナリオ/必須実機5件と品質・配布照合要件は不変。A→B診断の限界を明記し正式結果へ流用しない。AIレビューは913固定の正式性能・最終候補quality・配布/native/実機合格・人の承認を代行しない。",
+      "reviewedAt": "2026-11-10T05:09:41.217515+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
     }
   ]
 }

@@ -5,11 +5,11 @@ import XCTest
 @MainActor
 final class IsolatedLaunchOptionsTests: XCTestCase {
     func testJapaneseDarkArgumentsReachApplication() async throws {
-        try await observeEmpty(language: "ja", theme: "dracula", expectedText: "プロジェクトを追加してください")
+        try await observeEmpty(language: "ja", theme: "dracula", expectedText: "メッセージ")
     }
 
     func testEnglishLightArgumentsReachApplication() async throws {
-        try await observeEmpty(language: "en", theme: "solarized-light", expectedText: "Add a project")
+        try await observeEmpty(language: "en", theme: "solarized-light", expectedText: "Message")
     }
 
     private func observeEmpty(language: String, theme: String, expectedText: String) async throws {
@@ -19,7 +19,9 @@ final class IsolatedLaunchOptionsTests: XCTestCase {
                         "-phlox.appLanguage", language, "-phlox.theme", theme]
         )
         let app = try isolated.application()
-        XCTAssertTrue(app.staticTexts[expectedText].waitForExistence(timeout: 15), "所有アプリの表示言語が一致しない")
+        let input = app.textViews["newChat.messageInput"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        XCTAssertEqual(input.label, expectedText, "所有アプリの表示言語が一致しない")
         try isolated.assertExclusiveOwnership()
         capture(app.windows.firstMatch, name: "appearance-\(language)-\(theme)")
     }

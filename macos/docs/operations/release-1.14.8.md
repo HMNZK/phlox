@@ -37,7 +37,7 @@ Macの版は1.14.8/build52、main前照合用のiOS候補は1.0/build21とする
 
 署名・公証・staple済みMac app/DMGと、同じappから作った最終Sparkle ZIP、照合用iOS IPAを175f25daから新しく作成し、capture-buildの入力・設定・成果物照合が成功した。Sparkle署名と検証も成功し、署名前後のZIP bytesは不変。最初の`c06da8a3`配布物は署名・公証に成功したが、修正前のため撤回済み・未公開（`withdrawn-c06.json`）。これを流用しない。
 
-証拠基準は統合作業worktreeの`.verification/release-evidence/1.14.8/mac52-ios21/`。通常mainゲートの新パス案は`release-command-proposed.txt`で、実機照合の`release`を維持している。現時点ではローカル設定を変更していない。旧版の実機省略例外は1.14.7の固定成果物だけに適用され、本版へ流用しない。必須実機5件は未実施で、人の合格証言は追加していない。
+証拠基準は統合作業worktreeの`.verification/release-evidence/1.14.8/mac52-ios21/`。通常mainゲートの配布物パスを1.14.8へ更新し、実機照合の`release`を維持した。設定は`release-command-normal-v8.txt`、旧設定は`release-command-before.txt`へ保存した。旧版の実機省略例外は1.14.7の固定成果物だけに適用され、本版へ流用しない。必須実機5件は未実施で、人の合格証言は追加していない。
 
 配布物・最終フィード・独立レビュー・統合候補の検査を終えてから公開する。参照先ZIPを先行配置し、検査済みmain/feedを反映してから同じmainコミットを指すGitHub ReleaseとDMGを公開し、URL・版・署名・Pages反映を確認する。利用中のアプリや常駐サービスは自動で終了・差替えしない。新しいカード取得機能は対応サービスへの更新後に有効になる。
 

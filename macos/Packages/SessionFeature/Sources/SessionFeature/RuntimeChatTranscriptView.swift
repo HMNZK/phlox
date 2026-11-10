@@ -238,6 +238,7 @@ struct RuntimeChatTranscriptView: View {
                 if edge == .top {
                     _ = window.loadEarlier(in: blocks)
                 } else { _ = window.loadNewer(in: blocks) }
+                loadingEdge = nil
                 await Task.yield()
                 guard generation == jumpGeneration, intent.isApplied(in: viewModel.runtimeChatRead) else { return }
                 if let anchor, slice.blocks.contains(where: { $0.id == anchor }) {

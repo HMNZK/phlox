@@ -1,8 +1,8 @@
 # Phlox 1.14.8（build 52）
 
-## 状態
+## 対象と基準
 
-公開準備中。Macの版は1.14.8/build52、main前照合用のiOS候補は1.0/build21とする。利用者向けの正本は`release/notes-v1.14.8.md`で、同じ内容をSparkleフィードへ英語・日本語の順で掲載する。iOS配布先の公開は含めない。dev/mainと公開先はまだ更新していない。
+Macの版は1.14.8/build52、main前照合用のiOS候補は1.0/build21とする。利用者向けの正本は`release/notes-v1.14.8.md`で、同じ内容をSparkleフィードへ英語・日本語の順で掲載する。iOS配布先の公開は含めない。統合・公開の実状態は共通ツールの記録とGitHub Releaseで確認する。
 
 製品コードの固定点は`91351f8e`。カード・独立入力履歴・状態と時計の先行検証は[delivery 0231](../delivery/0231-semantic-chat-read-model.md)。リリース独立レビューで見つかった履歴操作と切替時の展開要求を修正し、コード差分のdev/main両比較はpass。最終フィード差分と統合候補は別途検査する。
 
@@ -35,8 +35,18 @@
 
 作業ブランチ→dev→mainは共通マージツールを使う。古いverify必須の説明はAGENTS.mdと既存運用へ合わせて訂正し、品質・署名・実機・配布物照合は維持する。追加の自動シナリオ2件も既存の必須実機5件を変更しない。
 
-署名・公証・staple済みMac app/DMGと、同じappから作る最終Sparkle ZIP、照合用iOS IPAを最終コードから新しく作る。最初の`c06da8a3`配布物は署名・公証に成功したが、修正前のため撤回済み・未公開（`withdrawn-c06.json`）。これを流用しない。
+署名・公証・staple済みMac app/DMGと、同じappから作った最終Sparkle ZIP、照合用iOS IPAを175f25daから新しく作成し、capture-buildの入力・設定・成果物照合が成功した。Sparkle署名と検証も成功し、署名前後のZIP bytesは不変。最初の`c06da8a3`配布物は署名・公証に成功したが、修正前のため撤回済み・未公開（`withdrawn-c06.json`）。これを流用しない。
 
 証拠基準は統合作業worktreeの`.verification/release-evidence/1.14.8/mac52-ios21/`。通常mainゲートの新パス案は`release-command-proposed.txt`で、実機照合の`release`を維持している。現時点ではローカル設定を変更していない。旧版の実機省略例外は1.14.7の固定成果物だけに適用され、本版へ流用しない。必須実機5件は未実施で、人の合格証言は追加していない。
 
-配布物・最終フィード・独立レビュー・統合候補の検査を終えてからGitHub Release、Sparkle ZIP、更新フィードを公開し、URL・版・署名・Pages反映を確認する。利用中のアプリや常駐サービスは自動で終了・差替えしない。新しいカード取得機能は対応サービスへの更新後に有効になる。
+配布物・最終フィード・独立レビュー・統合候補の検査を終えてから公開する。参照先ZIPを先行配置し、検査済みmain/feedを反映してから同じmainコミットを指すGitHub ReleaseとDMGを公開し、URL・版・署名・Pages反映を確認する。利用中のアプリや常駐サービスは自動で終了・差替えしない。新しいカード取得機能は対応サービスへの更新後に有効になる。
+
+## 固定した配布物
+
+| 配布物 | SHA-256 |
+|---|---|
+| Mac 1.14.8/build52 DMG | `433296a6e247883db074bcddbd822ff9f83eb2337743c81d1c219b806a2194ce` |
+| Sparkle ZIP | `582432ad0ef76a1a56b26a42a1ed9b907a6ae59f01c4f7de085a1d06f14276cc` |
+| iOS 1.0/build21 IPA | `ad363ae5c1fc71328f8ffb1de8df850144dce3552a53d939eec8a27465bfafc1` |
+
+成果物と来歴は証拠基準の`distribution-fixed/`。署名・公証・配布物の一致を、人による実機操作の合格とは扱わない。

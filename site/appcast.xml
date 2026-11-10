@@ -3,6 +3,37 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.8</title>
+            <pubDate>Tue, 10 Nov 2026 05:33:49 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[
+<h3>Fixed</h3>
+<ul>
+<li>Status cards remain available in long conversations, including older work and tasks.</li>
+<li>Input history stays available above the message field, with direct navigation to older inputs.</li>
+<li>Work outside planned tasks now shows its actual state. Running timers advance, and short command durations are easier to distinguish.</li>
+<li>Conversation updates preserve expanded details and reading position more reliably.</li>
+</ul>
+<p>Background service changes take effect after the service is restarted. Updating the app keeps running conversations alive.</p>
+]]></description>
+            <description xml:lang="ja"><![CDATA[
+<h3>修正</h3>
+<ul>
+<li>長い会話でも、過去の作業やタスクを状態カードで確認できるようにしました。</li>
+<li>入力欄右上から入力履歴を開き、古い入力へ直接移動できるようにしました。</li>
+<li>タスク外の作業の状態と、実行中のタイマー表示を修正しました。短いコマンドの所要時間も見分けやすくしました。</li>
+<li>会話の更新時に、展開した詳細や読んでいる位置を保ちやすくしました。</li>
+</ul>
+<p>常駐サービス側の修正は、サービスの再起動後に反映されます。アプリを更新しても実行中の会話は継続します。</p>
+]]></description>
+            <sparkle:version>52</sparkle:version>
+            <sparkle:shortVersionString>1.14.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.8.zip" length="33212356" type="application/octet-stream" sparkle:edSignature="+THSmaexNwzfAr3qOPuPOy9h9EiBZyZMoxNWsffo0V3yzKHUzEkcMXdXc0k4ahzm/Ktm1rsAoT8TkV71wMpBDA=="/>
+        </item>
+        <item>
             <title>1.14.7</title>
             <pubDate>Mon, 09 Nov 2026 06:24:03 GMT</pubDate>
             <description xml:lang="en"><![CDATA[

@@ -160,11 +160,15 @@ struct RuntimeChatTranscriptView: View {
         }
         .onDisappear {
             loadingEdge = nil
+            pendingJump = nil
+            revealRequest = nil
             jumpGeneration += 1
             control.renderedSpans.removeValue(forKey: renderOwner)
         }
         .onChange(of: viewModel.executionID) { _, _ in
             loadingEdge = nil
+            pendingJump = nil
+            revealRequest = nil
             jumpGeneration += 1
         }
         .task(id: viewModel.executionID) {

@@ -171,6 +171,39 @@ import Testing
         #expect(visible)
     }
 
+    @Test func changingExecutionDoesNotReplayAnOldItemReveal() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let pair = try await projected(items: [
+            .userMessage(id: "input", text: "実行の切替", timestamp: started),
+            .taskList(id: "tasks", tasks: [AgentTaskItem(id: "stage-0", title: "工程", status: .inProgress)], timestamp: started),
+            .commandExecution(id: "live-command", command: "echo live", output: "前の実行の出力",
+                timestamp: started, completedAt: nil, intent: nil),
+        ], running: true)
+        let closed = try await withHosted(RevealTranscriptHost(viewModel: pair.projected)) { hosting in
+            try #require(try await waitForLabel("echo live", role: NSAccessibility.Role.button.rawValue, in: hosting))
+            try await pair.projected.refreshRuntimeContent()
+            try await press(label: "詳細へ移動", in: hosting)
+            let opened = try await waitForLabel("前の実行の出力", in: hosting)
+            try #require(opened)
+            try await press(label: "echo live", in: hosting)
+            try #require(try await waitForAbsentLabel("前の実行の出力", in: hosting))
+            var changed = pair.source.makeRuntimeSnapshot()
+            changed.executionID = UUID()
+            changed.transcript[2] = .commandExecution(id: "live-command", command: "echo live", output: "新しい実行の出力",
+                timestamp: started, completedAt: nil, intent: nil)
+            let updated = ChatSessionViewModel(projection: changed) { _, _ in .none }
+            pair.projected.runtimeContentLoader = { try await updated.runtimeChatReadContent(for: $0) }
+            try pair.projected.applyRuntimeOverview(updated.makeRuntimeOverview())
+            try await pair.projected.refreshRuntimeContent()
+            try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
+            try await pair.projected.loadRuntimeActionItems("input", actionID: "live-command")
+            try #require(try await waitForLabel("echo live", role: NSAccessibility.Role.button.rawValue, in: hosting))
+            try #require(try await waitForAbsentLabel("新しい実行の出力", in: hosting))
+            return elements(in: hosting).contains { $0.text.contains("echo live") }
+        }
+        #expect(closed)
+    }
+
     @Test func unrelatedOutputDoesNotResetThePageOfAnOlderCursorCommandGroup() async throws {
         let started = Date(timeIntervalSince1970: 1_800_000_000)
         let commands = (0..<120).map { number in
@@ -412,6 +445,22 @@ import Testing
         }
     }
 
+    private struct RevealTranscriptHost: View {
+        let viewModel: ChatSessionViewModel
+        @State private var targetID: String?
+
+        var body: some View {
+            VStack {
+                Button("詳細へ移動") { targetID = "live-command" }
+                RuntimeChatTranscriptView(viewModel: viewModel, requestedScrollTarget: $targetID,
+                    currentInputPositionID: .constant(nil), contentMaxWidth: nil, bottomMargin: 0,
+                    context: .single, showsThinkingIndicator: true,
+                    itemActions: RuntimeChatItemActions(restart: nil, close: nil, isRestarting: false))
+            }
+            .environment(\.locale, Locale(identifier: "ja"))
+        }
+    }
+
     private func transcript(_ projected: ChatSessionViewModel) -> some View {
         RuntimeChatTranscriptView(viewModel: projected, requestedScrollTarget: .constant(nil),
             currentInputPositionID: .constant(nil), contentMaxWidth: nil, bottomMargin: 0,
@@ -560,7 +609,7 @@ import Testing
         for _ in 0..<20 {
             if stage.rows.contains("AgentStatusCard.row.outside-command-0") { break }
             try await waitForRuntimeReadIdle(projected)
-            try await press(identifier: "ChatTranscript.loadEarlier", in: hosting)
+            try performHistoryAction("以前のメッセージを読み込む", in: hosting)
             stage = try await waitForCompleteCardStage(projected, in: hosting, after: stage)
             visited.formUnion(stage.rows)
         }
@@ -568,12 +617,21 @@ import Testing
         for _ in 0..<20 {
             if stage.rows.contains("AgentStatusCard.row.outside-command-32") { break }
             try await waitForRuntimeReadIdle(projected)
-            try await press(identifier: "ChatTranscript.loadNewer", in: hosting)
+            try performHistoryAction("以後のメッセージを読み込む", in: hosting)
             stage = try await waitForCompleteCardStage(projected, in: hosting, after: stage)
             visited.formUnion(stage.rows)
         }
         try #require(stage.rows.contains("AgentStatusCard.row.outside-command-32"), "実UIで最新入力へ戻る")
         return visited
+    }
+
+    private func performHistoryAction(_ name: String, in hosting: NSView) throws {
+        let history = try #require(elements(in: hosting).first { $0.id == "ChatTranscript.history" })
+        let selector = NSSelectorFromString("accessibilityCustomActions")
+        try #require(history.object.responds(to: selector))
+        let actions = try #require(history.object.perform(selector)?.takeUnretainedValue() as? [NSAccessibilityCustomAction])
+        let action = try #require(actions.first { $0.name == name })
+        try #require(action.handler?() == true)
     }
 
     private func waitForAbsentLabel(_ text: String, in hosting: NSView) async throws -> Bool {

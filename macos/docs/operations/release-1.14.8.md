@@ -51,9 +51,9 @@ Macの版は1.14.8/build52、main前照合用のiOS候補は1.0/build21とする
 
 作業ブランチ→dev→mainは共通マージツールを使う。古いverify必須の説明はAGENTS.mdと既存運用へ合わせて訂正し、品質・署名・実機・配布物照合は維持する。追加の自動シナリオ2件も既存の必須実機5件を変更しない。
 
-署名・公証・staple済みMac app/DMGと、同じappから作った最終Sparkle ZIP、照合用iOS IPAを175f25daから新しく作成し、capture-buildの入力・設定・成果物照合が成功した。Sparkle署名と検証も成功し、署名前後のZIP bytesは不変。最初の`c06da8a3`配布物は署名・公証に成功したが、修正前のため撤回済み・未公開（`withdrawn-c06.json`）。これを流用しない。
+署名・公証・staple済みMac app/DMGと、同じappから作った最終Sparkle ZIP、照合用iOS IPAを、実画面の受入完了後の`36a0b918`から再作成した。capture-buildの入力・設定・成果物照合、Sparkle署名と検証も成功し、署名前後のZIP bytesは不変。`175f25da`の旧候補は今回の追加修正前なので採用しない。最初の`c06da8a3`配布物も撤回済み・未公開（`withdrawn-c06.json`）。
 
-証拠基準は統合作業worktreeの`.verification/release-evidence/1.14.8/mac52-ios21/`。通常mainゲートの配布物パスを1.14.8へ更新し、実機照合の`release`を維持した。設定は`release-command-normal-v8.txt`、旧設定は`release-command-before.txt`へ保存した。旧版の実機省略例外は1.14.7の固定成果物だけに適用され、本版へ流用しない。必須実機5件は未実施で、人の合格証言は追加していない。
+証拠基準は統合作業worktreeの`.verification/release-evidence/1.14.8/mac52-ios21/`。通常mainゲートの配布物パスを新候補へ更新し、実機照合の`release`を維持した。設定は`release-command-normal-v9.txt`、旧設定は`release-command-before.txt`へ保存した。旧版の実機省略例外は1.14.7の固定成果物だけに適用され、本版へ流用しない。必須実機5件は未実施で、人の合格証言は追加していない。
 
 配布物・最終フィード・独立レビュー・統合候補の検査を終えてから公開する。参照先ZIPを先行配置し、検査済みmain/feedを反映してから同じmainコミットを指すGitHub ReleaseとDMGを公開し、URL・版・署名・Pages反映を確認する。利用中のアプリや常駐サービスは自動で終了・差替えしない。新しいカード取得機能は対応サービスへの更新後に有効になる。
 
@@ -61,8 +61,8 @@ Macの版は1.14.8/build52、main前照合用のiOS候補は1.0/build21とする
 
 | 配布物 | SHA-256 |
 |---|---|
-| Mac 1.14.8/build52 DMG | `433296a6e247883db074bcddbd822ff9f83eb2337743c81d1c219b806a2194ce` |
-| Sparkle ZIP | `582432ad0ef76a1a56b26a42a1ed9b907a6ae59f01c4f7de085a1d06f14276cc` |
-| iOS 1.0/build21 IPA | `ad363ae5c1fc71328f8ffb1de8df850144dce3552a53d939eec8a27465bfafc1` |
+| Mac 1.14.8/build52 DMG | `8c38f0d27588c27be342474cf429be652be675dff3446d9bea7728eaec57d77d` |
+| Sparkle ZIP | `dbceed629aaada7f84219cabfb6386c6fb58ccbad49b5dd019abf0d0e99e7064` |
+| iOS 1.0/build21 IPA | `2018e7cd052199310aebb1a622832fee89de99d30830c5329df9b17202953047` |
 
-成果物と来歴は証拠基準の`distribution-fixed/`。署名・公証・配布物の一致を、人による実機操作の合格とは扱わない。
+成果物と来歴は証拠基準の`distribution-native-accepted/`。iPhoneへの旧候補の導入・起動・表示は成功したが、新候補への再導入は開発用無線接続が利用不可（CoreDevice 4016）で未完了。端末一覧でもtunnel unavailable・ddiServicesAvailable falseを確認し、失敗後のアプリ情報取得も同じ理由で拒否された。Xcodeの端末画面は操作ツールの起動不良で確認できなかった。署名・公証・配布物の一致や旧候補の表示を、新候補の導入・人による実機操作の合格とは扱わない。

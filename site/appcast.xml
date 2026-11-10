@@ -4,7 +4,7 @@
         <title>Phlox</title>
         <item>
             <title>1.14.8</title>
-            <pubDate>Tue, 10 Nov 2026 05:33:49 GMT</pubDate>
+            <pubDate>Tue, 10 Nov 2026 10:31:33 GMT</pubDate>
             <description xml:lang="en"><![CDATA[
 <h3>Fixed</h3>
 <ul>
@@ -33,7 +33,7 @@
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
             <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
-            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.8.zip" length="33212356" type="application/octet-stream" sparkle:edSignature="+THSmaexNwzfAr3qOPuPOy9h9EiBZyZMoxNWsffo0V3yzKHUzEkcMXdXc0k4ahzm/Ktm1rsAoT8TkV71wMpBDA=="/>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.8.zip" length="33212808" type="application/octet-stream" sparkle:edSignature="ZGCY95v7syni/ava99Zuzsqa27wRE++u9AdUVn9+BSqj3HC7jStMcawUdVLvJ+Fz01WiJFUm06bH1QjI3rMRDw=="/>
         </item>
         <item>
             <title>1.14.7</title>

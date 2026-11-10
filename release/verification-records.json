@@ -4,15 +4,15 @@
     {
       "buildID": "macos-1.14.8-52",
       "provenance": {
-        "path": "distribution-fixed/macos-build.json",
-        "sha256": "b0a1644413925b934dfcd868e825c4275b280f916302df80c116c4a1eed51e74"
+        "path": "distribution-native-accepted/macos-build.json",
+        "sha256": "9de40bca2d87ecd7845da1865869d0b931bbc95806f794eb19799cb669f4b0a3"
       }
     },
     {
       "buildID": "ios-1.0-21",
       "provenance": {
-        "path": "distribution-fixed/ios-build.json",
-        "sha256": "bc48eb46a8ae92a81b186cee07f96c453c2c783d4d7f6d7bf27dff1b6fd0bc0d"
+        "path": "distribution-native-accepted/ios-build.json",
+        "sha256": "70da4ef8de18d0998019bb2b2d603471b3b5be2d4b61c31b76c7c0e675132fff"
       }
     }
   ],

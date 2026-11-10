@@ -1355,6 +1355,42 @@
         "id": "codex-independent-release_scenario_review"
       },
       "independent": true
+    },
+    {
+      "baseOID": "fbb9ec0a86da7d53a81cdfd63917e9dfbe817f10",
+      "targetOID": "705391af92f8338fe9c85ec326fde47781db05bb",
+      "diffSHA256": "c21b3313a5a50d5f6f6068fbd57ed632e65224c38ec0087c1d5083d2f804093a",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-10T10:39:25.159773+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "semantic-chat-read"
+      ],
+      "reason": "独立したコード・シナリオ内容レビューpass。正本review-inputの固定差分を照合し、影響ID全件とSwift等の未分類0件、要求/手順/期待値/必須実機5件の維持を確認。b674の既存UIテスト分類漏れは705で対応パス/テスト参照の追加により解消。既レビュー36/v5の所有確認・fail-closed保持・通常設定隔離・10秒連続時計・手動開閉・notice保持は同一ソース、原ログ8件成功を確認済み。履歴/カードの既存固定コード・性能評価の限定範囲も維持する。独立5検査で36由来と705最終入力manifest・fresh Mac/iOS来歴/設定/外部入力/DMG/ZIP/IPAハッシュ、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。devices/executions空、正本実機ゲートのnot_run拒否と通常releaseCommand v9の実機必須を確認。本passは独立code/scenario reviewのみであり、統合候補quality全体・現候補の新規性能実測・Release実機5件・新iOS導入・公開成功・人の承認を主張しない。"
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "705391af92f8338fe9c85ec326fde47781db05bb",
+      "diffSHA256": "fc9a174bf527b52b9008368a1a85206cda660b2c6f6bf53500b282f141ed8448",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-10T10:39:25.159773+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reason": "独立したコード・シナリオ内容レビューpass。正本review-inputの固定差分を照合し、影響ID全件とSwift等の未分類0件、要求/手順/期待値/必須実機5件の維持を確認。b674の既存UIテスト分類漏れは705で対応パス/テスト参照の追加により解消。既レビュー36/v5の所有確認・fail-closed保持・通常設定隔離・10秒連続時計・手動開閉・notice保持は同一ソース、原ログ8件成功を確認済み。履歴/カードの既存固定コード・性能評価の限定範囲も維持する。独立5検査で36由来と705最終入力manifest・fresh Mac/iOS来歴/設定/外部入力/DMG/ZIP/IPAハッシュ、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。devices/executions空、正本実機ゲートのnot_run拒否と通常releaseCommand v9の実機必須を確認。本passは独立code/scenario reviewのみであり、統合候補quality全体・現候補の新規性能実測・Release実機5件・新iOS導入・公開成功・人の承認を主張しない。"
     }
   ]
 }

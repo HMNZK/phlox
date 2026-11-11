@@ -1491,6 +1491,44 @@
         "semantic-chat-read"
       ],
       "reason": "表示範囲末端消失からの復帰、回帰テストred/green、配布来歴・版・英日ノート・更新フィード、同一入力でのみ全体品質結果を再利用する条件を独立レビューし、correctnessと要件の指摘なし。テスト/ビルドの再実行はしていない。実機5項目の人の観測証言は含まない。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/review_card_change"
+      },
+      "independent": true,
+      "decision": "pass",
+      "baseOID": "4b0b6f7dbc709d206ff57d8d0d0fc69606c0b056",
+      "targetOID": "911aea10aede97a5b64915a95a0d59521f90f945",
+      "diffSHA256": "74b54fa31708a87fa78050a01a906e928e4aa3917f1f173621f0cdb29bed8f6b",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation",
+        "physical-session-activity",
+        "semantic-chat-read"
+      ],
+      "reviewedAt": "2026-11-11T16:24:11Z",
+      "reason": "静的内容レビュー合格。固定差分42件、未分類0、必須集合の減少0。既レビューの製品修正を維持し、ADR0231とシナリオrevision3の思考限定例外も整合する。Mac/iOS来歴の入力manifest、3成果物hash、appcast版・署名メタデータ・サイズ・英日ノート・protocol1〜1が一致。quality固定worktreeと最終候補の入力manifestおよびscenarioSHAも一致。ただし新qualityの合否は未確認。前版実機省略は流用せずdevices/executions空、必須実機5項目は未充足。本判定はquality・releaseゲート通過を意味しない。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/review_card_change"
+      },
+      "independent": true,
+      "decision": "pass",
+      "baseOID": "359a8a7b72ae908e944bd0a21dfa778623b3a1e0",
+      "targetOID": "911aea10aede97a5b64915a95a0d59521f90f945",
+      "diffSHA256": "74b54fa31708a87fa78050a01a906e928e4aa3917f1f173621f0cdb29bed8f6b",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation",
+        "physical-session-activity",
+        "semantic-chat-read"
+      ],
+      "reviewedAt": "2026-11-11T16:24:11Z",
+      "reason": "静的内容レビュー合格。dev基点と同一の正規化差分42件、未分類0、必須集合の減少0。既レビューの製品修正を維持し、ADR0231とシナリオrevision3の思考限定例外も整合する。Mac/iOS来歴の入力manifest、3成果物hash、appcast版・署名メタデータ・サイズ・英日ノート・protocol1〜1が一致。quality固定worktreeと最終候補の入力manifestおよびscenarioSHAも一致。ただし新qualityの合否は未確認。前版実機省略は流用せずdevices/executions空、必須実機5項目は未充足。本判定はquality・releaseゲート通過を意味しない。"
     }
   ]
 }

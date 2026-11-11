@@ -46,7 +46,7 @@ struct SemanticChatReadMutationTests {
         }
     }
 
-    @Test func reasoningBeforeTheFirstWorkRemainsAboveTheCardDuringIncrementalAppend() async throws {
+    @Test func reasoningBeforeTheFirstWorkUpdatesItsCardDuringIncrementalAppend() async throws {
         let client = ReadClient()
         defer { client.finish() }
         let source = makeOwner(client)
@@ -63,11 +63,17 @@ struct SemanticChatReadMutationTests {
         let historyAfterResponse = try await source.runtimeChatReadContent(for: request(source, .inputHistory(before: nil)))
         guard case .inputHistoryPage(let historyBefore) = historyBeforeResponse,
               case .inputHistoryPage(let historyAfter) = historyAfterResponse else { Issue.record("入力履歴ではありません"); return }
-        #expect(page.blocks.map(\.id) == [inputID, "before-work", "status-card-\(inputID)"])
-        #expect(page.revision != before.revision)
+        #expect(page.blocks.map(\.id) == [inputID, "status-card-\(inputID)"])
+        #expect(page.revision == before.revision)
         #expect(historyAfter.revision == historyBefore.revision)
         let cardRows = try await rows(source, inputID)
-        #expect(cardRows.rows.isEmpty)
+        #expect(cardRows.rows.map(\.id) == ["outside-before-work"])
+        let beforeCard = try #require(before.blocks.compactMap { if case .card(let card) = $0.content { card } else { nil } }.first)
+        let afterCard = try #require(page.blocks.compactMap { if case .card(let card) = $0.content { card } else { nil } }.first)
+        #expect(afterCard.contentRevision != beforeCard.contentRevision)
+        let details = try await entries(source, inputID, "outside-before-work", cursor: nil)
+        #expect(details.entries.map(\.id) == ["before-work"])
+        #expect(details.entries.contains { if case .item(.inline(.reasoning(_, "検討します", _))) = $0 { true } else { false } })
     }
 
     @Test func anAdditionalInputClosesThePreviousCardAndStartsANewCard() async throws {

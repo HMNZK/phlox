@@ -422,14 +422,17 @@ enum AgentStatusCardBuilder {
         let body = items[(segment.range.lowerBound + 1)..<segment.range.upperBound]
         var boundary = body.endIndex
         var firstReply = body.endIndex
-        var hasWork = false
+        var hasActivity = false
         var hasSnapshot = false
         for index in body.indices {
             switch body[index] {
             case .fileChange(_, let changes, _, _) where changes.isEmpty:
                 continue
             case .commandExecution, .fileChange, .subAgentMarker:
-                hasWork = true
+                hasActivity = true
+                boundary = min(boundary, index)
+            case .reasoning where isNonEmptyReasoning(body[index]):
+                hasActivity = true
                 boundary = min(boundary, index)
             case .taskList:
                 hasSnapshot = true
@@ -440,34 +443,32 @@ enum AgentStatusCardBuilder {
                 break
             }
         }
-        let hasCard = hasWork || (segment.running && firstReply == body.endIndex)
+        let hasCard = hasActivity || (segment.running && firstReply == body.endIndex)
             || (hasSnapshot && !shownTasks(body.compactMap(Snapshot.init), baseline: segment.baseline).isEmpty)
         guard hasCard else { return groupedBlockCount(items[segment.range]) }
 
         var above = 0
         for index in body.indices[..<boundary] {
             switch body[index] {
-            case .agentMessage, .reasoning: above += 1
+            case .agentMessage: above += 1
             case .turnCost where index < firstReply: above += 1
             default: break
             }
         }
         var below = 0
-        if !segment.running {
-            var index = body.endIndex
-            scan: while index > boundary {
-                index -= 1
-                switch body[index] {
-                case .fileChange(_, let changes, _, _) where changes.isEmpty:
-                    continue
-                case .turnCost:
-                    below += 1
-                case .agentMessage:
-                    below += 1
-                    break scan
-                default:
-                    break scan
-                }
+        var index = body.endIndex
+        scan: while index > boundary {
+            index -= 1
+            switch body[index] {
+            case .fileChange(_, let changes, _, _) where changes.isEmpty:
+                continue
+            case .turnCost:
+                below += 1
+            case .agentMessage:
+                below += 1
+                break scan
+            default:
+                break scan
             }
         }
         // 起点の入力・上の文章・カード・下の返答と使用量（どれもコマンドではないので 1 件 1 ブロック）。
@@ -567,28 +568,29 @@ enum AgentStatusCardBuilder {
             let shown = AgentStatusCardBuilder.shownTasks(snapshots, baseline: baseline)
             self.shown = shown
 
-            // 作業もタスクも無ければカードを出さない。実行中は、返答が届き始めるまで見出しだけのカードを出す（FR-2）。
+            // 思考・作業・タスクがあれば完了後もカードに残す。実行中は返答前なら見出しだけ出す。
             let firstReply = body.firstIndex { if case .agentMessage = $0 { true } else { false } }
-            hasCard = !shown.isEmpty || body.contains(where: AgentStatusCardBuilder.isWork) || (running && firstReply == nil)
+            hasCard = !shown.isEmpty || body.contains {
+                AgentStatusCardBuilder.isWork($0) || AgentStatusCardBuilder.isNonEmptyReasoning($0)
+            } || (running && firstReply == nil)
 
-            // 上: 最初の作業・スナップショットより前の文章と思考。前の入力の使用量（superseded の後に
+            // 上: 最初の思考・作業・スナップショットより前の文章。前の入力の使用量（superseded の後に
             // 追記された turnCost）も、最初の返答より前ならカードの中に入れず上に出す（B3 指摘 8）。
-            let boundary = body.firstIndex { AgentStatusCardBuilder.isWork($0) || Snapshot($0) != nil } ?? body.endIndex
+            let boundary = body.firstIndex {
+                AgentStatusCardBuilder.isWork($0) || AgentStatusCardBuilder.isNonEmptyReasoning($0) || Snapshot($0) != nil
+            } ?? body.endIndex
             above = body.indices[..<boundary].filter { index in
                 switch body[index] {
-                case .agentMessage, .reasoning: true
+                case .agentMessage: true
                 case .turnCost: index < (firstReply ?? body.endIndex)
                 default: false
                 }
             }
 
-            // 下: 実行中でないカードの、末尾の使用量と、その直前の最後の返答（FR-18）。終わり方の記録が
-            // 無い入力（古い会話・アプリの終了）でも同じ（2026-11-07 ユーザー決定。返答を閉じたカードに隠さない）。
+            // 下: 末尾の返答候補と使用量は生成中からカード外へ出す。後続作業が来れば途中本文として戻る。
             var belowStart = body.endIndex
-            if !running {
-                while belowStart > boundary, case .turnCost = body[belowStart - 1] { belowStart -= 1 }
-                if belowStart > boundary, case .agentMessage = body[belowStart - 1] { belowStart -= 1 }
-            }
+            while belowStart > boundary, case .turnCost = body[belowStart - 1] { belowStart -= 1 }
+            if belowStart > boundary, case .agentMessage = body[belowStart - 1] { belowStart -= 1 }
             self.belowStart = belowStart
         }
 
@@ -751,6 +753,13 @@ enum AgentStatusCardBuilder {
         case .commandExecution, .fileChange, .subAgentMarker: true
         default: false
         }
+    }
+
+    static func isNonEmptyReasoning(_ item: ChatItem) -> Bool {
+        if case .reasoning(_, let text, _) = item {
+            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return false
     }
 
     static func isEmptyFileChange(_ item: ChatItem) -> Bool {

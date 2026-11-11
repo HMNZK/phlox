@@ -420,10 +420,8 @@ import Testing
             .reasoning(id: "second-thought", text: String(repeating: "二つ目の思考本文。", count: 2_000) + "SECOND_THOUGHT_END", timestamp: started),
         ])
         let page = try #require(pair.projected.runtimeChatRead.page)
-        let references = page.blocks.compactMap { block -> SessionRuntimeChatItemReference? in
-            if case .item(let reference) = block.content, reference.id != "input" { reference }
-            else { nil }
-        }
+        let references = try await cardReasoningReferences(pair.source)
+        #expect(page.blocks.map(\.id) == ["input", "status-card-input"])
         #expect(references.count == 2)
 
         let bothVisible = try await withHosted(DeferredReasoningHost(viewModel: pair.projected, references: references)) { hosting in
@@ -445,24 +443,13 @@ import Testing
             .userMessage(id: "input", text: "更新中の思考を読む", timestamp: started, attachments: []),
             .reasoning(id: "changing-thought", text: "OLD_THOUGHT_BEGIN " + String(repeating: "古い本文。", count: 2_000), timestamp: started),
         ])
-        let oldPage = try #require(pair.projected.runtimeChatRead.page)
-        let oldReference = try #require(oldPage.blocks.compactMap { block -> SessionRuntimeChatItemReference? in
-            if case .item(let reference) = block.content, reference.id == "changing-thought" { reference } else { nil }
-        }.first)
+        let oldReference = try #require(try await cardReasoningReferences(pair.source).first)
         var changed = pair.source.makeRuntimeSnapshot()
         changed.transcript[1] = .reasoning(id: "changing-thought",
             text: "NEW_THOUGHT_BEGIN " + String(repeating: "更新された本文。", count: 2_000) + "LATEST_THOUGHT_END", timestamp: started)
         changed.transcriptRevision = 8
         let updated = ChatSessionViewModel(projection: changed) { _, _ in .none }
-        let reply = try await updated.runtimeChatReadContent(for: .init(sessionID: updated.id,
-            executionID: updated.executionID, target: .chatReadTail))
-        guard case .chatReadPage(let newPage) = reply else {
-            Issue.record("更新後の会話ページが必要")
-            return
-        }
-        let newReference = try #require(newPage.blocks.compactMap { block -> SessionRuntimeChatItemReference? in
-            if case .item(let reference) = block.content, reference.id == "changing-thought" { reference } else { nil }
-        }.first)
+        let newReference = try #require(try await cardReasoningReferences(updated).first)
         var firstRequest = true
         var held: CheckedContinuation<SessionRuntimeContentResponse, Error>?
         var heldReply: SessionRuntimeContentResponse?
@@ -578,6 +565,17 @@ import Testing
             context: .single, showsThinkingIndicator: true,
             itemActions: RuntimeChatItemActions(restart: nil, close: nil, isRestarting: false))
             .environment(\.locale, Locale(identifier: "ja"))
+    }
+
+    private func cardReasoningReferences(_ source: ChatSessionViewModel) async throws -> [SessionRuntimeChatItemReference] {
+        let rowsReply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatCardRows(inputID: "input", cursor: nil)))
+        guard case .cardRowsPage(let page) = rowsReply else { throw SessionRuntimeContentError.invalidRequest }
+        let row = try #require(page.rows.first)
+        let entriesReply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatRowEntries(inputID: "input", rowID: row.id, cursor: nil)))
+        guard case .cardEntriesPage(let entries) = entriesReply else { throw SessionRuntimeContentError.invalidRequest }
+        return entries.entries.compactMap { if case .item(let reference) = $0 { reference } else { nil } }
     }
 
     private func projected(items: [ChatItem], agent: AgentKind = .codex, running: Bool = false, sessionID: SessionID = SessionID())

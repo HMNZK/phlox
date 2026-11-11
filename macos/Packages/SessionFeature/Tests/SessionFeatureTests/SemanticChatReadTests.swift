@@ -297,17 +297,19 @@ struct SemanticChatReadTests {
         guard case .chatReadPage(let page) = response else { Issue.record("会話ページではありません"); return }
         #expect(page.blocks.map(\.id) == ["status-card-wide", "wide-answer"])
         #expect(page.revealTarget?.cardID == "status-card-wide")
-        #expect(page.revealTarget?.rowID == "outside-deep-command")
+        #expect(page.revealTarget?.rowID == "outside-wide-reasoning-1")
         #expect(page.revealTarget?.entryID == "deep-command")
         #expect(page.revealTarget?.inputID == "wide")
     }
 
-    @Test func anItemJumpToReasoningAboveACardKeepsThatSingleBlockAsItsDestination() async throws {
+    @Test func anItemJumpToReasoningRevealsItsCardAndExactEntry() async throws {
         let source = owner(items: wideInterval())
         let response = try await source.runtimeChatReadContent(for: request(source, .chatReadAroundItem(itemID: "wide-reasoning-68")))
         guard case .chatReadPage(let page) = response else { Issue.record("会話ページではありません"); return }
-        #expect(page.blocks.map(\.id) == ["wide-reasoning-68", "wide-reasoning-69", "wide-reasoning-70", "status-card-wide", "wide-answer"])
-        #expect(page.revealTarget?.cardID == nil)
+        #expect(page.blocks.map(\.id) == ["status-card-wide", "wide-answer"])
+        #expect(page.revealTarget?.cardID == "status-card-wide")
+        #expect(page.revealTarget?.rowID == "outside-wide-reasoning-1")
+        #expect(page.revealTarget?.entryID == "wide-reasoning-68")
         #expect(page.revealTarget?.itemID == "wide-reasoning-68")
         #expect(page.revealTarget?.inputID == "wide")
     }

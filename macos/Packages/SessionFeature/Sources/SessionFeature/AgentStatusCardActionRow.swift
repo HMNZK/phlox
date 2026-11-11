@@ -163,7 +163,8 @@ struct AgentStatusActionRow: View {
     @ViewBuilder
     private var actionLabel: some View {
         if case .subAgent = action.label {
-            AgentStatusSubAgentLabel(label: action.label)
+            AgentStatusSubAgentLabel(label: action.label, pointSize: 12.5 * scale,
+                isRunning: action.isRunning, isAnimationVisible: isAnimationVisible)
         } else if action.isRunning && isShimmerAction {
             ShimmerTextView(text: action.text(locale: locale, bundle: bundle), font: font,
                 pointSize: (isCommand ? 12 : 12.5) * scale, color: DSColor.chatTextPrimary,
@@ -240,17 +241,28 @@ struct AgentStatusActionRow: View {
 /// 担当種別・状態は固定し、長い依頼内容だけを省略する。
 struct AgentStatusSubAgentLabel: View {
     let label: AgentStatusAction.Label
+    var pointSize: CGFloat = 12.5
+    var isRunning = false
+    var isAnimationVisible = false
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var bundle
 
     var body: some View {
         if case .subAgent(let description, let type, let status) = label {
+            let subject = "· " + (description.isEmpty
+                ? UIWording.text(.missingSubAgentDescription, languageCode: locale.language.languageCode?.identifier ?? "ja")
+                : description)
             HStack(spacing: 4) {
                 Text("サブエージェント").fixedSize()
-                Text(verbatim: "· " + (description.isEmpty
-                    ? UIWording.text(.missingSubAgentDescription, languageCode: locale.language.languageCode?.identifier ?? "ja")
-                    : description))
-                    .lineLimit(1).truncationMode(.tail).layoutPriority(-1)
+                Group {
+                    if isRunning {
+                        ShimmerTextView(text: subject, font: .system(size: pointSize), pointSize: pointSize,
+                            color: DSColor.chatTextPrimary, isVisible: isAnimationVisible, style: .file)
+                    } else {
+                        Text(verbatim: subject)
+                    }
+                }
+                .lineLimit(1).truncationMode(.tail).layoutPriority(-1)
                 if !type.isEmpty { Text(verbatim: "· " + type).lineLimit(1).layoutPriority(-2) }
                 Text(verbatim: "· " + AgentStatusAction.Label.subAgentStatusText(status, locale: locale, bundle: bundle))
                     .fixedSize()

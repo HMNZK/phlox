@@ -18,11 +18,13 @@ enum TranscriptRenderBudget {
     static let textCharacterUnits = 5
     /// セル骨格など、内容量に比例しない 1 ブロックの最低較正重み。
     static let otherBlockUnits = 50
+    /// 実ScrollViewの40操作で較正したカード固定費。8段でも過剰なカードを同時描画させない。
+    static let statusCardBaseUnits = 3_000
     /// エージェント状態カードの、タスク・タスク外の行 1 本あたりの重み。
     /// 2026-11-07 の画面外の計測（NSHostingView の初回レイアウト＋描画、10 枚の中央値、release）で、
     /// 短い agentMessage のセル（50 units）を物差しにすると、閉じた行 1 本が約 14 units、開いた作業の行
-    /// 1 本が約 27 units、行 1 本のカードの骨格が約 60 units（= 50 + 1 行）だった（debug は 12〜19 と 20〜29）。
-    /// 実アプリの N=50 計測（上の 2026-07-29）とは方法が違う相対値なので、較正し直すときは同じ手順で測る。
+    /// 1 本が約 27 unitsだった（debug は 12〜19 と 20〜29）。
+    /// この相対値はカード更新時の固定費を表さないため、固定費は統合計測のstatusCardBaseUnitsで別に扱う。
     static let statusCardRowUnits = 14
     /// 同、開いている作業の行 1 本あたりの重み（上と同じ計測）。
     static let statusCardEntryUnits = 27
@@ -41,9 +43,15 @@ enum TranscriptRenderBudget {
         defaultLimit: Int,
         minimumBlocks: Int
     ) -> Int {
-        guard !blocks.isEmpty, requestedLimit > 0 else { return 0 }
+        allowedBlockCount(weights: blocks.map(weight), requestedLimit: requestedLimit,
+            defaultLimit: defaultLimit, minimumBlocks: minimumBlocks)
+    }
 
-        let candidateCount = min(blocks.count, requestedLimit)
+    static func allowedBlockCount(weights: [Int], requestedLimit: Int,
+                                  defaultLimit: Int, minimumBlocks: Int) -> Int {
+        guard !weights.isEmpty, requestedLimit > 0 else { return 0 }
+
+        let candidateCount = min(weights.count, requestedLimit)
         let normalizedDefaultLimit = max(1, defaultLimit)
         let scale = max(1, requestedLimit / normalizedDefaultLimit)
         // 最新ブロックは単体で予算を超えても必ず含める。minimumBlocks は reveal 由来の
@@ -62,11 +70,11 @@ enum TranscriptRenderBudget {
         // max(bc(1), min(candidate(1), minimumStep)) となり、既定窓の返り値を変えない。
         for stage in 1...scale {
             let stageCandidateCount = min(
-                blocks.count,
+                weights.count,
                 saturatedProduct(normalizedDefaultLimit, stage)
             )
-            let stageBudgetedCount = countWithinBudget(
-                blocks.suffix(stageCandidateCount),
+            let stageBudgetedCount = countWithinWeightBudget(
+                weights.suffix(stageCandidateCount),
                 budget: saturatedProduct(defaultUnits, stage)
             )
             let guaranteedCount = stage == 1
@@ -87,7 +95,7 @@ enum TranscriptRenderBudget {
         case .statusCard(let card):
             // 重みは開いている作業の行の数に比例させる（手で開いた行は View の状態なので数えない）。
             return saturatedSum(
-                saturatedSum(otherBlockUnits, saturatedProduct(card.rows.count, statusCardRowUnits)),
+                saturatedSum(statusCardBaseUnits, saturatedProduct(card.rows.count, statusCardRowUnits)),
                 saturatedProduct(card.openEntryCount, statusCardEntryUnits)
             )
 
@@ -119,6 +127,29 @@ enum TranscriptRenderBudget {
                 return otherBlockUnits
             }
         }
+    }
+
+    static func weight(of block: SessionRuntimeChatReadBlock) -> Int {
+        switch block.content {
+        case .item(.inline(let item)): weight(of: .single(item))
+        case .item(.deferred(let marker)):
+            max(otherBlockUnits, marker.preview.text.count * textCharacterUnits)
+        case .card(let card):
+            statusCardBaseUnits + min(card.totalRowCount, 12) * statusCardRowUnits
+                + (card.header.isLive ? 30 * statusCardEntryUnits : 0)
+        case .commandGroup: otherBlockUnits
+        }
+    }
+
+    private static func countWithinWeightBudget(_ weights: ArraySlice<Int>, budget: Int) -> Int {
+        var used = 0
+        var count = 0
+        for weight in weights.reversed() {
+            guard weight <= budget - used else { break }
+            used += weight
+            count += 1
+        }
+        return count
     }
 
     private static func saturatedProduct(_ lhs: Int, _ rhs: Int) -> Int {

@@ -130,7 +130,7 @@ extension ChatSessionViewModel {
         }
         guard base == .awaitingUserQuestion else { return base }
         var permissionPrompt: String?
-        for item in replyItems.reversed() {
+        for item in (isRuntimeProjection ? replyItems : sourcePendingQuestionItems).reversed() {
             guard case .userQuestion(_, _, let questions, _, .pending, _) = item else { continue }
             guard Self.isToolPermissionQuestion(questions) else { return base }
             permissionPrompt = permissionPrompt ?? questions.first?.question
@@ -142,7 +142,7 @@ extension ChatSessionViewModel {
         if let runtimeOverview, case .awaitingUserQuestion = runtimeOverview.displayStatus {
             return runtimeOverview.displayStatusEnteredAt
         }
-        let items = replyItems
+        let items = isRuntimeProjection ? replyItems : sourcePendingQuestionItems
         if let cached = pendingAsyncQuestionCache,
            cached.executionID == executionID, cached.revision == transcriptRevision {
             return cached.date

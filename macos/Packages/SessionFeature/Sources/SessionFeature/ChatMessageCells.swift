@@ -53,6 +53,8 @@ public struct ChatItemView: View, Equatable {
             && lhs.agentDescriptor == rhs.agentDescriptor
             && lhs.turnUsage == rhs.turnUsage
             && lhs.isLaunchFailureRestarting == rhs.isLaunchFailureRestarting
+            && (lhs.onLaunchFailureRestart != nil) == (rhs.onLaunchFailureRestart != nil)
+            && (lhs.onLaunchFailureClose != nil) == (rhs.onLaunchFailureClose != nil)
     }
 
     public var body: some View {

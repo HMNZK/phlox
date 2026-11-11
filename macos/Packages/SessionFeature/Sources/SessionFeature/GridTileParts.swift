@@ -290,9 +290,8 @@ struct GridTileCompactBody: View {
             if AgentStatusCardRouting.usesStatusCard(viewModel.agentRef.builtinKind) {
                 // Claude・Codex: 列に出るカードの見出しと同じ文言（要件 FR-23）。
                 GridTileStatusLine(
-                    header: AgentStatusCardBuilder.latestHeader(
-                        items: viewModel.transcript, liveState: viewModel.statusCardLiveState
-                    )
+                    header: viewModel.usesRuntimeChatReadModel ? viewModel.runtimeChatRead.page?.latestHeader
+                        : AgentStatusCardBuilder.latestHeader(items: viewModel.transcript, liveState: viewModel.statusCardLiveState)
                 )
             } else {
                 TimelineView(.periodic(from: .now, by: 1)) { context in

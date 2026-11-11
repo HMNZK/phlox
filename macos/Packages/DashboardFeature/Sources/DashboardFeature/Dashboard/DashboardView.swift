@@ -561,7 +561,9 @@ public struct DashboardView: View {
             applyRestoredSessionPresentation(presentation)
         }
         .onChange(of: viewModel.discardedSessionCountNotice, initial: true) { _, _ in
-            discardedSessionCountNotice = viewModel.takeDiscardedSessionCountNotice()
+            if let count = viewModel.takeDiscardedSessionCountNotice() {
+                discardedSessionCountNotice = count
+            }
         }
         .onChange(of: router.selectedSession) { _, selectedID in
             updateEditorPanel()

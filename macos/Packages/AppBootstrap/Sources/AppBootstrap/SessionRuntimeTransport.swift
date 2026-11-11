@@ -78,6 +78,7 @@ struct SessionRuntimeHandshake: Codable, Sendable {
     var supportsSnapshotUpdates: Bool? = nil
     var supportsOverview: Bool? = nil
     var supportsSessionContent: Bool? = nil
+    var supportsChatReadModel: Bool? = nil
 }
 
 struct SessionRuntimeSnapshotEnvelope: Codable, Sendable {
@@ -258,7 +259,8 @@ public actor SessionRuntimeTransport {
     private let authorization: SessionRuntimeAuthorization
     private let snapshot: @MainActor @Sendable () throws -> DashboardRuntimeSnapshot
     private let overview: (@MainActor @Sendable () throws -> DashboardRuntimeOverview)?
-    private let content: (@MainActor @Sendable (SessionRuntimeContentRequest) throws -> SessionRuntimeContentResponse)?
+    private let content: (@MainActor @Sendable (SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse)?
+    private let supportsChatReadModel: Bool
     private let command: @MainActor @Sendable (DashboardRuntimeCommand) async throws -> DashboardRuntimeReply
     private let applicationSnapshot: (@MainActor @Sendable () throws -> Data)?
     private let applicationCommand: (@MainActor @Sendable (Data) async throws -> Data)?
@@ -293,7 +295,8 @@ public actor SessionRuntimeTransport {
         storeURL: URL,
         snapshot: @escaping @MainActor @Sendable () throws -> DashboardRuntimeSnapshot,
         overview: (@MainActor @Sendable () throws -> DashboardRuntimeOverview)? = nil,
-        content: (@MainActor @Sendable (SessionRuntimeContentRequest) throws -> SessionRuntimeContentResponse)? = nil,
+        content: (@MainActor @Sendable (SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse)? = nil,
+        supportsChatReadModel: Bool = false,
         command: @escaping @MainActor @Sendable (DashboardRuntimeCommand) async throws -> DashboardRuntimeReply,
         applicationSnapshot: (@MainActor @Sendable () throws -> Data)? = nil,
         applicationCommand: (@MainActor @Sendable (Data) async throws -> Data)? = nil
@@ -303,6 +306,7 @@ public actor SessionRuntimeTransport {
         self.snapshot = snapshot
         self.overview = overview
         self.content = content
+        self.supportsChatReadModel = supportsChatReadModel && content != nil
         self.command = command
         self.applicationSnapshot = applicationSnapshot
         self.applicationCommand = applicationCommand
@@ -358,7 +362,7 @@ public actor SessionRuntimeTransport {
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
                 pendingReads += 1
                 readAdmitted = true
-                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation, supportsControlSkills: true, supportsSnapshotUpdates: true, supportsOverview: overview != nil, supportsSessionContent: content != nil))
+                body = try JSONEncoder().encode(SessionRuntimeHandshake(protocolVersion: SessionRuntimeEndpoint.protocolVersion, generation: generation, supportsControlSkills: true, supportsSnapshotUpdates: true, supportsOverview: overview != nil, supportsSessionContent: content != nil, supportsChatReadModel: supportsChatReadModel))
             case .overview:
                 maximumResponseBytes = Self.maximumSnapshotBytes
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
@@ -371,6 +375,9 @@ public actor SessionRuntimeTransport {
                 }
                 body = try JSONEncoder().encode(envelope)
             case .content(let contentRequest):
+                guard !contentRequest.target.requiresChatReadModel || supportsChatReadModel else {
+                    throw SessionRuntimeConnectionError.incompatibleProtocol
+                }
                 if case .ptySnapshot = contentRequest.target {
                     maximumResponseBytes = Self.maximumSnapshotBytes
                 } else {
@@ -380,9 +387,10 @@ public actor SessionRuntimeTransport {
                 pendingContentReads += 1
                 contentReadAdmitted = true
                 guard let content else { throw SessionRuntimeConnectionError.incompatibleProtocol }
-                body = try await MainActor.run {
-                    try JSONEncoder().encode(content(contentRequest))
-                }
+                let response = try await content(contentRequest)
+                body = try await Task.detached(priority: .userInitiated) {
+                    try JSONEncoder().encode(response)
+                }.value
             case .snapshot, .snapshotUpdate:
                 maximumResponseBytes = Self.maximumSnapshotBytes
                 guard pendingReads < 2 else { throw SessionRuntimeConnectionError.busy }
@@ -431,6 +439,7 @@ public actor SessionRuntimeTransport {
             case SessionRuntimeConnectionError.busy: status = 503
             case SessionRuntimeConnectionError.staleGeneration, SessionRuntimeConnectionError.incompatibleProtocol,
                  SessionRuntimeConnectionError.operationConflict: status = 409
+            case SessionRuntimeContentError.notFound: status = 404
             case SessionRuntimeContentError.staleContent: status = 412
             case SessionRuntimeConnectionError.responseTooLarge, HTTPMessageParserError.payloadTooLarge: status = 413
             default: status = 400

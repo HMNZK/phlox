@@ -58,7 +58,19 @@ struct AgentStatusCardView: View, Equatable {
     /// 文章・思考以外の item（回答済みの質問・エラー）の描画。
     var makeItemView: ((ChatItem) -> ChatItemView)? = nil
 
-    @State private var disclosure: AgentStatusCardDisclosure
+    var runtime: RuntimeStatusCardPresentation? = nil
+
+    @State private var localDisclosure: AgentStatusCardDisclosure
+    @Binding private var boundDisclosure: AgentStatusCardDisclosure?
+    private let hasDisclosureBinding: Bool
+    private let disclosureSnapshot: AgentStatusCardDisclosure
+    private var disclosure: AgentStatusCardDisclosure {
+        get { boundDisclosure ?? localDisclosure }
+        nonmutating set {
+            if hasDisclosureBinding { boundDisclosure = newValue }
+            else { localDisclosure = newValue }
+        }
+    }
     /// 最初から開いている作業の行（画面外の描画で「作業を開いた」状態を作るために使う）。
     private let openActionIDs: Set<String>
     @State private var handledReveal: AgentStatusRevealRequest?
@@ -79,7 +91,9 @@ struct AgentStatusCardView: View, Equatable {
         onInterrupt: (() async -> Void)? = nil,
         makeItemView: ((ChatItem) -> ChatItemView)? = nil,
         disclosure: AgentStatusCardDisclosure = AgentStatusCardDisclosure(),
-        openActionIDs: Set<String> = []
+        openActionIDs: Set<String> = [],
+        runtime: RuntimeStatusCardPresentation? = nil,
+        disclosureBinding: Binding<AgentStatusCardDisclosure>? = nil
     ) {
         self.card = card
         self.agentDescriptor = agentDescriptor
@@ -90,8 +104,15 @@ struct AgentStatusCardView: View, Equatable {
         self.hangAssessment = hangAssessment
         self.onInterrupt = onInterrupt
         self.makeItemView = makeItemView
-        _disclosure = State(initialValue: disclosure)
+        _localDisclosure = State(initialValue: disclosure)
+        disclosureSnapshot = disclosure
+        hasDisclosureBinding = disclosureBinding != nil
+        if let disclosureBinding {
+            _boundDisclosure = Binding<AgentStatusCardDisclosure?>(get: { disclosureBinding.wrappedValue },
+                set: { if let value = $0 { disclosureBinding.wrappedValue = value } })
+        } else { _boundDisclosure = .constant(nil) }
         self.openActionIDs = openActionIDs
+        self.runtime = runtime
     }
 
     /// 実行中でないカードは時刻が進んでも等しい（時刻は表示の時計だけが持つ）。
@@ -102,6 +123,9 @@ struct AgentStatusCardView: View, Equatable {
             && lhs.isNarrow == rhs.isNarrow
             && lhs.isLaunchFailureRestarting == rhs.isLaunchFailureRestarting
             && lhs.revealRequest == rhs.revealRequest
+            && runtimeCardPresentationsMatch(lhs.runtime, rhs.runtime)
+            && lhs.openActionIDs == rhs.openActionIDs
+            && lhs.disclosureSnapshot == rhs.disclosureSnapshot
     }
 
     /// 既存の処理中表示と同じ条件（表示されていて、画面内にあり、バックグラウンドでない）。
@@ -146,11 +170,31 @@ struct AgentStatusCardView: View, Equatable {
                             openActionIDs: openActionIDs,
                             makeItemView: itemView,
                             onToggle: { disclosure.toggle(row, in: card) },
-                            onShowMore: { disclosure.showMore(row, in: card) }
+                            onShowMore: { disclosure.showMore(row, in: card) },
+                            runtime: runtime,
+                            actionDisclosure: Binding(get: { disclosure }, set: { disclosure = $0 })
                         )
                     }
                 }
                 .padding(AgentStatusCardLayout.bodyPadding(isNarrow: isNarrow))
+            }
+            if let runtime {
+                HStack {
+                    if runtime.hasMoreRows {
+                        Button("さらにタスクを表示") { runtime.loadRows(.next) }
+                            .accessibilityIdentifier("AgentStatusCard.moreRows")
+                    }
+                    if runtime.cache.rowOffset > 0 || !runtime.cache.startsAtBeginning {
+                        Button("先頭のタスクに戻る") { runtime.loadRows(.first) }
+                    }
+                    if let active = runtime.cache.rows.card.activeRowID, !card.rows.contains(where: { $0.id == active }) {
+                        Button("進行中の作業へ") { runtime.loadRows(.active) }
+                            .accessibilityIdentifier("AgentStatusCard.activeRow")
+                    }
+                }
+                .buttonStyle(.plain).font(DSFont.meta)
+                .foregroundStyle(DSColor.textTertiary)
+                .padding(.horizontal, DSSpacing.m).padding(.bottom, DSSpacing.s)
             }
         }
         .background(DSColor.chatCard, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
@@ -167,9 +211,15 @@ struct AgentStatusCardView: View, Equatable {
         .onViewportVisibilityChange { isInViewport = $0 }
         .onChange(of: revealRequest, initial: true) { _, request in
             // 窓の外から現れたカードにも届くよう、初回の値も見る。同じ要求は 1 度だけ。
-            guard let request, request != handledReveal else { return }
-            handledReveal = request
-            disclosure.reveal(itemID: request.itemID, in: card)
+            applyReveal(request)
         }
+        .onChange(of: card) { _, _ in applyReveal(revealRequest) }
     }
+    private func applyReveal(_ request: AgentStatusRevealRequest?) {
+        guard let request, request != handledReveal,
+              card.rows.contains(where: { row in row.entries.contains { $0.contains(itemID: request.itemID) } }) else { return }
+        handledReveal = request
+        disclosure.reveal(itemID: request.itemID, in: card)
+    }
+
 }

@@ -1,10 +1,14 @@
+import Foundation
+
 public struct InputHistoryEntry: Identifiable, Equatable, Sendable {
     public let id: String
     public let text: String
+    public let timestamp: Date
 
-    public init(id: String, text: String) {
+    public init(id: String, text: String, timestamp: Date = .distantPast) {
         self.id = id
         self.text = text
+        self.timestamp = timestamp
     }
 }
 
@@ -12,8 +16,8 @@ public enum InputHistoryPolicy {
     /// transcript からユーザー入力を入力順で抽出する。
     public static func entries(from transcript: [ChatItem]) -> [InputHistoryEntry] {
         transcript.compactMap { item in
-            guard case let .userMessage(id, text, _, _, _) = item else { return nil }
-            return InputHistoryEntry(id: id, text: text)
+            guard case let .userMessage(id, text, timestamp, _, _) = item else { return nil }
+            return InputHistoryEntry(id: id, text: text, timestamp: timestamp)
         }
     }
 

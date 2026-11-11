@@ -1,6 +1,149 @@
 {
   "sourceLanguage": "ja",
   "strings": {
+    "タスクを読み込む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load tasks"
+          }
+        }
+      }
+    },
+    "詳細を読み込む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load details"
+          }
+        }
+      }
+    },
+    "作業を読み込む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load activities"
+          }
+        }
+      }
+    },
+    "最新の作業に戻る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to the latest activities"
+          }
+        }
+      }
+    },
+    "進行中の作業へ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to active work"
+          }
+        }
+      }
+    },
+    "以前の入力を読み込む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load earlier inputs"
+          }
+        }
+      }
+    },
+    "以後の入力を読み込む": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load newer inputs"
+          }
+        }
+      }
+    },
+    "全文を表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show full content"
+          }
+        }
+      }
+    },
+    "さらにタスクを表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more tasks"
+          }
+        }
+      }
+    },
+    "先頭のタスクに戻る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to the first tasks"
+          }
+        }
+      }
+    },
+    "先頭の詳細に戻る": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to the first details"
+          }
+        }
+      }
+    },
+    "入力履歴を表示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show input history"
+          }
+        }
+      }
+    },
+    "旧サービス表示です。新しいカードと入力履歴を使うには、すべての実行が終了した後にサービスを更新してください。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legacy runtime view. To use the new cards and input history, update the runtime after all executions have ended."
+          }
+        }
+      }
+    },
     "%.1f 秒": {
       "extractionState": "manual",
       "localizations": {
@@ -14341,6 +14484,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stash %lld changed files (including %lld untracked) and restore the working tree to HEAD."
+          }
+        }
+      }
+    },
+    "statusCard.unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記録なし"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No record"
+          }
+        }
+      }
+    },
+    "0.1 秒未満": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0.1 秒未満"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Less than 0.1 seconds"
           }
         }
       }

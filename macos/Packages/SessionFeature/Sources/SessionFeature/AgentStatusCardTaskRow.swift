@@ -3,7 +3,6 @@ import StructuredChatKit
 import DesignSystem
 
 // エージェント状態カードのタスクの行（見本 10-Anatomy「タスクの行」、要件 §4.3）。
-// タスク外の作業も、同じ形の行（破線の丸・件数）として出す（FR-9）。
 // 開閉は `AgentStatusCardDisclosure` が決める。作業の行は開いたときだけ作る。
 
 /// 行頭の印の種類（印はすべて文字と同じ半透明グレー。ADR 0227）。
@@ -11,14 +10,22 @@ enum AgentStatusTaskMarkKind: Equatable {
     case done
     case todo
     case stopped
-    case outside
+    case unknown
+    case failed
     case running
 }
 
 extension AgentStatusRow {
     var markKind: AgentStatusTaskMarkKind {
         switch self {
-        case .outside: .outside
+        case .outside(let group):
+            switch group.state {
+            case .running: .running
+            case .completed: .done
+            case .interrupted: .stopped
+            case .failed: .failed
+            case .unknown: .unknown
+            }
         case .task(let task):
             switch task.state {
             case .pending: .todo
@@ -35,7 +42,7 @@ extension AgentStatusRow {
         case .task(let task):
             return task.title
         case .outside(let group):
-            let count = group.entries.filter { if case .action = $0 { true } else { false } }.count
+            let count = group.totalActionCount ?? group.entries.filter { if case .action = $0 { true } else { false } }.count
             return String(
                 format: AppLocalizedString.string("タスク外の作業 · %lld 件", locale: locale, bundle: bundle), count
             )
@@ -49,8 +56,16 @@ extension AgentStatusRow {
         var parts: [String] = []
         var finishedDuration: TimeInterval?
         switch self {
-        case .outside:
-            break
+        case .outside(let group):
+            switch group.state {
+            case .running: parts.append(word("進行中"))
+            case .completed: parts.append(word("完了"))
+            case .interrupted:
+                parts.append(AgentStatusText.keyed("statusCard.interrupted", japanese: "中断", locale: locale, bundle: bundle))
+            case .failed: parts.append(word("失敗"))
+            case .unknown:
+                parts.append(AgentStatusText.keyed("statusCard.unknown", japanese: "記録なし", locale: locale, bundle: bundle))
+            }
         case .task(let task):
             switch task.state {
             case .pending: parts.append(word("未着手"))
@@ -93,6 +108,8 @@ struct AgentStatusTaskRow: View {
     let makeItemView: (ChatItem) -> ChatItemView
     let onToggle: () -> Void
     let onShowMore: () -> Void
+    var runtime: RuntimeStatusCardPresentation? = nil
+    var actionDisclosure: Binding<AgentStatusCardDisclosure>? = nil
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var bundle
 
@@ -164,8 +181,8 @@ struct AgentStatusTaskRow: View {
     private var titleColor: Color {
         switch row.markKind {
         case .done, .todo: DSColor.textTertiary
-        case .outside: DSColor.chatTextSecondary
-        case .stopped, .running: DSColor.chatTextPrimary
+        case .unknown: DSColor.chatTextSecondary
+        case .stopped, .running, .failed: DSColor.chatTextPrimary
         }
     }
 
@@ -201,10 +218,14 @@ struct AgentStatusTaskRow: View {
                 Circle().strokeBorder(DSColor.border, lineWidth: 1.3).frame(width: 12, height: 12)
             case .stopped:
                 AgentStatusStopMark(diameter: 14)
-            case .outside:
-                Circle()
-                    .strokeBorder(DSColor.textTertiary, style: StrokeStyle(lineWidth: 1.3, dash: [2.5, 2]))
-                    .frame(width: 12, height: 12)
+            case .unknown:
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(DSColor.textTertiary)
+            case .failed:
+                Image(systemName: "exclamationmark.triangle")
+                    .font(DSFont.row)
+                    .foregroundStyle(DSColor.textTertiary)
             case .running:
                 // 見出しと同じ点描を小さくして使う（新しい描画は足さない）。
                 ThinkingOrbView(state: .thinking, size: .inline, isVisible: isAnimating)
@@ -250,13 +271,28 @@ struct AgentStatusTaskRow: View {
 
     // MARK: - 開いた中身
 
+    @ViewBuilder
     private var entries: some View {
+        if let runtime {
+            RuntimeCardEntriesView(presentation: runtime, rowID: row.id,
+                scale: scale, isTimelineVisible: isTimelineVisible, actionDisclosure: actionDisclosure)
+                .padding(.leading, AgentStatusCardLayout.actionIndent(isNarrow: isNarrow))
+                .padding(.vertical, 4)
+        } else {
+            localEntries
+        }
+    }
+
+    private var localEntries: some View {
         let window = AgentStatusCardDisclosure.window(row.entries, limit: entryLimit)
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(window.visible) { entry in
                 switch entry {
                 case .action(let action):
-                    AgentStatusActionRow(action: action, scale: scale, startsOpen: openActionIDs.contains(action.id))
+                    AgentStatusActionRow(
+                        action: action, scale: scale, isTimelineVisible: isTimelineVisible,
+                        startsOpen: openActionIDs.contains(action.id)
+                    )
                 case .item(let item):
                     AgentStatusItemEntry(item: item, scale: scale, makeItemView: makeItemView)
                 }

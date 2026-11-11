@@ -13,11 +13,10 @@ extension AgentStatusAction {
         return true
     }
 
-    func spokenLabel(locale: Locale, bundle: Bundle = .main) -> String {
-        // 見本: 「編集。client.go。0.6 秒。展開できます」。実行中の行は「〜中」まで読む。
+    func spokenLabel(now: Date? = nil, locale: Locale, bundle: Bundle = .main) -> String {
         let subject = (isRunning ? nil : label.singleFile) ?? text(locale: locale, bundle: bundle)
         var parts = [AppLocalizedString.string(label.spokenKindKey, locale: locale, bundle: bundle), subject]
-        if let duration {
+        if let duration = now.flatMap({ elapsed(at: $0) }) ?? duration {
             parts.append(AgentStatusDurationFormat.spoken(duration, locale: locale, bundle: bundle, fractional: true))
         }
         if isExpandable { parts.append(AppLocalizedString.string("展開できます", locale: locale, bundle: bundle)) }
@@ -28,36 +27,70 @@ extension AgentStatusAction {
 struct AgentStatusActionRow: View {
     let action: AgentStatusAction
     let scale: CGFloat
-    @State private var isOpen: Bool
+    let isTimelineVisible: Bool
+    var runtime: RuntimeStatusCardPresentation?
+    private let startsOpen: Bool
+    @State private var localIsOpen: Bool
+    @Binding private var boundIsOpen: Bool?
+    private let hasOpenBinding: Bool
+    private var isOpen: Bool {
+        get { boundIsOpen ?? localIsOpen }
+        nonmutating set {
+            if hasOpenBinding { boundIsOpen = newValue }
+            else { localIsOpen = newValue }
+        }
+    }
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var bundle
 
-    init(action: AgentStatusAction, scale: CGFloat, startsOpen: Bool = false) {
+    init(action: AgentStatusAction, scale: CGFloat, isTimelineVisible: Bool, startsOpen: Bool = false, runtime: RuntimeStatusCardPresentation? = nil, openBinding: Binding<Bool>? = nil) {
         self.action = action
         self.scale = scale
-        _isOpen = State(initialValue: startsOpen)
+        self.isTimelineVisible = isTimelineVisible
+        self.runtime = runtime
+        self.startsOpen = startsOpen
+        _localIsOpen = State(initialValue: startsOpen)
+        hasOpenBinding = openBinding != nil
+        if let openBinding {
+            _boundIsOpen = Binding<Bool?>(get: { openBinding.wrappedValue },
+                set: { if let value = $0 { openBinding.wrappedValue = value } })
+        } else { _boundIsOpen = .constant(nil) }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if action.isExpandable {
-                Button { isOpen.toggle() } label: { rowContent }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text(verbatim: action.spokenLabel(locale: locale, bundle: bundle)))
-                    .accessibilityValue(Text(AppLocalizedString.string(isOpen ? "展開中" : "折りたたみ中", locale: locale, bundle: bundle)))
+            if action.isRunning, action.startedAt != nil {
+                TimelineView(HangStatusTimelineSchedule(isVisible: isTimelineVisible)) { context in
+                    header(now: context.date)
+                }
             } else {
-                rowContent
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: action.spokenLabel(locale: locale, bundle: bundle)))
+                header(now: nil)
             }
             if isOpen, action.isExpandable {
-                detail
+                if let runtime {
+                    runtimeDetail(runtime)
+                } else { detail }
             }
         }
         .accessibilityIdentifier("AgentStatusCard.action.\(action.id)")
+        .onChange(of: startsOpen, initial: true) { _, shouldOpen in if shouldOpen { isOpen = true } }
     }
 
-    private var rowContent: some View {
+    @ViewBuilder
+    private func header(now: Date?) -> some View {
+        if action.isExpandable {
+            Button { isOpen.toggle() } label: { rowContent(now: now) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(verbatim: action.spokenLabel(now: now, locale: locale, bundle: bundle)))
+                .accessibilityValue(Text(AppLocalizedString.string(isOpen ? "展開中" : "折りたたみ中", locale: locale, bundle: bundle)))
+        } else {
+            rowContent(now: now)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: action.spokenLabel(now: now, locale: locale, bundle: bundle)))
+        }
+    }
+
+    private func rowContent(now: Date?) -> some View {
         HStack(spacing: 8) {
             Image(systemName: action.label.symbolName)
                 .font(.system(size: 12 * scale))
@@ -69,7 +102,7 @@ struct AgentStatusActionRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if let duration = action.duration {
+            if let duration = now.flatMap({ action.elapsed(at: $0) }) ?? action.duration {
                 Text(verbatim: AgentStatusDurationFormat.action(duration))
                     .font(.system(size: 11.5 * scale))
                     .monospacedDigit()
@@ -114,6 +147,34 @@ struct AgentStatusActionRow: View {
         }
     }
 
+    private func runtimeDetail(_ runtime: RuntimeStatusCardPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let page = runtime.cache.actions[action.id] {
+                ForEach(page.items, id: \.id) { reference in
+                    RuntimeChatItemReferenceView(reference: reference, viewModel: runtime.viewModel,
+                        isActionDetail: true, actionScale: scale, actions: runtime.itemActions)
+                }
+                if page.nextCursor != nil {
+                    Button("さらに表示") { runtime.loadAction(action.id, next: true) }
+                }
+                if runtime.cache.actionPageOffsets[action.id, default: 0] > 0 {
+                    Button("先頭の詳細に戻る") {
+                        runtime.loadAction(action.id)
+                    }
+                    .font(DSFont.meta)
+                }
+            } else {
+                Button("詳細を読み込む") { runtime.loadAction(action.id) }
+                    .font(DSFont.meta)
+                    .accessibilityIdentifier("AgentStatusCard.reloadActionItems.\(action.id)")
+            }
+        }
+        .padding(.leading, AgentStatusCardLayout.textIndent)
+        .task(id: runtime.contentVersion) {
+            if runtime.cache.actions[action.id] == nil { runtime.loadAction(action.id) }
+        }
+    }
+
     /// 開いた中身。今のセルの部品を再利用する（コマンドの出力・ファイルの差分）。
     private var detail: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -135,7 +196,7 @@ struct AgentStatusActionRow: View {
 }
 
 /// コマンドを開いた中身: 「$ コマンド」と終了コード、その下に出力（見本 `.wd`）。
-private struct AgentStatusCommandDetail: View {
+struct AgentStatusCommandDetail: View {
     let command: String?
     let output: String
     let scale: CGFloat

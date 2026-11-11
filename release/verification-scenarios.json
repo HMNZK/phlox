@@ -79,6 +79,67 @@
       "expected": "通常起動は選択プロジェクトの既存作業場所を使い、worktree起動は指定した起点から別作業場所を作る。通常の初回メッセージは1回、履歴再開時は0回で、Claude/Codexの選択した履歴を継続する。別プロジェクト・別エージェントの履歴や不正起点を受理せず、内部履歴ファイルパスを端末へ返さない。",
       "method": "physical-device",
       "required": true
+    },
+    {
+      "scenarioID": "semantic-chat-read",
+      "revision": 2,
+      "requirement": "macos/docs/specs/agent-status-card.md#長い会話の取得契約",
+      "codePaths": [
+        "macos/Packages/SessionFeature/Sources/SessionFeature/*Runtime*.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/AgentStatusCard*.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/Chat*History*.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/ChatSessionView*.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/ChatTranscriptView.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/ChatEscapeHandling.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/InputHistoryPolicy.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/Transcript*.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/GridTileParts.swift",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/*Semantic*.swift",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/*Read*.swift",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/*TranscriptWindowTests.swift",
+        "macos/Packages/AppBootstrap/Sources/AppBootstrap/SessionRuntime*.swift",
+        "macos/Packages/AppBootstrap/Tests/AppBootstrapTests/SessionRuntimeTransportTests.swift",
+        "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel.swift",
+        "macos/App/DesktopCompositionRoot.swift",
+        "macos/App/SessionRuntimeHost.swift",
+        "macos/scripts/tests/session-runtime-semantic-chat.test.py",
+        "macos/UITests/IsolatedPhloxApplication.swift",
+        "macos/UITests/IsolatedLaunchOptionsTests.swift",
+        "macos/UITests/RuntimeCardsAcceptanceTests.swift"
+      ],
+      "testIDs": [
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/SemanticChatReadTests.swift::SemanticChatReadTests",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/RuntimeSemanticChatProjectionTests.swift::RuntimeSemanticChatProjectionTests",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/RuntimeReadTransactionTests.swift::RuntimeReadTransactionTests",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/RuntimeReadPublicationTests.swift::RuntimeReadPublicationTests",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/RuntimeReadCacheHostedTests.swift::RuntimeReadCacheHostedTests",
+        "macos/scripts/tests/session-runtime-semantic-chat.test.py::SemanticChatAcceptance",
+        "macos/UITests/RuntimeCardsAcceptanceTests.swift::RuntimeCardsAcceptanceTests",
+        "macos/UITests/IsolatedLaunchOptionsTests.swift::IsolatedLaunchOptionsTests"
+      ],
+      "procedure": "固定候補の標準パッケージ入口で列挙した意味取得・競合・表示テストを実行する。別途、所有を記録した固有bundle IDの隔離アプリでsemantic-chat受入を実行し、本文末尾の外に入力起点があるカード、最新12目盛り、履歴追加ページ、古い入力への直接ジャンプ、巨大入力の明示全文取得/呼戻し、展開詳細と読位置の更新/再接続を観察する。旧サービスには新しい取得要求を送らず、更新案内と従来表示を保つことも確認する。",
+      "expected": "取得ページ境界でカードの所属/順序/状態/時刻/最終返答位置が変わらない。入力履歴は本文全件取得を待たず操作でき、直接ジャンプで間の本文を取得しない。プレビューを入力へ呼び戻さず、巨大本文の取得は明示操作時だけ。遅い応答で後続操作を上書きせず、詳細・手動開閉・読位置を保つ。新能力は対応サービスだけで使う。製品検査とfixture自己検査を区別する。",
+      "method": "automatic",
+      "required": true
+    },
+    {
+      "scenarioID": "runtime-history-pull",
+      "revision": 1,
+      "requirement": "macos/docs/adr/0217-transcript-scroll-to-load-history.md#検証",
+      "codePaths": [
+        "macos/Packages/SessionFeature/Sources/SessionFeature/RuntimeChatTranscriptView.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/ChatTranscriptView.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/ChatAutoFollow.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/TranscriptWindow.swift",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/ChatHistoryLoadingTests.swift"
+      ],
+      "testIDs": [
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/ChatHistoryLoadingTests.swift::ChatHistoryLoadingTests"
+      ],
+      "procedure": "標準パッケージ入口で履歴操作の画面外ホストテストを新旧本文経路・single/gridで実行する。新経路はoverview projectionと対応能力で通常のChatTranscriptViewへ接続し、transcript引数で旧経路へ逃がさない。60pt引いたまま保持、release、cancel、上端離脱、セッション切替、VoiceOverの履歴アクション、Reduce Motionを個別に検証する。",
+      "expected": "本文の履歴読込ボタンは再導入しない。60ptで22pt Cometが進捗として現れ、保持中は読込/拡張せず、releaseで一回だけ追加して既存の先頭を保持する。cancel/離脱/切替では追加しない。VoiceOverアクションはジェスチャーなしで追加でき、Reduce Motionでは静止リングになる。旧経路だけのgreenを新経路の合格としない。",
+      "method": "automatic",
+      "required": true
     }
   ]
 }

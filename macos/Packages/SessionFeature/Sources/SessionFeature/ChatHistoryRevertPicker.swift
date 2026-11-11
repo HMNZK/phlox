@@ -7,9 +7,11 @@ import DesignSystem
 /// - esc / 閉じるボタン / 背景タップで `onCancel`。
 /// - 状態機械（2連打判定・ピッカー開閉）は ViewModel 側に持たせ、本ビューは表示と入力の受付のみ。
 struct ChatHistoryRevertPicker: View {
-    let candidates: [ChatItem]
+    let candidates: [InputHistoryEntry]
     let onConfirm: (String) -> Void
     let onCancel: () -> Void
+    var hasEarlier = false
+    var onLoadEarlier: (() -> Void)?
 
     @State private var selection: String?
     @FocusState private var isFocused: Bool
@@ -101,6 +103,10 @@ struct ChatHistoryRevertPicker: View {
                     ForEach(candidates) { item in
                         row(for: item)
                     }
+                    if hasEarlier {
+                        Button("以前の入力を読み込む") { onLoadEarlier?() }
+                            .font(DSFont.row)
+                    }
                 }
             }
             .frame(maxHeight: 360)
@@ -108,13 +114,13 @@ struct ChatHistoryRevertPicker: View {
         }
     }
 
-    private func row(for item: ChatItem) -> some View {
+    private func row(for item: InputHistoryEntry) -> some View {
         let isSelected = selection == item.id
         return Button {
             onConfirm(item.id)
         } label: {
             HStack(spacing: 10) {
-                Text(messageText(item))
+                Text(item.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -144,13 +150,6 @@ struct ChatHistoryRevertPicker: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter
     }()
-
-    private func messageText(_ item: ChatItem) -> String {
-        if case .userMessage(_, let text, _, _, _) = item {
-            return text
-        }
-        return ""
-    }
 
     private func moveSelection(by delta: Int) {
         guard !candidates.isEmpty else { return }

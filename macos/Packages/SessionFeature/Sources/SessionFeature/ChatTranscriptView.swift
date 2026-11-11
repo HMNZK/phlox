@@ -18,6 +18,7 @@ struct ChatTranscriptView: View {
     private let onLaunchFailureClose: (() -> Void)?
     private let presentationContext: TranscriptPresentationContext
     @State private var autoFollow = ChatAutoFollowController()
+    @State private var runtimeItemActionRouter = RuntimeChatItemActionRouter()
     // 表示窓（ADR 0030:22・0229）。view-local な @State に住み、body 評価中には書かない。
     // 動かすのは明示スクロール入力・ジャンプ・セッション切替のイベントだけ（ADR 0010）。
     @State private var window: TranscriptWindow
@@ -75,9 +76,43 @@ struct ChatTranscriptView: View {
         self.presentationContext = presentationContext
     }
 
+    @ViewBuilder
     var body: some View {
+        Group {
+        if transcript == nil, viewModel.isRuntimeProjection {
+            if viewModel.runtimeSupportsChatReadModel {
+                let actions = RuntimeChatItemActions(restart: onLaunchFailureRestart,
+                    close: onLaunchFailureClose, isRestarting: isLaunchFailureRestarting,
+                    router: runtimeItemActionRouter)
+                RuntimeChatTranscriptView(viewModel: viewModel,
+                    requestedScrollTarget: $requestedScrollTarget,
+                    currentInputPositionID: $currentInputPositionID,
+                    contentMaxWidth: contentMaxWidth, bottomMargin: bottomScrollContentMargin,
+                    context: presentationContext, showsThinkingIndicator: showsThinkingIndicator,
+                    itemActions: actions)
+                    .onChange(of: ObjectIdentifier(actions), initial: true) { _, _ in actions.installHandlers() }
+                    .id(viewModel.id)
+            } else {
+                VStack(spacing: 0) {
+                    Text("旧サービス表示です。新しいカードと入力履歴を使うには、すべての実行が終了した後にサービスを更新してください。")
+                        .font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
+                        .padding(DSSpacing.s)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("ChatTranscript.unsupportedRuntime")
+                    localBody
+                }
+            }
+        } else { localBody }
+        }
+        .task(id: viewModel.threadId) {
+            guard viewModel.agentRef == .builtin(.codex) else { return }
+            await viewModel.refreshCodexSubAgents()
+        }
+    }
+
+    private var localBody: some View {
         let _ = themeID
-        ScrollViewReader { proxy in
+        return ScrollViewReader { proxy in
             let transcriptSignal = transcriptFollowSignal
             let items = transcriptItems
             let visibleSlice = window.slice(of: items, source: blockSource)
@@ -202,13 +237,12 @@ struct ChatTranscriptView: View {
             }
             .onAppear {
                 scrollToBottomIfNeeded(proxy, trigger: .appear)
+                if viewModel.isRuntimeProjection {
+                    Task { try? await viewModel.refreshRuntimeContent() }
+                }
             }
         }
         .background(DSColor.chatBackground)
-        .task(id: viewModel.threadId) {
-            guard viewModel.agentRef == .builtin(.codex) else { return }
-            await viewModel.refreshCodexSubAgents()
-        }
     }
 
     @ViewBuilder
@@ -678,7 +712,7 @@ private struct TranscriptBlockOffsetsKey: PreferenceKey {
 }
 
 /// 復元中の接続待ち（PhloxChat.dc.html の isConnecting）: 18pt の二重丸と斜体の文言を会話の中に 1 行で。
-private struct ConnectingIndicatorRow: View {
+struct ConnectingIndicatorRow: View {
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 

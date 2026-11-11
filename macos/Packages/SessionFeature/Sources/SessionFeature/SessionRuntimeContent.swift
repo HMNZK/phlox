@@ -31,6 +31,19 @@ public struct SessionRuntimeContentCursor: Codable, Sendable, Equatable {
 
 public struct SessionRuntimeContentRequest: Codable, Sendable {
     public enum Target: Codable, Sendable {
+        case chatReadTail
+        case chatReadBefore(cursor: SessionRuntimeChatReadCursor)
+        case chatReadAfter(cursor: SessionRuntimeChatReadCursor)
+        case chatReadAround(inputID: String)
+        case chatReadAroundItem(itemID: String)
+        case chatCardRowsAround(inputID: String, rowID: String)
+        case chatRowEntriesAround(inputID: String, rowID: String, entryID: String)
+        case chatCardRows(inputID: String, cursor: SessionRuntimeChatReadCursor?)
+        case chatRowEntries(inputID: String, rowID: String, cursor: SessionRuntimeChatReadCursor?)
+        case chatActionItemsFrom(inputID: String?, actionID: String, itemID: String)
+        case chatActionItems(inputID: String?, actionID: String, cursor: SessionRuntimeChatReadCursor?)
+        case inputHistoryAfter(cursor: SessionRuntimeChatReadCursor)
+        case inputHistory(before: SessionRuntimeChatReadCursor?)
         case chatTail
         case chatTailChecking(cursor: SessionRuntimeContentCursor)
         case ptySnapshot(displayRevision: UInt64)
@@ -52,7 +65,7 @@ public struct SessionRuntimeContentRequest: Codable, Sendable {
     }
 }
 
-public struct SessionRuntimeContentMarker: Codable, Sendable {
+public struct SessionRuntimeContentMarker: Codable, Sendable, Equatable {
     public enum Kind: String, Codable, Sendable { case chatItem, approval }
 
     public let kind: Kind
@@ -60,13 +73,15 @@ public struct SessionRuntimeContentMarker: Codable, Sendable {
     public let digest: String
     public let totalBytes: Int
     public let preview: SessionRuntimeTextPreview
+    public let itemKind: String?
 
-    public init(kind: Kind, id: String, digest: String, totalBytes: Int, preview: String) {
+    public init(kind: Kind, id: String, digest: String, totalBytes: Int, preview: String, itemKind: String? = nil) {
         self.kind = kind
         self.id = id
         self.digest = digest
         self.totalBytes = totalBytes
         self.preview = SessionRuntimeTextPreview(preview)
+        self.itemKind = itemKind
     }
 }
 
@@ -151,6 +166,11 @@ public struct SessionRuntimeContentChunk: Codable, Sendable {
 public enum SessionRuntimeContentResponse: Codable, Sendable {
     case ptySnapshot(snapshot: SessionRuntimePTYSnapshot, displayRevision: UInt64)
     case chatPage(SessionRuntimeChatPage)
+    case chatReadPage(SessionRuntimeChatReadPage)
+    case cardRowsPage(SessionRuntimeCardRowsPage)
+    case cardEntriesPage(SessionRuntimeCardEntriesPage)
+    case actionItemsPage(SessionRuntimeActionItemsPage)
+    case inputHistoryPage(SessionRuntimeInputHistoryPage)
     case pendingPage(SessionRuntimePendingPage)
     case chunk(SessionRuntimeContentChunk)
     case presentationChunk(SessionRuntimeContentChunk)

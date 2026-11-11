@@ -90,6 +90,7 @@ final class DesktopCompositionRoot {
                 try await self?.applyLatest(overview)
             }
         }
+        dashboard.runtimeSupportsChatReadModel = client.supportsChatReadModel
         dashboard.runtimeContentLoader = { try await client.content($0) }
         dashboard.onRuntimeSessionsViewed = { [weak self] _ in self?.scheduleContentRefresh() }
         scheduleContentRefresh()
@@ -112,6 +113,7 @@ final class DesktopCompositionRoot {
         do {
             try await client.handshake()
             usesOverview = client.supportsOverview && client.supportsSessionContent
+            dashboard.runtimeSupportsChatReadModel = client.supportsChatReadModel
             if usesOverview {
                 client.onCommandOverview = { [weak self] overview in
                     try await self?.applyLatest(overview)

@@ -150,16 +150,23 @@ public struct ChatSessionView: View {
                             // 入力欄の上に箱・候補・ツールチップが開いている間は、重なるので隠す。
                             .onPreferenceChange(ComposerPopupOpenKey.self) { isComposerPopupOpen = $0 }
                             .overlay(alignment: .topTrailing) {
-                                if !isComposerPopupOpen,
-                                   !viewModel.isRuntimeProjection || (viewModel.hasLoadedRuntimeTranscript && !viewModel.hasMoreRuntimeTranscript) {
+                                if !isComposerPopupOpen {
                                     ChatInputHistoryScrubber(
                                         entries: viewModel.inputHistoryEntries,
                                         currentPositionID: currentInputPositionID,
                                         onJump: { target in
-                                            // クリック時は即座に対象を強調（楽観的更新）し、実スクロールで確定させる。
-                                            currentInputPositionID = target
                                             requestedTranscriptTarget = target
-                                        }
+                                        },
+                                        hasEarlier: viewModel.usesRuntimeChatReadModel && viewModel.runtimeChatRead.hasEarlierHistory,
+                                        isLoading: viewModel.usesRuntimeChatReadModel
+                                            && (viewModel.runtimeChatRead.isLoadingHistory
+                                                || (viewModel.runtimeChatRead.history == nil && viewModel.runtimeChatRead.historyError == nil)),
+                                        loadError: viewModel.runtimeChatRead.historyError,
+                                        onLoadEarlier: { Task { try? await viewModel.loadRuntimeInputHistory(earlier: true) } },
+                                        onRetry: { Task { try? await viewModel.loadRuntimeInputHistory() } },
+                                        latestEntries: viewModel.usesRuntimeChatReadModel ? viewModel.runtimeChatRead.latestEntries : nil,
+                                        hasNewer: viewModel.runtimeChatRead.history?.newerCursor != nil,
+                                        onLoadNewer: { Task { try? await viewModel.loadRuntimeInputHistory(newer: true) } }
                                     )
                                     .padding(.trailing, DSSpacing.m + 12)
                                     .offset(y: DSSpacing.s - 9)

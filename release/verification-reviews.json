@@ -1245,6 +1245,235 @@
         "physical-newchat-worktree-resume"
       ],
       "reason": "Independent final scenario review covers the 1.14.7 appcast addition and version bump, matching release notes, URL and runtime protocol. No required scenario or test weakened. Actual ZIP signature and size require the distribution gate; physical observations remain unverified. Full report: .verification/release-1.14.7-20261109/claude-final-review.txt."
+    },
+    {
+      "baseOID": "060176b50729260757c72c69d9a653f8f14b0324",
+      "targetOID": "c06da8a3410048e74eb7b128d93da91bc4b18f1f",
+      "diffSHA256": "08f17e9dc66f6dcbbec7333ed534da08f0db1b9165e0fda7973ffdf07ef99f99",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "decision": "needs_changes",
+      "reason": "要修正。既存catalogの影響ID集合は完全だが、Macの長会話カード・独立入力履歴の要件/手順/期待値/テストの対応が無い。さらに新RuntimeChatTranscriptViewはADR0217の60pt引いたままのComet表示とボタン廃止の契約を維持しない。旧履歴テストは新経路を通らない。AIレビューは実機合格・人の承認ではない。",
+      "reviewedAt": "2026-11-10T03:57:03.586441+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "c06da8a3410048e74eb7b128d93da91bc4b18f1f",
+      "diffSHA256": "08f17e9dc66f6dcbbec7333ed534da08f0db1b9165e0fda7973ffdf07ef99f99",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity"
+      ],
+      "decision": "needs_changes",
+      "reason": "要修正。既存catalogの影響ID集合は完全だが、Macの長会話カード・独立入力履歴の要件/手順/期待値/テストの対応が無い。さらに新RuntimeChatTranscriptViewはADR0217の60pt引いたままのComet表示とボタン廃止の契約を維持しない。旧履歴テストは新経路を通らない。AIレビューは実機合格・人の承認ではない。",
+      "reviewedAt": "2026-11-10T03:57:03.586441+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "060176b50729260757c72c69d9a653f8f14b0324",
+      "targetOID": "91351f8e5a44d14dab099dbf5e2098e28869ea73",
+      "diffSHA256": "15d30e1685a70d1c8b831f2099779218eee83d0d2ff245303c4cc03e74fa2374",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "コード差分・シナリオ内容レビューpass（暫定コード確定記録）。成功後の窓更新と同じ同期区間でloadingEdgeを解除し、既存の世代/intent guard・失敗deferを維持する1行修正を確認。固定ソースはRelease57件greenの診断版と同一hashで、既存履歴/AX/位置/通信/全文/閾値の条件縮小なし。影響4IDは完全、旧6シナリオ/必須実機5件と品質・配布照合要件は不変。A→B診断の限界を明記し正式結果へ流用しない。AIレビューは913固定の正式性能・最終候補quality・配布/native/実機合格・人の承認を代行しない。",
+      "reviewedAt": "2026-11-10T05:09:41.217515+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "91351f8e5a44d14dab099dbf5e2098e28869ea73",
+      "diffSHA256": "15d30e1685a70d1c8b831f2099779218eee83d0d2ff245303c4cc03e74fa2374",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "コード差分・シナリオ内容レビューpass（暫定コード確定記録）。成功後の窓更新と同じ同期区間でloadingEdgeを解除し、既存の世代/intent guard・失敗deferを維持する1行修正を確認。固定ソースはRelease57件greenの診断版と同一hashで、既存履歴/AX/位置/通信/全文/閾値の条件縮小なし。影響4IDは完全、旧6シナリオ/必須実機5件と品質・配布照合要件は不変。A→B診断の限界を明記し正式結果へ流用しない。AIレビューは913固定の正式性能・最終候補quality・配布/native/実機合格・人の承認を代行しない。",
+      "reviewedAt": "2026-11-10T05:09:41.217515+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "060176b50729260757c72c69d9a653f8f14b0324",
+      "targetOID": "91016689a9bff36e64c9987cd3a6576a9788b655",
+      "diffSHA256": "db61879f52e60a25d5095ae2bd3ca31b588202aa3d4f59882c77d8a15de329f5",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "最終feed/captureの内容・シナリオレビューpass。製品コードは913固定から不変、影響4IDは完全で旧6シナリオ/必須実機5件を維持。独立4検査で175由来と910最終入力・Mac/iOS来歴/設定/DMG/ZIP/IPAのhash対応、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。913正式5runを原JSONから再集計し、単発外れ値を含む記述と一致。devices/executionsは空で正本実機ゲートがnot_run拒否することも確認。本passは公開承認・最終候補quality合格・GUI受入・人の実機証言ではない。",
+      "reviewedAt": "2026-11-10T05:46:38.738573+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "91016689a9bff36e64c9987cd3a6576a9788b655",
+      "diffSHA256": "db61879f52e60a25d5095ae2bd3ca31b588202aa3d4f59882c77d8a15de329f5",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "decision": "pass",
+      "reason": "最終feed/captureの内容・シナリオレビューpass。製品コードは913固定から不変、影響4IDは完全で旧6シナリオ/必須実機5件を維持。独立4検査で175由来と910最終入力・Mac/iOS来歴/設定/DMG/ZIP/IPAのhash対応、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。913正式5runを原JSONから再集計し、単発外れ値を含む記述と一致。devices/executionsは空で正本実機ゲートがnot_run拒否することも確認。本passは公開承認・最終候補quality合格・GUI受入・人の実機証言ではない。",
+      "reviewedAt": "2026-11-10T05:46:38.738573+00:00",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true
+    },
+    {
+      "baseOID": "fbb9ec0a86da7d53a81cdfd63917e9dfbe817f10",
+      "targetOID": "705391af92f8338fe9c85ec326fde47781db05bb",
+      "diffSHA256": "c21b3313a5a50d5f6f6068fbd57ed632e65224c38ec0087c1d5083d2f804093a",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-10T10:39:25.159773+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "semantic-chat-read"
+      ],
+      "reason": "独立したコード・シナリオ内容レビューpass。正本review-inputの固定差分を照合し、影響ID全件とSwift等の未分類0件、要求/手順/期待値/必須実機5件の維持を確認。b674の既存UIテスト分類漏れは705で対応パス/テスト参照の追加により解消。既レビュー36/v5の所有確認・fail-closed保持・通常設定隔離・10秒連続時計・手動開閉・notice保持は同一ソース、原ログ8件成功を確認済み。履歴/カードの既存固定コード・性能評価の限定範囲も維持する。独立5検査で36由来と705最終入力manifest・fresh Mac/iOS来歴/設定/外部入力/DMG/ZIP/IPAハッシュ、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。devices/executions空、正本実機ゲートのnot_run拒否と通常releaseCommand v9の実機必須を確認。本passは独立code/scenario reviewのみであり、統合候補quality全体・現候補の新規性能実測・Release実機5件・新iOS導入・公開成功・人の承認を主張しない。"
+    },
+    {
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "705391af92f8338fe9c85ec326fde47781db05bb",
+      "diffSHA256": "fc9a174bf527b52b9008368a1a85206cda660b2c6f6bf53500b282f141ed8448",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-release_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-10T10:39:25.159773+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reason": "独立したコード・シナリオ内容レビューpass。正本review-inputの固定差分を照合し、影響ID全件とSwift等の未分類0件、要求/手順/期待値/必須実機5件の維持を確認。b674の既存UIテスト分類漏れは705で対応パス/テスト参照の追加により解消。既レビュー36/v5の所有確認・fail-closed保持・通常設定隔離・10秒連続時計・手動開閉・notice保持は同一ソース、原ログ8件成功を確認済み。履歴/カードの既存固定コード・性能評価の限定範囲も維持する。独立5検査で36由来と705最終入力manifest・fresh Mac/iOS来歴/設定/外部入力/DMG/ZIP/IPAハッシュ、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。devices/executions空、正本実機ゲートのnot_run拒否と通常releaseCommand v9の実機必須を確認。本passは独立code/scenario reviewのみであり、統合候補quality全体・現候補の新規性能実測・Release実機5件・新iOS導入・公開成功・人の承認を主張しない。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "baseOID": "3052477f24bfda2b3126b8ff589d639a30a41577",
+      "targetOID": "7b1b643f51b37ff90439c3b8fc22e308c4dd03fa",
+      "diffSHA256": "e3154bbeaffa0efcb468268537cf0982632c3c605d429faab06508f66ff7d946",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reviewedAt": "2026-11-11T05:55:41Z",
+      "reason": "差分、シナリオ定義、validate_reviews契約、追加テストと既存実走証拠を独立に読取確認した。対象コード・テスト・fixtureの未分類変更はなく、必須シナリオ定義は基点から変更されていない。HTTPエラー往復、構造版による失効、取得競合、有限復旧、失敗後の再試行に対応する回帰テストがあり、品質結果に関連suiteと必須fake13件の成功IDを確認した。隔離アプリでは長履歴と本文復旧の2件、lifecycle1件の成功ログ、改名・削除後のAX観測、今回変更された12ソース・テストファイルと実走時記録のSHA256一致を確認した。本判定はdev統合のシナリオレビューであり、テスト再実行、これから実施する統合候補ゲート、実機iPhone、リリース適合、利用中サービスへの修正反映を保証しない。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "targetOID": "29b1ad0393fdd40070551af366f97fc5f568cfab",
+      "reviewedAt": "2026-11-11T07:20:48Z",
+      "baseOID": "d299eea3172962f0f622bf1e14af07ca33617765",
+      "diffSHA256": "9881c0cabf8d200463e6fb70f7de6e58ed71606f2925c7a72b5bdce2a6314b86",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "dev比較の変更分類漏れと必須シナリオ削減は0件。製品・テストは前回レビュー済みの本文復旧修正から不変。新Mac54/iOS23のcapture起点01b35c25と最終候補の入力manifest全2186ファイルが一致し、来歴参照・外部入力・実効設定・DMG/ZIP/IPAのハッシュを独立照合した。フィードbuild54、ZIPサイズ33296287、署名、英語→日本語ノートの内容が一致する。ZIP同梱公開鍵とcapture元appの公開鍵が一致し、Ed25519署名の独立検証と改変署名の拒否を確認した。公証・staple・XPC4検査は既存成功ログを確認した。本passは静的内容とシナリオ対応のレビューのみ。最終候補qualityとdistributionは未実行、人による必須実機5件は未実施、devices/executionsは空であり、mainリリースはまだ不可。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "targetOID": "29b1ad0393fdd40070551af366f97fc5f568cfab",
+      "reviewedAt": "2026-11-11T07:20:48Z",
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "diffSHA256": "8bb51b8ac361902b1110cbfb16c8cb53e52db6f3a1b00e0d9c915c1171102d3e",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reason": "main比較の影響4シナリオを照合し、変更分類漏れと必須シナリオ削減は0件。既存main比較レビュー済み705391af以降の製品変更は確認済みの本文復旧修正であり、今回の配布準備では製品・テストを変更していない。新Mac54/iOS23のcaptureと最終候補の入力manifest全2186ファイル、来歴参照・外部入力・実効設定・DMG/ZIP/IPAハッシュが一致する。フィードの版・サイズ・署名・英日ノート、ZIP同梱公開鍵とcapture元appの公開鍵の一致、Ed25519署名と改変署名拒否を独立確認した。正本verification-gate.pyはmainから不変で、必須実機5件とhuman観測条件を維持する。本passは静的内容とシナリオ対応のレビューのみ。最終候補qualityとdistributionは未実行、人による必須実機5件は未実施、devices/executionsは空であり、mainリリースはまだ不可。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "10adced22e140d419aa365d87cd10d698d5659b6",
+      "diffSHA256": "8bb51b8ac361902b1110cbfb16c8cb53e52db6f3a1b00e0d9c915c1171102d3e",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation",
+        "physical-history-follow",
+        "physical-newchat-worktree-resume",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reviewedAt": "2026-11-11T08:52:33Z",
+      "userApproval": {
+        "kind": "human",
+        "id": "conversation-user",
+        "approvedAt": "2026-11-11T08:48:37.268022+00:00",
+        "reason": "この候補だけ例外を認めて進める。対象は固定Mac1.14.8/build54・iOS1.0/build23の同一配布物に限る。"
+      },
+      "reason": "main比較のコード影響4件と今回省略する実機5件の和集合8シナリオを確認した。未分類変更0件、製品ゲート・カタログ・品質入口の変更0件。ユーザー承認文と保存票の候補範囲が一致し、必須実機5件はnot_run、devices/executionsは空のままで、人のpassed証言を追加していない。現在の2186入力とMac54/iOS23のcapture入力manifestが一致し、移管後の来歴・外部入力・3配布物のハッシュも一致する。限定コマンドは承認されたDMG/ZIP/IPAの固定SHA256と例外文書の存在を要求し、既存の版・notes・feed・stapler検査を保持する。正本distributionも候補入力とcapture入力の一致を要求するため、異なる製品ソースや次版・別成果物へ例外は広がらない。通常releaseCommandは現時点で物理検証を要求する保存値と一致している。統合成否にかかわらず限定設定を通常設定へ復元し実値を照合することが適用条件。本passは静的な内容・シナリオ・例外範囲のレビューであり、実機5件の成功、最終main候補quality・秘密情報検査・限定releaseCommandの実行成功、公開成功を保証しない。"
     }
   ]
 }

@@ -13,7 +13,7 @@ struct InputHistoryPolicyWhiteboxTests {
 
         let entries = InputHistoryPolicy.entries(from: transcript)
 
-        #expect(entries == [InputHistoryEntry(id: "only-user", text: longText)])
+        #expect(entries == [InputHistoryEntry(id: "only-user", text: longText, timestamp: .distantFuture)])
     }
 
     @Test

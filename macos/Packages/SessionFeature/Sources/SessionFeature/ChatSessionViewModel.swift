@@ -119,6 +119,16 @@ public final class ChatSessionViewModel: Identifiable {
             && runtimeLoadedTailRevision == runtimeChatState.transcriptRevision
     }
     public private(set) var runtimePendingItems: [ChatItem] = []
+    public var runtimeSupportsChatReadModel = false {
+        didSet {
+            if oldValue != runtimeSupportsChatReadModel {
+                let generation = runtimeChatRead.control.timelineGeneration &+ 1
+                runtimeChatRead = RuntimeChatReadProjection()
+                runtimeChatRead.control.timelineGeneration = generation
+            }
+        }
+    }
+    var runtimeChatRead = RuntimeChatReadProjection()
     @ObservationIgnored public var runtimeContentLoader: (@MainActor (SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse)?
     @ObservationIgnored var runtimeOverview: SessionRuntimeSessionOverview?
     private var runtimeChatState: SessionRuntimeSessionOverview.ChatState? {
@@ -132,6 +142,7 @@ public final class ChatSessionViewModel: Identifiable {
     @ObservationIgnored private var runtimeTailNeedsReplacement = false
     @ObservationIgnored private var runtimeLoadedPendingIdentity: String?
     @ObservationIgnored private var runtimeContentTask: Task<Void, Error>?
+    @ObservationIgnored private var runtimeContentRefreshPending = false
     @ObservationIgnored private var runtimeLoadedPresentationRevision: UInt64?
     @ObservationIgnored private var runtimeFailedPresentationRevision: UInt64?
     @ObservationIgnored private var runtimePresentationFailure: String?
@@ -174,7 +185,12 @@ public final class ChatSessionViewModel: Identifiable {
         return visible + runtimePendingItems.filter { !loadedIDs.contains($0.id) }
     }
     public var inputHistoryEntries: [InputHistoryEntry] {
-        InputHistoryPolicy.entries(from: transcript)
+        if usesRuntimeChatReadModel { return runtimeChatRead.historyEntries }
+        return InputHistoryPolicy.entries(from: transcript)
+    }
+    var revertHistoryEntries: [InputHistoryEntry] {
+        if usesRuntimeChatReadModel { return runtimeChatRead.historyEntries.reversed() }
+        return InputHistoryPolicy.entries(from: transcript).reversed()
     }
     /// transcript の項目 ID 集合。契約（task-5）: 常に `Set(transcript.map(\.id))` と一致するよう
     /// 全変更経路で増分維持する（body 毎の全再構築を避けるための索引）。
@@ -183,6 +199,8 @@ public final class ChatSessionViewModel: Identifiable {
     @ObservationIgnored private let transcriptStreamCoalescer = TranscriptStreamCoalescer()
     @ObservationIgnored private var midTurnPersistenceGate = MidTurnPersistenceGate()
     public private(set) var transcriptRevision: Int = 0
+    @ObservationIgnored var runtimeChatReadIndex = RuntimeChatReadIndexStore()
+    @ObservationIgnored private var runtimeOverviewTranscriptIndex = RuntimeOverviewTranscriptIndex()
     @ObservationIgnored var runtimeContentPrefixHashes: [SHA256] = [SHA256()]
     @ObservationIgnored var runtimeContentPrefixRevision: Int?
     @ObservationIgnored var runtimeContentCacheExecutionID: UUID?
@@ -1090,6 +1108,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// Codex の会話を読み直した入力は添付の記録を持たないので、本文の [Image #N] でも見分ける。
     func recallInputHistory(_ direction: InputHistoryCursor.Direction) -> Bool {
         guard attachmentStore.attachments.isEmpty else { return false }
+        if usesRuntimeChatReadModel { return recallRuntimeInputHistory(direction) }
         if recallLoadedInputHistory(direction) { return true }
         guard isRuntimeProjection, hasMoreRuntimeTranscript, case .older = direction else { return false }
         if runtimeInputHistoryLoadTask == nil {
@@ -1657,11 +1676,11 @@ public final class ChatSessionViewModel: Identifiable {
         }
         if EscapeRevertPolicy.isDoubleEscape(lastEscapeAt: lastEscapeAt, now: now) {
             lastEscapeAt = now
-            if isRuntimeProjection, !hasLoadedRuntimeTranscript || hasMoreRuntimeTranscript {
+            if usesRuntimeChatReadModel {
                 Task {
                     do {
-                        try await loadAllRuntimeContent()
-                        if lastEscapeAt == now, !revertCandidates.isEmpty { isHistoryPickerPresented = true }
+                        try await loadRuntimeInputHistory()
+                        if lastEscapeAt == now, !revertHistoryEntries.isEmpty { isHistoryPickerPresented = true }
                     } catch { runtimeConnectionError = error.localizedDescription }
                 }
                 return
@@ -1684,10 +1703,6 @@ public final class ChatSessionViewModel: Identifiable {
     /// 先に中断を完了させてからリバートする（esc 1回目の interrupt が未収束の窓で選択が
     /// 無音 no-op になるのを防ぐ。turnInterrupt は非スローで必ず idle 復帰する）。
     public func confirmRevert(toUserMessageID id: String) async {
-        if isRuntimeProjection {
-            do { try await loadAllRuntimeContent() }
-            catch { runtimeConnectionError = error.localizedDescription; return }
-        }
         let expectedExecutionID = executionID
         if status == .running {
             await turnInterrupt()
@@ -3608,7 +3623,11 @@ public final class ChatSessionViewModel: Identifiable {
         codexSettingsDidChange?(codexSettingsSnapshot)
     }
 
-    private func markTranscriptChanged(isAppendOnly: Bool = false, changedFromIndex: Int = 0) {
+    private func markTranscriptChanged(isAppendOnly: Bool = false, changedFromIndex: Int = 0,
+                                       changedItemIDs: Set<String>? = nil) {
+        runtimeOverviewTranscriptIndex.noteChange(isAppendOnly: isAppendOnly, from: changedFromIndex, itemIDs: changedItemIDs)
+        runtimeChatReadIndex.invalidate(from: isAppendOnly ? transcript.count - 1 : changedFromIndex,
+            itemIDs: changedItemIDs)
         let nextRevision = transcriptRevision + 1
         if runtimeContentPrefixRevision == transcriptRevision {
             let retained = isAppendOnly ? runtimeContentPrefixHashes.count
@@ -3773,7 +3792,7 @@ public final class ChatSessionViewModel: Identifiable {
         subAgentModel.appendSubAgentActivities(subAgentActivities)
 
         if didChange {
-            markTranscriptChanged(isAppendOnly: !editedExisting, changedFromIndex: firstEditedIndex)
+            markTranscriptChanged(isAppendOnly: !editedExisting, changedFromIndex: firstEditedIndex, changedItemIDs: editedItemIDs)
             for id in editedItemIDs { runtimeContentItemRevisions[id] = transcriptRevision }
         }
         lastOutputAt = batch.latestEventAt
@@ -3803,7 +3822,7 @@ public final class ChatSessionViewModel: Identifiable {
                 intent: intent
             ))
         }
-        markTranscriptChanged(isAppendOnly: appended, changedFromIndex: changedFromIndex)
+        markTranscriptChanged(isAppendOnly: appended, changedFromIndex: changedFromIndex, changedItemIDs: appended ? [] : [itemId])
         touchOutput()
     }
 
@@ -3833,7 +3852,7 @@ public final class ChatSessionViewModel: Identifiable {
         default:
             return
         }
-        markTranscriptChanged(changedFromIndex: index)
+        markTranscriptChanged(changedFromIndex: index, changedItemIDs: [transcript[index].id])
     }
 
     /// superseded にした入力の遅れた終了なら吸収する（吸収したら true。どの入力にも書かない）。
@@ -3855,7 +3874,7 @@ public final class ChatSessionViewModel: Identifiable {
             turnEnd: ChatTurnEnd(outcome: outcome, at: date)
         )
         if openInputID == inputID { openInputID = nil }
-        markTranscriptChanged(changedFromIndex: index)
+        markTranscriptChanged(changedFromIndex: index, changedItemIDs: [transcript[index].id])
         return true
     }
 
@@ -3876,7 +3895,7 @@ public final class ChatSessionViewModel: Identifiable {
             let replacement = item.withTimestamp(transcript[index].timestamp)
             if replacement != transcript[index] {
                 transcript[index] = replacement
-                markTranscriptChanged(changedFromIndex: index)
+                markTranscriptChanged(changedFromIndex: index, changedItemIDs: [transcript[index].id])
             }
         } else {
             appendToTranscript(item)
@@ -4994,9 +5013,20 @@ extension ChatSessionViewModel {
             runtimePresentationFailure = nil
             runtimeFailedPresentationRevision = nil
         }
+        let shrank: Bool
+        if let previous, case .chat(let oldChat) = previous.kind {
+            shrank = chat.transcriptItemCount < oldChat.transcriptItemCount
+        } else { shrank = false }
+        if executionChanged || shrank {
+            let generation = runtimeChatRead.control.timelineGeneration &+ 1
+            runtimeChatRead = RuntimeChatReadProjection()
+            runtimeChatRead.control.timelineGeneration = generation
+        }
+        if runtimeContentTask != nil { runtimeContentRefreshPending = true }
         if transcriptChanged {
             if executionChanged {
                 transcript = []
+                runtimeOverviewTranscriptIndex.invalidate()
                 transcriptItemIDs = []
                 transcriptIndexByID = [:]
                 turnUsageByItemID = [:]
@@ -5024,16 +5054,37 @@ extension ChatSessionViewModel {
     }
 
     public func refreshRuntimeContent() async throws {
-        if let runtimeContentTask { try await runtimeContentTask.value; return }
-        let task = Task { try await loadRuntimeContentIfNeeded() }
+        if let runtimeContentTask {
+            runtimeContentRefreshPending = true
+            try await runtimeContentTask.value
+            return
+        }
+        runtimeContentRefreshPending = false
+        let task = Task {
+            if usesRuntimeChatReadModel { try await refreshRuntimeChatRead() }
+            try await loadRuntimeContentIfNeeded(includeTranscript: !usesRuntimeChatReadModel)
+        }
         runtimeContentTask = task
-        defer { runtimeContentTask = nil }
+        defer {
+            runtimeContentTask = nil
+            if runtimeContentRefreshPending {
+                runtimeContentRefreshPending = false
+                Task { try? await refreshRuntimeContent() }
+            }
+        }
         try await task.value
     }
 
-    private func loadRuntimeContentIfNeeded() async throws {
+    private func loadRuntimeContentIfNeeded(includeTranscript: Bool = true) async throws {
         guard let runtimeOverview, case .chat(let chat) = runtimeOverview.kind else { return }
-        guard let loader = runtimeContentLoader else { throw SessionRuntimeContentError.invalidRequest }
+        guard let baseLoader = runtimeContentLoader else { throw SessionRuntimeContentError.invalidRequest }
+        let loader: @MainActor (SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse
+        if usesRuntimeChatReadModel {
+            loader = { request in
+                guard request.executionID == self.executionID else { throw SessionRuntimeContentError.staleContent }
+                return try await self.readRuntimeChat(request.target)
+            }
+        } else { loader = baseLoader }
         let execution = runtimeOverview.executionID
         let revision = chat.transcriptRevision
         let pendingIdentity = chat.pendingIdentity
@@ -5087,7 +5138,7 @@ extension ChatSessionViewModel {
                 runtimePendingItems = pendingItems
                 runtimeLoadedPendingIdentity = pendingIdentity
             }
-            if runtimeLoadedTailRevision != revision {
+            if includeTranscript, runtimeLoadedTailRevision != revision {
                 let checkingCursor = runtimeTailNeedsReplacement
                     && runtimeContentStartIndex < (runtimeTailPrefixCursor?.index ?? 0)
                     ? runtimeTailPrefixCursor : nil
@@ -5200,6 +5251,7 @@ extension ChatSessionViewModel {
                 hasLoadedRuntimeTranscript = true
                 hasMoreRuntimeTranscript = runtimeOlderCursor != nil
                 runtimeLoadedTailRevision = revision
+                runtimeOverviewTranscriptIndex.invalidate()
                 pendingAsyncQuestionCache = nil
             }
             runtimeConnectionError = runtimePresentationFailure
@@ -5314,6 +5366,7 @@ extension ChatSessionViewModel {
         }
         guard runtimeOlderCursor == cursor else { return }
         transcript.insert(contentsOf: older, at: 0)
+        runtimeOverviewTranscriptIndex.invalidate()
         transcriptItemIDs.formUnion(older.map(\.id))
         transcriptIndexByID = Dictionary(transcript.enumerated().map { ($0.element.id, $0.offset) },
             uniquingKeysWith: { _, last in last })
@@ -5353,7 +5406,7 @@ extension ChatSessionViewModel {
             && runtimeOlderCursor == cursor
     }
 
-    private func loadRuntimeChunk(_ marker: SessionRuntimeContentMarker, execution: UUID,
+    func loadRuntimeChunk(_ marker: SessionRuntimeContentMarker, execution: UUID,
                                   using loader: @MainActor (SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse) async throws -> Data {
         var data = Data()
         var offset = 0
@@ -5395,7 +5448,16 @@ extension ChatSessionViewModel {
         hash.update(data: data)
     }
 
+    private func runtimeOverviewTranscriptMetadata() -> (pendingPositions: [Int], lastAgentText: SessionRuntimeTextPreview?) {
+        runtimeOverviewTranscriptIndex.metadata(in: transcript, positionsByID: transcriptIndexByID, executionID: executionID)
+    }
+
+    var sourcePendingQuestionItems: [ChatItem] {
+        runtimeOverviewTranscriptMetadata().pendingPositions.map { transcript[$0] }
+    }
+
     public func makeRuntimeOverview() -> SessionRuntimeSessionOverview {
+        let metadata = runtimeOverviewTranscriptMetadata()
         var interactions: [SessionRuntimePendingInteractionOverview] = []
         var pendingCount = pendingApprovals.count
         var pendingHash = SHA256()
@@ -5410,7 +5472,8 @@ extension ChatSessionViewModel {
             Self.updatePendingHash(approval.itemId, into: &pendingHash)
             Self.updatePendingHash(String(runtimeContentRevision(for: approval.itemId)), into: &pendingHash)
         }
-        for (index, item) in transcript.enumerated() {
+        for index in metadata.pendingPositions {
+            let item = transcript[index]
             guard case .userQuestion(_, _, let questions, _, .pending, let timestamp) = item else { continue }
             pendingCount += 1
             Self.updatePendingHash(item.id, into: &pendingHash)
@@ -5420,15 +5483,7 @@ extension ChatSessionViewModel {
                 prompt: SessionRuntimeTextPreview(questions.first?.question ?? ""),
                 isToolPermission: Self.isToolPermissionQuestion(questions), requestedAt: timestamp))
         }
-        var lastAgentText: SessionRuntimeTextPreview?
-        for item in transcript.reversed() {
-            guard case .agentMessage(_, let text, _) = item else { continue }
-            let preview = SessionRuntimeTextPreview(text)
-            if !preview.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                lastAgentText = preview
-                break
-            }
-        }
+        let lastAgentText = metadata.lastAgentText
         let bounded: (String?) -> String? = { $0.map { SessionRuntimeTextPreview($0, maximumBytes: 4096).text } }
         var controls = SessionRuntimeSessionOverview.ChatState.Controls()
         controls.selectedModel = bounded(selectedModel)
@@ -5692,6 +5747,8 @@ extension ChatSessionViewModel {
         codexSubAgentError = snapshot.codexSubAgentError
         if shouldApplyTranscript {
             transcript = snapshot.transcript
+            runtimeOverviewTranscriptIndex.invalidate()
+            runtimeChatReadIndex.invalidate(from: 0)
             transcriptItemIDs = Set(transcript.map(\.id))
             transcriptIndexByID = Dictionary(transcript.enumerated().map { ($0.element.id, $0.offset) },
                 uniquingKeysWith: { _, last in last })

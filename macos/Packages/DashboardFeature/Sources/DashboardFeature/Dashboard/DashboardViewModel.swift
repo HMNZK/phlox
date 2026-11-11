@@ -118,6 +118,9 @@ public final class DashboardViewModel {
     @ObservationIgnored public var runtimeContentLoader: (@MainActor (SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse)? {
         didSet { for node in sessionNodes { node.appServer?.runtimeContentLoader = runtimeContentLoader } }
     }
+    public var runtimeSupportsChatReadModel = false {
+        didSet { for node in sessionNodes { node.appServer?.runtimeSupportsChatReadModel = runtimeSupportsChatReadModel } }
+    }
     @ObservationIgnored public internal(set) var viewedRuntimeSessionIDs: Set<SessionID> = []
     @ObservationIgnored var viewedRuntimeSessionsByObserver: [UUID: Set<SessionID>] = [:]
     @ObservationIgnored public var onRuntimeSessionsViewed: (@MainActor ([SessionID]) -> Void)?
@@ -2419,6 +2422,17 @@ extension DashboardViewModel {
         }
     }
 
+    public func runtimeChatReadContent(for request: SessionRuntimeContentRequest) async throws -> SessionRuntimeContentResponse {
+        switch sessionNode(id: request.sessionID) {
+        case .appServer(let session):
+            return try await session.runtimeChatReadContent(for: request)
+        case .pty(let session):
+            return try session.runtimeContent(for: request)
+        case nil:
+            throw SessionRuntimeContentError.notFound
+        }
+    }
+
     public func runtimeOverviewSession(id: SessionID) -> SessionRuntimeSessionOverview? {
         runtimeProjectionOverview?.sessions.first { $0.id == id }
     }
@@ -2462,6 +2476,7 @@ extension DashboardViewModel {
                     node = .appServer(session)
                 }
                 node.appServer?.runtimeContentLoader = runtimeContentLoader
+                node.appServer?.runtimeSupportsChatReadModel = runtimeSupportsChatReadModel
             }
             updated.append(node)
         }
@@ -2551,6 +2566,8 @@ extension DashboardViewModel {
                     }
                 }
             }
+            node.appServer?.runtimeContentLoader = runtimeContentLoader
+            node.appServer?.runtimeSupportsChatReadModel = runtimeSupportsChatReadModel
             updated.append(node)
         }
         for (node, entry) in zip(updated, snapshot.sessions) {

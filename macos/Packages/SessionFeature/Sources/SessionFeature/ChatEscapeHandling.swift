@@ -49,11 +49,13 @@ private struct ChatEscapeHandling: ViewModifier {
                             .contentShape(Rectangle())
                             .onTapGesture { viewModel.handleEscapeKey() }
                         ChatHistoryRevertPicker(
-                            candidates: viewModel.revertCandidates,
+                            candidates: viewModel.revertHistoryEntries,
                             onConfirm: { id in
                                 Task { await viewModel.confirmRevert(toUserMessageID: id) }
                             },
-                            onCancel: { viewModel.handleEscapeKey() }
+                            onCancel: { viewModel.handleEscapeKey() },
+                            hasEarlier: viewModel.usesRuntimeChatReadModel && viewModel.runtimeChatRead.hasEarlierHistory,
+                            onLoadEarlier: { Task { try? await viewModel.loadRuntimeInputHistory(earlier: true) } }
                         )
                         .padding(.top, 110)
                     }

@@ -44,7 +44,7 @@ status: active
 - `macos/scripts/verification-gate.py quality`から既存スクリプト・Makefileの品質検査を呼ぶ。コマンドを別実装で再構成して品質を落とさない。必要な出力先指定と失敗を正しく返す修正は実装担当の範囲。
 - 共通`~/.agents/scripts/gitflow-merge.sh`が文書保守後の隔離候補で呼ぶ`gitflow.verifyCommand`へ接続する。`GITFLOW_MERGE_CANDIDATE`と実際のHEADが一致することを確認し、開始・終了時に候補とビルド入力の不変性を確認する。手元の古いgreenは代用不可。
 - `gitflow.releaseCommand`には既存の署名・版・ノート・appcast・stapler確認を先行して残し、`macos/scripts/verification-gate.py release --dmg <同じ実DMG> --zip <同じ工程の配布ZIP> --evidence-root <証拠基準ディレクトリ> [--record <記録JSON>]`によるmain用の実機記録照合を追加する。releaseサブコマンド自身が既存署名検査を代行するわけではない。ローカルGit設定の接続は、実装・検証後に親担当が行う。共通ツールを変更せず、別のmerge操作へ迂回しない。
-- devとverifyへの統合は実機未実施でも自動検査が合格すれば進められる。verifyで検証するビルドを固定し、実機結果を保存する。mainへの統合は自動検査と必要な実機記録の両方を要求する。
+- 必須の統合経路は作業ブランチ→dev→mainとする。devへの統合（任意にverifyを使う場合も同様）は実機未実施でも自動検査が合格すれば進められる。統合する候補のビルドを固定し、実機結果を保存する。mainへの統合は自動検査と必要な実機記録の両方を要求する。
 - docs保守でシナリオ内容が変われば古い実機結果は使えない。更新前の検査を通したことを理由に最終候補の検査を省かない。
 
 個別テストID・生ログ・機械可読結果・実効設定は、共通マージ経由なら`$GITFLOW_VERIFICATION_DIR`配下のcandidate外へ保存する。外側のcompact-testが成功ログを要約しても証拠が残るようにする。通常の直接検証はそのworktreeの固有`.verification/<作業名>/`へ保存する。managed-buildの再生成できる出力と永続させる検査証跡を分離し、成功時にcandidateが削除されても証跡を失わない。
@@ -140,7 +140,7 @@ capture-buildとreleaseの両方に証拠の明示基準`--evidence-root`を渡�
 
 capture-buildのartifact/zip/settings/output/external-inputとreleaseのdmg/zipは、この基準内のパスを指定する。`--record`は照合する追跡JSONの選択で、既定は候補内の`release/verification-records.json`。記録JSON自体の選択と、その中にある証拠参照の基準を混同しない。releaseは最終統合候補の`GITFLOW_MERGE_CANDIDATE`と比較元`GITFLOW_MERGE_TO`を要求する。
 
-実機確認後は、固定したverifyから**記録だけの作業ブランチ**を切り、記録JSON・その参照を含む文書だけを保存する。共通マージツールを通してverifyへ戻し、同じ自動検査を実行する。新しいdevの製品変更を混ぜずにverify→mainへ進める。sourceOIDは実際にビルドした旧OIDを維持し、記録追加後のOIDとは入力比較で対応付ける。以後コードを変更した場合は該当ビルドの実機結果を再利用しない。
+実機確認後は、固定した候補から**記録専用のコミット**を作り、記録JSON・その参照を含む文書だけを保存する。共通マージツールを通してdevへ統合し、同じ自動検査を実行する。固定した入力に新しい製品変更を混ぜずにdev→mainへ進める。sourceOIDは実際にビルドした旧OIDを維持し、記録追加後のOIDとは入力比較で対応付ける。以後コードを変更した場合は該当ビルドの実機結果を再利用しない。
 
 #### 配布ZIPとDMGの対応
 
@@ -194,7 +194,7 @@ iOSでは設定JSONだけでなく、完成したIPAの本体とWidgetのInfo.pl
 ## 仮定 / 未知
 
 - 指定13関数は静的に存在を確認した集合であり、この草稿での実行成功は未確認。テストランナーの結果形式を実装時に実測し、判別不能を合格にしない。
-- 実機の利用可能性、確認する端末/OSの組合せ、実施者は未確定。親がverifyで確定し、不足はnot_runとして残す。証拠の継続保管先は上記契約に従い、実機実施前に実パスを確保する。
+- 実機の利用可能性、確認する端末/OSの組合せ、実施者は未確定。親が固定候補で確定し、不足はnot_runとして残す。証拠の継続保管先は上記契約に従い、実機実施前に実パスを確保する。
 - 調査元のAGENTS.mdはGit除外のローカル文書で、開始時worktreeには存在しない。共通規則や元作業場所は変更せず、追跡する正本は本書と既存E2E設計に置く。
 
 ## 制約（技術・運用・期限）

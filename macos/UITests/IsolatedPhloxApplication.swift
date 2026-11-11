@@ -2,15 +2,14 @@ import AppKit
 import Security
 import XCTest
 
-/// UIテスト専用。所有権は起動コールバックの戻り値だけから取得する。
+/// GUIは起動コールバック、実行サービスは専用保存先の発見情報と署名から所有権を確認する。
 @MainActor
 final class IsolatedPhloxApplication {
     private static let bundleID = "com.phlox.Phlox.debug"
     private static let paneLayoutKey = "phlox.grid.paneLayout"
-    /// 起動時にアプリが必ず保存するグリッド配置の記録（PaneLayoutStore.presetStorageKey）。
-    /// 専用 suite にこれが書かれ、通常の保存先が変わらないことで、設定の隔離を確かめる。
-    /// （以前はパネル幅の移行を目印にしていたが、その処理は 02 案 C のタブ再設計でパネルごと無くなった）
     private static let presetKey = "phlox.grid.paneLayoutPreset"
+    private static let layoutStateKey = "phlox.grid.layoutState"
+    private static let inspectorTabKey = "phlox.inspector.tab"
 
     private let appURL: URL
     private let executableURL: URL
@@ -19,6 +18,8 @@ final class IsolatedPhloxApplication {
     private let originalDefaults: NSDictionary
     private var owned: NSRunningApplication?
     private var ownedPID: pid_t?
+    private var ownedRuntime: NSRunningApplication?
+    private var runtimeExecutableURL: URL?
     private var launchError: Error?
     private var callbackReceived = false
     private var launchRequested = false
@@ -29,10 +30,16 @@ final class IsolatedPhloxApplication {
         case unsafe(String)
     }
 
+    private struct RuntimeDiscovery: Decodable {
+        let pid: pid_t
+        let storeURL: URL
+    }
+
     private init(appURL: URL, executableURL: URL, dataParent: URL) throws {
         self.appURL = appURL
         self.executableURL = executableURL
-        dataURL = dataParent.appendingPathComponent("phlox-uitest-" + UUID().uuidString, isDirectory: true)
+        dataURL = dataParent.resolvingSymlinksInPath()
+            .appendingPathComponent("phlox-uitest-" + UUID().uuidString, isDirectory: true)
         originalDefaults = try Self.drawerDefaults(in: Self.bundleID)
     }
 
@@ -74,8 +81,8 @@ final class IsolatedPhloxApplication {
         try prepareData?(isolated.dataURL)
         // 検査・削除はすべてcurrent user / any hostの同じ永続ドメインを使う。
         let seeded = try drawerDefaults(in: isolated.suite)
-        guard seeded[presetKey] == nil else {
-            throw Failure.unsafe("専用suiteの起動前条件（グリッド配置の記録なし）が成立しない: \(seeded)")
+        guard seeded[presetKey] == nil, seeded[layoutStateKey] == nil, seeded[inspectorTabKey] == nil else {
+            throw Failure.unsafe("専用suiteの起動前条件（設定の記録なし）が成立しない: \(seeded)")
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.arguments = arguments
@@ -85,6 +92,7 @@ final class IsolatedPhloxApplication {
             "PHLOX_DATA_DIR": isolated.dataURL.path,
             "PHLOX_DEFAULTS_SUITE": isolated.suite,
             "PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN": "1",
+            "PHLOX_TEST_EPHEMERAL_MOBILE_PORT": "1",
         ]
         var paths = try testAgentBinaryPaths?(isolated.dataURL) ?? [:]
         if let testClaudeBinaryPath { paths["claudeCode"] = testClaudeBinaryPath }
@@ -121,6 +129,13 @@ final class IsolatedPhloxApplication {
                 throw Failure.unsafe("起動コールバックが30秒で未到着。所有権・残留を確認不能。候補は終了しない")
             }
             if let error = isolated.launchError { throw error }
+            let runtimeDeadline = Date().addingTimeInterval(30)
+            while !(try isolated.captureOwnedRuntime()) && Date() < runtimeDeadline {
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            guard isolated.ownedRuntime != nil else {
+                throw Failure.unsafe("専用実行サービスの所有権を30秒以内に確認できない")
+            }
             let app = try isolated.application()
             let windowDeadline = Date().addingTimeInterval(30)
             while Date() < windowDeadline {
@@ -150,10 +165,56 @@ final class IsolatedPhloxApplication {
             throw Failure.unsafe("起動コールバックのPID・実行パスを確認できない。接続を拒否")
         }
         let candidates = NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID)
-        guard candidates.count == 1, let candidate = candidates.first,
-              matchesOwner(candidate) else {
+        guard candidates.filter({ matchesOwner($0) }).count == 1,
+              candidates.allSatisfy({ matchesOwner($0) || matchesRuntime($0) }) else {
             throw Failure.unsafe("Debugの接続対象が一意でない。GUI操作を拒否: \(Self.describe(candidates))")
         }
+    }
+
+    private func captureOwnedRuntime() throws -> Bool {
+        if let ownedRuntime, !ownedRuntime.isTerminated { return true }
+        let discoveryURL = dataURL.appendingPathComponent("session-runtime/discovery.json")
+        guard FileManager.default.fileExists(atPath: discoveryURL.path) else { return false }
+        let discovery = try JSONDecoder().decode(RuntimeDiscovery.self, from: Data(contentsOf: discoveryURL))
+        guard discovery.pid > 0,
+              dataURL.resolvingSymlinksInPath().path == dataURL.path,
+              discovery.storeURL.resolvingSymlinksInPath().path == dataURL.path else {
+            throw Failure.unsafe("実行サービスの発見情報が専用保存先と一致しない")
+        }
+        guard let runtime = NSRunningApplication(processIdentifier: discovery.pid), !runtime.isTerminated else {
+            return false
+        }
+        let bundles = dataURL.appendingPathComponent("session-runtime-bundles").resolvingSymlinksInPath()
+        guard bundles.deletingLastPathComponent().path == dataURL.path,
+              runtime.bundleIdentifier == Self.bundleID,
+              let bundleURL = runtime.bundleURL?.resolvingSymlinksInPath(),
+              bundleURL.deletingLastPathComponent().path == bundles.path,
+              let executable = runtime.executableURL?.resolvingSymlinksInPath(),
+              executable == Bundle(url: bundleURL)?.executableURL?.resolvingSymlinksInPath() else {
+            throw Failure.unsafe("実行サービスのPID・bundle・実行パスが専用保存先と一致しない")
+        }
+        var originalCode: SecStaticCode?
+        var runtimeCode: SecStaticCode?
+        var requirement: SecRequirement?
+        guard SecStaticCodeCreateWithPath(appURL as CFURL, [], &originalCode) == errSecSuccess,
+              let originalCode,
+              SecCodeCopyDesignatedRequirement(originalCode, [], &requirement) == errSecSuccess,
+              let requirement,
+              SecStaticCodeCreateWithPath(bundleURL as CFURL, [], &runtimeCode) == errSecSuccess,
+              let runtimeCode,
+              SecStaticCodeCheckValidity(runtimeCode, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess else {
+            throw Failure.unsafe("専用実行サービスの署名が起動したアプリと一致しない")
+        }
+        ownedRuntime = runtime
+        runtimeExecutableURL = executable
+        print("Phlox UI runtime owner: \(Self.describe([runtime])) data=\(dataURL.path)")
+        return true
+    }
+
+    private func matchesRuntime(_ running: NSRunningApplication) -> Bool {
+        ownedRuntime != nil && running.isEqual(ownedRuntime) && !running.isTerminated
+            && running.bundleIdentifier == Self.bundleID
+            && running.executableURL?.resolvingSymlinksInPath() == runtimeExecutableURL
     }
 
     private func matchesOwner(_ running: NSRunningApplication) -> Bool {
@@ -195,7 +256,7 @@ final class IsolatedPhloxApplication {
         var protected: [String: Any] = [:]
         for (rawKey, value) in values {
             guard let key = rawKey as? String else { continue }
-            if key == presetKey || key == paneLayoutKey || key.hasPrefix("SU")
+            if key == presetKey || key == paneLayoutKey || key == layoutStateKey || key == inspectorTabKey || key.hasPrefix("SU")
                 || key == "phlox.theme" || key == "phlox.appLanguage"
                 || key == "AppleLanguages" || key == "AppleLocale" {
                 protected[key] = value
@@ -207,28 +268,38 @@ final class IsolatedPhloxApplication {
     private func assertStandardUnchanged() throws {
         let current = try Self.drawerDefaults(in: Self.bundleID)
         guard current.isEqual(originalDefaults) else {
-            throw Failure.unsafe("通常Debugの保護対象設定（グリッド配置・更新確認）が変化")
+            throw Failure.unsafe("通常Debugの保護対象設定が変化")
         }
     }
 
     private func assertDefaultsIsolation() async throws {
-        // グリッド配置の記録は起動時のセッション復元が終わってから保存される。
-        // 初回（コールドスタート）はウィンドウ表示から 10 秒を超えることがあるので、ウィンドウ待ちと同じ 30 秒待つ。
-        let deadline = Date().addingTimeInterval(30)
+        let app = try application()
+        guard app.checkBoxes["inspector-toggle"].firstMatch.waitForExistence(timeout: 30) else {
+            throw Failure.unsafe("設定の隔離を検証するダッシュボードが表示されない")
+        }
+        // 自動配置は起動時に保存しない。実際の設定操作で専用suiteへの書込みを確認する。
+        try assertExclusiveOwnership()
+        app.typeKey("g", modifierFlags: [.shift, .control, .command])
+        try await assertStoredInspectorTab("git")
+        try assertExclusiveOwnership()
+        app.typeKey("b", modifierFlags: [.control, .command])
+        try await assertStoredInspectorTab("files")
+        try assertExclusiveOwnership()
+        app.typeKey("i", modifierFlags: [.control, .command])
+        print("Phlox UI defaults: suite=\(suite) inspectorTab=files standard=unchanged")
+    }
+
+    private func assertStoredInspectorTab(_ expected: String) async throws {
+        let deadline = Date().addingTimeInterval(10)
         var saved: NSDictionary = [:]
         repeat {
             try assertExclusiveOwnership()
             try assertStandardUnchanged()
             saved = try Self.drawerDefaults(in: suite)
-            if let data = saved[Self.presetKey] as? Data,
-               let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               record["preset"] is String {
-                print("Phlox UI defaults: suite=\(suite) paneLayoutPreset=saved standard=unchanged")
-                return
-            }
+            if saved[Self.inspectorTabKey] as? String == expected { return }
             try await Task.sleep(for: .milliseconds(100))
         } while Date() < deadline
-        throw Failure.unsafe("専用suiteにグリッド配置の記録が保存されない: suite=\(suite) values=\(saved)")
+        throw Failure.unsafe("専用suiteに設定の変更が保存されない: suite=\(suite) expected=\(expected) values=\(saved)")
     }
 
     private func tearDown() async {
@@ -262,6 +333,7 @@ final class IsolatedPhloxApplication {
                     }
                     catch { XCTFail("後始末時の通常Debug保存先検査に失敗: \(error)") }
                 }
+                let capturedRuntime = try self.captureOwnedRuntime()
                 if let owned = self.owned {
                     guard self.matchesOwner(owned) else {
                         throw Failure.unsafe("所有PID・実行パスの照合失敗。終了せず残留を報告: \(Self.describe([owned]))")
@@ -283,6 +355,29 @@ final class IsolatedPhloxApplication {
                     print("Phlox UI terminated: pid=\(owned.processIdentifier) executable=\(self.executableURL.path)")
                 } else if self.launchRequested && self.launchError == nil {
                     throw Failure.unsafe("起動結果にアプリもエラーもなく所有権・残留を確認不能")
+                }
+                guard !self.launchRequested || capturedRuntime else {
+                    throw Failure.unsafe("起動を要求した実行サービスの所有権を確認できないため専用保存先を保持")
+                }
+                if let runtime = self.ownedRuntime, !runtime.isTerminated {
+                    guard self.matchesRuntime(runtime), runtime.terminate() else {
+                        throw Failure.unsafe("所有実行サービスが一致しないか正常終了要求を拒否")
+                    }
+                    let deadline = Date().addingTimeInterval(15)
+                    while !runtime.isTerminated && Date() < deadline {
+                        try await Task.sleep(for: .milliseconds(50))
+                    }
+                    guard runtime.isTerminated else {
+                        throw Failure.unsafe("所有実行サービスが終了していないため専用保存先を保持")
+                    }
+                    print("Phlox UI runtime terminated: pid=\(runtime.processIdentifier)")
+                }
+                let prefix = self.dataURL.resolvingSymlinksInPath().path + "/"
+                let remaining = NSWorkspace.shared.runningApplications.filter {
+                    !$0.isTerminated && $0.executableURL?.resolvingSymlinksInPath().path.hasPrefix(prefix) == true
+                }
+                guard remaining.isEmpty else {
+                    throw Failure.unsafe("専用保存先を使うアプリが残っているため保持: \(Self.describe(remaining))")
                 }
                 let keys = CFPreferencesCopyKeyList(self.suite as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
                 CFPreferencesSetMultiple(nil, keys, self.suite as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)

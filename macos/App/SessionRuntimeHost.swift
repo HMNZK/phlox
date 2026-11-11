@@ -105,8 +105,8 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
                     overview.usage = root.usage.makeRuntimeSnapshot().boundedForOverview()
                     return overview
                 }, content: { request in
-                    try root.dashboard.runtimeContent(for: request)
-                }, command: { command in
+                    try await root.dashboard.runtimeChatReadContent(for: request)
+                }, supportsChatReadModel: true, command: { command in
                     if case .usage(let usageCommand) = command {
                         try await root.usage.performRuntimeCommand(usageCommand)
                         return .none

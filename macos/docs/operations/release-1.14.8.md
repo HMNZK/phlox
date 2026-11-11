@@ -6,7 +6,7 @@
 
 タスクを改名・削除した後に「本文の取得位置が不正です。」が残り、以降の出力が更新されなくなる問題を修正した。改名・削除後の実アプリ受入と全体品質ゲートは `d299eea3` の dev 統合時に成功している。リリース候補の来歴・署名・公証・実機記録・最終統合ゲートは、この候補で別途確認する。
 
-証拠の出力先は作業ツリーの `.verification/release-evidence/1.14.8/mac54-ios23/`。現時点では準備中で、必須実機5件の合格や main 統合・公開の成功を主張しない。実機の合格には正本ゲートが要求する人の観測記録が必要。利用中のアプリ・常駐サービスの停止や差替えは自動で行わない。
+証拠の継続保管先は元リポジトリの `.verification/release-evidence/1.14.8/mac54-ios23/`。必須実機5件の合格や main 統合・公開の成功を、この準備記録だけでは主張しない。ユーザーは今回の固定候補だけ実機5項目を未実施で進める[限定例外](physical-verification-exception-v1.14.8.md)を明示承認した。通常の実機条件は次版以降も維持する。
 
 新候補のビルド起点は `01b35c25dbbf6e39112e5380f7e768578bb9f792`。Mac の Developer ID 署名・アプリと DMG の公証/staple・同じアプリからの最終 ZIP 作成・XPC 署名等の4検査、iOS の実機向け archive/export が成功した。Sparkle の既存 Keychain 鍵による署名と検証も成功し、署名前後の ZIP bytes は同じ。これらを新候補の導入・人による実機5件の合格へ読み替えない。
 
@@ -18,7 +18,7 @@
 
 来歴は `distribution-candidate/macos-build.json` と `distribution-ios/ios-build.json`。配布物の正本照合 `verification-gate.py distribution` は成功した。通常の main 用 `releaseCommand` も新候補54/23の証拠基準へ更新し、署名・ノート・フィード・stapler・実機記録照合を維持した。事前照合は `Physical scenario not_run: physical-session-activity` で終了コード1となり、実機未実施を正しく拒否した。これは main 統合の成功ではない。
 
-`release/verification-records.json` は新候補を参照するが、人の観測はまだなく `devices` と `executions` は空である。ユーザーが実機確認を進めると回答した後、実 iPhone 14 Plus（iOS27.2/build24B119）へ新 IPA を直接導入した。別のアプリ情報照会で1.0/build23を確認し、起動も終了コード0だった。証拠は `physical/ios-install*.json`・`ios-app-after.json`・`ios-launch.json`。これを実機5件の合格へ読み替えない。Mac 候補の起動とサービス切替は未実施。iOS の導入用 URL も候補54の専用経路へ分けたが、OTA 公開は行っていない。
+`release/verification-records.json` は新候補を参照するが、人の観測はなく `devices` と `executions` は空である。実 iPhone 14 Plus（iOS27.2/build24B119）へ新 IPA を直接導入し、別照会で1.0/build23を確認、起動も終了コード0だった。証拠は `physical/ios-install*.json`・`ios-app-after.json`・`ios-launch.json`。ユーザーが待機を撤回して切替を指示した後、実行中の1会話をUIから中断し、旧GUIとサービスの終了・対象PID/世代を照合して Mac 54へ切り替えた。画面とサービスの両方が54で、既存10会話を復元した。新規の専用会話で送信と応答も確認した。証拠は `physical/cutover-before-stop.json`・`mac-install.json`・`mac-runtime-after.json`。これらを実機5件の合格へ読み替えない。iOSの導入用URLは候補54へ分離済みだがOTA公開は行っていない。
 
 以下は旧 build 52 の経緯と検証記録である。
 

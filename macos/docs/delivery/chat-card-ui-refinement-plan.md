@@ -1,11 +1,11 @@
 ---
-status: active
+status: completed
 last-verified: 2026-11-11
 ---
 
 # 問題定義: チャットカードの作業内容と担当を明確にする
 
-本書は承認済みの修正計画。2026-11-11 に TDD で実装を開始。
+本書は承認済み修正の計画と完了記録。2026-11-11 に TDD で実装・検証を完了。
 
 ## 解決したい問題
 
@@ -144,3 +144,15 @@ last-verified: 2026-11-11
 - 独立レビューは全変更を1回実施。取得中digest更新・Codex declinedの2件を再現テストで修正。画面外の12場面を出力し、変更数の配置・余白・狭いカードを確認した。狭幅ではエージェント内部の種類名より依頼内容を優先する。
 - 文字の非表示時はSwiftUIの静止表示を使い、不要なネイティブ描画を避ける。OSのReduceMotion環境値はSDKで読み取り専用のため、テストから設定を注入したとは扱わない。既存のOS設定読み取り経路は維持し、公開isVisible入力の静止フレーム・字形を画像で検査する。
 - 検証証拠は作業worktreeの `.verification/chat-card-ui-refinement-20261111/`。通常利用中のアプリを終了する再起動スクリプトは使わない。macOS独自lint/独立静的解析は未設定、Swiftコンパイルと読み替えない。
+
+
+### 最終結果（検査対象コード: dd7fe3cb）
+
+- 標準 `verification-gate.py quality`: exit 0。macOS全19パッケージ、iOS lint・単体・build、必須fake E2Eを実行。既存のGit履歴並び順テストの既知問題は残存し、既存ゲートの扱いのまま。新しい失敗を許容したり期待値を弱めたりしていない。
+- macOS Debugアプリ build: exit 0。通常のDebugアプリは起動せず、固有のアプリ/bridge IDを付けた固定ソースコピーもbuildして受入に使用した。生成プロジェクトをsource rootから離した初回の準備失敗は工程記録に残し、標準位置で生成して解決した。
+- `verify-phlox` 段1: send・stop・resumeでexit 0。段2: lifecycle（Claude/Codex/Cursor追加経路を含む）・中断→再開ともexit 0。通常Release/Debugは終了していない。所有プロセスは各10件・4件がすべて終了、残存PIDなし。
+- `verify-session-state-model`: human/anyとも既知一覧との一致でexit 0。既知のモデル違反を修正したとは扱わない。
+- 比較画像12場面を出力。完了時の行数/時間、差分展開の上下余白、360ptの担当・依頼内容・状態の収まりを確認した。
+- 未実行: 実CLI/外部API接続、OSのReduceMotion設定を切り替えた手動確認。macOS専用lint・独立静的解析は未設定。
+- 主要な機械記録: `.verification/chat-card-ui-refinement-20261111/verification-summary.json`、各 `steps/*/*/result.json`・`output.log`、`quality-*/result.json`、受入の `ownership.json`。
+- dev/mainへの統合・push・普段使うアプリの更新は未実施。

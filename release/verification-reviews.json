@@ -1474,6 +1474,23 @@
         "reason": "この候補だけ例外を認めて進める。対象は固定Mac1.14.8/build54・iOS1.0/build23の同一配布物に限る。"
       },
       "reason": "main比較のコード影響4件と今回省略する実機5件の和集合8シナリオを確認した。未分類変更0件、製品ゲート・カタログ・品質入口の変更0件。ユーザー承認文と保存票の候補範囲が一致し、必須実機5件はnot_run、devices/executionsは空のままで、人のpassed証言を追加していない。現在の2186入力とMac54/iOS23のcapture入力manifestが一致し、移管後の来歴・外部入力・3配布物のハッシュも一致する。限定コマンドは承認されたDMG/ZIP/IPAの固定SHA256と例外文書の存在を要求し、既存の版・notes・feed・stapler検査を保持する。正本distributionも候補入力とcapture入力の一致を要求するため、異なる製品ソースや次版・別成果物へ例外は広がらない。通常releaseCommandは現時点で物理検証を要求する保存値と一致している。統合成否にかかわらず限定設定を通常設定へ復元し実値を照合することが適用条件。本passは静的な内容・シナリオ・例外範囲のレビューであり、実機5件の成功、最終main候補quality・秘密情報検査・限定releaseCommandの実行成功、公開成功を保証しない。"
+    },
+    {
+      "baseOID": "9a34faf644bc438a790bd3371a56d4a2710796c2",
+      "targetOID": "bf9b1761428a6778ce84668c6e776b165df20c0f",
+      "diffSHA256": "d1042136f0afb8f5f4a392cbaf04a413698d3e98978b2ab16334c3aade004b80",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/release_149_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-11T10:21:13.092124+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "semantic-chat-read"
+      ],
+      "reason": "表示範囲末端消失からの復帰、回帰テストred/green、配布来歴・版・英日ノート・更新フィード、同一入力でのみ全体品質結果を再利用する条件を独立レビューし、correctnessと要件の指摘なし。テスト/ビルドの再実行はしていない。実機5項目の人の観測証言は含まない。"
     }
   ]
 }

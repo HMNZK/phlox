@@ -658,6 +658,28 @@ import Testing
         #expect(projected.runtimeChatRead.error != nil)
     }
 
+    @Test func aRemovedWindowEndRefreshesFromTheSameInputInsteadOfRemainingStale() async throws {
+        let source = conversation(inputCount: 128)
+        let projected = projection(source)
+        try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "input-0"))
+        #expect(projected.runtimeChatRead.page?.blocks.last?.id == "status-card-input-24")
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[49] = .agentMessage(id: "replacement-answer", text: "更新後の返答", timestamp: .distantPast)
+        changed.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(changed)
+        try projected.applyRuntimeOverview(source.makeRuntimeOverview())
+
+        try await projected.refreshRuntimeChatRead()
+
+        #expect(projected.runtimeChatRead.page?.blocks.first?.id == "input-0")
+        #expect(projected.runtimeChatRead.page?.blocks.last?.id == "replacement-answer")
+        #expect(projected.runtimeChatRead.page?.blocks.count == 50)
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
+        #expect(projected.runtimeChatRead.anchorItemID == "input-0")
+        #expect(!projected.runtimeChatRead.followsTail)
+        #expect(projected.runtimeChatRead.error == nil)
+    }
+
     @Test func aRemovedBackgroundAnchorReturnsToTheTailForTheFollowingRefreshToo() async throws {
         let source = conversation(inputCount: 128)
         let projected = projection(source)

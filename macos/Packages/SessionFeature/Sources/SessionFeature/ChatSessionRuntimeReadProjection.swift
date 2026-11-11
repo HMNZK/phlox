@@ -458,10 +458,8 @@ extension ChatSessionViewModel {
             let foundLast = blocks.contains { $0.id == wantedLast }
             if foundFirst && (followsTail || foundLast) { break }
             let cursor = followsTail ? result.olderCursor : result.newerCursor
-            guard let cursor else {
-                if followsTail { return freshTail }
-                throw SessionRuntimeContentError.staleContent
-            }
+            // A removed window end cannot be recovered by retrying the same span.
+            guard let cursor else { return freshTail }
             let page = try await readRuntimeTimeline(followsTail ? .chatReadBefore(cursor: cursor) : .chatReadAfter(cursor: cursor))
             guard page.executionID == result.executionID, page.revision == structure, !page.blocks.isEmpty else {
                 throw SessionRuntimeContentError.staleContent

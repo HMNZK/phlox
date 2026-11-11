@@ -3,6 +3,19 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.10</title>
+            <pubDate>Wed, 11 Nov 2026 16:18:42 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[<h3>Fixed</h3><ul><li>Improved chat cards: thinking and progress stay inside each card, while the final answer appears below it.</li><li>Made sub-agents easier to identify, with clearer activity animations.</li><li>Improved changed-file lists, diff previews, and hover actions.</li></ul>]]></description>
+            <description xml:lang="ja"><![CDATA[<h3>修正</h3><ul><li>思考と進捗はチャットカード内に、最終回答はカードの下に表示するよう整理しました。</li><li>サブエージェントの識別と、動作中のアニメーションを見やすくしました。</li><li>編集ファイル一覧、差分プレビュー、マウスを重ねたときの操作を改善しました。</li></ul>]]></description>
+            <sparkle:version>56</sparkle:version>
+            <sparkle:shortVersionString>1.14.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.10.zip" length="33381215" type="application/octet-stream" sparkle:edSignature="o+Gp+s+tOLUOOC0+t/UyS6YRF29PVvs7LOu1rlgGbuXByFDobLmmSUDfkLx1p4Ach+GCxJ1i6rtXriToK6mnAg=="/>
+        </item>
+        <item>
             <title>1.14.9</title>
             <pubDate>Wed, 11 Nov 2026 10:17:33 GMT</pubDate>
             <description xml:lang="en"><![CDATA[<h3>Fixed</h3><ul><li>Fixed a conversation view that could remain stuck after displayed content was replaced. Refreshing now resumes from the same conversation position.</li></ul>]]></description>

@@ -3,6 +3,19 @@
     <channel>
         <title>Phlox</title>
         <item>
+            <title>1.14.9</title>
+            <pubDate>Wed, 11 Nov 2026 10:17:33 GMT</pubDate>
+            <description xml:lang="en"><![CDATA[<h3>Fixed</h3><ul><li>Fixed a conversation view that could remain stuck after displayed content was replaced. Refreshing now resumes from the same conversation position.</li></ul>]]></description>
+            <description xml:lang="ja"><![CDATA[<h3>修正</h3><ul><li>表示中の内容が置き換わった後、会話の更新が止まる問題を修正しました。同じ会話位置から表示を復旧します。</li></ul>]]></description>
+            <sparkle:version>55</sparkle:version>
+            <sparkle:shortVersionString>1.14.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
+            <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.9.zip" length="33295524" type="application/octet-stream" sparkle:edSignature="jcGJrhM27w/VVgmYcFr7SQUj5IGKnd2MBeZdW44C4EAB83sktyALwHNqJf1zAbfTKI1DWuZ6ew61ux9J9EXIBA=="/>
+        </item>
+        <item>
             <title>1.14.8</title>
             <pubDate>Wed, 11 Nov 2026 07:17:47 GMT</pubDate>
             <description xml:lang="en"><![CDATA[

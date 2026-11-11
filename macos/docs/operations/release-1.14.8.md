@@ -16,7 +16,9 @@
 | Sparkle ZIP | `18a564b673b0dfe5de387efafbc2373dc8c9bdf529fe47f875279212bf8a8cf2` |
 | iOS 1.0/build23 IPA | `cbafd36a0ac3a3e1431487c298f856768675c07a71feb74c1531b4439cfe222a` |
 
-来歴は `distribution-candidate/macos-build.json` と `distribution-ios/ios-build.json`。`release/verification-records.json` は新候補を参照するが、`devices` と `executions` はまだ空である。現時点で実 iPhone の無線接続・端末詳細・現行アプリ情報の取得は成功した。新候補の導入や画面観測は未実施。iOS の導入用 URL も候補54の専用経路へ分けたが、OTA 公開は行っていない。
+来歴は `distribution-candidate/macos-build.json` と `distribution-ios/ios-build.json`。配布物の正本照合 `verification-gate.py distribution` は成功した。通常の main 用 `releaseCommand` も新候補54/23の証拠基準へ更新し、署名・ノート・フィード・stapler・実機記録照合を維持した。事前照合は `Physical scenario not_run: physical-session-activity` で終了コード1となり、実機未実施を正しく拒否した。これは main 統合の成功ではない。
+
+`release/verification-records.json` は新候補を参照するが、人の観測はまだなく `devices` と `executions` は空である。ユーザーが実機確認を進めると回答した後、実 iPhone 14 Plus（iOS27.2/build24B119）へ新 IPA を直接導入した。別のアプリ情報照会で1.0/build23を確認し、起動も終了コード0だった。証拠は `physical/ios-install*.json`・`ios-app-after.json`・`ios-launch.json`。これを実機5件の合格へ読み替えない。Mac 候補の起動とサービス切替は未実施。iOS の導入用 URL も候補54の専用経路へ分けたが、OTA 公開は行っていない。
 
 以下は旧 build 52 の経緯と検証記録である。
 

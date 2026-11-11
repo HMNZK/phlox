@@ -84,8 +84,8 @@ struct AcceptanceTranscriptItemPresentationTests {
         )
     }
 
-    @Test("1行・複数行・60文字超の非空思考は思考の詳細・詳細分類・既定閉")
-    func nonEmptyReasoningIsCollapsibleDetail() {
+    @Test("1行・複数行・60文字超の非空思考は思考の詳細・全文表示・開閉なし")
+    func nonEmptyReasoningAlwaysShowsItsFullBody() {
         let overSixty = String(repeating: "あ", count: 61)
         #expect(overSixty.count == 61)
         let cases: [(String, String?)] = [
@@ -98,13 +98,13 @@ struct AcceptanceTranscriptItemPresentationTests {
             #expect(presentation.isVisible)
             #expect(presentation.classification == .detail)
             #expect(presentation.heading == FrozenHeading.reasoning)
-            #expect(presentation.subtitle == summary)
-            #expect(presentation.isCollapsible)
-            #expect(!presentation.defaultExpanded)
+            #expect(presentation.subtitle == nil)
+            #expect(!presentation.isCollapsible)
+            #expect(presentation.defaultExpanded)
             #expect(presentation.semanticInk == .process)
             #expect(presentation.expandedBody == text)
             #expect(
-                !TranscriptItemPresentation.isExpanded(
+                TranscriptItemPresentation.isExpanded(
                     userOverride: nil,
                     defaultExpanded: presentation.defaultExpanded
                 )
@@ -132,16 +132,16 @@ struct AcceptanceTranscriptItemPresentationTests {
         #expect(presentation.expandedBody == text)
     }
 
-    @Test("同長別内容・別要約は新しい原文と要約が反映される")
+    @Test("同長の思考を差し替えても原文が更新され、要約に置き換わらない")
     func sameLengthReplacementUpdatesReasoning() {
         let first = TranscriptItemPresentation.reasoning(text: "abcd", summary: "要約A")
         let second = TranscriptItemPresentation.reasoning(text: "wxyz", summary: "要約B")
         #expect(first.expandedBody == "abcd")
         #expect(second.expandedBody == "wxyz")
-        #expect(first.subtitle == "要約A")
-        #expect(second.subtitle == "要約B")
+        #expect(first.subtitle == nil)
+        #expect(second.subtitle == nil)
         #expect(first.expandedBody != second.expandedBody)
-        #expect(first.subtitle != second.subtitle)
+        #expect(!second.isCollapsible)
     }
 
     @Test("タスク0・1・2件の見出しと既定閉")

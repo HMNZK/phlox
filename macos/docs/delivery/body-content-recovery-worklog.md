@@ -1,11 +1,11 @@
 ---
-status: active
+status: completed
 last-verified: 2026-11-11
 ---
 
 # 本文取得の分類と失効復旧の修正記録
 
-作業ブランチは `body-content-recovery-plan-20261111`、起点は `dev` の `3052477f`。仕様は [ADR 0232](../adr/0232-runtime-content-reference-recovery.md)、受入条件は [修正計画](body-content-recovery-plan.md)。製品の修正と検証は完了。利用中のサービスの置換、コミット、push、PR、統合は実施していない。
+作業ブランチは `body-content-recovery-plan-20261111`、起点は `dev` の `3052477f`。仕様は [ADR 0232](../adr/0232-runtime-content-reference-recovery.md)、受入条件は [修正計画](body-content-recovery-plan.md)。製品の修正と検証は完了。この記録の作成時点では、利用中のサービスの置換、コミット、push、PR、統合は実施していなかった。利用中のサービスの置換は、統合とは別に必要である（下記「残る導入制約」）。
 
 ## 設計と所有
 

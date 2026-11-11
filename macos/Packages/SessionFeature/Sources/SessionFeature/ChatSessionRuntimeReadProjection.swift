@@ -33,6 +33,7 @@ final class RuntimeChatReadControl {
     var inFlight: [Data: RuntimeChatReadFlight] = [:]
     var renderedSpans: [UUID: RuntimeChatRenderedSpan] = [:]
     var cardOperationGeneration: UInt64 = 0
+    var cardReadGenerations: [RuntimeCardReadTarget: UInt64] = [:]
     var activeCardOperations = 0
     var needsContentCatchUp = false
     var catchUpScheduled = false
@@ -49,11 +50,53 @@ struct RuntimeChatRenderedSpan: Equatable {
     let count: Int
 }
 
-private struct RuntimeReadTransactionContext {
+@MainActor
+private final class RuntimeReadTransactionContext {
     let executionID: UUID
     let epoch: UUID
     let generation: UInt64
     let cardOperationGeneration: UInt64
+    let parents = RuntimeReadParentVerification()
+    var recoveredTimelineAnchor = false
+
+    init(executionID: UUID, epoch: UUID, generation: UInt64, cardOperationGeneration: UInt64) {
+        self.executionID = executionID
+        self.epoch = epoch
+        self.generation = generation
+        self.cardOperationGeneration = cardOperationGeneration
+    }
+}
+
+@MainActor
+private final class RuntimeReadParentVerification {
+    var sessionExists = false
+    var cards: Set<String> = []
+}
+
+enum RuntimeCardReadTarget: Hashable, Sendable {
+    case rows(String)
+    case entries(String, String)
+    case action(String, String)
+
+    var inputID: String {
+        switch self {
+        case .rows(let inputID), .entries(let inputID, _), .action(let inputID, _): inputID
+        }
+    }
+}
+
+struct RuntimeCardReadFailure: Sendable, Equatable {
+    let target: RuntimeCardReadTarget?
+    let generation: UInt64
+    let message: String
+}
+
+private struct RuntimeCardReadOperation {
+    let target: RuntimeCardReadTarget
+    let executionID: UUID
+    let epoch: UUID
+    let revision: UInt64
+    let generation: UInt64
 }
 
 struct RuntimeOpenedItem {
@@ -97,7 +140,11 @@ struct RuntimeCardReadCache: Sendable, Equatable {
     var actions: [String: SessionRuntimeActionItemsPage] = [:]
     var version: UInt64 = 0
     var byteCounts: [String: Int] = [:]
-    var error: String?
+    var failure: RuntimeCardReadFailure?
+    var error: String? {
+        get { failure?.message }
+        set { failure = newValue.map { RuntimeCardReadFailure(target: nil, generation: 0, message: $0) } }
+    }
 }
 
 extension SessionRuntimeInputHistorySummary {
@@ -134,6 +181,7 @@ extension ChatSessionViewModel {
                                       intentToken: UUID?) async throws {
         guard usesRuntimeChatReadModel else { throw SessionRuntimeContentError.invalidRequest }
         let old = runtimeChatRead
+        if preservingWindow { old.control.needsContentCatchUp = false }
         let committedIntent = intentToken ?? (preservingWindow ? nil : UUID())
         let epoch = old.epoch
         let cardOperationGeneration = old.control.cardOperationGeneration
@@ -213,7 +261,8 @@ extension ChatSessionViewModel {
             next.page = page
             next.appliedIntentToken = preservingWindow ? old.appliedIntentToken : intentToken
             next.cards = prepared
-            switch target {
+            let appliedTarget: SessionRuntimeContentRequest.Target = context.recoveredTimelineAnchor ? .chatReadTail : target
+            switch appliedTarget {
             case .chatReadTail:
                 next.followsTail = true; next.anchorInputID = nil; next.anchorItemID = nil
             case .chatReadAround(let inputID):
@@ -232,6 +281,12 @@ extension ChatSessionViewModel {
                 applyRuntimeLatestHistory($0, to: &next, historyGeneration: historyGeneration,
                     latestHistoryGeneration: latestHistoryGeneration)
             }
+            next.control.cardReadGenerations = next.control.cardReadGenerations.filter { prepared[$0.key.inputID] != nil }
+            for (inputID, card) in prepared {
+                guard card.version != old.cards[inputID]?.version else { continue }
+                let targets = refreshedRuntimeCardTargets(inputID, old: old.cards[inputID], new: card)
+                for target in targets { next.control.cardReadGenerations.removeValue(forKey: target) }
+            }
             runtimeChatRead = next
             return historyFailure
         } catch {
@@ -241,8 +296,73 @@ extension ChatSessionViewModel {
                 if preservingWindow { runtimeChatRead.control.needsContentCatchUp = true }
                 return nil
             }
-            runtimeChatRead.error = error.localizedDescription
+            if error is CancellationError { throw error }
+            if let contentError = error as? SessionRuntimeContentError, contentError == .staleContent {
+                runtimeChatRead.control.needsContentCatchUp = true
+            } else { runtimeChatRead.error = error.localizedDescription }
             throw error
+        }
+    }
+
+    private func refreshedRuntimeCardTargets(_ inputID: String, old: RuntimeCardReadCache?,
+                                              new: RuntimeCardReadCache) -> Set<RuntimeCardReadTarget> {
+        var targets: Set<RuntimeCardReadTarget> = [.rows(inputID)]
+        if let old, old.rows.card.revision != new.rows.card.revision
+            || old.rows.card.contentRevision != new.rows.card.contentRevision {
+            targets.formUnion(old.entries.keys.map { .entries(inputID, $0) })
+            targets.formUnion(old.actions.keys.map { .action(inputID, $0) })
+            if let failedTarget = old.failure?.target, failedTarget.inputID == inputID { targets.insert(failedTarget) }
+        }
+        return targets
+    }
+
+    private func clearRuntimeCardFailure(_ cache: inout RuntimeCardReadCache,
+                                         targets: Set<RuntimeCardReadTarget>, through generation: UInt64 = .max) {
+        if let failure = cache.failure, let target = failure.target,
+           targets.contains(target), failure.generation <= generation { cache.failure = nil }
+    }
+
+    private func isCurrentRuntimeCardOperation(_ operation: RuntimeCardReadOperation) -> Bool {
+        executionID == operation.executionID && runtimeChatRead.epoch == operation.epoch
+            && runtimeChatRead.control.cardReadGenerations[operation.target] == operation.generation
+            && (runtimeChatRead.cards[operation.target.inputID]?.rows.card.revision ?? operation.revision) == operation.revision
+    }
+
+    private func performRuntimeCardRead(_ target: RuntimeCardReadTarget, revision: UInt64,
+                                        read: (RuntimeCardReadOperation) async throws -> Void) async throws {
+        let execution = executionID
+        let epoch = runtimeChatRead.epoch
+        let control = beginRuntimeCardOperation()
+        let operation = RuntimeCardReadOperation(target: target, executionID: execution, epoch: epoch,
+            revision: revision, generation: control.cardOperationGeneration)
+        control.cardReadGenerations[target] = operation.generation
+        defer {
+            if control.cardReadGenerations[target] == operation.generation {
+                control.cardReadGenerations.removeValue(forKey: target)
+            }
+            endRuntimeCardOperation(control: control, execution: execution, epoch: epoch)
+        }
+        do { try await read(operation) }
+        catch {
+            guard isCurrentRuntimeCardOperation(operation) else { return }
+            if error is CancellationError { throw error }
+            var failure = error
+            if let contentError = error as? SessionRuntimeContentError, contentError == .notFound,
+               let card = runtimeChatRead.cards[target.inputID]?.rows.card {
+                do {
+                    try await verifyRuntimeCardParent(card, execution: execution, context: nil, parents: RuntimeReadParentVerification())
+                    failure = SessionRuntimeContentError.staleContent
+                } catch { failure = error }
+            }
+            guard isCurrentRuntimeCardOperation(operation) else { return }
+            if let contentError = failure as? SessionRuntimeContentError, contentError == .staleContent {
+                control.needsContentCatchUp = true
+            } else if (runtimeChatRead.cards[target.inputID]?.failure?.generation ?? 0) <= operation.generation {
+                runtimeChatRead.cards[target.inputID]?.failure = RuntimeCardReadFailure(target: target,
+                    generation: operation.generation, message: failure.localizedDescription)
+                runtimeChatRead.cards[target.inputID]?.version &+= 1
+            }
+            throw failure
         }
     }
 
@@ -258,6 +378,12 @@ extension ChatSessionViewModel {
         scheduleRuntimeContentCatchUpIfReady(control: control, execution: execution, epoch: epoch)
     }
 
+    func requestRuntimeContentCatchUp() {
+        let control = runtimeChatRead.control
+        control.needsContentCatchUp = true
+        scheduleRuntimeContentCatchUpIfReady(control: control, execution: executionID, epoch: runtimeChatRead.epoch)
+    }
+
     private func scheduleRuntimeContentCatchUpIfReady(control: RuntimeChatReadControl, execution: UUID, epoch: UUID) {
         guard executionID == execution, runtimeChatRead.epoch == epoch, runtimeChatRead.control === control,
               control.needsContentCatchUp, control.activeCardOperations == 0,
@@ -265,13 +391,10 @@ extension ChatSessionViewModel {
         control.needsContentCatchUp = false
         control.catchUpScheduled = true
         Task {
-            defer {
-                control.catchUpScheduled = false
-                scheduleRuntimeContentCatchUpIfReady(control: control, execution: execution, epoch: epoch)
-            }
+            defer { control.catchUpScheduled = false }
             guard executionID == execution, runtimeChatRead.epoch == epoch, runtimeChatRead.control === control else { return }
-            // refreshRuntimeContent coalesces with its existing task; a genuine read failure is not retried.
-            try? await refreshRuntimeContent()
+            // Keep recovery inside this task so a second stale read waits for the normal refresh.
+            try? await refreshRuntimeChatRead()
         }
     }
 
@@ -312,7 +435,15 @@ extension ChatSessionViewModel {
             case .card(let card): target = .chatReadAround(inputID: card.inputID)
             }
         }
-        var result = try await readRuntimeTimeline(target)
+        var result: SessionRuntimeChatReadPage
+        do { result = try await readRuntimeTimeline(target) }
+        catch SessionRuntimeContentError.notFound {
+            guard !followsTail else { throw SessionRuntimeContentError.notFound }
+            let tail = try await readRuntimeTimeline(.chatReadTail)
+            try validateRuntimeReadContext(context)
+            context.recoveredTimelineAnchor = true
+            return tail
+        }
         let freshTail = result
         let maximum = TranscriptWindow.defaultLimit * TranscriptWindow.maxStages
         if followsTail, result.revision == previous.revision,
@@ -382,7 +513,10 @@ extension ChatSessionViewModel {
         try validateRuntimeReadContext(context)
         if !force, case .refresh = navigation, let old, old.rows.card.revision == summary.revision,
            old.rows.card.contentRevision >= summary.contentRevision { return old }
-        var prepared = try await fetchedRuntimeCardRows(summary, old: old, navigation: navigation)
+        let parents = context?.parents ?? RuntimeReadParentVerification()
+        var prepared = try await fetchedRuntimeCardRows(summary, old: old, navigation: navigation,
+            context: context, parents: parents)
+        prepared.failure = old?.failure
         try validateRuntimeReadContext(context)
         guard let old else { return prepared }
         if old.rows.card.revision == prepared.rows.card.revision,
@@ -393,6 +527,7 @@ extension ChatSessionViewModel {
             prepared.entryStartIDs = old.entryStartIDs
             prepared.actionPageOffsets = old.actionPageOffsets
             prepared.byteCounts.merge(old.byteCounts.filter { $0.key != "rows" }) { _, old in old }
+            clearRuntimeCardFailure(&prepared, targets: [.rows(summary.inputID)])
             return prepared
         }
         // Rebuild the already fetched detail windows before publishing the new card metadata.
@@ -400,11 +535,13 @@ extension ChatSessionViewModel {
         prepared.entryStartIDs = old.entryStartIDs
         prepared.actionPageOffsets = old.actionPageOffsets
         var removedRows = Set<String>()
-        for (rowID, previous) in old.entries {
+        var rowIDs = Array(old.entries.keys)
+        if case .entries(_, let rowID)? = old.failure?.target, old.entries[rowID] == nil { rowIDs.append(rowID) }
+        for rowID in rowIDs {
             try validateRuntimeReadContext(context)
-            let lastID = old.entryIsLatest[rowID] == false ? previous.entries.last?.id : nil
+            let lastID = old.entryIsLatest[rowID] == false ? old.entries[rowID]?.entries.last?.id : nil
             guard let page = try await refreshedRuntimeEntries(inputID: summary.inputID, rowID: rowID,
-                lastID: lastID, card: prepared.rows.card, execution: prepared.rows.executionID) else {
+                lastID: lastID, card: prepared.rows.card, execution: prepared.rows.executionID, context: context, parents: parents) else {
                 removedRows.insert(rowID)
                 prepared.entryIsLatest.removeValue(forKey: rowID)
                 prepared.entryStartIDs.removeValue(forKey: rowID)
@@ -414,10 +551,19 @@ extension ChatSessionViewModel {
                 prepared.entryIsLatest[rowID] = true
                 prepared.entryStartIDs.removeValue(forKey: rowID)
             }
+            if prepared.entries.count >= 8, old.entries[rowID] == nil {
+                prepared.entries.removeAll()
+                prepared.entryIsLatest.removeAll()
+                prepared.entryStartIDs.removeAll()
+                prepared.byteCounts = prepared.byteCounts.filter { !$0.key.hasPrefix("entries-") }
+            }
+            if old.entries[rowID] == nil { prepared.entryIsLatest[rowID] = true }
             prepared.entries[rowID] = page
             prepared.byteCounts["entries-\(rowID)"] = try JSONEncoder().encode(page).count
         }
-        for actionID in old.actions.keys {
+        var actionIDs = Array(old.actions.keys)
+        if case .action(_, let actionID)? = old.failure?.target, old.actions[actionID] == nil { actionIDs.append(actionID) }
+        for actionID in actionIDs {
             try validateRuntimeReadContext(context)
             let belongedToRemovedRow = old.entries.contains { rowID, page in
                 removedRows.contains(rowID) && page.entries.contains { $0.id == actionID }
@@ -428,25 +574,55 @@ extension ChatSessionViewModel {
             }
             let firstID = old.actions[actionID]?.items.first?.id
             guard let page = try await refreshedRuntimeActionItems(inputID: summary.inputID, actionID: actionID,
-                firstID: firstID, card: prepared.rows.card, execution: prepared.rows.executionID) else {
+                firstID: firstID, card: prepared.rows.card, execution: prepared.rows.executionID, context: context, parents: parents) else {
                 prepared.actionPageOffsets.removeValue(forKey: actionID)
                 continue
+            }
+            if prepared.actions.count >= 2, old.actions[actionID] == nil {
+                prepared.actions.removeAll()
+                prepared.actionPageOffsets.removeAll()
+                prepared.byteCounts = prepared.byteCounts.filter { !$0.key.hasPrefix("actions-") }
             }
             prepared.actions[actionID] = page
             if let firstID, page.items.first?.id != firstID { prepared.actionPageOffsets[actionID] = 0 }
             prepared.byteCounts["actions-\(actionID)"] = try JSONEncoder().encode(page).count
         }
+        clearRuntimeCardFailure(&prepared, targets: refreshedRuntimeCardTargets(summary.inputID, old: old, new: prepared))
         return prepared
     }
 
+    private func verifyRuntimeCardParent(_ card: SessionRuntimeCardSummary, execution: UUID,
+                                         context: RuntimeReadTransactionContext?, parents: RuntimeReadParentVerification) async throws {
+        try validateRuntimeReadContext(context)
+        if !parents.sessionExists {
+            let tail = try await readRuntimeTimeline(.chatReadTail)
+            guard tail.executionID == execution else { throw SessionRuntimeContentError.staleContent }
+            try validateRuntimeReadContext(context)
+            parents.sessionExists = true
+        }
+        guard !parents.cards.contains(card.inputID) else { return }
+        let response: SessionRuntimeContentResponse
+        do { response = try await readRuntimeChat(.chatCardRows(inputID: card.inputID, cursor: nil)) }
+        catch SessionRuntimeContentError.notFound { throw SessionRuntimeContentError.staleContent }
+        try validateRuntimeReadContext(context)
+        guard case .cardRowsPage(let page) = response, page.sessionID == id,
+              page.executionID == execution, page.card.inputID == card.inputID,
+              page.card.revision == card.revision, page.card.contentRevision >= card.contentRevision else {
+            throw SessionRuntimeContentError.staleContent
+        }
+        parents.cards.insert(card.inputID)
+    }
+
     private func refreshedRuntimeEntries(inputID: String, rowID: String, lastID: String?,
-                                         card: SessionRuntimeCardSummary, execution: UUID) async throws -> SessionRuntimeCardEntriesPage? {
+                                         card: SessionRuntimeCardSummary, execution: UUID,
+                                         context: RuntimeReadTransactionContext?, parents: RuntimeReadParentVerification) async throws -> SessionRuntimeCardEntriesPage? {
         let target: SessionRuntimeContentRequest.Target = lastID.map {
             .chatRowEntriesAround(inputID: inputID, rowID: rowID, entryID: $0)
         } ?? .chatRowEntries(inputID: inputID, rowID: rowID, cursor: nil)
         let response: SessionRuntimeContentResponse
         do { response = try await readRuntimeChat(target) }
         catch SessionRuntimeContentError.notFound {
+            try await verifyRuntimeCardParent(card, execution: execution, context: context, parents: parents)
             // A removed manual boundary is different from a removed row: verify the row once.
             guard lastID != nil else { return nil }
             do { response = try await readRuntimeChat(.chatRowEntries(inputID: inputID, rowID: rowID, cursor: nil)) }
@@ -459,13 +635,15 @@ extension ChatSessionViewModel {
     }
 
     private func refreshedRuntimeActionItems(inputID: String, actionID: String, firstID: String?,
-                                             card: SessionRuntimeCardSummary, execution: UUID) async throws -> SessionRuntimeActionItemsPage? {
+                                             card: SessionRuntimeCardSummary, execution: UUID,
+                                             context: RuntimeReadTransactionContext?, parents: RuntimeReadParentVerification) async throws -> SessionRuntimeActionItemsPage? {
         let target: SessionRuntimeContentRequest.Target = firstID.map {
             .chatActionItemsFrom(inputID: inputID, actionID: actionID, itemID: $0)
         } ?? .chatActionItems(inputID: inputID, actionID: actionID, cursor: nil)
         let response: SessionRuntimeContentResponse
         do { response = try await readRuntimeChat(target) }
         catch SessionRuntimeContentError.notFound {
+            try await verifyRuntimeCardParent(card, execution: execution, context: context, parents: parents)
             // Verify the action once if only the old first-item boundary was removed.
             guard firstID != nil else { return nil }
             do { response = try await readRuntimeChat(.chatActionItems(inputID: inputID, actionID: actionID, cursor: nil)) }
@@ -590,32 +768,62 @@ extension ChatSessionViewModel {
 
     func loadRuntimeCardRows(_ inputID: String, navigation: RuntimeCardRowNavigation = .refresh) async throws {
         let old = runtimeChatRead.cards[inputID]
-        if case .next = navigation, let old, old.rowOffset + 8 < old.rows.rows.count {
-            runtimeChatRead.cards[inputID]?.rowOffset += 8
-            runtimeChatRead.cards[inputID]?.isRowWindowManual = true
-            runtimeChatRead.cards[inputID]?.version &+= 1
-            return
-        }
-        if case .next = navigation, old?.rows.nextCursor == nil { return }
-        let execution = executionID
-        let epoch = runtimeChatRead.epoch
+        if case .next = navigation, old?.rows.nextCursor == nil,
+           (old?.rowOffset ?? 0) + 8 >= (old?.rows.rows.count ?? 0) { return }
         let summary = runtimeChatRead.page?.blocks.compactMap { block -> SessionRuntimeCardSummary? in
             if case .card(let value) = block.content, value.inputID == inputID { value } else { nil }
         }.first ?? old?.rows.card
         guard let summary else { throw SessionRuntimeContentError.notFound }
-        // Record the operation before awaiting, so a pending transaction cannot beat it to publication.
-        let control = beginRuntimeCardOperation()
-        defer { endRuntimeCardOperation(control: control, execution: execution, epoch: epoch) }
-        // Explicit row operations still fetch; the view avoids redundant automatic refreshes.
-        let prepared = try await preparedRuntimeCard(summary, old: old, navigation: navigation, force: true)
-        guard execution == executionID, runtimeChatRead.epoch == epoch,
-              runtimeChatRead.cards[inputID]?.version == old?.version else { return }
-        runtimeChatRead.cards[inputID] = prepared
-        trimRuntimeCardCache(keeping: inputID)
+        try await performRuntimeCardRead(.rows(inputID), revision: summary.revision) { operation in
+            if case .next = navigation, let old, old.rowOffset + 8 < old.rows.rows.count {
+                runtimeChatRead.cards[inputID]?.rowOffset += 8
+                runtimeChatRead.cards[inputID]?.isRowWindowManual = true
+                runtimeChatRead.cards[inputID]?.version &+= 1
+                return
+            }
+            var prepared = try await preparedRuntimeCard(summary, old: old, navigation: navigation, force: true)
+            guard isCurrentRuntimeCardOperation(operation) else { return }
+            let targets = refreshedRuntimeCardTargets(inputID, old: old, new: prepared)
+            if let current = runtimeChatRead.cards[inputID] {
+                prepared.version = current.version &+ 1
+                prepared.failure = current.failure
+                if let old {
+                    for rowID in old.entries.keys where current.entries[rowID] == nil {
+                        prepared.entries.removeValue(forKey: rowID)
+                        prepared.entryIsLatest.removeValue(forKey: rowID)
+                        prepared.entryStartIDs.removeValue(forKey: rowID)
+                        prepared.byteCounts.removeValue(forKey: "entries-\(rowID)")
+                    }
+                    for actionID in old.actions.keys where current.actions[actionID] == nil {
+                        prepared.actions.removeValue(forKey: actionID)
+                        prepared.actionPageOffsets.removeValue(forKey: actionID)
+                        prepared.byteCounts.removeValue(forKey: "actions-\(actionID)")
+                    }
+                }
+                for (rowID, page) in current.entries where current.entries[rowID] != old?.entries[rowID]
+                    || current.entryIsLatest[rowID] != old?.entryIsLatest[rowID]
+                    || current.entryStartIDs[rowID] != old?.entryStartIDs[rowID] {
+                    prepared.entries[rowID] = page
+                    prepared.entryIsLatest[rowID] = current.entryIsLatest[rowID]
+                    prepared.entryStartIDs[rowID] = current.entryStartIDs[rowID]
+                    prepared.byteCounts["entries-\(rowID)"] = current.byteCounts["entries-\(rowID)"]
+                }
+                for (actionID, page) in current.actions where current.actions[actionID] != old?.actions[actionID]
+                    || current.actionPageOffsets[actionID] != old?.actionPageOffsets[actionID] {
+                    prepared.actions[actionID] = page
+                    prepared.actionPageOffsets[actionID] = current.actionPageOffsets[actionID]
+                    prepared.byteCounts["actions-\(actionID)"] = current.byteCounts["actions-\(actionID)"]
+                }
+            }
+            clearRuntimeCardFailure(&prepared, targets: targets, through: operation.generation)
+            runtimeChatRead.cards[inputID] = prepared
+            trimRuntimeCardCache(keeping: inputID)
+        }
     }
 
     private func fetchedRuntimeCardRows(_ summary: SessionRuntimeCardSummary, old: RuntimeCardReadCache?,
-                                       navigation: RuntimeCardRowNavigation) async throws -> RuntimeCardReadCache {
+                                       navigation: RuntimeCardRowNavigation,
+                                       context: RuntimeReadTransactionContext?, parents: RuntimeReadParentVerification) async throws -> RuntimeCardReadCache {
         let inputID = summary.inputID
         let execution = executionID
         let target: SessionRuntimeContentRequest.Target
@@ -649,6 +857,7 @@ extension ChatSessionViewModel {
         do { response = try await readRuntimeChat(target) }
         catch SessionRuntimeContentError.notFound {
             guard case .refresh = navigation, old?.isRowWindowManual == true else { throw SessionRuntimeContentError.notFound }
+            try await verifyRuntimeCardParent(summary, execution: execution, context: context, parents: parents)
             let fallback: SessionRuntimeContentRequest.Target = summary.activeRowID.map {
                 .chatCardRowsAround(inputID: inputID, rowID: $0)
             } ?? .chatCardRows(inputID: inputID, cursor: nil)
@@ -670,65 +879,59 @@ extension ChatSessionViewModel {
         guard let cache = runtimeChatRead.cards[inputID] else { return }
         let cursor = next ? cache.entries[rowID]?.nextCursor : nil
         guard !next || cursor != nil else { return }
-        let execution = executionID
-        let epoch = runtimeChatRead.epoch
-        let control = beginRuntimeCardOperation()
-        defer { endRuntimeCardOperation(control: control, execution: execution, epoch: epoch) }
         let revision = cache.rows.card.revision
         let target: SessionRuntimeContentRequest.Target
         if let aroundEntryID { target = .chatRowEntriesAround(inputID: inputID, rowID: rowID, entryID: aroundEntryID) }
         else { target = .chatRowEntries(inputID: inputID, rowID: rowID, cursor: cursor) }
-        let response = try await readRuntimeChat(target)
-        guard execution == executionID else { return }
-        guard case .cardEntriesPage(let page) = response, page.sessionID == id,
-              page.executionID == execution, page.inputID == inputID, page.rowID == rowID,
-              page.revision == revision, runtimeChatRead.cards[inputID]?.rows.card.revision == revision else {
-            throw SessionRuntimeContentError.staleContent
+        try await performRuntimeCardRead(.entries(inputID, rowID), revision: revision) { operation in
+            let response = try await readRuntimeChat(target)
+            guard isCurrentRuntimeCardOperation(operation) else { return }
+            guard case .cardEntriesPage(let page) = response, page.sessionID == id,
+                  page.executionID == operation.executionID, page.inputID == inputID, page.rowID == rowID,
+                  page.revision == revision else { throw SessionRuntimeContentError.staleContent }
+            guard var updated = runtimeChatRead.cards[inputID] else { return }
+            if updated.entries.count >= 8, updated.entries[rowID] == nil {
+                updated.entries.removeAll()
+                updated.entryIsLatest.removeAll()
+                updated.entryStartIDs.removeAll()
+                updated.byteCounts = updated.byteCounts.filter { !$0.key.hasPrefix("entries-") }
+            }
+            updated.entryIsLatest[rowID] = !next && aroundEntryID == nil
+            updated.entryStartIDs[rowID] = startingAtID
+            updated.entries[rowID] = page
+            updated.byteCounts["entries-\(rowID)"] = try JSONEncoder().encode(page).count
+            clearRuntimeCardFailure(&updated, targets: [operation.target], through: operation.generation)
+            updated.version &+= 1
+            runtimeChatRead.cards[inputID] = updated
+            trimRuntimeCardCache(keeping: inputID)
         }
-        guard var updated = runtimeChatRead.cards[inputID] else { return }
-        if updated.entries.count >= 8, updated.entries[rowID] == nil {
-            updated.entries.removeAll()
-            updated.entryIsLatest.removeAll()
-            updated.entryStartIDs.removeAll()
-            updated.byteCounts = updated.byteCounts.filter { !$0.key.hasPrefix("entries-") }
-        }
-        updated.entryIsLatest[rowID] = !next && aroundEntryID == nil
-        updated.entryStartIDs[rowID] = startingAtID
-        updated.entries[rowID] = page
-        updated.byteCounts["entries-\(rowID)"] = try JSONEncoder().encode(page).count
-        updated.version &+= 1
-        runtimeChatRead.cards[inputID] = updated
-        trimRuntimeCardCache(keeping: inputID)
     }
 
     func loadRuntimeActionItems(_ inputID: String, actionID: String, next: Bool = false) async throws {
         guard let cache = runtimeChatRead.cards[inputID] else { return }
         let cursor = next ? cache.actions[actionID]?.nextCursor : nil
         guard !next || cursor != nil else { return }
-        let execution = executionID
-        let epoch = runtimeChatRead.epoch
-        let control = beginRuntimeCardOperation()
-        defer { endRuntimeCardOperation(control: control, execution: execution, epoch: epoch) }
         let revision = cache.rows.card.revision
-        let response = try await readRuntimeChat(.chatActionItems(inputID: inputID, actionID: actionID, cursor: cursor))
-        guard execution == executionID else { return }
-        guard case .actionItemsPage(let page) = response, page.sessionID == id,
-              page.executionID == execution, page.actionID == actionID, page.inputID == inputID,
-              page.revision == revision, runtimeChatRead.cards[inputID]?.rows.card.revision == revision else {
-            throw SessionRuntimeContentError.staleContent
+        try await performRuntimeCardRead(.action(inputID, actionID), revision: revision) { operation in
+            let response = try await readRuntimeChat(.chatActionItems(inputID: inputID, actionID: actionID, cursor: cursor))
+            guard isCurrentRuntimeCardOperation(operation) else { return }
+            guard case .actionItemsPage(let page) = response, page.sessionID == id,
+                  page.executionID == operation.executionID, page.actionID == actionID, page.inputID == inputID,
+                  page.revision == revision else { throw SessionRuntimeContentError.staleContent }
+            guard var updated = runtimeChatRead.cards[inputID] else { return }
+            if updated.actions.count >= 2, updated.actions[actionID] == nil {
+                updated.actions.removeAll()
+                updated.actionPageOffsets.removeAll()
+                updated.byteCounts = updated.byteCounts.filter { !$0.key.hasPrefix("actions-") }
+            }
+            updated.actionPageOffsets[actionID] = next ? (cache.actionPageOffsets[actionID] ?? 0) + 1 : 0
+            updated.actions[actionID] = page
+            updated.byteCounts["actions-\(actionID)"] = try JSONEncoder().encode(page).count
+            clearRuntimeCardFailure(&updated, targets: [operation.target], through: operation.generation)
+            updated.version &+= 1
+            runtimeChatRead.cards[inputID] = updated
+            trimRuntimeCardCache(keeping: inputID)
         }
-        guard var updated = runtimeChatRead.cards[inputID] else { return }
-        if updated.actions.count >= 2, updated.actions[actionID] == nil {
-            updated.actions.removeAll()
-            updated.actionPageOffsets.removeAll()
-            updated.byteCounts = updated.byteCounts.filter { !$0.key.hasPrefix("actions-") }
-        }
-        updated.actionPageOffsets[actionID] = next ? (cache.actionPageOffsets[actionID] ?? 0) + 1 : 0
-        updated.actions[actionID] = page
-        updated.byteCounts["actions-\(actionID)"] = try JSONEncoder().encode(page).count
-        updated.version &+= 1
-        runtimeChatRead.cards[inputID] = updated
-        trimRuntimeCardCache(keeping: inputID)
     }
 
     func revealRuntimeCardEntry(_ inputID: String, rowID: String, entryID: String?) async throws {

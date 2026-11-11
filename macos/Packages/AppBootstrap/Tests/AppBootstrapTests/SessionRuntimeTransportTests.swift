@@ -499,6 +499,91 @@ import Testing
         withExtendedLifetime(lease) {}
     }
 
+    @Test(arguments: [
+        SessionRuntimeContentRequest.Target.chatReadAround(inputID: "removed-input"),
+        .chatReadAroundItem(itemID: "removed-item"),
+        .chatCardRows(inputID: "removed-input", cursor: nil),
+        .chatCardRowsAround(inputID: "request", rowID: "removed-row"),
+        .chatRowEntries(inputID: "request", rowID: "removed-row", cursor: nil),
+        .chatRowEntriesAround(inputID: "request", rowID: "outside-read-0", entryID: "removed-entry"),
+        .chatActionItems(inputID: "request", actionID: "removed-action", cursor: nil),
+        .chatActionItemsFrom(inputID: "request", actionID: "read-0", itemID: "removed-item"),
+        .itemChunk(id: "removed-item", digest: "old-digest", offset: 0),
+        .approvalChunk(id: UUID(uuidString: "E31F65F4-E7EA-4E46-89DB-CF1B5325BF8A")!, digest: "old-digest", offset: 0),
+    ])
+    @MainActor func missingSourceContentRemainsNotFoundAcrossHTTP(_ target: SessionRuntimeContentRequest.Target) async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let source = runtimeReadSource()
+        let generation = UUID()
+        let transport = try SessionRuntimeTransport(generation: generation, storeURL: fixture.url,
+            snapshot: { .init(projects: [], sessions: [], availableAgentKinds: []) },
+            content: { try await source.runtimeChatReadContent(for: $0) }, supportsChatReadModel: true, command: { _ in .none })
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let token = try SessionRuntimeCredentialStore.load(storeURL: fixture.url)
+        let request = SessionRuntimeContentRequest(sessionID: source.id, executionID: source.executionID, target: target)
+        let client = SessionRuntimeClient(endpoint: try SessionRuntimeEndpoint(url: url, generation: generation, token: token))
+        try await client.handshake()
+
+        let response = try await runtimeHTTPContent(url: url, token: token, generation: generation, request: request)
+
+        #expect(response.status == 404)
+        await #expect(throws: SessionRuntimeContentError.notFound) { _ = try await client.content(request) }
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
+    @Test @MainActor func sourceCursorErrorsAndSuccessfulContentKeepTheirMeaningAcrossHTTP() async throws {
+        let fixture = try RuntimeTransportFixture()
+        defer { fixture.remove() }
+        let lease = try SessionRuntimeLease(storeURL: fixture.url)
+        let source = runtimeReadSource()
+        let generation = UUID()
+        let transport = try SessionRuntimeTransport(generation: generation, storeURL: fixture.url,
+            snapshot: { .init(projects: [], sessions: [], availableAgentKinds: []) },
+            content: { try await source.runtimeChatReadContent(for: $0) }, supportsChatReadModel: true, command: { _ in .none })
+        let url = try await transport.start()
+        defer { Task { await transport.stop() } }
+        let token = try SessionRuntimeCredentialStore.load(storeURL: fixture.url)
+        let client = SessionRuntimeClient(endpoint: try SessionRuntimeEndpoint(url: url, generation: generation, token: token))
+        try await client.handshake()
+        let request = SessionRuntimeContentRequest(sessionID: source.id, executionID: source.executionID,
+            target: .chatActionItems(inputID: "request", actionID: "read-0", cursor: nil))
+        guard case .actionItemsPage(let first) = try await client.content(request) else {
+            Issue.record("集約作業ページではありません"); return
+        }
+        let cursor = try #require(first.nextCursor)
+        let invalid = SessionRuntimeContentRequest(sessionID: source.id, executionID: source.executionID,
+            target: .chatCardRows(inputID: "request", cursor: cursor))
+        var snapshot = source.makeRuntimeSnapshot()
+        snapshot.transcript.removeLast(20)
+        snapshot.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(snapshot)
+        let stale = SessionRuntimeContentRequest(sessionID: source.id, executionID: source.executionID,
+            target: .chatActionItems(inputID: "request", actionID: "read-0", cursor: cursor))
+
+        let validWire = try await runtimeHTTPContent(url: url, token: token, generation: generation, request: request)
+        let invalidWire = try await runtimeHTTPContent(url: url, token: token, generation: generation, request: invalid)
+        let staleWire = try await runtimeHTTPContent(url: url, token: token, generation: generation, request: stale)
+        guard case .actionItemsPage(let current) = try await client.content(request) else {
+            Issue.record("現行ページではありません"); return
+        }
+
+        #expect(first.items.count == 50)
+        #expect(first.items.last?.id == "read-49")
+        #expect(validWire.status == 200)
+        #expect(current.items.count == 40)
+        #expect(current.items.last?.id == "read-39")
+        #expect(invalidWire.status == 400)
+        #expect(staleWire.status == 412)
+        await #expect(throws: SessionRuntimeContentError.invalidRequest) { _ = try await client.content(invalid) }
+        await #expect(throws: SessionRuntimeContentError.staleContent) { _ = try await client.content(stale) }
+        await transport.stop()
+        withExtendedLifetime(lease) {}
+    }
+
     @Test @MainActor func reconnectingToLegacyServiceRejectsSemanticReadsButKeepsRawContentAvailable() async throws {
         let fixture = try RuntimeTransportFixture()
         defer { fixture.remove() }
@@ -794,6 +879,21 @@ import Testing
         try FileManager.default.createSymbolicLink(at: tokenURL, withDestinationURL: target)
         #expect(throws: (any Error).self) { _ = try SessionRuntimeCredentialStore.load(storeURL: fixture.url) }
     }
+}
+
+@MainActor private func runtimeReadSource() -> ChatSessionViewModel {
+    let date = Date(timeIntervalSince1970: 1_000)
+    var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: date,
+        agentRef: .builtin(.codex), workingDirectory: "/workspace")
+    snapshot.status = .idle
+    snapshot.transcript = [.userMessage(id: "request", text: "確認してください", timestamp: date,
+        attachments: [], turnEnd: .init(outcome: .completed, at: date.addingTimeInterval(200)))]
+        + (0..<60).map { number in
+            .commandExecution(id: "read-\(number)", command: "Read src/file-\(number).swift", output: "内容",
+                timestamp: date.addingTimeInterval(Double(number + 1)), completedAt: date.addingTimeInterval(Double(number + 2)))
+        }
+    snapshot.transcriptRevision = 7
+    return ChatSessionViewModel(projection: snapshot) { _, _ in .none }
 }
 
 private actor RuntimeCommandCounter {

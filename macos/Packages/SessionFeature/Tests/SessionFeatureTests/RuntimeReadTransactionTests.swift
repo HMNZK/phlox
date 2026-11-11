@@ -223,7 +223,7 @@ import Testing
         projected.runtimeContentLoader = { request in
             if holdsFirstTail, case .chatReadTail = request.target {
                 holdsFirstTail = false
-                return await held.response()
+                return try await held.response()
             }
             return try await updated.runtimeChatReadContent(for: request)
         }
@@ -255,7 +255,7 @@ import Testing
         projected.runtimeContentLoader = { request in
             if holdsJump, case .chatReadAroundItem(let id) = request.target, id == "input-0" {
                 holdsJump = false
-                return await held.response()
+                return try await held.response()
             }
             return try await pair.source.runtimeChatReadContent(for: request)
         }
@@ -441,7 +441,7 @@ import Testing
         projected.runtimeContentLoader = { request in
             if holdsJump, case .chatReadAroundItem(let id) = request.target, id == "input-0" {
                 holdsJump = false
-                return await held.response()
+                return try await held.response()
             }
             return try await pair.source.runtimeChatReadContent(for: request)
         }
@@ -471,7 +471,7 @@ import Testing
         let held = HeldTransactionTimeline()
         var holdsFirst = true
         projected.runtimeContentLoader = { request in
-            if holdsFirst { holdsFirst = false; return await held.response() }
+            if holdsFirst { holdsFirst = false; return try await held.response() }
             return try await pair.source.runtimeChatReadContent(for: request)
         }
         let intent = RuntimeChatReadIntent(epoch: projected.runtimeChatRead.epoch, token: UUID())
@@ -549,7 +549,7 @@ import Testing
         projected.runtimeContentLoader = { request in
             if holdsFirstTail, case .chatReadTail = request.target {
                 holdsFirstTail = false
-                return await held.response()
+                return try await held.response()
             }
             if request.target.requiresChatReadModel { return try await source.runtimeChatReadContent(for: request) }
             return try source.runtimeContent(for: request)
@@ -571,6 +571,321 @@ import Testing
         #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.first?.id == "task-stage-8")
         #expect(projected.runtimeChatRead.cards["input"]?.isRowWindowManual == true)
         #expect(projected.runtimeChatRead.error == nil)
+    }
+
+    @Test func aFailedDetailRetryKeepsTheOldDetailsAndASuccessfulRetryClearsItsError() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        projected.runtimeContentLoader = { _ in throw URLError(.networkConnectionLost) }
+
+        await #expect(throws: URLError.self) {
+            try await projected.loadRuntimeActionItems("input", actionID: "command-0")
+        }
+        #expect(projected.runtimeChatRead.cards["input"]?.error != nil)
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-50")
+        projected.runtimeContentLoader = { try await source.runtimeChatReadContent(for: $0) }
+        try await projected.loadRuntimeActionItems("input", actionID: "command-0")
+
+        #expect(projected.runtimeChatRead.cards["input"]?.error == nil)
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-0")
+    }
+
+    @Test func aSuccessfulRowReadDoesNotEraseTheFailedActionDetail() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        projected.runtimeContentLoader = { _ in throw URLError(.networkConnectionLost) }
+        await #expect(throws: URLError.self) {
+            try await projected.loadRuntimeActionItems("input", actionID: "command-0")
+        }
+        let failure = try #require(projected.runtimeChatRead.cards["input"]?.error)
+        projected.runtimeContentLoader = { try await source.runtimeChatReadContent(for: $0) }
+
+        try await projected.loadRuntimeCardRows("input", navigation: .first)
+        try await projected.refreshRuntimeChatRead()
+
+        #expect(projected.runtimeChatRead.cards["input"]?.error == failure)
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-50")
+    }
+
+    @Test func aRetryStillPublishesWhileOnlyTheBodyRevisionAdvances() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        projected.runtimeContentLoader = { _ in throw URLError(.networkConnectionLost) }
+        await #expect(throws: URLError.self) {
+            try await projected.loadRuntimeActionItems("input", actionID: "command-0")
+        }
+        let reply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatActionItems(inputID: "input", actionID: "command-0", cursor: nil)))
+        let held = HeldTransactionTimeline()
+        projected.runtimeContentLoader = { _ in try await held.response() }
+        let retry = Task { try await projected.loadRuntimeActionItems("input", actionID: "command-0") }
+        await held.waitForRequest()
+        var changed = changedSnapshot(source)
+        changed.transcriptRevision = 9
+        try source.applyRuntimeSnapshot(changed)
+        try projected.applyRuntimeOverview(source.makeRuntimeOverview())
+        changed.transcriptRevision = 10
+        try source.applyRuntimeSnapshot(changed)
+        try projected.applyRuntimeOverview(source.makeRuntimeOverview())
+        held.release(reply)
+        try await retry.value
+
+        #expect(projected.runtimeChatRead.cards["input"]?.error == nil)
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-0")
+    }
+
+    @Test func aSessionDisappearingAfterAChild404DoesNotPublishAPartialCard() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        let updated = ChatSessionViewModel(projection: changedSnapshot(source)) { _, _ in .none }
+        try projected.applyRuntimeOverview(updated.makeRuntimeOverview())
+        var childDisappeared = false
+        projected.runtimeContentLoader = { request in
+            if childDisappeared { throw SessionRuntimeContentError.notFound }
+            if case .chatRowEntries = request.target { childDisappeared = true; throw SessionRuntimeContentError.notFound }
+            if case .chatRowEntriesAround = request.target { childDisappeared = true; throw SessionRuntimeContentError.notFound }
+            return try await updated.runtimeChatReadContent(for: request)
+        }
+
+        await #expect(throws: SessionRuntimeContentError.notFound) { try await projected.refreshRuntimeChatRead() }
+
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 7)
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-50")
+        #expect(projected.runtimeChatRead.error != nil)
+    }
+
+    @Test func aRemovedBackgroundAnchorReturnsToTheTailForTheFollowingRefreshToo() async throws {
+        let source = conversation(inputCount: 128)
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "input-0"))
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[0] = .userMessage(id: "replacement-0", text: "置き換えた依頼", timestamp: .distantPast, attachments: [])
+        changed.transcript[1] = .commandExecution(id: "replacement-work", command: "echo replacement", output: "置き換えた結果",
+            timestamp: .distantPast, completedAt: .distantFuture, intent: nil)
+        changed.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(changed)
+        try projected.applyRuntimeOverview(source.makeRuntimeOverview())
+
+        try await projected.refreshRuntimeChatRead()
+        try await projected.refreshRuntimeChatRead()
+
+        #expect(projected.runtimeChatRead.followsTail)
+        #expect(projected.runtimeChatRead.anchorItemID == nil)
+        #expect(projected.runtimeChatRead.anchorInputID == nil)
+        #expect(projected.runtimeChatRead.page?.blocks.last?.id == "status-card-input-127")
+        #expect(projected.runtimeChatRead.error == nil)
+    }
+
+    @Test func anOlderSuccessCannotReplaceTheDetailsOrErrorOfANewerFailedRead() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        let held = HeldTransactionTimeline()
+        let nextCursor = try #require(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.nextCursor)
+        let reply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatActionItems(inputID: "input", actionID: "command-0", cursor: nextCursor)))
+        projected.runtimeContentLoader = { request in
+            if case .chatActionItems(_, _, let cursor) = request.target, cursor != nil { return try await held.response() }
+            throw URLError(.networkConnectionLost)
+        }
+        let older = Task { try await projected.loadRuntimeActionItems("input", actionID: "command-0", next: true) }
+        await held.waitForRequest()
+        let newer = Task { try await projected.loadRuntimeActionItems("input", actionID: "command-0") }
+        let deadline = ContinuousClock.now + .seconds(3)
+        while projected.runtimeChatRead.control.activeCardOperations < 2, ContinuousClock.now < deadline { await Task.yield() }
+        held.release(reply)
+        try await older.value
+        await #expect(throws: URLError.self) { try await newer.value }
+
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-50")
+        #expect(projected.runtimeChatRead.cards["input"]?.error != nil)
+    }
+
+    @Test func anOlderFailureCannotReplaceTheSuccessfulDetailsOfANewerRead() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        let held = HeldTransactionTimeline()
+        projected.runtimeContentLoader = { request in
+            if case .chatActionItems(_, _, let cursor) = request.target, cursor != nil { return try await held.response() }
+            return try await source.runtimeChatReadContent(for: request)
+        }
+        let older = Task { try await projected.loadRuntimeActionItems("input", actionID: "command-0", next: true) }
+        await held.waitForRequest()
+        let newer = Task { try await projected.loadRuntimeActionItems("input", actionID: "command-0") }
+        let deadline = ContinuousClock.now + .seconds(3)
+        while projected.runtimeChatRead.control.activeCardOperations < 2, ContinuousClock.now < deadline { await Task.yield() }
+        held.reject(URLError(.networkConnectionLost))
+        try await older.value
+        try await newer.value
+
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-0")
+        #expect(projected.runtimeChatRead.cards["input"]?.error == nil)
+    }
+
+    @Test func anExplicitStaleReadRejoinsOneContentRefresh() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        let updated = ChatSessionViewModel(projection: changedSnapshot(source)) { _, _ in .none }
+        try projected.applyRuntimeOverview(updated.makeRuntimeOverview())
+        var tailReads = 0
+        projected.runtimeContentLoader = { request in
+            if case .chatActionItems(_, _, let cursor) = request.target, cursor != nil { throw SessionRuntimeContentError.staleContent }
+            if case .chatReadTail = request.target { tailReads += 1 }
+            if request.target.requiresChatReadModel { return try await updated.runtimeChatReadContent(for: request) }
+            return try updated.runtimeContent(for: request)
+        }
+
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            try await projected.loadRuntimeActionItems("input", actionID: "command-0", next: true)
+        }
+        let deadline = ContinuousClock.now + .seconds(3)
+        while projected.runtimeChatRead.control.catchUpScheduled, ContinuousClock.now < deadline { await Task.yield() }
+
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-50")
+        #expect(projected.runtimeChatRead.cards["input"]?.error == nil)
+        #expect(projected.runtimeChatRead.error == nil)
+        #expect(tailReads == 1)
+    }
+
+    @Test func aSecondStaleDuringRecoveryKeepsTheDisplayAndWaitsForTheNextNormalRefresh() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await prepareManualActionPage(projected)
+        let updated = ChatSessionViewModel(projection: changedSnapshot(source)) { _, _ in .none }
+        try projected.applyRuntimeOverview(updated.makeRuntimeOverview())
+        var tailReads = 0
+        projected.runtimeContentLoader = { request in
+            switch request.target {
+            case .chatActionItems, .chatActionItemsFrom: throw SessionRuntimeContentError.staleContent
+            case .chatReadTail: tailReads += 1
+            default: break
+            }
+            if request.target.requiresChatReadModel { return try await updated.runtimeChatReadContent(for: request) }
+            return try updated.runtimeContent(for: request)
+        }
+
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            try await projected.loadRuntimeActionItems("input", actionID: "command-0", next: true)
+        }
+        let deadline = ContinuousClock.now + .seconds(3)
+        while projected.runtimeChatRead.control.catchUpScheduled, ContinuousClock.now < deadline { await Task.yield() }
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 7)
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"]?.items.first?.id == "command-50")
+        #expect(projected.runtimeChatRead.error == nil)
+        #expect(tailReads == 1)
+        projected.runtimeContentLoader = { try await updated.runtimeChatReadContent(for: $0) }
+        try await projected.refreshRuntimeChatRead()
+
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
+        #expect(projected.runtimeChatRead.error == nil)
+    }
+
+    @Test func replacingARowClearsItsFailedFirstDetailReadAfterTheNewCardPublishes() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        projected.runtimeContentLoader = { _ in throw URLError(.networkConnectionLost) }
+        await #expect(throws: URLError.self) {
+            try await projected.loadRuntimeCardEntries("input", rowID: "task-stage")
+        }
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[1] = .taskList(id: "tasks", tasks: [.init(id: "replacement", title: "置き換えた工程", status: .inProgress)], timestamp: .distantPast)
+        changed.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(changed)
+        try projected.applyRuntimeOverview(source.makeRuntimeOverview())
+        projected.runtimeContentLoader = { try await source.runtimeChatReadContent(for: $0) }
+
+        try await projected.refreshRuntimeChatRead()
+        try await projected.loadRuntimeCardEntries("input", rowID: "task-replacement")
+        try await projected.refreshRuntimeChatRead()
+
+        #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.map(\.id) == ["task-replacement"])
+        #expect(projected.runtimeChatRead.cards["input"]?.entries["task-stage"] == nil)
+        #expect(projected.runtimeChatRead.cards["input"]?.error == nil)
+    }
+
+    @Test func replacingAnActionClearsItsFailedFirstDetailReadAfterTheNewCardPublishes() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        try await projected.loadRuntimeCardEntries("input", rowID: "task-stage")
+        projected.runtimeContentLoader = { _ in throw URLError(.networkConnectionLost) }
+        await #expect(throws: URLError.self) {
+            try await projected.loadRuntimeActionItems("input", actionID: "command-0")
+        }
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[2] = .commandExecution(id: "replacement-command", command: "Read replacement.txt", output: "置き換えた結果",
+            timestamp: .distantPast, completedAt: .distantFuture, intent: nil)
+        changed.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(changed)
+        try projected.applyRuntimeOverview(source.makeRuntimeOverview())
+        projected.runtimeContentLoader = { try await source.runtimeChatReadContent(for: $0) }
+
+        try await projected.refreshRuntimeChatRead()
+        try await projected.loadRuntimeCardEntries("input", rowID: "task-stage")
+        try await projected.refreshRuntimeChatRead()
+
+        #expect(projected.runtimeChatRead.cards["input"]?.entries["task-stage"]?.entries.map(\.id) == ["replacement-command"])
+        #expect(projected.runtimeChatRead.cards["input"]?.actions["command-0"] == nil)
+        #expect(projected.runtimeChatRead.cards["input"]?.error == nil)
+    }
+
+    @Test func aSurvivingRowWithAFailedFirstDetailReadKeepsItsErrorWhenReconfirmationFails() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        projected.runtimeContentLoader = { _ in throw URLError(.networkConnectionLost) }
+        await #expect(throws: URLError.self) {
+            try await projected.loadRuntimeCardEntries("input", rowID: "task-stage")
+        }
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[1] = .taskList(id: "tasks", tasks: [.init(id: "stage", title: "更新した工程", status: .inProgress)], timestamp: .distantPast)
+        changed.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(changed)
+        try projected.applyRuntimeOverview(source.makeRuntimeOverview())
+        projected.runtimeContentLoader = { request in
+            if case .chatRowEntries = request.target { throw URLError(.networkConnectionLost) }
+            return try await source.runtimeChatReadContent(for: request)
+        }
+
+        await #expect(throws: URLError.self) { try await projected.refreshRuntimeChatRead() }
+
+        #expect(projected.runtimeChatRead.page?.transcriptRevision == 7)
+        #expect(projected.runtimeChatRead.cards["input"]?.error == URLError(.networkConnectionLost).localizedDescription)
+    }
+
+    @Test func aLateParentVerificationFailureDoesNotReplaceANewerActionFailure() async throws {
+        let source = conversation(commandCount: 120)
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        let held = HeldTransactionTimeline()
+        projected.runtimeContentLoader = { request in
+            switch request.target {
+            case .chatRowEntries: return try await held.response()
+            case .chatActionItems: throw URLError(.networkConnectionLost)
+            case .chatReadTail: throw URLError(.notConnectedToInternet)
+            default: return try await source.runtimeChatReadContent(for: request)
+            }
+        }
+        let older = Task { try await projected.loadRuntimeCardEntries("input", rowID: "task-stage") }
+        await held.waitForRequest()
+        let newer = Task { try await projected.loadRuntimeActionItems("input", actionID: "command-0") }
+        let deadline = ContinuousClock.now + .seconds(3)
+        while projected.runtimeChatRead.control.activeCardOperations < 2, ContinuousClock.now < deadline { await Task.yield() }
+        held.reject(SessionRuntimeContentError.notFound)
+        await #expect(throws: URLError(.networkConnectionLost)) { try await newer.value }
+        await #expect(throws: URLError(.notConnectedToInternet)) { try await older.value }
+
+        #expect(projected.runtimeChatRead.cards["input"]?.failure?.target == .action("input", "command-0"))
+        #expect(projected.runtimeChatRead.cards["input"]?.error == URLError(.networkConnectionLost).localizedDescription)
     }
 
     private func expandedConversation() async throws -> (source: ChatSessionViewModel, projected: ChatSessionViewModel) {
@@ -644,11 +959,11 @@ import Testing
 }
 
 @MainActor private final class HeldTransactionTimeline {
-    private var request: CheckedContinuation<SessionRuntimeContentResponse, Never>?
+    private var request: CheckedContinuation<SessionRuntimeContentResponse, Error>?
     private var waiter: CheckedContinuation<Void, Never>?
 
-    func response() async -> SessionRuntimeContentResponse {
-        await withCheckedContinuation { continuation in
+    func response() async throws -> SessionRuntimeContentResponse {
+        try await withCheckedThrowingContinuation { continuation in
             request = continuation
             waiter?.resume()
             waiter = nil
@@ -658,6 +973,11 @@ import Testing
     func waitForRequest() async {
         if request != nil { return }
         await withCheckedContinuation { waiter = $0 }
+    }
+
+    func reject(_ error: Error) {
+        request?.resume(throwing: error)
+        request = nil
     }
 
     func release(_ response: SessionRuntimeContentResponse) {

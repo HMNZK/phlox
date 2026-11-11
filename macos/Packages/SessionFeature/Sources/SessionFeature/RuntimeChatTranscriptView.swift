@@ -402,7 +402,7 @@ struct RuntimeStatusCardView: View, Equatable {
                 VStack(alignment: .leading, spacing: 4) {
                     AgentStatusCardView(card: AgentStatusCard(id: summary.id, header: summary.header, rows: []),
                         agentDescriptor: AgentRegistry.descriptor(for: viewModel.agentRef.builtinKind), isNarrow: isNarrow)
-                    Button("タスクを読み込む") { Task { await loadRows() } }
+                    Button("タスクを読み込む") { Task { try? await viewModel.loadRuntimeCardRows(summary.inputID) } }
                         .buttonStyle(.plain).font(DSFont.meta)
                         .accessibilityIdentifier("AgentStatusCard.retryRows")
                 }
@@ -433,8 +433,7 @@ struct RuntimeStatusCardView: View, Equatable {
                    current.rows.card.contentRevision >= summary.contentRevision { return }
                 try await viewModel.loadRuntimeCardRows(summary.inputID)
             }
-            viewModel.runtimeChatRead.error = nil
-        } catch { viewModel.runtimeChatRead.error = error.localizedDescription }
+        } catch { }
     }
 }
 
@@ -518,29 +517,43 @@ private struct RuntimeCommandGroupView: View {
         let target: SessionRuntimeContentRequest.Target = firstID.map {
             .chatActionItemsFrom(inputID: inputID, actionID: summary.id, itemID: $0)
         } ?? .chatActionItems(inputID: inputID, actionID: summary.id, cursor: nil)
-        fetch(target, recoveringBoundary: firstID != nil)
+        fetch(target)
     }
 
     private func fetch(_ cursor: SessionRuntimeChatReadCursor?) {
-        fetch(.chatActionItems(inputID: inputID, actionID: summary.id, cursor: cursor), recoveringBoundary: false)
+        fetch(.chatActionItems(inputID: inputID, actionID: summary.id, cursor: cursor))
     }
 
-    private func fetch(_ target: SessionRuntimeContentRequest.Target, recoveringBoundary: Bool) {
+    private func fetch(_ target: SessionRuntimeContentRequest.Target) {
         fetchSequence += 1
         let sequence = fetchSequence
         let execution = viewModel.executionID
         let epoch = viewModel.runtimeChatRead.epoch
         Task {
+            var confirmedMissingAction = false
             do {
                 let response: SessionRuntimeContentResponse
                 do { response = try await viewModel.readRuntimeChat(target) }
                 catch SessionRuntimeContentError.notFound {
-                    guard recoveringBoundary else { throw SessionRuntimeContentError.notFound }
+                    let parent = try await viewModel.readRuntimeChat(.chatReadTail)
+                    guard sequence == fetchSequence, viewModel.executionID == execution,
+                          viewModel.runtimeChatRead.epoch == epoch else { return }
+                    guard case .chatReadPage(let timeline) = parent, timeline.sessionID == viewModel.id,
+                          timeline.executionID == execution else { throw SessionRuntimeContentError.staleContent }
+                    do {
+                        response = try await viewModel.readRuntimeChat(.chatActionItems(inputID: inputID, actionID: summary.id, cursor: nil))
+                    } catch SessionRuntimeContentError.notFound {
+                        confirmedMissingAction = true
+                        throw SessionRuntimeContentError.notFound
+                    }
+                } catch SessionRuntimeContentError.staleContent {
+                    guard sequence == fetchSequence, viewModel.executionID == execution,
+                          viewModel.runtimeChatRead.epoch == epoch else { return }
                     response = try await viewModel.readRuntimeChat(.chatActionItems(inputID: inputID, actionID: summary.id, cursor: nil))
                 }
-                guard sequence == fetchSequence else { return }
-                guard viewModel.executionID == execution, viewModel.runtimeChatRead.epoch == epoch,
-                      case .actionItemsPage(let value) = response, value.executionID == execution,
+                guard sequence == fetchSequence, viewModel.executionID == execution,
+                      viewModel.runtimeChatRead.epoch == epoch else { return }
+                guard case .actionItemsPage(let value) = response, value.executionID == execution,
                       value.sessionID == viewModel.id, value.inputID == inputID,
                       value.actionID == summary.id else { throw SessionRuntimeContentError.staleContent }
                 page = value
@@ -548,9 +561,14 @@ private struct RuntimeCommandGroupView: View {
             } catch {
                 guard sequence == fetchSequence, viewModel.executionID == execution,
                       viewModel.runtimeChatRead.epoch == epoch else { return }
-                // Retain real details while retrying; only authoritative disappearance removes them.
-                if let contentError = error as? SessionRuntimeContentError, contentError == .notFound { page = nil }
-                self.error = error.localizedDescription
+                if error is CancellationError { return }
+                if confirmedMissingAction {
+                    page = nil
+                    self.error = nil
+                    viewModel.requestRuntimeContentCatchUp()
+                } else if let contentError = error as? SessionRuntimeContentError, contentError == .staleContent {
+                    viewModel.requestRuntimeContentCatchUp()
+                } else { self.error = error.localizedDescription }
             }
         }
     }

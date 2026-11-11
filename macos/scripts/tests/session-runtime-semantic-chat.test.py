@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""隔離アプリで長いカード、独立した入力履歴、直接ジャンプを検査する。
+"""隔離アプリで長いカード、入力履歴、直接ジャンプ、タスク変更後の本文復旧を検査する。
 
 compact-test経由で固有bundle IDの --app と新しい --work-dir を指定する。
 --self-check は合成履歴の前提だけを確認し、製品の成功とは扱わない。
+--content-recovery-only は本文復旧だけを検査し、出力は --work-dir/content-recovery に置く。
 """
 import base64
 import ctypes
@@ -44,6 +45,66 @@ GRID_IDS = [{"rawValue": f"5B0CA76B-89A0-4EA8-B376-40C3B1D7{index:04d}"} for ind
 
 FIXTURE_GRID_TILE_IDS = frozenset("grid-tile-" + value["rawValue"] for value in [SESSION_ID] + GRID_IDS)
 RUNNING_GRID_TILE_IDS = frozenset("grid-tile-" + value["rawValue"] for value in GRID_IDS)
+RECOVERY_TITLE = "Content recovery acceptance"
+RECOVERY_OLD_TASK = "Inspect recovery original task"
+RECOVERY_NEW_TASK = "Inspect recovery renamed task"
+
+
+def fake_content_recovery(root, arguments):
+    if ".verification" not in root.parts or not (root / "ownership.json").is_file():
+        raise AssertionError("Fixture requires its owned verification directory")
+    if "app-server" not in arguments:
+        return long_message.fake_codex(root, arguments)
+    fixture = importlib.util.spec_from_file_location("content_recovery_agent",
+        Path(__file__).with_name("session-runtime-large-history-fake-agent.py"))
+    module = importlib.util.module_from_spec(fixture)
+    fixture.loader.exec_module(module)
+    module.HISTORY_ITEMS = 0
+
+    class RecoveryAgent(module.LargeHistoryAgent):
+        def plan(self, title):
+            self.notify("turn/plan/updated", dict(threadId=self.thread_id, turnId=self.turn_id,
+                explanation=None, plan=[] if title is None else [dict(step=title, status="inProgress")]))
+
+        def output(self, number):
+            self.notify("item/completed", dict(threadId=self.thread_id, turnId=self.turn_id,
+                item=dict(type="commandExecution", id=f"recovery-work-{number}", status="completed",
+                    command=f"printf recovery-work-{number}", aggregatedOutput=f"Recovery output {number}",
+                    cwd=str(root / "project"))))
+            super().emit_item(f"recovery-answer-{number}", f"Recovery response {number}")
+
+        def emit_item(self, identifier, text):
+            self.plan(RECOVERY_OLD_TASK)
+            self.output(0)
+            self.state["recoveryTransition"] = 0
+            self.save()
+            self.transitions = threading.Thread(target=self.advance, daemon=True)
+            self.transitions.start()
+
+        def advance(self):
+            for number, title in ((1, RECOVERY_NEW_TASK), (2, RECOVERY_NEW_TASK), (3, None), (4, None)):
+                while not (root / f"recovery-trigger-{number}").is_file():
+                    if not self.running:
+                        return
+                    threading.Event().wait(0.05)
+                if number in (1, 3):
+                    self.plan(title)
+                self.output(number)
+                with self.lock:
+                    self.state["recoveryTransition"] = number
+                    self.save()
+
+        def structured(self):
+            try:
+                super().structured()
+            finally:
+                self.running = False
+                if hasattr(self, "transitions"):
+                    self.transitions.join(timeout=2)
+
+    agent = RecoveryAgent(root, "codex", "structured")
+    agent.thread_id = "synthetic-" + os.environ["PHLOX_SESSION_ID"]
+    agent.structured()
 
 
 class AXPair(ctypes.Structure):
@@ -321,7 +382,7 @@ def native_ax_probe(identity, identifier=None, *, prefix=False, role=None, label
                 result["unownedMatchCount"] += 1
             if label is not None:
                 result.setdefault("matchedElements", []).append({key: value[:512] for key, value in fields.items() if value is not None})
-        if include_nodes:
+        if include_nodes and within_scope:
             node = {key: value[:512] for key, value in fields.items() if value is not None}
             if owner_tile_id: node["ownerTileID"] = owner_tile_id
             if scroll_ancestor is not None: node["scrollAreaNodeIndex"] = scroll_ancestor
@@ -869,6 +930,136 @@ class SemanticChatAcceptance(lifecycle.SessionRuntimeLifecycleTests):
         self.native_passed = True
 
 
+class ContentRecoveryAcceptance(SemanticChatAcceptance):
+    def setUp(self):
+        original_work_dir = lifecycle.OPTIONS.work_dir
+        lifecycle.OPTIONS.work_dir = original_work_dir / "content-recovery"
+        self.addCleanup(setattr, lifecycle.OPTIONS, "work_dir", original_work_dir)
+        lifecycle.SessionRuntimeLifecycleTests.setUp(self)
+        self.report["purpose"] = "Opened task details recover after native plan rename and deletion"
+        self.report["semanticSourceHashes"] = {str(Path(__file__).resolve()):
+            hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+        arguments = [sys.executable, "-B", str(Path(__file__).resolve()),
+            "--fake-content-recovery", str(self.root), "--"]
+        Path(self.agents["codex"]).write_text("#!/bin/sh\nexec " +
+            " ".join(shlex.quote(value) for value in arguments) + ' "$@"\n')
+        transcripts = self.store / "transcripts"
+        transcripts.mkdir(parents=True)
+        descriptor = dict(id=SESSION_ID, kind="codex", name=RECOVERY_TITLE, titleSource="manual",
+            workingDirectory=str(self.root / "project"), startedAt=STAMP, command=self.agents["codex"],
+            args=["app-server"], env={}, backend="appServer", codexThreadId="synthetic-" + SESSION_ID["rawValue"],
+            launchContext="interactive")
+        (self.store / "sessions.json").write_text(json.dumps(dict(schemaVersion=1, sessions=[descriptor])))
+        (transcripts / (SESSION_ID["rawValue"] + ".json")).write_text(json.dumps([
+            dict(userMessage=dict(id="recovery-restored-input", text="Recovery restored seed", timestamp=STAMP,
+                attachments=[], turnEnd=dict(outcome="completed", at=STAMP + 1))),
+            dict(agentMessage=dict(id="recovery-restored-answer", text="Recovery restored ready", timestamp=STAMP + 1))]))
+        self.native_gui_identity = None
+        self.native_passed = False
+        self.addCleanup(self.capture_native_failure)
+
+    def assert_recovery_display(self, identity, response, *, task=None, command=None):
+        latest = {}
+        def recovered():
+            nonlocal latest
+            latest = native_ax_probe(identity, include_nodes=True)
+            texts = [node.get(key, "") for node in latest.get("nodes", [])
+                for key in ("AXTitle", "AXDescription", "AXValue")]
+            return latest["complete"] and latest["windowCount"] > 0 and any(response in text for text in texts)
+        try:
+            lifecycle.eventually("new output after the plan transition", recovered, timeout=25)
+        finally:
+            path = self.root / "logs" / (response.replace(" ", "-") + "-ax.json")
+            path.write_text(json.dumps(latest, ensure_ascii=False, indent=2))
+            self.observe("content-recovery-native-display", response=response, axPath=str(path),
+                runtimeGeneration=self.api.generation, guiPID=identity.pid, bundleID=self.bundle_id)
+        card = native_ax_probe(identity, scope_identifier="AgentStatusCard", include_nodes=True)
+        self.assertTrue(card["complete"])
+        texts = [node.get(key, "") for node in card["nodes"] for key in ("AXTitle", "AXDescription", "AXValue")]
+        self.assertTrue(card["nodes"], "The current card must remain visible")
+        if task is not None:
+            self.assertTrue(any(task in text for text in texts), "The current task is missing from its card")
+        if command is not None:
+            self.assertTrue(any(command in text for text in texts), "The loaded row details disappeared")
+        if response in ("Recovery response 3", "Recovery response 4"):
+            self.assertFalse(any(RECOVERY_NEW_TASK in text or RECOVERY_OLD_TASK in text for text in texts),
+                "Deleted task rows remain in the current card")
+        all_texts = [node.get(key, "") for node in latest["nodes"]
+            for key in ("AXTitle", "AXDescription", "AXValue")]
+        for forbidden in ("本文の取得位置が不正です。", "指定された本文が見つかりません。", "再試行"):
+            self.assertFalse(any(forbidden in text for text in all_texts),
+                "An obsolete content error remains in the conversation or card")
+
+    def advance_recovery(self, number):
+        (self.root / f"recovery-trigger-{number}").touch()
+        state = lifecycle.eventually("the fake plan transition acknowledgement",
+            lambda: (value if (value := self.fake_state("structured")).get("recoveryTransition") == number else None))
+        self.observe("content-recovery-fixture-ack", transition=number, fakePID=state["pid"])
+
+    def open_recovery_task(self, identity, title):
+        identifier = "AgentStatusCard.row.task-codex-plan-0-" + title
+        latest = {}
+        def task_state():
+            nonlocal latest
+            latest = native_ax_probe(identity, identifier=identifier,
+                scope_identifier=identifier, include_nodes=True)
+            headers = [node.get("AXDescription", "") for node in latest.get("nodes", [])
+                if node.get("AXIdentifier") == identifier and node.get("AXRole") == "AXButton"
+                and title in node.get("AXDescription", "")]
+            return headers[0] if latest["complete"] and len(headers) == 1 else ""
+        description = lifecycle.eventually("the task disclosure state", task_state, timeout=20)
+        if "折りたたみ済み" in description:
+            self.press_native(identity, title)
+        lifecycle.eventually("the expanded task disclosure", lambda: "展開済み" in task_state(), timeout=20)
+        self.observe("content-recovery-task-expanded", title=title, **latest)
+
+    def test_opened_task_details_recover_after_plan_rename_and_deletion(self):
+        _, identity = self.start_gui(self.original_app)
+        self.native_gui_identity = identity
+        discovery = lifecycle.eventually("the isolated recovery runtime", self.read_ready_discovery, timeout=90)
+        self.runtime_identity = lifecycle.process_info(discovery["pid"])[0]
+        self.assertTrue(Path(self.runtime_identity.executable).is_relative_to(self.store / "session-runtime-bundles"))
+        self.remember(self.runtime_identity, "runtime")
+        self.api = lifecycle.RuntimeAPI(self.store, discovery, self.observe, self.capture_runtime_timeout)
+        application = self.api.request("GET", "/application-snapshot")[1]
+        self.assertEqual(application["claudeBinaryPath"], self.agents["claudeCode"])
+        self.press_native(identity, RECOVERY_TITLE)
+        def restored_child():
+            states = [json.loads(path.read_text()) for path in (self.root / "fake-state").glob("*.json")]
+            return next((state for state in states if state["role"] == "structured"), None)
+        state = lifecycle.eventually("the restored recovery fake", restored_child)
+        self.fixture_pids["structured"] = state["pid"]
+        session = self.get_session(SESSION_ID, "chat")
+        self.api.command(self.session_command(session, {"send": dict(text="Recovery prime", submit=True, attachments=[])}))
+        lifecycle.eventually("the completed prime turn", lambda:
+            self.fake_state("structured").get("sendTexts") == ["Recovery prime"] and
+            "idle" in self.get_session(SESSION_ID, "chat")["status"])
+        self.api.command(self.session_command(self.get_session(SESSION_ID, "chat"),
+            {"send": dict(text="Recovery live input", submit=True, attachments=[])}))
+        state = lifecycle.eventually("the live recovery fixture", lambda:
+            (value if "recoveryTransition" in (value := self.fake_state("structured")) else None))
+        child = lifecycle.process_info(state["pid"])
+        self.assertEqual(child[1], self.runtime_identity.pid)
+        self.remember(child[0], "synthetic-recovery-codex")
+        self.open_recovery_task(identity, RECOVERY_OLD_TASK)
+        self.assert_recovery_display(identity, "Recovery response 0", task=RECOVERY_OLD_TASK,
+            command="printf recovery-work-0")
+        self.advance_recovery(1)
+        self.assert_recovery_display(identity, "Recovery response 1", task=RECOVERY_NEW_TASK)
+        self.open_recovery_task(identity, RECOVERY_NEW_TASK)
+        self.assert_native(identity, "printf recovery-work-1")
+        self.advance_recovery(2)
+        self.assert_recovery_display(identity, "Recovery response 2", task=RECOVERY_NEW_TASK,
+            command="printf recovery-work-2")
+        self.advance_recovery(3)
+        self.assert_recovery_display(identity, "Recovery response 3")
+        self.advance_recovery(4)
+        self.assert_recovery_display(identity, "Recovery response 4")
+        self.observe("content-recovery-native-acceptance-passed", transitions=4,
+            openedRowBeforeRename=True, openedRowBeforeDeletion=True, errorsAbsent=True)
+        self.native_passed = True
+
+
 def fixture_protocol_observation():
     root = Path(__file__).resolve().parents[3] / ".verification/semantic-chat-read-20261110/native" / (
         "selfcheck-" + str(uuid.uuid4()))
@@ -972,6 +1163,53 @@ def layout_leaves(node):
     return [session for child in node["children"] for session in layout_leaves(child)]
 
 
+class RecoveryFixtureTests(unittest.TestCase):
+    def test_plan_transitions_use_real_wire_messages_and_acknowledge_each_trigger(self):
+        root = Path(__file__).resolve().parents[3] / ".verification/body-content-recovery-implementation-20261111/native-fixture" / str(uuid.uuid4())
+        root.mkdir(parents=True)
+        (root / "fake-state").mkdir()
+        ownership = dict(purpose="Content recovery fixture wire self-check", session="native_recovery_repro",
+            executable=sys.executable, script=str(Path(__file__).resolve()))
+        memo = root / "ownership.json"
+        memo.write_text(json.dumps(ownership, indent=2))
+        process = subprocess.Popen([sys.executable, "-B", str(Path(__file__).resolve()),
+            "--fake-content-recovery", str(root), "--", "app-server"], stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=dict(os.environ, PHLOX_SESSION_ID="recovery-selfcheck"))
+        ownership["pid"] = process.pid
+        memo.write_text(json.dumps(ownership, indent=2))
+        try:
+            requests = [dict(id=1, method="initialize"), dict(id=2, method="thread/start"),
+                dict(id=3, method="turn/start", params=dict(input=[dict(text="prime")])),
+                dict(id=4, method="turn/start", params=dict(input=[dict(text="live")]))]
+            process.stdin.write(("\n".join(json.dumps(request) for request in requests) + "\n").encode())
+            process.stdin.flush()
+            state_path = root / "fake-state" / f"{process.pid}.json"
+            def acknowledged(number):
+                return state_path.is_file() and json.loads(state_path.read_text()).get("recoveryTransition") == number
+            lifecycle.eventually("the initial recovery task", lambda: acknowledged(0), timeout=10)
+            for number in (1, 2, 3, 4):
+                (root / f"recovery-trigger-{number}").touch()
+                lifecycle.eventually("the requested recovery transition", lambda: acknowledged(number), timeout=10)
+            output, diagnostics = process.communicate(timeout=10)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+            ownership.update(exitCode=process.returncode, exited=process.poll() is not None)
+            memo.write_text(json.dumps(ownership, indent=2))
+        (root / "stdout.jsonl").write_bytes(output)
+        (root / "stderr.log").write_bytes(diagnostics)
+        self.assertEqual(process.returncode, 0)
+        events = [json.loads(line) for line in output.splitlines()]
+        plans = [event["params"]["plan"] for event in events if event.get("method") == "turn/plan/updated"]
+        self.assertEqual(plans, [[dict(step=RECOVERY_OLD_TASK, status="inProgress")],
+            [dict(step=RECOVERY_NEW_TASK, status="inProgress")], []])
+        commands = [event["params"]["item"]["command"] for event in events
+            if event.get("method") == "item/completed" and event["params"]["item"].get("type") == "commandExecution"]
+        self.assertEqual(commands, ["printf recovery-work-0", "printf recovery-work-1", "printf recovery-work-2",
+            "printf recovery-work-3", "printf recovery-work-4"])
+
+
 class FixturePrerequisiteTests(unittest.TestCase):
     def test_known_busy_content_retries_through_existing_runtime_policy(self):
         result = content_retry_observation([(503, json.dumps({"message": "実行サービスの操作数が上限に達しています。"}).encode()),
@@ -1023,19 +1261,30 @@ class FixturePrerequisiteTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--fake-content-recovery"]:
+        fake_content_recovery(Path(sys.argv[2]).resolve(), sys.argv[3:])
+        sys.exit(0)
     if sys.argv[1:2] == ["--fake-codex"]:
         fake_codex(Path(sys.argv[2]).resolve(), sys.argv[3:])
         sys.exit(0)
-    if sys.argv[1:] == ["--self-check"]:
-        result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(
-            FixturePrerequisiteTests))
+    if sys.argv[1:] in (["--self-check"], ["--content-recovery-self-check"]):
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(RecoveryFixtureTests)
+        if sys.argv[1:] == ["--self-check"]:
+            suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(FixturePrerequisiteTests))
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
         sys.exit(0 if result.wasSuccessful() else 1)
+    recovery_only = "--content-recovery-only" in sys.argv
+    if recovery_only:
+        sys.argv.remove("--content-recovery-only")
     lifecycle.OPTIONS, remaining = lifecycle.parse_options()
     if remaining:
         raise SystemExit("Unexpected arguments: " + " ".join(remaining))
     output = io.StringIO()
-    suite = unittest.TestSuite([SemanticChatAcceptance(
-        "test_long_card_and_history_remain_available_across_native_jump_and_reconnect")])
+    suite = unittest.TestSuite()
+    if not recovery_only:
+        suite.addTest(SemanticChatAcceptance(
+            "test_long_card_and_history_remain_available_across_native_jump_and_reconnect"))
+    suite.addTest(ContentRecoveryAcceptance("test_opened_task_details_recover_after_plan_rename_and_deletion"))
     result = unittest.TextTestRunner(stream=output, verbosity=2).run(suite)
     log = output.getvalue()
     sys.stderr.write(log)

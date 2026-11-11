@@ -375,6 +375,7 @@ public final class SessionRuntimeClient {
         case 409: throw SessionRuntimeConnectionError.rejected(Self.failureMessage(data))
         case 412: throw SessionRuntimeContentError.staleContent
         case 413: throw SessionRuntimeConnectionError.responseTooLarge
+        case 404 where path == "session-content": throw SessionRuntimeContentError.notFound
         case 400 where path == "session-content": throw SessionRuntimeContentError.invalidRequest
         case 503: throw SessionRuntimeConnectionError.busy
         default: throw SessionRuntimeConnectionError.rejected(Self.failureMessage(data))

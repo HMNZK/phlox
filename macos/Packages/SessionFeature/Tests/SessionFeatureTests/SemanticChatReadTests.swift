@@ -245,6 +245,42 @@ struct SemanticChatReadTests {
         #expect(selected.rows.map(\.id) == ["task-80"])
     }
 
+    @Test func shrinkingRowsClassifiesAnIssuedCursorAsStaleBeforeCheckingItsCurrentRange() async throws {
+        var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: at(1),
+            agentRef: .builtin(.codex), workingDirectory: "/workspace")
+        snapshot.transcript = liveDeepTask()
+        snapshot.transcriptRevision = 7
+        let source = ChatSessionViewModel(projection: snapshot) { _, _ in .none }
+        let before = try await readRows(source, inputID: "deep")
+        let cursor = try #require(before.nextCursor)
+        snapshot.transcript[1] = .taskList(id: "deep-tasks", tasks: [
+            .init(id: "80", title: "タスク80", status: .inProgress)
+        ], timestamp: at(2))
+        snapshot.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(snapshot)
+        let after = try await readRows(source, inputID: "deep")
+        let outOfRange = SessionRuntimeChatReadCursor(scopeID: cursor.scopeID, revision: after.card.revision,
+            index: cursor.index, anchorID: cursor.anchorID)
+        let wrongScope = SessionRuntimeChatReadCursor(scopeID: "rows:other", revision: cursor.revision,
+            index: cursor.index, anchorID: cursor.anchorID)
+        let negative = SessionRuntimeChatReadCursor(scopeID: cursor.scopeID, revision: cursor.revision,
+            index: -1, anchorID: cursor.anchorID)
+
+        #expect(after.rows.map(\.id) == ["task-80"])
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            _ = try await source.runtimeChatReadContent(for: request(source, .chatCardRows(inputID: "deep", cursor: cursor)))
+        }
+        await #expect(throws: SessionRuntimeContentError.invalidRequest) {
+            _ = try await source.runtimeChatReadContent(for: request(source, .chatCardRows(inputID: "deep", cursor: outOfRange)))
+        }
+        await #expect(throws: SessionRuntimeContentError.invalidRequest) {
+            _ = try await source.runtimeChatReadContent(for: request(source, .chatCardRows(inputID: "deep", cursor: wrongScope)))
+        }
+        await #expect(throws: SessionRuntimeContentError.invalidRequest) {
+            _ = try await source.runtimeChatReadContent(for: request(source, .chatCardRows(inputID: "deep", cursor: negative)))
+        }
+    }
+
     private func liveDeepTask() -> [ChatItem] {
         [
             .userMessage(id: "deep", text: "多数のタスク", timestamp: at(1), attachments: []),

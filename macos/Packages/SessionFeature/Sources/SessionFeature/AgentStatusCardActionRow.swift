@@ -159,7 +159,7 @@ struct AgentStatusActionRow: View {
                 }
                 if runtime.cache.actionPageOffsets[action.id, default: 0] > 0 {
                     Button("先頭の詳細に戻る") {
-                        Task { try? await runtime.viewModel.loadRuntimeActionItems(runtime.inputID, actionID: action.id) }
+                        runtime.loadAction(action.id)
                     }
                     .font(DSFont.meta)
                 }
@@ -170,7 +170,9 @@ struct AgentStatusActionRow: View {
             }
         }
         .padding(.leading, AgentStatusCardLayout.textIndent)
-        .task(id: runtime.contentVersion) { runtime.loadAction(action.id) }
+        .task(id: runtime.contentVersion) {
+            if runtime.cache.actions[action.id] == nil { runtime.loadAction(action.id) }
+        }
     }
 
     /// 開いた中身。今のセルの部品を再利用する（コマンドの出力・ファイルの差分）。

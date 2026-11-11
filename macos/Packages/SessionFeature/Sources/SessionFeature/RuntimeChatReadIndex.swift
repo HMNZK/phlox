@@ -85,6 +85,7 @@ private final class RuntimeChatReadIndex {
         var detailItems: [Item]
         var cachedGroupSummary: SessionRuntimeCommandGroupSummary?
         var contentRevision = 0
+        var structureRevision: UInt64 = 1
         init(_ action: AgentStatusAction, inputID: String?, items: inout [String: Item]) {
             id = action.id
             accumulator = .init(items: action.items)
@@ -366,10 +367,15 @@ private final class RuntimeChatReadIndex {
         priorActionsForRebuild.removeAll()
     }
 
-    private func stampContentRevision(_ action: Action) {
-        if let previous = priorActionsForRebuild[action.id], previous.accumulator.items == action.accumulator.items {
-            action.contentRevision = previous.contentRevision
-        } else { action.contentRevision = transcriptRevision }
+    private func stampActionRevisions(_ action: Action) {
+        guard let previous = priorActionsForRebuild[action.id] else {
+            action.contentRevision = transcriptRevision
+            return
+        }
+        action.contentRevision = previous.accumulator.items == action.accumulator.items
+            ? previous.contentRevision : transcriptRevision
+        let preservesPrefix = action.detailItems.map(\.value.id).starts(with: previous.detailItems.map(\.value.id))
+        action.structureRevision = preservesPrefix ? previous.structureRevision : previous.structureRevision &+ 1
     }
 
     private func appendBlock(_ block: Block) {
@@ -378,7 +384,7 @@ private final class RuntimeChatReadIndex {
         switch block.content {
         case .item(let item): itemBlockID[item.value.id] = block.id
         case .group(let action):
-            stampContentRevision(action)
+            stampActionRevisions(action)
             for item in action.detailItems { itemBlockID[item.value.id] = block.id }
         case .card(let card):
             for row in card.rows {
@@ -386,7 +392,7 @@ private final class RuntimeChatReadIndex {
                     switch entry {
                     case .item(let item): itemBlockID[item.value.id] = block.id
                     case .action(let action):
-                        stampContentRevision(action)
+                        stampActionRevisions(action)
                         for item in action.detailItems { itemBlockID[item.value.id] = block.id }
                     }
                 }
@@ -654,7 +660,7 @@ extension RuntimeChatReadIndex {
             response = try cardEntries(request, inputID: inputID, card: card, row: row, end: position + 1)
         case .chatActionItems(let inputID, let actionID, let cursor):
             guard let action = actions[actionID], action.inputID == inputID else { throw SessionRuntimeContentError.notFound }
-            let revision = inputID.flatMap { intervalsByInput[$0] }.flatMap { intervals[$0].card?.revision } ?? 1
+            let revision = inputID.flatMap { intervalsByInput[$0] }.flatMap { intervals[$0].card?.revision } ?? action.structureRevision
             let scope = "action:\(inputID ?? ""): \(actionID)"
             let start = try nextStart(cursor, scope: scope, revision: revision, count: action.detailItems.count) {
                 action.detailItems[$0].value.id
@@ -680,7 +686,7 @@ extension RuntimeChatReadIndex {
     }
 
     private func actionItems(_ request: SessionRuntimeContentRequest, inputID: String?, action: Action, start: Int) throws -> SessionRuntimeContentResponse {
-        let revision = inputID.flatMap { intervalsByInput[$0] }.flatMap { intervals[$0].card?.revision } ?? 1
+        let revision = inputID.flatMap { intervalsByInput[$0] }.flatMap { intervals[$0].card?.revision } ?? action.structureRevision
         let scope = "action:\(inputID ?? ""): \(action.id)"
         let values = try page(from: start, count: action.detailItems.count) { try action.detailItems[$0].reference() }
         return .actionItemsPage(.init(sessionID: request.sessionID, executionID: executionID,
@@ -818,8 +824,10 @@ extension RuntimeChatReadIndex {
     private func nextStart(_ cursor: SessionRuntimeChatReadCursor?, scope: String, revision: UInt64,
                            count: Int, id: (Int) -> String) throws -> Int {
         guard let cursor else { return 0 }
-        guard cursor.index >= 0, cursor.index < count else { throw SessionRuntimeContentError.invalidRequest }
-        try validate(cursor, scope: scope, revision: revision, ids: id(cursor.index))
+        guard cursor.scopeID == scope, cursor.index >= 0 else { throw SessionRuntimeContentError.invalidRequest }
+        guard cursor.revision == revision else { throw SessionRuntimeContentError.staleContent }
+        guard cursor.index < count else { throw SessionRuntimeContentError.invalidRequest }
+        guard id(cursor.index) == cursor.anchorID else { throw SessionRuntimeContentError.staleContent }
         return cursor.index + 1
     }
 

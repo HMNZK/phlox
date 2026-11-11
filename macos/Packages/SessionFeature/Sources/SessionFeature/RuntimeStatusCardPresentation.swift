@@ -94,33 +94,30 @@ struct RuntimeStatusCardPresentation: Sendable {
 
     @MainActor
     func loadEntries(_ rowID: String, next: Bool = false, endingAtID: String? = nil, startingAtID: String? = nil) {
-        guard next || endingAtID != nil || cache.entries[rowID] == nil else { return }
-        Task { await perform {
-            try await viewModel.loadRuntimeCardEntries(inputID, rowID: rowID, next: next,
-                aroundEntryID: endingAtID, startingAtID: startingAtID)
-        } }
+        Task { try? await viewModel.loadRuntimeCardEntries(inputID, rowID: rowID, next: next,
+            aroundEntryID: endingAtID, startingAtID: startingAtID) }
     }
 
     @MainActor
     func loadAction(_ actionID: String, next: Bool = false) {
-        guard next || cache.actions[actionID] == nil else { return }
-        Task { await perform { try await viewModel.loadRuntimeActionItems(inputID, actionID: actionID, next: next) } }
+        Task { try? await viewModel.loadRuntimeActionItems(inputID, actionID: actionID, next: next) }
     }
 
     @MainActor
     func loadRows(_ navigation: RuntimeCardRowNavigation) {
-        Task { await perform { try await viewModel.loadRuntimeCardRows(inputID, navigation: navigation) } }
+        Task { try? await viewModel.loadRuntimeCardRows(inputID, navigation: navigation) }
     }
 
     @MainActor
-    private func perform(_ action: () async throws -> Void) async {
-        do {
-            try await action()
-            viewModel.runtimeChatRead.cards[inputID]?.error = nil
-        } catch {
-            viewModel.runtimeChatRead.cards[inputID]?.error = error.localizedDescription
+    func retry(_ rowID: String) {
+        guard let target = cache.failure?.target else { loadEntries(rowID); return }
+        switch target {
+        case .rows: loadRows(.refresh)
+        case .entries(_, let failedRowID): loadEntries(failedRowID)
+        case .action(_, let actionID): loadAction(actionID)
         }
     }
+
 }
 
 func runtimeCardSnapshotsMatch(_ lhs: RuntimeCardReadCache?, _ rhs: RuntimeCardReadCache?) -> Bool {
@@ -216,7 +213,7 @@ struct RuntimeCardEntriesView: View {
                 }
                 if presentation.cache.entryIsLatest[rowID] == false {
                     Button("最新の作業に戻る") {
-                        Task { try? await presentation.viewModel.loadRuntimeCardEntries(presentation.inputID, rowID: rowID) }
+                        presentation.loadEntries(rowID)
                     }
                     .buttonStyle(.plain).font(DSFont.meta)
                 }
@@ -227,12 +224,12 @@ struct RuntimeCardEntriesView: View {
             }
             if let error = presentation.cache.error {
                 Text(error).font(DSFont.meta).foregroundStyle(DSColor.textSecondary)
-                Button("再試行") {
-                    Task { try? await presentation.viewModel.loadRuntimeCardEntries(presentation.inputID, rowID: rowID) }
-                }
+                Button("再試行") { presentation.retry(rowID) }
             }
         }
-        .task(id: presentation.contentVersion) { presentation.loadEntries(rowID) }
+        .task(id: presentation.contentVersion) {
+            if presentation.cache.entries[rowID] == nil { presentation.loadEntries(rowID) }
+        }
 
     }
 }

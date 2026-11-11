@@ -132,13 +132,107 @@ struct SemanticChatReadActionAnchorTests {
         #expect(page.nextCursor == nil)
     }
 
-    private func fixture(reads: Int, output: String = "内容") -> SessionRuntimeChatSnapshot {
+    @Test(arguments: [(AgentKind.codex, true), (.cursor, true), (.codex, false)], [40, 119])
+    func shrinkingAnActionInvalidatesItsIssuedCursor(_ mode: (AgentKind, Bool), retained: Int) async throws {
+        var snapshot = fixture(reads: 120, agent: mode.0, includeInput: mode.1)
+        let inputID: String? = mode.1 ? "request" : nil
+        let source = owner(snapshot)
+        let before = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: nil))
+        let cursor = try #require(before.nextCursor)
+        snapshot.transcript.removeLast(120 - retained)
+        snapshot.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(snapshot)
+
+        let after = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: nil))
+
+        #expect(after.revision != before.revision)
+        #expect(after.items.first?.id == "read-0")
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            _ = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: cursor))
+        }
+    }
+
+    @Test(arguments: [(AgentKind.cursor, true), (.codex, false)])
+    func reorderingItemsBeyondTheBoundaryInvalidatesAnUngroupedActionCursor(_ mode: (AgentKind, Bool)) async throws {
+        var snapshot = fixture(reads: 120, agent: mode.0, includeInput: mode.1)
+        let inputID: String? = mode.1 ? "request" : nil
+        let source = owner(snapshot)
+        let before = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: nil))
+        let cursor = try #require(before.nextCursor)
+        let offset = mode.1 ? 1 : 0
+        snapshot.transcript.swapAt(60 + offset, 61 + offset)
+        snapshot.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(snapshot)
+
+        let after = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: nil))
+
+        #expect(after.revision != before.revision)
+        #expect(after.items.last?.id == "read-49")
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            _ = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: cursor))
+        }
+    }
+
+    @Test(arguments: [(AgentKind.cursor, true), (.codex, false)])
+    func replacingItemsBeyondTheBoundaryInvalidatesAnUngroupedActionCursor(_ mode: (AgentKind, Bool)) async throws {
+        var snapshot = fixture(reads: 120, agent: mode.0, includeInput: mode.1)
+        let inputID: String? = mode.1 ? "request" : nil
+        let source = owner(snapshot)
+        let before = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: nil))
+        let cursor = try #require(before.nextCursor)
+        let offset = mode.1 ? 1 : 0
+        snapshot.transcript[60 + offset] = read("replacement", number: 60)
+        snapshot.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(snapshot)
+
+        let after = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: nil))
+
+        #expect(after.revision != before.revision)
+        #expect(after.items.last?.id == "read-49")
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            _ = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: cursor))
+        }
+    }
+
+    @Test(arguments: [(AgentKind.cursor, true), (.codex, false)])
+    func pureAppendsAndBodyEditsPreserveUngroupedActionCursorsAcrossRebuilds(_ mode: (AgentKind, Bool)) async throws {
+        var snapshot = fixture(reads: 60, agent: mode.0, includeInput: mode.1)
+        let inputID: String? = mode.1 ? "request" : nil
+        let source = owner(snapshot)
+        let before = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: nil))
+        let cursor = try #require(before.nextCursor)
+        snapshot.status = .running
+        snapshot.transcript.append(read("read-60", number: 60))
+        snapshot.transcriptRevision = 8
+        try source.applyRuntimeSnapshot(snapshot)
+        let appended = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: cursor))
+        snapshot.status = .idle
+        snapshot.transcript[mode.1 ? 51 : 50] = read("read-50", number: 50, output: "更新された本文")
+        snapshot.transcriptRevision = 9
+        try source.applyRuntimeSnapshot(snapshot)
+
+        let edited = try await items(source, .chatActionItems(inputID: inputID, actionID: "read-0", cursor: cursor))
+        guard case .inline(.commandExecution(_, _, let output, _, _, _)) = edited.items.first else {
+            Issue.record("更新された本文を取得できません"); return
+        }
+
+        #expect(appended.revision == before.revision)
+        #expect(edited.revision == before.revision)
+        #expect(appended.items.first?.id == "read-50")
+        #expect(appended.items.last?.id == "read-60")
+        #expect(edited.items.first?.id == "read-50")
+        #expect(edited.items.last?.id == "read-60")
+        #expect(output == "更新された本文")
+    }
+
+    private func fixture(reads: Int, output: String = "内容", agent: AgentKind = .codex, includeInput: Bool = true) -> SessionRuntimeChatSnapshot {
         var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: at(0),
-            agentRef: .builtin(.codex), workingDirectory: "/workspace")
+            agentRef: .builtin(agent), workingDirectory: "/workspace")
         snapshot.status = .idle
         snapshot.transcript = [.userMessage(id: "request", text: "確認してください", timestamp: at(0), attachments: [],
             turnEnd: .init(outcome: .completed, at: at(200)))]
             + (0..<reads).map { read("read-\($0)", number: $0, output: output) }
+        if !includeInput { snapshot.transcript.removeFirst() }
         snapshot.transcriptRevision = 7
         return snapshot
     }

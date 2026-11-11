@@ -439,6 +439,7 @@ public actor SessionRuntimeTransport {
             case SessionRuntimeConnectionError.busy: status = 503
             case SessionRuntimeConnectionError.staleGeneration, SessionRuntimeConnectionError.incompatibleProtocol,
                  SessionRuntimeConnectionError.operationConflict: status = 409
+            case SessionRuntimeContentError.notFound: status = 404
             case SessionRuntimeContentError.staleContent: status = 412
             case SessionRuntimeConnectionError.responseTooLarge, HTTPMessageParserError.payloadTooLarge: status = 413
             default: status = 400

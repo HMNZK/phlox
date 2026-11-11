@@ -1445,6 +1445,35 @@
         "semantic-chat-read"
       ],
       "reason": "main比較の影響4シナリオを照合し、変更分類漏れと必須シナリオ削減は0件。既存main比較レビュー済み705391af以降の製品変更は確認済みの本文復旧修正であり、今回の配布準備では製品・テストを変更していない。新Mac54/iOS23のcaptureと最終候補の入力manifest全2186ファイル、来歴参照・外部入力・実効設定・DMG/ZIP/IPAハッシュが一致する。フィードの版・サイズ・署名・英日ノート、ZIP同梱公開鍵とcapture元appの公開鍵の一致、Ed25519署名と改変署名拒否を独立確認した。正本verification-gate.pyはmainから不変で、必須実機5件とhuman観測条件を維持する。本passは静的内容とシナリオ対応のレビューのみ。最終候補qualityとdistributionは未実行、人による必須実機5件は未実施、devices/executionsは空であり、mainリリースはまだ不可。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "targetOID": "10adced22e140d419aa365d87cd10d698d5659b6",
+      "diffSHA256": "8bb51b8ac361902b1110cbfb16c8cb53e52db6f3a1b00e0d9c915c1171102d3e",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation",
+        "physical-history-follow",
+        "physical-newchat-worktree-resume",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reviewedAt": "2026-11-11T08:52:33Z",
+      "userApproval": {
+        "kind": "human",
+        "id": "conversation-user",
+        "approvedAt": "2026-11-11T08:48:37.268022+00:00",
+        "reason": "この候補だけ例外を認めて進める。対象は固定Mac1.14.8/build54・iOS1.0/build23の同一配布物に限る。"
+      },
+      "reason": "main比較のコード影響4件と今回省略する実機5件の和集合8シナリオを確認した。未分類変更0件、製品ゲート・カタログ・品質入口の変更0件。ユーザー承認文と保存票の候補範囲が一致し、必須実機5件はnot_run、devices/executionsは空のままで、人のpassed証言を追加していない。現在の2186入力とMac54/iOS23のcapture入力manifestが一致し、移管後の来歴・外部入力・3配布物のハッシュも一致する。限定コマンドは承認されたDMG/ZIP/IPAの固定SHA256と例外文書の存在を要求し、既存の版・notes・feed・stapler検査を保持する。正本distributionも候補入力とcapture入力の一致を要求するため、異なる製品ソースや次版・別成果物へ例外は広がらない。通常releaseCommandは現時点で物理検証を要求する保存値と一致している。統合成否にかかわらず限定設定を通常設定へ復元し実値を照合することが適用条件。本passは静的な内容・シナリオ・例外範囲のレビューであり、実機5件の成功、最終main候補quality・秘密情報検査・限定releaseCommandの実行成功、公開成功を保証しない。"
     }
   ]
 }

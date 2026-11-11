@@ -1,5 +1,6 @@
 import SwiftUI
 import AgentDomain
+import ChatRenderKit
 import DesignSystem
 
 // エージェント状態カードの見出し（1 行目。見本 10-Anatomy「見出しの全状態」、要件 §4.2）。
@@ -120,6 +121,7 @@ struct AgentStatusHeaderView: View {
     let isTimelineVisible: Bool
     /// グリッドの狭い列（左右の余白を詰める）。
     var isNarrow = false
+    var changeCounts: ChatFileChangePresentation.Counts? = nil
     var hangAssessment: ((Date) -> ChatHangAssessment?)? = nil
     var onInterrupt: (() async -> Void)? = nil
     @Environment(\.locale) private var locale
@@ -142,12 +144,19 @@ struct AgentStatusHeaderView: View {
             HStack(spacing: AgentStatusCardLayout.headerGap) {
                 lead(state: state)
                 nowText(state: state)
+                if let changeCounts {
+                    HStack(spacing: 5) {
+                        Text(verbatim: "+\(changeCounts.additions)").foregroundStyle(DSColor.diffAdded)
+                        Text(verbatim: "-\(changeCounts.deletions)").foregroundStyle(DSColor.diffRemoved)
+                    }
+                    .font(.system(size: 11.5 * scale)).monospacedDigit().fixedSize()
+                }
                 trailingText(trailing)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: header.spokenLabel(
                 state: state, trailing: trailing, locale: locale, bundle: bundle
-            )))
+            ) + (changeCounts.map { " · +\($0.additions) -\($0.deletions)" } ?? "")))
             .accessibilityIdentifier("AgentStatusCard.header")
             if state == .stalled, let onInterrupt {
                 // 長い作業名に押されて「esc」が欠けないよう、右側を先に確保する。
@@ -169,7 +178,8 @@ struct AgentStatusHeaderView: View {
             ThinkingOrbView(
                 state: header.orbState,
                 size: .inline,
-                isVisible: isAnimating && state != .awaitingReply
+                isVisible: isAnimating && state != .awaitingReply,
+                colorStyle: .rainbow
             )
             .opacity(state == .awaitingReply ? 0.5 : 1)
             .frame(width: AgentStatusCardLayout.leadSize, height: AgentStatusCardLayout.leadSize)
@@ -208,7 +218,14 @@ struct AgentStatusHeaderView: View {
                     .foregroundStyle(DSColor.textTertiary)
                     .accessibilityHidden(true)
             }
-            Text(verbatim: header.title(locale: locale, bundle: bundle))
+            Group {
+                if (state == .running || state == .stalled), let current = header.current,
+                   case .subAgent = current {
+                    AgentStatusSubAgentLabel(label: current)
+                } else {
+                    Text(verbatim: header.title(locale: locale, bundle: bundle))
+                }
+            }
                 // コマンドそのものを出すときは等幅（見本 06）。
                 .font(isCommand ? .system(size: 12.5 * scale, weight: .medium, design: .monospaced) : .system(size: 13 * scale))
                 .foregroundStyle(isQuiet ? DSColor.chatTextSecondary : DSColor.chatTextPrimary)

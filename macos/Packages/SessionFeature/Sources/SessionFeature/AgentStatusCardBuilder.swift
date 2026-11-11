@@ -21,6 +21,7 @@ struct AgentStatusCard: Identifiable, Equatable, Sendable {
     let header: AgentStatusHeader
     /// タスクの行とタスク外の作業の行。タスクは最新のスナップショットの順、タスク外は時系列の位置。
     let rows: [AgentStatusRow]
+    var changeCounts: ChatFileChangePresentation.Counts? = nil
     var totalRowCount: Int? = nil
     var hasTask: Bool? = nil
 }
@@ -180,6 +181,15 @@ public struct AgentStatusAction: Identifiable, Equatable, Sendable {
         case tool(String)
         case subAgent(description: String, type: String, status: SubAgentStatus)
 
+        static func subAgentStatusText(_ status: SubAgentStatus, locale: Locale, bundle: Bundle = .main) -> String {
+            switch status {
+            case .running: AppLocalizedString.string("実行中", locale: locale, bundle: bundle)
+            case .completed: AppLocalizedString.string("完了", locale: locale, bundle: bundle)
+            case .failed: AppLocalizedString.string("失敗", locale: locale, bundle: bundle)
+            case .stopped: AgentStatusText.keyed("subagent.status.stopped", japanese: "停止", locale: locale, bundle: bundle)
+            }
+        }
+
         private static func endsWithJapanese(_ text: String) -> Bool {
             guard let scalar = text.unicodeScalars.last else { return false }
             switch scalar.value {
@@ -217,10 +227,13 @@ public struct AgentStatusAction: Identifiable, Equatable, Sendable {
                 return running ? format("%@ を実行中", shown) : shown
             case .tool(let name):
                 return format(running ? "%@ を実行中" : "%@ を実行", name)
-            case .subAgent(let description, _, _):
-                return description.isEmpty
+            case .subAgent(let description, let type, let status):
+                let subject = description.isEmpty
                     ? UIWording.text(.missingSubAgentDescription, languageCode: locale.language.languageCode?.identifier ?? "ja")
                     : description
+                return [AppLocalizedString.string("サブエージェント", locale: locale, bundle: bundle), subject,
+                    type, Self.subAgentStatusText(status, locale: locale, bundle: bundle)]
+                    .filter { !$0.isEmpty }.joined(separator: " · ")
             }
         }
     }
@@ -291,6 +304,37 @@ enum AgentStatusText {
     static func keyed(_ key: String, japanese: String, locale: Locale, bundle: Bundle) -> String {
         let text = AppLocalizedString.string(key, locale: locale, bundle: bundle)
         return text == key ? japanese : text
+    }
+}
+
+/// 確定した項目ごとの寄与。再受信・差分置換で同じ作業を重複加算しない。
+struct AgentStatusChangeCounts {
+    private var contributions: [String: ChatFileChangePresentation.Counts] = [:]
+    private var additions = 0
+    private var deletions = 0
+
+    init<Items: Sequence>(items: Items) where Items.Element == ChatItem {
+        for item in items { update(item) }
+    }
+
+    var counts: ChatFileChangePresentation.Counts? {
+        contributions.isEmpty ? nil : .init(additions: additions, deletions: deletions)
+    }
+
+    mutating func update(_ item: ChatItem) {
+        if let previous = contributions.removeValue(forKey: item.id) {
+            additions -= previous.additions
+            deletions -= previous.deletions
+        }
+        guard case .fileChange(_, let changes, _, .some) = item,
+              !changes.isEmpty, changes.allSatisfy({ !$0.diff.isEmpty }) else { return }
+        let counts = changes.reduce(ChatFileChangePresentation.Counts(additions: 0, deletions: 0)) { total, change in
+            let next = ChatMessageRenderCache.diffCounts(change.diff)
+            return .init(additions: total.additions + next.additions, deletions: total.deletions + next.deletions)
+        }
+        contributions[item.id] = counts
+        additions += counts.additions
+        deletions += counts.deletions
     }
 }
 
@@ -621,7 +665,8 @@ enum AgentStatusCardBuilder {
                 current: lastWorkID.flatMap { lastAction(containing: $0, in: rows) }.flatMap { $0.isRunning ? $0.label : nil },
                 startedAt: startedAt, turnEnd: turnEnd, running: running, liveState: liveState
             ),
-            rows: rows
+            rows: rows,
+            changeCounts: AgentStatusChangeCounts(items: segment.dropFirst()).counts
         )
         return ChatTranscriptGrouping.blocks(from: [segment[segment.startIndex]] + plan.above.map { body[$0] })
             + [.statusCard(card)]
@@ -778,6 +823,7 @@ enum AgentStatusCardBuilder {
         }
 
         func append(_ item: ChatItem) {
+            if positions[item.id] != nil { replace(item); return }
             positions[item.id] = items.count
             items.append(item)
             contribute(item, sign: 1)
@@ -841,7 +887,16 @@ enum AgentStatusCardBuilder {
         }
 
         func materialize(running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusAction {
-            AgentStatusAction(items: items, label: label, state: state(running: running, turnEnd: turnEnd), duration: duration)
+            AgentStatusAction(items: items, label: resolvedLabel(running: running, turnEnd: turnEnd),
+                state: state(running: running, turnEnd: turnEnd), duration: duration)
+        }
+
+        func resolvedLabel(running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusAction.Label {
+            if case .subAgent(let description, let type, .running) = label,
+               state(running: running, turnEnd: turnEnd) == .interrupted {
+                return .subAgent(description: description, type: type, status: .stopped)
+            }
+            return label
         }
 
         var duration: TimeInterval? {
@@ -872,6 +927,12 @@ enum AgentStatusCardBuilder {
             case .fileChange(_, let changes, _, _) where isWrite(changes):
                 return .write(file: fileName(changes[0].path))
             case .fileChange:
+                // 実行中の対象名は、完了済み編集との集約で失わない。
+                var activeFiles: [String] = []
+                for case .fileChange(_, let changes, _, nil) in items {
+                    for change in changes where !activeFiles.contains(change.path) { activeFiles.append(change.path) }
+                }
+                if !activeFiles.isEmpty { return .edit(file: activeFiles.map(fileName).joined(separator: ", ")) }
                 return files.count == 1 ? .edit(file: fileName(files.keys.first!)) : .editFiles(count: files.count)
             case .commandExecution(_, let command, _, _, _, let intent):
                 if let intent { return .run(intent: intent) }

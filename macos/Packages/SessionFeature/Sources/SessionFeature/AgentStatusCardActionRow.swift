@@ -15,7 +15,9 @@ extension AgentStatusAction {
 
     func spokenLabel(now: Date? = nil, locale: Locale, bundle: Bundle = .main) -> String {
         let subject = (isRunning ? nil : label.singleFile) ?? text(locale: locale, bundle: bundle)
-        var parts = [AppLocalizedString.string(label.spokenKindKey, locale: locale, bundle: bundle), subject]
+        var parts: [String]
+        if case .subAgent = label { parts = [subject] }
+        else { parts = [AppLocalizedString.string(label.spokenKindKey, locale: locale, bundle: bundle), subject] }
         if let duration = now.flatMap({ elapsed(at: $0) }) ?? duration {
             parts.append(AgentStatusDurationFormat.spoken(duration, locale: locale, bundle: bundle, fractional: true))
         }
@@ -40,6 +42,11 @@ struct AgentStatusActionRow: View {
             else { localIsOpen = newValue }
         }
     }
+    @State private var isHovered = false
+    @FocusState private var isFocused: Bool
+    @State private var isInViewHierarchy = false
+    @State private var isInViewport = false
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.locale) private var locale
     @Environment(\.localizationBundle) private var bundle
 
@@ -73,6 +80,9 @@ struct AgentStatusActionRow: View {
             }
         }
         .accessibilityIdentifier("AgentStatusCard.action.\(action.id)")
+        .onAppear { isInViewHierarchy = true }
+        .onDisappear { isInViewHierarchy = false }
+        .onViewportVisibilityChange { isInViewport = $0 }
         .onChange(of: startsOpen, initial: true) { _, shouldOpen in if shouldOpen { isOpen = true } }
     }
 
@@ -81,6 +91,8 @@ struct AgentStatusActionRow: View {
         if action.isExpandable {
             Button { isOpen.toggle() } label: { rowContent(now: now) }
                 .buttonStyle(.plain)
+                .focused($isFocused)
+                .onHover { isHovered = $0 }
                 .accessibilityLabel(Text(verbatim: action.spokenLabel(now: now, locale: locale, bundle: bundle)))
                 .accessibilityValue(Text(AppLocalizedString.string(isOpen ? "展開中" : "折りたたみ中", locale: locale, bundle: bundle)))
         } else {
@@ -97,11 +109,19 @@ struct AgentStatusActionRow: View {
                 .foregroundStyle(DSColor.textTertiary)
                 .frame(width: AgentStatusCardLayout.actionIconSize)
                 .accessibilityHidden(true)
-            label
+            actionLabel
                 .font(font)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if isFileAction {
+                Image(systemName: isOpen ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 9 * scale, weight: .semibold))
+                    .foregroundStyle(isHovered || isFocused ? DSColor.chatTextPrimary : DSColor.textTertiary)
+                    .opacity(isOpen || isHovered || isFocused ? 1 : 0)
+                    .frame(width: 10)
+                    .accessibilityHidden(true)
+            }
             if let duration = now.flatMap({ action.elapsed(at: $0) }) ?? action.duration {
                 Text(verbatim: AgentStatusDurationFormat.action(duration))
                     .font(.system(size: 11.5 * scale))
@@ -112,7 +132,7 @@ struct AgentStatusActionRow: View {
         }
         .padding(.horizontal, 4)
         .frame(minHeight: AgentStatusCardLayout.actionRowHeight * scale)
-        .background(isOpen ? DSColor.fillSubtle : Color.clear, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .background(isOpen || (isFileAction && (isHovered || isFocused)) ? DSColor.fillSubtle : Color.clear, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
         .contentShape(Rectangle())
     }
 
@@ -121,30 +141,52 @@ struct AgentStatusActionRow: View {
         return .system(size: 12.5 * scale)
     }
 
-    /// 実行中は全体を薄く。終わった行はファイル名だけ濃く、残りは中くらい（見本 `.wr` `.f`）。
+    private var isFileAction: Bool {
+        switch action.label {
+        case .edit, .editFiles, .write: true
+        default: false
+        }
+    }
+
+    private var isShimmerAction: Bool {
+        switch action.label {
+        case .command, .run, .edit, .editFiles, .write: true
+        default: false
+        }
+    }
+
+    private var isAnimationVisible: Bool {
+        isTimelineVisible && action.isRunning && ThinkingAnimationModel.isTimelineVisible(
+            isInViewHierarchy: isInViewHierarchy, isInTranscriptViewport: isInViewport, scenePhase: scenePhase)
+    }
+
+    @ViewBuilder
+    private var actionLabel: some View {
+        if case .subAgent = action.label {
+            AgentStatusSubAgentLabel(label: action.label)
+        } else if action.isRunning && isShimmerAction {
+            ShimmerTextView(text: action.text(locale: locale, bundle: bundle), font: font,
+                pointSize: (isCommand ? 12 : 12.5) * scale, color: DSColor.chatTextPrimary,
+                isVisible: isAnimationVisible, style: isCommand ? .command : .file)
+        } else {
+            label
+        }
+    }
+
+    private var isCommand: Bool {
+        if case .command = action.label { true } else { false }
+    }
+
     private var label: Text {
         let text = action.text(locale: locale, bundle: bundle)
         let body = DSColor.chatTextSecondary
         if action.isRunning { return Text(verbatim: text).foregroundStyle(DSColor.textTertiary) }
-        if case .subAgent(_, let type, let status) = action.label {
-            return Text(verbatim: text).foregroundStyle(body)
-                + Text(verbatim: " · \(type) · \(statusText(status))").foregroundStyle(DSColor.textTertiary)
-        }
         guard let emphasis = action.label.emphasis, let range = text.range(of: emphasis) else {
             return Text(verbatim: text).foregroundStyle(body)
         }
         return Text(verbatim: String(text[..<range.lowerBound])).foregroundStyle(body)
             + Text(verbatim: emphasis).foregroundStyle(DSColor.chatTextPrimary)
             + Text(verbatim: String(text[range.upperBound...])).foregroundStyle(body)
-    }
-
-    private func statusText(_ status: SubAgentStatus) -> String {
-        switch status {
-        case .running: AppLocalizedString.string("実行中", locale: locale, bundle: bundle)
-        case .completed: AppLocalizedString.string("完了", locale: locale, bundle: bundle)
-        case .failed: AppLocalizedString.string("失敗", locale: locale, bundle: bundle)
-        case .stopped: AgentStatusText.keyed("subagent.status.stopped", japanese: "停止", locale: locale, bundle: bundle)
-        }
     }
 
     private func runtimeDetail(_ runtime: RuntimeStatusCardPresentation) -> some View {
@@ -170,6 +212,7 @@ struct AgentStatusActionRow: View {
             }
         }
         .padding(.leading, AgentStatusCardLayout.textIndent)
+        .padding(.vertical, 8 * scale)
         .task(id: runtime.contentVersion) {
             if runtime.cache.actions[action.id] == nil { runtime.loadAction(action.id) }
         }
@@ -190,8 +233,30 @@ struct AgentStatusActionRow: View {
             }
         }
         .padding(.leading, AgentStatusCardLayout.textIndent)
-        .padding(.top, 2)
-        .padding(.bottom, 6)
+        .padding(.vertical, 8 * scale)
+    }
+}
+
+/// 担当種別・状態は固定し、長い依頼内容だけを省略する。
+struct AgentStatusSubAgentLabel: View {
+    let label: AgentStatusAction.Label
+    @Environment(\.locale) private var locale
+    @Environment(\.localizationBundle) private var bundle
+
+    var body: some View {
+        if case .subAgent(let description, let type, let status) = label {
+            HStack(spacing: 4) {
+                Text("サブエージェント").fixedSize()
+                Text(verbatim: "· " + (description.isEmpty
+                    ? UIWording.text(.missingSubAgentDescription, languageCode: locale.language.languageCode?.identifier ?? "ja")
+                    : description))
+                    .lineLimit(1).truncationMode(.tail).layoutPriority(-1)
+                if !type.isEmpty { Text(verbatim: "· " + type).lineLimit(1).layoutPriority(-2) }
+                Text(verbatim: "· " + AgentStatusAction.Label.subAgentStatusText(status, locale: locale, bundle: bundle))
+                    .fixedSize()
+            }
+            .foregroundStyle(DSColor.chatTextSecondary)
+        }
     }
 }
 

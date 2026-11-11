@@ -325,8 +325,6 @@ struct AgentStatusItemEntry: View {
     let item: ChatItem
     let scale: CGFloat
     let makeItemView: (ChatItem) -> ChatItemView
-    @Environment(\.locale) private var locale
-    @Environment(\.localizationBundle) private var bundle
 
     var body: some View {
         switch item {
@@ -338,18 +336,8 @@ struct AgentStatusItemEntry: View {
                 .padding(.leading, AgentStatusCardLayout.textIndent)
                 .padding(.trailing, 4)
                 .padding(.vertical, 3)
-        case .reasoning(_, let text, _):
-            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(verbatim: reasoningLine(text))
-                    .font(.system(size: 12.5 * scale).italic())
-                    .foregroundStyle(DSColor.textTertiary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.leading, AgentStatusCardLayout.textIndent)
-                    .padding(.trailing, 4)
-                    .padding(.vertical, 3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        case .reasoning(_, let text, let timestamp):
+            ReasoningSummaryView(text: text, timestamp: timestamp)
         default:
             makeItemView(item)
                 .equatable()
@@ -358,10 +346,4 @@ struct AgentStatusItemEntry: View {
         }
     }
 
-    /// 「思考 · 見出し」。見出しが取れなければ「思考」だけ。
-    private func reasoningLine(_ text: String) -> String {
-        let label = AppLocalizedString.string("思考", locale: locale, bundle: bundle)
-        guard let headline = TranscriptMarkdownPresentation.summary(text), !headline.isEmpty else { return label }
-        return "\(label) · \(headline)"
-    }
 }

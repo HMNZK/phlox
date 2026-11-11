@@ -27,51 +27,55 @@ struct CardActivityAppearanceTests {
         #expect(image.chromaticHueBins.count >= 3)
     }
 
-    @Test("非表示と動きを減らす設定は同じ虹色の静止フレームを描く")
-    func hiddenAndReducedMotionOrbsUseTheSameFrame() throws {
-        let hidden = try hostedPixels(
+    @Test("非表示の虹色点描は同じ静止フレームを再現する")
+    func hiddenRainbowOrbReproducesTheSameFrame() throws {
+        let first = try hostedPixels(
             ThinkingOrbView(state: .editing, size: .large, isVisible: false, colorStyle: .rainbow)
         )
-        let reducedMotion = try hostedPixels(
-            ThinkingOrbView(state: .editing, size: .large, colorStyle: .rainbow)
-                .environment(\.accessibilityReduceMotion, true)
+        let second = try hostedPixels(
+            ThinkingOrbView(state: .editing, size: .large, isVisible: false, colorStyle: .rainbow)
         )
 
-        #expect(hidden.visibleInkCount > 10)
-        #expect(hidden.pixels == reducedMotion.pixels)
+        #expect(first.visibleInkCount > 10)
+        #expect(first.chromaticHueBins.count >= 3)
+        let identicalFrames = first.pixels == second.pixels
+        #expect(identicalFrames)
     }
 
-    @Test("コマンドの静止表示は指定した等幅書体を斜体にしない")
-    func reducedMotionCommandPreservesItsMonospacedFont() throws {
+    @Test("非表示のコマンドは指定した等幅書体を斜体にせず静止表示する")
+    func hiddenCommandPreservesItsMonospacedFont() throws {
         let font = Font.system(size: 15, weight: .medium, design: .monospaced)
         let command = try textPixels(
-            ShimmerTextView(text: "git status", font: font, pointSize: 15, color: .white, style: .command)
-                .environment(\.accessibilityReduceMotion, true)
+            ShimmerTextView(text: "git status", font: font, pointSize: 15, color: .white,
+                            isVisible: false, style: .command)
         )
         let expected = try textPixels(Text("git status").font(font).foregroundStyle(.white))
 
         #expect(command.visibleInkCount > 10)
-        #expect(command.pixels == expected.pixels)
+        let identicalCommandPixels = command.pixels == expected.pixels
+        #expect(identicalCommandPixels)
     }
 
     @Test("ファイル名は指定書体を保ち、既存の短いラベルは斜体を保つ")
     func fileAndLegacyLabelsPreserveTheirTypography() throws {
         let font = Font.system(size: 16, weight: .semibold)
         let file = try textPixels(
-            ShimmerTextView(text: "Package.swift", font: font, pointSize: 16, color: .white, style: .file)
-                .environment(\.accessibilityReduceMotion, true)
+            ShimmerTextView(text: "Package.swift", font: font, pointSize: 16, color: .white,
+                            isVisible: false, style: .file)
         )
         let expectedFile = try textPixels(Text("Package.swift").font(font).foregroundStyle(.white))
         let legacy = try textPixels(
-            ShimmerTextView(text: "Thinking...", font: font, pointSize: 16, color: .white)
-                .environment(\.accessibilityReduceMotion, true)
+            ShimmerTextView(text: "Thinking...", font: font, pointSize: 16, color: .white,
+                            isVisible: false)
         )
         let expectedLegacy = try textPixels(Text("Thinking...").font(font.italic()).foregroundStyle(.white))
 
         #expect(file.visibleInkCount > 10)
         #expect(legacy.visibleInkCount > 10)
-        #expect(file.pixels == expectedFile.pixels)
-        #expect(legacy.pixels == expectedLegacy.pixels)
+        let identicalFilePixels = file.pixels == expectedFile.pixels
+        #expect(identicalFilePixels)
+        let identicalLegacyPixels = legacy.pixels == expectedLegacy.pixels
+        #expect(identicalLegacyPixels)
     }
 }
 

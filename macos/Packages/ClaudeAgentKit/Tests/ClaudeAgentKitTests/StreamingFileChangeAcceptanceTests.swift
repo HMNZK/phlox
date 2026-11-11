@@ -84,6 +84,27 @@ struct StreamingFileChangeAcceptanceTests {
     }
 }
 
+@Suite("ファイル編集の失敗は変更数へ残さない")
+struct FailedFileChangeAcceptanceTests {
+    @Test("適用に失敗した編集は確定前に同じファイルの差分を取り消す")
+    func failedToolClearsTheUnappliedDiff() async throws {
+        let events = try await streamedFileChanges([
+            #"{"type":"assistant","message":{"id":"message-failed","content":[{"type":"tool_use","id":"tool-failed","name":"Edit","input":{"file_path":"Sources/Card.swift","old_string":"old\n","new_string":"new\n"}}]},"parent_tool_use_id":null}"#,
+            #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tool-failed","is_error":true,"content":"old_string was not found"}]},"parent_tool_use_id":null}"#,
+        ])
+
+        #expect(events == [
+            .fileChange(itemId: "tool-failed", [
+                FilePatchChange(path: "Sources/Card.swift",
+                    diff: "--- Sources/Card.swift\n+++ Sources/Card.swift\n@@\n-old\n+new\n", kind: "edit"),
+            ]),
+            .fileChange(itemId: "tool-failed", [
+                FilePatchChange(path: "Sources/Card.swift", diff: "", kind: "edit"),
+            ]),
+        ])
+    }
+}
+
 private func toolBlockStart(id: String, name: String, parent: String? = nil) throws -> String {
     try streamLine([
         "type": "content_block_start",

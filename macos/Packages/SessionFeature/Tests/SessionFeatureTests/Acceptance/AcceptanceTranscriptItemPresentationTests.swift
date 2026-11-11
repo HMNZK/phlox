@@ -193,7 +193,7 @@ struct AcceptanceTranscriptItemPresentationTests {
         #expect(TranscriptItemPresentation.isExpanded(userOverride: kept, defaultExpanded: afterRunEnds.defaultExpanded))
     }
 
-    @Test("非空・開 → 空白 → 非空の同一 ID は非表示を挟み再表示時は閉")
+    @Test("非空・開 → 空白 → 非空の同一 ID は非表示を挟み再表示時も全文を表示")
     func blankGapResetsOverride() {
         let open = TranscriptItemPresentation.retainedUserOverride(previous: true, remainedMounted: true)
         #expect(open == true)
@@ -207,7 +207,7 @@ struct AcceptanceTranscriptItemPresentationTests {
         let restored = TranscriptItemPresentation.reasoning(text: "再表示", summary: nil)
         #expect(restored.isVisible)
         #expect(
-            !TranscriptItemPresentation.isExpanded(
+            TranscriptItemPresentation.isExpanded(
                 userOverride: afterUnmount,
                 defaultExpanded: restored.defaultExpanded
             )

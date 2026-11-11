@@ -4131,11 +4131,12 @@ public final class ChatSessionViewModel: Identifiable {
             return .commandExecution(id: id, command: command, output: output, timestamp: Date())
         }
         if type.contains("file") || type.contains("patch") {
+            let failed = ["failed", "declined"].contains(item.raw?["status"]?.stringValue ?? "")
             let changes = item.fileChanges
             if !changes.isEmpty {
                 return .fileChange(
                     id: id,
-                    changes: changes.map { StructuredChatKit.FilePatchChange(path: $0.path, diff: $0.unifiedDiff, kind: $0.kindName) },
+                    changes: changes.map { StructuredChatKit.FilePatchChange(path: $0.path, diff: failed ? "" : $0.unifiedDiff, kind: $0.kindName) },
                     timestamp: Date()
                 )
             }
@@ -4143,7 +4144,7 @@ public final class ChatSessionViewModel: Identifiable {
                 let path = item.raw?.firstString(for: ["path"]) ?? "unknown"
                 return .fileChange(
                     id: id,
-                    changes: [StructuredChatKit.FilePatchChange(path: path, diff: diff, kind: nil)],
+                    changes: [StructuredChatKit.FilePatchChange(path: path, diff: failed ? "" : diff, kind: nil)],
                     timestamp: Date()
                 )
             }

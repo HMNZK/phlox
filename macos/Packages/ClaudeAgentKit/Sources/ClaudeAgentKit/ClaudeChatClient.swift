@@ -128,6 +128,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var currentTurnOpen = false
     var generatedItemCounter = 0
     var toolUseItemIds: [String: String] = [:]
+    var pendingFileChangesByToolUseId: [String: [FilePatchChange]] = [:]
     /// TodoWrite の tool_result を汎用 commandExecution として表示しないための識別子。
     var taskListToolUseIds: Set<String> = []
     /// TodoWrite 全量と TaskCreate/TaskUpdate 差分を統合した現在のタスクリスト。
@@ -149,6 +150,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var partialItemIdsByKey: [String: String] = [:]
     var partialItemIds: Set<String> = []
     var partialContentKeys: Set<String> = []
+    var partialFileChangesByKey: [String: PartialFileChange] = [:]
     var currentModel: String?
     var currentPermissionMode: String?
     var currentEffort: String?
@@ -551,6 +553,8 @@ public actor ClaudeChatClient: StructuredAgentClient {
 
     public func close() async {
         closeCount += 1
+        partialFileChangesByKey.removeAll()
+        pendingFileChangesByToolUseId.removeAll()
         receiveTask?.cancel()
         receiveTask = nil
         releaseStopTasks()

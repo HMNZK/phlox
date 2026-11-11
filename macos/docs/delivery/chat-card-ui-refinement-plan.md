@@ -135,3 +135,12 @@ last-verified: 2026-11-11
 受け入れテストは実装担当から分離して先に作成する。実装担当はテストのアサーションを変更しない。テストハーネスの欠陥はメインへ報告し、メインが修理する。各担当は他担当の変更を戻さず、共有ファイル（文言・見本）はメインが調整する。最大並列幅は3、クリティカルパスは0→1→4。独立した新規基盤・多段のエージェントループは使わない。
 
 描画API契約: `ThinkingOrbView(colorStyle:)` は既定 `.monochrome`、カードは `.rainbow`。`ShimmerTextView(style:)` は既定 `.italicLabel`、カードは `.command`（等幅）または `.file`（通常書体）。既存引数を壊さない。変更行数は既存要約の省略可能な `changeCounts`（`additions`・`deletions`）に載せ、未確定は省略する。
+
+
+## 実装・検証記録
+
+- 基本の受け入れ契約は `8391605d` で先行固定。担当・行数・思考の旧表示でRED、ファイル名の早期通知は4件すべてREDを確認した。追加の失敗取消、Codex failed/declined、複数deferred思考、取得中digest更新もREDを確認して修正した。
+- 関連検査は DesignSystem 39件・SessionFeature 182件・ClaudeAgentKit 5件、計226件が成功。描画ハーネスのSDK非互換と本文AXのlabel/valueの取り違えは、期待する振る舞いを保って修理した。
+- 独立レビューは全変更を1回実施。取得中digest更新・Codex declinedの2件を再現テストで修正。画面外の12場面を出力し、変更数の配置・余白・狭いカードを確認した。狭幅ではエージェント内部の種類名より依頼内容を優先する。
+- 文字の非表示時はSwiftUIの静止表示を使い、不要なネイティブ描画を避ける。OSのReduceMotion環境値はSDKで読み取り専用のため、テストから設定を注入したとは扱わない。既存のOS設定読み取り経路は維持し、公開isVisible入力の静止フレーム・字形を画像で検査する。
+- 検証証拠は作業worktreeの `.verification/chat-card-ui-refinement-20261111/`。通常利用中のアプリを終了する再起動スクリプトは使わない。macOS独自lint/独立静的解析は未設定、Swiftコンパイルと読み替えない。

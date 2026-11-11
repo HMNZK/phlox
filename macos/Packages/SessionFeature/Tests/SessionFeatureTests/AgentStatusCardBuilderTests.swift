@@ -995,7 +995,7 @@ struct AgentStatusCardActionTextTests {
         let row = rows([marker]).first
 
         #expect(row?.label == .subAgent(description: "呼び出し元の洗い出し", type: "Explore", status: .completed))
-        #expect(row?.text(locale: ja) == "呼び出し元の洗い出し")
+        #expect(row?.text(locale: ja) == "サブエージェント · 呼び出し元の洗い出し · Explore · 完了")
     }
 
     @Test("英語の文言は xcstrings から引ける")

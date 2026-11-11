@@ -16,15 +16,22 @@ public struct ThinkingOrbView: View {
     private let state: AgentActivityState
     private let size: OrbSizePreset
     private let isVisible: Bool
+    private let colorStyle: ThinkingOrbColorStyle
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
 
-    public init(state: AgentActivityState, size: OrbSizePreset = .inline, isVisible: Bool = true) {
+    public init(
+        state: AgentActivityState,
+        size: OrbSizePreset = .inline,
+        isVisible: Bool = true,
+        colorStyle: ThinkingOrbColorStyle = .monochrome
+    ) {
         self.state = state
         self.size = size
         self.isVisible = isVisible
+        self.colorStyle = colorStyle
     }
 
     public var body: some View {
@@ -32,7 +39,8 @@ public struct ThinkingOrbView: View {
             state: state,
             size: size,
             isAnimating: isVisible && !reduceMotion,
-            dark: colorScheme == .dark
+            dark: colorScheme == .dark,
+            colorStyle: colorStyle
         )
         .frame(width: CGFloat(size.rawValue), height: CGFloat(size.rawValue))
         .accessibilityElement(children: .ignore)
@@ -46,13 +54,14 @@ struct ThinkingOrbCanvas: NSViewRepresentable {
     let size: OrbSizePreset
     let isAnimating: Bool
     let dark: Bool
+    let colorStyle: ThinkingOrbColorStyle
 
     func makeNSView(context: Context) -> ThinkingOrbHostView {
-        ThinkingOrbHostView(state: state, size: size, isAnimating: isAnimating, dark: dark)
+        ThinkingOrbHostView(state: state, size: size, isAnimating: isAnimating, dark: dark, colorStyle: colorStyle)
     }
 
     func updateNSView(_ nsView: ThinkingOrbHostView, context: Context) {
-        nsView.update(state: state, size: size, isAnimating: isAnimating, dark: dark)
+        nsView.update(state: state, size: size, isAnimating: isAnimating, dark: dark, colorStyle: colorStyle)
     }
 
     static func dismantleNSView(_ nsView: ThinkingOrbHostView, coordinator: ()) {
@@ -65,13 +74,14 @@ struct ThinkingOrbCanvas: UIViewRepresentable {
     let size: OrbSizePreset
     let isAnimating: Bool
     let dark: Bool
+    let colorStyle: ThinkingOrbColorStyle
 
     func makeUIView(context: Context) -> ThinkingOrbHostView {
-        ThinkingOrbHostView(state: state, size: size, isAnimating: isAnimating, dark: dark)
+        ThinkingOrbHostView(state: state, size: size, isAnimating: isAnimating, dark: dark, colorStyle: colorStyle)
     }
 
     func updateUIView(_ uiView: ThinkingOrbHostView, context: Context) {
-        uiView.update(state: state, size: size, isAnimating: isAnimating, dark: dark)
+        uiView.update(state: state, size: size, isAnimating: isAnimating, dark: dark, colorStyle: colorStyle)
     }
 
     static func dismantleUIView(_ uiView: ThinkingOrbHostView, coordinator: ()) {
@@ -95,14 +105,19 @@ public final class ThinkingOrbHostView: ThinkingOrbPlatformView {
     private var sizePreset: OrbSizePreset
     private var isAnimating: Bool
     private var dark: Bool
+    private var colorStyle: ThinkingOrbColorStyle
     private var preset: OrbPreset
     private var displayLink: CADisplayLink?
 
-    init(state: AgentActivityState, size: OrbSizePreset, isAnimating: Bool, dark: Bool) {
+    init(
+        state: AgentActivityState, size: OrbSizePreset, isAnimating: Bool, dark: Bool,
+        colorStyle: ThinkingOrbColorStyle = .monochrome
+    ) {
         self.state = state
         self.sizePreset = size
         self.isAnimating = isAnimating
         self.dark = dark
+        self.colorStyle = colorStyle
         self.preset = OrbPresets.resolve(state: state, size: size)
         super.init(frame: CGRect(x: 0, y: 0, width: CGFloat(size.rawValue), height: CGFloat(size.rawValue)))
         configure()
@@ -113,7 +128,10 @@ public final class ThinkingOrbHostView: ThinkingOrbPlatformView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(state: AgentActivityState, size: OrbSizePreset, isAnimating: Bool, dark: Bool) {
+    func update(
+        state: AgentActivityState, size: OrbSizePreset, isAnimating: Bool, dark: Bool,
+        colorStyle: ThinkingOrbColorStyle = .monochrome
+    ) {
         var needsRedraw = false
         if self.state != state || self.sizePreset != size {
             self.state = state
@@ -123,6 +141,10 @@ public final class ThinkingOrbHostView: ThinkingOrbPlatformView {
         }
         if self.dark != dark {
             self.dark = dark
+            needsRedraw = true
+        }
+        if self.colorStyle != colorStyle {
+            self.colorStyle = colorStyle
             needsRedraw = true
         }
         if self.isAnimating != isAnimating {
@@ -161,13 +183,17 @@ public final class ThinkingOrbHostView: ThinkingOrbPlatformView {
 
     private func render(in context: CGContext, now: CFTimeInterval) {
         let side = Double(sizePreset.rawValue)
+        let time = frameTime(now: now)
         let dots = OrbModeRenderer.dots(
             mode: preset.mode,
             size: side,
-            time: frameTime(now: now),
+            time: time,
             options: preset.options
         )
-        OrbPainter.paint(dots, into: context, dark: dark, minRadius: preset.options.rMin ?? 0.3)
+        OrbPainter.paint(
+            dots, into: context, dark: dark, minRadius: preset.options.rMin ?? 0.3,
+            colorStyle: colorStyle, size: side, time: time
+        )
     }
 
     #if canImport(AppKit)
@@ -238,7 +264,7 @@ public extension ThinkingOrbHostView {
     var resolvedPresetForTesting: OrbPreset { preset }
 
     func setAnimatingForTesting(_ animating: Bool) {
-        update(state: state, size: sizePreset, isAnimating: animating, dark: dark)
+        update(state: state, size: sizePreset, isAnimating: animating, dark: dark, colorStyle: colorStyle)
     }
 
     func frameTimeForTesting(now: CFTimeInterval) -> Double { frameTime(now: now) }

@@ -1391,6 +1391,25 @@
         "semantic-chat-read"
       ],
       "reason": "独立したコード・シナリオ内容レビューpass。正本review-inputの固定差分を照合し、影響ID全件とSwift等の未分類0件、要求/手順/期待値/必須実機5件の維持を確認。b674の既存UIテスト分類漏れは705で対応パス/テスト参照の追加により解消。既レビュー36/v5の所有確認・fail-closed保持・通常設定隔離・10秒連続時計・手動開閉・notice保持は同一ソース、原ログ8件成功を確認済み。履歴/カードの既存固定コード・性能評価の限定範囲も維持する。独立5検査で36由来と705最終入力manifest・fresh Mac/iOS来歴/設定/外部入力/DMG/ZIP/IPAハッシュ、英語→日本語notes・版52・ZIP長・runtime protocol1、ZIP同梱公開鍵による署名と改変署名拒否を確認。devices/executions空、正本実機ゲートのnot_run拒否と通常releaseCommand v9の実機必須を確認。本passは独立code/scenario reviewのみであり、統合候補quality全体・現候補の新規性能実測・Release実機5件・新iOS導入・公開成功・人の承認を主張しない。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "baseOID": "3052477f24bfda2b3126b8ff589d639a30a41577",
+      "targetOID": "7b1b643f51b37ff90439c3b8fc22e308c4dd03fa",
+      "diffSHA256": "e3154bbeaffa0efcb468268537cf0982632c3c605d429faab06508f66ff7d946",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reviewedAt": "2026-11-11T05:55:41Z",
+      "reason": "差分、シナリオ定義、validate_reviews契約、追加テストと既存実走証拠を独立に読取確認した。対象コード・テスト・fixtureの未分類変更はなく、必須シナリオ定義は基点から変更されていない。HTTPエラー往復、構造版による失効、取得競合、有限復旧、失敗後の再試行に対応する回帰テストがあり、品質結果に関連suiteと必須fake13件の成功IDを確認した。隔離アプリでは長履歴と本文復旧の2件、lifecycle1件の成功ログ、改名・削除後のAX観測、今回変更された12ソース・テストファイルと実走時記録のSHA256一致を確認した。本判定はdev統合のシナリオレビューであり、テスト再実行、これから実施する統合候補ゲート、実機iPhone、リリース適合、利用中サービスへの修正反映を保証しない。"
     }
   ]
 }

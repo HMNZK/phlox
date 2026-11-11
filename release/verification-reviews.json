@@ -1410,6 +1410,41 @@
       ],
       "reviewedAt": "2026-11-11T05:55:41Z",
       "reason": "差分、シナリオ定義、validate_reviews契約、追加テストと既存実走証拠を独立に読取確認した。対象コード・テスト・fixtureの未分類変更はなく、必須シナリオ定義は基点から変更されていない。HTTPエラー往復、構造版による失効、取得競合、有限復旧、失敗後の再試行に対応する回帰テストがあり、品質結果に関連suiteと必須fake13件の成功IDを確認した。隔離アプリでは長履歴と本文復旧の2件、lifecycle1件の成功ログ、改名・削除後のAX観測、今回変更された12ソース・テストファイルと実走時記録のSHA256一致を確認した。本判定はdev統合のシナリオレビューであり、テスト再実行、これから実施する統合候補ゲート、実機iPhone、リリース適合、利用中サービスへの修正反映を保証しない。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "targetOID": "29b1ad0393fdd40070551af366f97fc5f568cfab",
+      "reviewedAt": "2026-11-11T07:20:48Z",
+      "baseOID": "d299eea3172962f0f622bf1e14af07ca33617765",
+      "diffSHA256": "9881c0cabf8d200463e6fb70f7de6e58ed71606f2925c7a72b5bdce2a6314b86",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "dev比較の変更分類漏れと必須シナリオ削減は0件。製品・テストは前回レビュー済みの本文復旧修正から不変。新Mac54/iOS23のcapture起点01b35c25と最終候補の入力manifest全2186ファイルが一致し、来歴参照・外部入力・実効設定・DMG/ZIP/IPAのハッシュを独立照合した。フィードbuild54、ZIPサイズ33296287、署名、英語→日本語ノートの内容が一致する。ZIP同梱公開鍵とcapture元appの公開鍵が一致し、Ed25519署名の独立検証と改変署名の拒否を確認した。公証・staple・XPC4検査は既存成功ログを確認した。本passは静的内容とシナリオ対応のレビューのみ。最終候補qualityとdistributionは未実行、人による必須実機5件は未実施、devices/executionsは空であり、mainリリースはまだ不可。"
+    },
+    {
+      "reviewer": {
+        "kind": "ai",
+        "id": "Codex /root/merge_scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "targetOID": "29b1ad0393fdd40070551af366f97fc5f568cfab",
+      "reviewedAt": "2026-11-11T07:20:48Z",
+      "baseOID": "820a110f7419f5f55df78b4b89214548ff886796",
+      "diffSHA256": "8bb51b8ac361902b1110cbfb16c8cb53e52db6f3a1b00e0d9c915c1171102d3e",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "semantic-chat-read"
+      ],
+      "reason": "main比較の影響4シナリオを照合し、変更分類漏れと必須シナリオ削減は0件。既存main比較レビュー済み705391af以降の製品変更は確認済みの本文復旧修正であり、今回の配布準備では製品・テストを変更していない。新Mac54/iOS23のcaptureと最終候補の入力manifest全2186ファイル、来歴参照・外部入力・実効設定・DMG/ZIP/IPAハッシュが一致する。フィードの版・サイズ・署名・英日ノート、ZIP同梱公開鍵とcapture元appの公開鍵の一致、Ed25519署名と改変署名拒否を独立確認した。正本verification-gate.pyはmainから不変で、必須実機5件とhuman観測条件を維持する。本passは静的内容とシナリオ対応のレビューのみ。最終候補qualityとdistributionは未実行、人による必須実機5件は未実施、devices/executionsは空であり、mainリリースはまだ不可。"
     }
   ]
 }

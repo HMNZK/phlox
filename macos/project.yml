@@ -45,7 +45,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "1.14.8"
-    CURRENT_PROJECT_VERSION: "52"
+    CURRENT_PROJECT_VERSION: "54"
 
 targets:
   Phlox:

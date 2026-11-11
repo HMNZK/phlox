@@ -8,6 +8,16 @@
 
 証拠の出力先は作業ツリーの `.verification/release-evidence/1.14.8/mac54-ios23/`。現時点では準備中で、必須実機5件の合格や main 統合・公開の成功を主張しない。実機の合格には正本ゲートが要求する人の観測記録が必要。利用中のアプリ・常駐サービスの停止や差替えは自動で行わない。
 
+新候補のビルド起点は `01b35c25dbbf6e39112e5380f7e768578bb9f792`。Mac の Developer ID 署名・アプリと DMG の公証/staple・同じアプリからの最終 ZIP 作成・XPC 署名等の4検査、iOS の実機向け archive/export が成功した。Sparkle の既存 Keychain 鍵による署名と検証も成功し、署名前後の ZIP bytes は同じ。これらを新候補の導入・人による実機5件の合格へ読み替えない。
+
+| 新候補の配布物 | SHA-256 |
+|---|---|
+| Mac 1.14.8/build54 DMG | `a081f1eb4c294a7f11f0497e983e2281684ec59fb43af5b1c99752207dcefe85` |
+| Sparkle ZIP | `18a564b673b0dfe5de387efafbc2373dc8c9bdf529fe47f875279212bf8a8cf2` |
+| iOS 1.0/build23 IPA | `cbafd36a0ac3a3e1431487c298f856768675c07a71feb74c1531b4439cfe222a` |
+
+来歴は `distribution-candidate/macos-build.json` と `distribution-ios/ios-build.json`。`release/verification-records.json` は新候補を参照するが、`devices` と `executions` はまだ空である。現時点で実 iPhone の無線接続・端末詳細・現行アプリ情報の取得は成功した。新候補の導入や画面観測は未実施。iOS の導入用 URL も候補54の専用経路へ分けたが、OTA 公開は行っていない。
+
 以下は旧 build 52 の経緯と検証記録である。
 
 ## 対象と基準

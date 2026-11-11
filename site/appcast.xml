@@ -4,7 +4,7 @@
         <title>Phlox</title>
         <item>
             <title>1.14.8</title>
-            <pubDate>Tue, 10 Nov 2026 10:31:33 GMT</pubDate>
+            <pubDate>Wed, 11 Nov 2026 07:17:47 GMT</pubDate>
             <description xml:lang="en"><![CDATA[
 <h3>Fixed</h3>
 <ul>
@@ -29,13 +29,13 @@
 </ul>
 <p>常駐サービス側の修正は、サービスの再起動後に反映されます。アプリを更新しても実行中の会話は継続します。</p>
 ]]></description>
-            <sparkle:version>52</sparkle:version>
+            <sparkle:version>54</sparkle:version>
             <sparkle:shortVersionString>1.14.8</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <phloxRuntimeProtocolMin>1</phloxRuntimeProtocolMin>
             <phloxRuntimeProtocolMax>1</phloxRuntimeProtocolMax>
-            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.8.zip" length="33212808" type="application/octet-stream" sparkle:edSignature="ZGCY95v7syni/ava99Zuzsqa27wRE++u9AdUVn9+BSqj3HC7jStMcawUdVLvJ+Fz01WiJFUm06bH1QjI3rMRDw=="/>
+            <enclosure url="https://github.com/HMNZK/phlox-dist/releases/download/updates/Phlox-1.14.8.zip" length="33296287" type="application/octet-stream" sparkle:edSignature="0joV9dwJIjVLvo8fHQLwNgekxvwVtdMnTGvTGohZn7+dMr6FMp8Pm84NWlrF4krKI5Z/hyQMIT1G9KXUEINmDg=="/>
         </item>
         <item>
             <title>1.14.7</title>

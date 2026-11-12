@@ -1573,6 +1573,28 @@
       "reviewedAt": "2026-11-12T01:19:34Z",
       "reason": "main比較の正規化差分は既レビュー済み最終候補と同一。旧折畳み説明の訂正と今回限定の省略文書も整合。独立した静的内容レビュー合格。承認票はhumanによる今回の固定sourceOID・3成果物への省略承認で、実機成功証言ではない。必須実機5項目not_run、devices/executions空を維持。scoped-release.pyは承認状態・human区分・固定sourceOID・3ハッシュ・例外文書を要求し、通常の版・ノート・feed・staple前段を残して正本distributionへ接続する。製品/シナリオ/配布物不変、新quality成功記録のハッシュと候補入力・シナリオ一致を確認した。確認済みscoped-release.py SHA256=dbacb8c59fbf7e78ad5a208cea8676cab153ba28ec9b5f74e82a734d313f8224。通常Git設定の実値一致を確認、一時切替後は成否に関わらず復元して照合する条件。テスト/ビルド/実機観測の追加実走はしていない。",
       "decision": "pass"
+    },
+    {
+      "baseOID": "317127350d736f7858476a3631511be184528b3c",
+      "targetOID": "c3d6b9fcd7a8284bd3240fd8ef02672ca4c02c6b",
+      "diffSHA256": "3a754b298b71c4bd73b6693f2ec52d8f0774c9cce422b491904524adc22f66c1",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/integration_review (gpt-6.1-sol medium)"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-12T01:42:10.921899+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-activity-presentation",
+        "physical-history-follow",
+        "physical-newchat-worktree-resume",
+        "physical-session-activity",
+        "physical-usage-preferences-refresh",
+        "semantic-chat-read"
+      ],
+      "reason": "独立した読み取り専用レビューで阻害欠陥を検出しなかった。コード変更の分類漏れはなく、既存シナリオの要件・必須指定・方法・手順・期待結果の縮小もない。Mac側の最新カード改善は維持され、所属・状態・最終回答の配置は共有builderの投影へ追従する。投影、初回・差分・空snapshot・失敗時保持、旧Mac互換、表示順序・開閉・詳細表示を検証するテストが追加されている。最終候補の正規化diffハッシュを再計算し一致した。本判定はコードとシナリオ分類のレビューであり、品質ゲートや実機シナリオの実行成功を示さない。iOSの変更行数表示やMac改訂後の思考全文などの表示差は文書へ明記済み。"
     }
   ]
 }

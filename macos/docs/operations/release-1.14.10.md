@@ -14,6 +14,6 @@ Mac build56。チャットカードの思考・進捗と最終回答の配置、
 
 ## 検証状況
 
-固定起点`ae73a5b3069b3c00bc349d229261cd930607a1ce`からMac1.14.10/build56と比較用iOS1.0/build25を作成した。Universal Releaseビルド、Mac app/DMG公証・staple・Gatekeeper受理、XPC等の署名4検査は成功した。同じappから作成した最終ZIPのSparkle署名を取得済み。iOSは端末へ導入していない。全体quality・最終候補の来歴照合・公開は別途完了結果を記録する。
+固定起点`ae73a5b3069b3c00bc349d229261cd930607a1ce`からMac1.14.10/build56と比較用iOS1.0/build25を作成した。Universal Releaseビルド、Mac app/DMG公証・staple・Gatekeeper受理、XPC等の署名4検査は成功した。同じappから作成した最終ZIPのSparkle署名を取得済み。iOSは端末へ導入していない。標準qualityはmacOS全19パッケージ、iOS lint・単体・ビルド、必須fake13件が成功し、署名・来歴・更新ZIPの正本distribution照合も成功した。入力・シナリオ・toolchainと成功記録の一致を確認して両統合へ再利用する。公開はこの固定配布物で進める。
 
-必要な実機5項目（状態・完了確認、履歴追従、状態表示、Usage設定と更新、新規会話・worktree・再開）はすべて`not_run`。前版の固定候補限定の省略承認は流用しない。新しい省略承認・人の観測証言・合格記録は作成しておらず、通常のmain向けrelease照合に必要な実機記録は未充足である。
+必要な実機5項目（状態・完了確認、履歴追従、状態表示、Usage設定と更新、新規会話・worktree・再開）はすべて`not_run`。前版の固定候補限定の省略承認は流用しない。ユーザーは[今回の固定配布物だけの省略](physical-verification-exception-v1.14.10.md)を明示承認した。人の観測証言・合格記録は追加せず、通常の実機ゲートが合格したとは扱わない。

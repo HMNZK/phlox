@@ -91,6 +91,9 @@ Phlox 本体（サーバー側、`feature/mobile-api-extensions`）と Phlox-mob
 - **`?wait=<seconds>`**（省略可、1〜25 秒に clamp）: since 以降の新規メッセージが無い間は最大 wait 秒待って返す（long-poll）。タイムアウト時は `"messages": []` と現行 cursor
 - 不正・期限切れ cursor: 400 にせず全量スナップショット（`"snapshot": true`）で応答
 - `since` も `wait` も無ければ従来と完全に同一挙動＋`cursor` 付与（後方互換）
+- **`statusTranscript`**（省略可、2026-11-12 追加）: Claude/Codex では Mac の状態カードの組み立て結果を、共有 `AgentDomain.MobileStatusTranscript` の Codable 形式で返す。通常メッセージ ID 群とカードの順序、カードの状態・開始/終了時刻・タスク行・作業の説明/所要時間/元メッセージ ID を含む。本文・差分・出力は `messages` を参照し、複製しない。
+- `statusTranscript` は差分パッチではなく、応答時点の投影全体。`messages` が空の差分でも投影を置き換える。省略時は従来表示を使い、取得失敗時は表示中の本文と投影を保持する。常駐実行の全履歴を読み取れない場合は不完全な成功にせず HTTP 503 を返す。
+- カードの組み立て規則と iOS の担当範囲は [状態カード設計 §6](../../../macos/docs/specs/agent-status-card-design.md#6-グリッド他の画面) を参照。旧クライアントは追加フィールドを無視できる。
 
 ## モバイル側の公開 API 面（PhloxAPI プロトコル拡張・凍結）
 
@@ -99,7 +102,8 @@ Phlox 本体（サーバー側、`feature/mobile-api-extensions`）と Phlox-mob
 public struct SubAgentSummary: Sendable, Equatable { id, name, status(SubAgentStatus), messageCount, markerMessageID: String? }
 public enum SubAgentStatus: String, Sendable { case running, completed, unknown }
 public struct TurnUsage: Sendable, Equatable { costUSD: Double?, contextUsedTokens: Int?, contextWindowTokens: Int? }
-public struct MessagesDelta: Sendable, Equatable { messages: [ChatMessage], cursor: String?, isSnapshot: Bool }
+public struct MessagesDelta: Sendable, Equatable { messages: [ChatMessage], cursor: String?, isSnapshot: Bool, statusTranscript: MobileStatusTranscript? }
+// statusTranscript は 2026-11-12 追加。init 引数は既定 nil で既存呼び出しを保持する。
 public struct SendAttachment: Sendable, Equatable { mediaType: String, data: Data }
 // SendRequest は images: [SendAttachment] を追加（既定 [] で後方互換）
 

@@ -220,6 +220,56 @@ import Testing
         #expect(cache.rows.nextCursor == nil)
     }
 
+    /// 描画予算は全タスク行を数える（8 行窓の頃の 12 行の頭打ちを残さない）。
+    @Test func aRuntimeCardBlockWeighsEveryTaskRow() async throws {
+        let tasks = (0..<40).map { AgentTaskItem(id: "stage-\($0)", title: "工程 \($0)", status: .pending) }
+        let source = source(items: [
+            .userMessage(id: "input", text: "多数の工程", timestamp: .distantPast, attachments: []),
+            .taskList(id: "tasks", tasks: tasks, timestamp: .distantPast),
+        ])
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        let block = try #require(projected.runtimeChatRead.page?.blocks.first {
+            if case .card = $0.content { true } else { false }
+        })
+        #expect(TranscriptRenderBudget.weight(of: block)
+            >= TranscriptRenderBudget.statusCardBaseUnits + 40 * TranscriptRenderBudget.statusCardRowUnits)
+    }
+
+    /// 行ページの取得中に版が進んだら、別の版のページを混ぜずに失敗する。
+    @Test func aRowPageFromAnotherCardRevisionIsNeverMixedIntoTheTaskRows() async throws {
+        let tasks = (0..<80).map {
+            AgentTaskItem(id: "stage-\($0)", title: "工程 \($0)", status: $0 == 0 ? .inProgress : .pending)
+        }
+        let source = source(items: [
+            .userMessage(id: "input", text: "多数の工程", timestamp: .distantPast, attachments: []),
+            .taskList(id: "tasks", tasks: tasks, timestamp: .distantPast),
+        ])
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        let remaining = tasks.filter { $0.id != "stage-60" }
+        var changed = source.makeRuntimeSnapshot()
+        changed.transcript[1] = .taskList(id: "tasks", tasks: remaining, timestamp: .distantPast)
+        changed.transcriptRevision = 8
+        var mutated = false
+        projected.runtimeContentLoader = { request in
+            if !mutated, case .chatCardRows(let inputID, .some) = request.target {
+                mutated = true
+                try source.applyRuntimeSnapshot(changed)
+                return try await source.runtimeChatReadContent(for: .init(sessionID: request.sessionID,
+                    executionID: request.executionID, target: .chatCardRows(inputID: inputID, cursor: nil)))
+            }
+            return try await source.runtimeChatReadContent(for: request)
+        }
+
+        await #expect(throws: SessionRuntimeContentError.staleContent) {
+            try await projected.loadRuntimeCardRows("input")
+        }
+        #expect(mutated)
+        let ids = projected.runtimeChatRead.cards["input"]?.rows.rows.map(\.id)
+        #expect(ids == nil || ids == tasks.map { "task-" + $0.id })
+    }
+
     @Test func anExplicitRowReadDuringABackgroundTransactionKeepsEveryTaskRow() async throws {
         let tasks = (0..<12).map {
             AgentTaskItem(id: "stage-\($0)", title: "工程 \($0)", status: $0 == 0 ? .inProgress : .pending)

@@ -14,7 +14,7 @@ last-verified: 2026-11-09
 |---|---|---|
 | 0234 | [エージェント状態カードはタスク行を全部表示する](0234-status-card-shows-all-task-rows.md) | accepted（0231 の手動の行位置を置換） |
 | 0232 | [本文参照の失効と取得結果の寿命を通信後も保持する](0232-runtime-content-reference-recovery.md) | accepted（0231 の消失・失効の契約を HTTP 通信境界と画面の復旧まで明文化） |
-| 0231 | [会話の意味を実行サービスで確定し、本文と入力履歴を有限取得する](0231-semantic-chat-read-model.md) | accepted（0226 の「表示のたびに組み立てる」を再構築可能な派生索引へ改める） |
+| 0231 | [会話の意味を実行サービスで確定し、本文と入力履歴を有限取得する](0231-semantic-chat-read-model.md) | accepted（0226 の「表示のたびに組み立てる」を再構築可能な派生索引へ改める。カード行の有限表示は 0234 で置換） |
 | 0230 | [起動状態とセッション内容を分けて取得する](0230-bounded-runtime-overview-and-session-content.md) | active（起動・定期更新を容量制限付き状態一覧へ移行） |
 | 0229 | [チャットの表示窓に上限を設け、上限を超えて遡るときは新しい側を外す](0229-transcript-window-bounded-at-both-ends.md) | accepted（0139 §3・0217 を一部置換） |
 | 0227 | [エージェント状態カードの中に限り、作業のアイコンとタスクの完了印を戻す](0227-status-card-icons-inside-card-only.md) | accepted（0144 をカード内に限り置換） |

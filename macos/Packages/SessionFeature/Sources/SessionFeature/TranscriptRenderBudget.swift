@@ -135,8 +135,9 @@ enum TranscriptRenderBudget {
         case .item(.deferred(let marker)):
             max(otherBlockUnits, marker.preview.text.count * textCharacterUnits)
         case .card(let card):
-            statusCardBaseUnits + min(card.totalRowCount, 12) * statusCardRowUnits
-                + (card.header.isLive ? 30 * statusCardEntryUnits : 0)
+            // カードは全タスク行を描くので、行数で頭打ちにしない（ADR 0234）。
+            saturatedSum(saturatedSum(statusCardBaseUnits, saturatedProduct(card.totalRowCount, statusCardRowUnits)),
+                card.header.isLive ? 30 * statusCardEntryUnits : 0)
         case .commandGroup: otherBlockUnits
         }
     }

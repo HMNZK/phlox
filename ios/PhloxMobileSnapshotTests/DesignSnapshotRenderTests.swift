@@ -1027,6 +1027,16 @@ struct DesignSnapshotRenderTests {
     }
 
     @Test func externalControlEvidenceRequiresActionableExactLabel() {
+        #expect(SnapshotExternalAXEvidence.hasExposedControl(label: "Phlox", tree: "8 button Description: Phlox, Help: プロジェクト"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "Phlox", tree: "8 button Description: Phlox mobile, Help: プロジェクト"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "Phlox", tree: "8 text Description: Phlox, Help: プロジェクト"))
+        #expect(SnapshotExternalAXEvidence.hasExposedText(label: "$ swift test", tree: "19 text $ swift test"))
+        #expect(SnapshotExternalAXEvidence.hasExposedText(label: "$ swift test", tree: "19 text Description: $ swift test"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedText(label: "$ swift test", tree: "19 text $ swift test --filter X"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedText(label: "$ swift test", tree: "19 button $ swift test"))
+        #expect(SnapshotExternalAXEvidence.hasExposedText(label: "$ swift test", tree: "1 AXStaticText Description: $ swift test"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedText(label: "$ swift test", tree: "1 AXStaticText Description: $ swift test --filter X"))
+        #expect(!SnapshotExternalAXEvidence.hasExposedText(label: "$ swift test", tree: "1 AXButton Description: $ swift test"))
         #expect(SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXButton Description: 作業場所, Value: 新しい worktree"))
         #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXStaticText Description: 作業場所, Value: 新しい worktree"))
         #expect(!SnapshotExternalAXEvidence.hasExposedControl(label: "作業場所", tree: "1 AXStaticText Description: AXButton の説明, Title: 作業場所, Value: 新しい worktree"))
@@ -1387,6 +1397,36 @@ struct DesignSnapshotRenderTests {
             snapshotAttachmentData(color: .systemOrange, label: "502"),
             snapshotAttachmentData(color: .systemBlue, label: "LOG"),
         ]
+        let statusMessages: [ChatMessage] = [
+            .user(id: "status-input", text: "再試行処理を調べて修正して"),
+            .agent(id: "status-prose", text: "既存の挙動を確認してから変更します。"),
+            .command(id: "status-command", command: "swift test", output: "Exit code 0: Retry-After を確認"),
+            .fileChange(id: "status-diff", changes: [.init(path: "Retry.swift", diff: "@@ -1 +1 @@\n-let retryLimit = 3\n+let retryLimit = 5", kind: "edit")]),
+            .agent(id: "status-final", text: "修正と検証が完了しました。"),
+        ]
+        func statusProjection(_ state: MobileStatusTranscript.CardState) -> MobileStatusTranscript {
+            let live = state == .running || state == .stalled || state == .awaitingReply
+            let start = Date().addingTimeInterval(-72)
+            return .init(blocks: [.messages(ids: ["status-input"]), .card(.init(
+                id: "status-card", state: state,
+                title: state == .error ? "エラー" : state == .interrupted ? "中断" : state == .awaitingReply ? "回答待ち" : live ? "Retry.swift を確認中" : "完了",
+                startedAt: start, endedAt: live ? nil : start.addingTimeInterval(72),
+                activityState: .searching, silence: state == .stalled ? 192 : nil,
+                rows: [
+                    .init(id: "status-outside", kind: .outside, title: "", state: .completed,
+                          autoExpanded: false, startedAt: nil, endedAt: nil, entries: [.message(id: "status-prose")]),
+                    .init(id: "status-done", kind: .task, title: "既存の再試行を調べる", state: .completed,
+                          autoExpanded: false, startedAt: start, endedAt: start.addingTimeInterval(31), entries: []),
+                    .init(id: "status-active", kind: .task, title: "Retry-After を秒数と日付の両方で読む",
+                          state: live ? .inProgress : .completed, autoExpanded: live,
+                          startedAt: start.addingTimeInterval(31), endedAt: live ? nil : start.addingTimeInterval(72),
+                          entries: [.action(.init(id: "status-work", title: "Retry.swift を読み込み",
+                              state: .completed, startedAt: start, duration: 0.9,
+                              messageIDs: ["status-command", "status-diff"], symbolName: "doc.text"))]),
+                    .init(id: "status-pending", kind: .task, title: "回帰テストを追加して確認する", state: live ? .pending : .completed,
+                          autoExpanded: false, startedAt: nil, endedAt: nil, entries: []),
+                ])), .messages(ids: live ? [] : ["status-final"])])
+        }
         var cases: [SessionDetailSnapshotCase] = [
             .init(name: detailName, session: detailSession, messages: .success(detailRecentMessages), approvals: [approval]),
             .init(name: "ChatLoading", session: chatSession("loading", .running), messages: .suspended),
@@ -1499,6 +1539,24 @@ struct DesignSnapshotRenderTests {
             }
             cases.append(snapshot)
         }
+        for (name, state, width, dark, large) in [
+            ("StatusRunning", MobileStatusTranscript.CardState.running, 428.0, false, false),
+            ("StatusWorkOpen", .running, 428.0, false, false),
+            ("StatusCompletedDark", .completed, 428.0, true, false),
+            ("StatusStalledSE", .stalled, 375.0, false, false),
+            ("StatusRunningAX5", .running, 375.0, false, true),
+            ("StatusInterrupted", .interrupted, 428.0, false, false),
+            ("StatusError", .error, 428.0, true, false),
+            ("StatusAwaitingReply", .awaitingReply, 428.0, false, false),
+        ] {
+            // 実ボタンの受入確認は場面を明示選択して行い、通常の自動描画へ外部操作を要求しない。
+            if name == "StatusWorkOpen", selectedScenes?.contains(name) != true { continue }
+            let live = state == .running || state == .stalled || state == .awaitingReply
+            cases.append(.init(name: name, session: chatSession(name, live ? .running : .idle),
+                messages: .success(live ? Array(statusMessages.dropLast()) : statusMessages),
+                width: width, isDark: dark, isAccessibilitySize: large,
+                statusTranscript: statusProjection(state)))
+        }
         // 同名の場面でPNGを上書きし、別の状態を撮れたように見せない。
         try #require(Set(cases.map(\.name)).count == cases.count)
         if let selectedScenes {
@@ -1535,7 +1593,7 @@ struct DesignSnapshotRenderTests {
                 session: session, messages: snapshot.messages, approvals: snapshot.approvals,
                 turnUsage: snapshot.usage,
                 readiness: readiness, modelName: snapshot.modelName, permission: snapshot.permission,
-                sendFailure: snapshot.sendFailure
+                sendFailure: snapshot.sendFailure, statusTranscript: snapshot.statusTranscript
             )
             let preparedModel: SessionDetailViewModel?
             if snapshot.sendFailure != nil {
@@ -1611,8 +1669,30 @@ struct DesignSnapshotRenderTests {
                         FileHandle.standardError.write(Data("[approval arming \(snapshot.name)] wait.end\n".utf8))
                     }
                 },
-                prepareWindow: (["ChatSendFailAX5", "ChatSendFailAX5SE"].contains(snapshot.name) || compactApproval != nil || keyboardProbe != nil) ? { window in
-                    if let keyboardProbe {
+                prepareWindow: (["ChatSendFailAX5", "ChatSendFailAX5SE"].contains(snapshot.name) || compactApproval != nil || keyboardProbe != nil || snapshot.name == "StatusWorkOpen") ? { window in
+                    if snapshot.name == "StatusWorkOpen" {
+                        if ProcessInfo.processInfo.environment["PHLOX_SNAPSHOT_EXTERNAL_STATUS_ACTIVATION"] == "1" {
+                            try await waitForExternalActivation(window: window, output: output, sceneName: snapshot.name,
+                                requiresPopover: false, expectedControlLabel: "✓、Retry.swift を読み込み、完了、0.9s",
+                                requiresPresentation: false,
+                                requiredContentLabels: ["コマンド、$ swift test、exit 0", "Exit code 0: Retry-After を確認", "let retryLimit = 5"])
+                        } else {
+                            try #require(snapshotAccessibilityElement(in: window, label: "Exit code 0: Retry-After を確認") == nil)
+                            let button = try await waitForSnapshotAccessibilityElement(in: window, hint: "AgentStatusCard.actionToggle.status-work")
+                            try #require(button.accessibilityActivate(), "Work details must open from the real action button")
+                            let deadline = ContinuousClock.now + .seconds(3)
+                            while snapshotAccessibilityElement(in: window, label: "Exit code 0: Retry-After を確認") == nil,
+                                  ContinuousClock.now < deadline {
+                                try await Task.sleep(for: .milliseconds(50))
+                            }
+                            try #require(snapshotAccessibilityElement(in: window, label: "Exit code 0: Retry-After を確認") != nil,
+                                         "One action activation must reveal command output")
+                            try #require(snapshotAccessibilityElement(in: window, label: "let retryLimit = 5") != nil,
+                                         "The same action activation must reveal the diff without another disclosure")
+                            try #require(snapshotAccessibilityElement(in: window, label: "コマンド、$ swift test、exit 0") != nil,
+                                         "Opened work must show its original command")
+                        }
+                    } else if let keyboardProbe {
                         let approval = ReplyApproval.codex(approval: try #require(snapshot.approvals.first),
                             statusEnteredAt: snapshotDate, chatMessages: [])
                         try await verifyRealKeyboardReply(window, probe: keyboardProbe, approval: approval,
@@ -2955,7 +3035,8 @@ struct DesignSnapshotRenderTests {
     }
 
     private func waitForExternalActivation(window: UIWindow, output: URL, sceneName: String,
-        requiresPopover: Bool = true, expectedControlLabel: String? = nil, requiresPresentation: Bool = true
+        requiresPopover: Bool = true, expectedControlLabel: String? = nil, requiresPresentation: Bool = true,
+        requiredContentLabels: [String] = []
     ) async throws {
         let readyURL = output.appendingPathComponent("\(sceneName)-external-ready.json")
         let variables = ProcessInfo.processInfo.environment
@@ -2970,11 +3051,12 @@ struct DesignSnapshotRenderTests {
                 "scene": sceneName, "phase": phase,
                 "expectedControlLabel": expectedControlLabel ?? "",
                 "requiresPresentation": requiresPresentation, "requiresPopover": requiresPopover,
+                "requiredContentLabels": requiredContentLabels,
                 "step": sceneName, "nonce": nonce, "pid": pid, "udid": udid,
                 "windowTitle": windowTitle, "requestedAt": requestedAt,
                 "ackFile": ackURL.path, "proofFile": ackURL.path,
                 "nativeContentSizeCategory": window.traitCollection.preferredContentSizeCategory.rawValue,
-                "instruction": expectedControlLabel.map { requiresPresentation ? "「\($0)」を開く" : "「\($0)」の公開AXを確認する" }
+                "instruction": expectedControlLabel.map { !requiredContentLabels.isEmpty ? "「\($0)」を1回開き、元コマンド・出力・差分の公開AXを確認する" : requiresPresentation ? "「\($0)」を開く" : "「\($0)」の公開AXを確認する" }
                     ?? (requiresPopover ? "使用量の詳細ボタンを開き、枠・残量・リセットの表示をAXで確認する" : "思考の強さと権限のメニューを開く"),
                 "window": [window.bounds.origin.x, window.bounds.origin.y, window.bounds.width, window.bounds.height],
                 "screen": [window.screen.bounds.origin.x, window.screen.bounds.origin.y, window.screen.bounds.width, window.screen.bounds.height],
@@ -3010,6 +3092,14 @@ struct DesignSnapshotRenderTests {
                 try #require(activationTree.contains("Window: \"\(windowTitle)\", App: Simulator."))
                 try #require(SnapshotExternalAXEvidence.hasExposedControl(label: expectedControlLabel, tree: activationTree),
                     "The requested control must be exposed before external activation")
+                for label in requiredContentLabels {
+                    try #require(!SnapshotExternalAXEvidence.hasExposedText(label: label, tree: activationTree),
+                                 "Work detail content must be collapsed before the single activation")
+                }
+            }
+            for label in requiredContentLabels {
+                try #require(SnapshotExternalAXEvidence.hasExposedText(label: label, tree: tree),
+                             "One action activation must reveal the actual content: \(label)")
             }
             try #require(!requiresPresentation || isPresented(), "External tap did not present the real interface: \(sceneName)")
         } catch {
@@ -3308,12 +3398,25 @@ private struct SnapshotExternalAXEvidence: Codable {
     let capturedAt: TimeInterval
     let rawAXTree: String
 
+    static func hasExposedText(label: String, tree: String) -> Bool {
+        tree.split(separator: "\n").contains { line in
+            let element = line.trimmingCharacters(in: .whitespaces)
+            let fields = element.split(separator: " ", maxSplits: 2)
+            guard fields.count == 3, fields[0].allSatisfy(\.isNumber), ["AXStaticText", "text"].contains(String(fields[1])) else { return false }
+            if fields[1] == "text", fields[2] == label { return true }
+            return ["Description: ", "Title: ", "Value: "].contains { field in
+                guard let range = element.range(of: field) else { return false }
+                return element[range.upperBound...].components(separatedBy: ", ")[0] == label
+            }
+        }
+    }
+
     static func hasExposedControl(label: String, tree: String) -> Bool {
         tree.split(separator: "\n").contains { line in
             let element = line.trimmingCharacters(in: .whitespaces)
             let fields = element.split(separator: " ", maxSplits: 2)
             guard fields.count == 3, fields[0].allSatisfy(\.isNumber),
-                  ["AXButton", "AXPopUpButton", "AXMenuButton"].contains(String(fields[1])) else { return false }
+                  ["AXButton", "AXPopUpButton", "AXMenuButton", "button"].contains(String(fields[1])) else { return false }
             return ["Description: ", "Title: "].contains { field in
                 guard let range = element.range(of: field) else { return false }
                 return element[range.upperBound...].components(separatedBy: ", ")[0] == label
@@ -3383,6 +3486,7 @@ private struct SessionDetailSnapshotCase {
     var showsModelPicker = false
     var showsRename = false
     var sendFailure: PhloxError?
+    var statusTranscript: MobileStatusTranscript?
 }
 
 private enum SessionDetailSnapshotMessages: Sendable {
@@ -3502,6 +3606,7 @@ private struct SessionDetailSnapshotAPI: PhloxAPI, SessionModelSelecting {
     var failsSettings = false
     var usageSource: SnapshotUsageSource?
     var sendFailure: PhloxError?
+    var statusTranscript: MobileStatusTranscript?
 
     private var model: SessionModelOption {
         if let modelName { return SessionModelOption(id: "haiku-5.5", displayName: modelName) }
@@ -3558,6 +3663,11 @@ private struct SessionDetailSnapshotAPI: PhloxAPI, SessionModelSelecting {
         try await sendGate?.wait()
         if let sendFailure { throw sendFailure }
         return SendResult(accepted: true)
+    }
+    func messagesDelta(sessionID: String, since: String?, wait: Int?) async throws -> MessagesDelta {
+        guard let statusTranscript else { throw PhloxError.server(status: 501, message: "Legacy snapshot") }
+        return MessagesDelta(messages: try await messages(sessionID: sessionID), cursor: "status-snapshot", isSnapshot: true,
+                             statusTranscript: statusTranscript)
     }
     func messages(sessionID: String) async throws -> [ChatMessage] {
         switch messages {

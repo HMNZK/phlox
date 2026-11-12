@@ -163,6 +163,9 @@ public struct SessionDetailView: View {
                                 scrollToBottomForContentChange(proxy)
                             }
                         }
+                        .onChange(of: viewModel.statusTranscript) {
+                            if scrollToBottomOnAppear { scrollToBottomForContentChange(proxy) }
+                        }
                         .onChange(of: viewModel.expandedMessageIDs) { _, _ in scrollToBottomIfFollowing(proxy) }
                         .onChange(of: pendingTranscriptScrollTarget) { _, target in
                             guard let target else { return }
@@ -770,7 +773,8 @@ public struct SessionDetailView: View {
     private var chatSection: some View {
         let slice = SessionDetailTranscriptSlice(
             messages: visibleTranscriptMessages,
-            window: transcriptWindow
+            window: transcriptWindow,
+            statusTranscript: viewModel.statusTranscript
         )
         let lastTranscriptID = visibleTranscriptMessages.last?.id
         let latestTurnCostID = SessionDetailTranscriptPresentation.latestTurnCostID(in: transcriptMessages)
@@ -786,12 +790,12 @@ public struct SessionDetailView: View {
                 )
                 .id(visibleBlock.id)
             }
-            if viewModel.session.isStalled {
+            if viewModel.statusTranscript == nil, viewModel.session.isStalled {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     let startedAt = viewModel.session.statusEnteredAt ?? context.date
                     stalledStatusRow(elapsed: context.date.timeIntervalSince(startedAt))
                 }
-            } else if let activityState = viewModel.activityState {
+            } else if viewModel.statusTranscript == nil, let activityState = viewModel.activityState {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     DSThinkingIndicator(
                         state: activityState,
@@ -847,7 +851,7 @@ public struct SessionDetailView: View {
     }
 
     private var hasEarlierMessages: Bool {
-        SessionDetailTranscriptSlice(messages: visibleTranscriptMessages, window: transcriptWindow).hiddenCount > 0
+        SessionDetailTranscriptSlice(messages: visibleTranscriptMessages, window: transcriptWindow, statusTranscript: viewModel.statusTranscript).hiddenCount > 0
     }
 
     private var isCompletionViewing: Bool {
@@ -860,7 +864,8 @@ public struct SessionDetailView: View {
         let decision = SessionDetailTranscriptExpansionPolicy.expand(
             messages: visibleTranscriptMessages,
             window: transcriptWindow,
-            scrollGeneration: transcriptScrollGeneration
+            scrollGeneration: transcriptScrollGeneration,
+            statusTranscript: viewModel.statusTranscript
         )
         transcriptWindow = decision.window
         transcriptScrollGeneration = decision.scrollGeneration
@@ -874,6 +879,13 @@ public struct SessionDetailView: View {
         latestTurnCostID: String?
     ) -> some View {
         switch block {
+        case .statusCard(let card):
+            MobileAgentStatusCard(card: card, messages: visibleTranscriptMessages,
+                                  onInterrupt: { Task { await viewModel.stop() } }) { message in
+                chatRow(for: message, lastTranscriptID: lastTranscriptID, latestTurnCostID: latestTurnCostID)
+            } actionContent: { message in
+                statusActionDetail(message, lastTranscriptID: lastTranscriptID, latestTurnCostID: latestTurnCostID)
+            }
         case .single(let message):
             chatRow(for: message, lastTranscriptID: lastTranscriptID, latestTurnCostID: latestTurnCostID)
         case .commandGroup(let id, let items):
@@ -892,6 +904,21 @@ public struct SessionDetailView: View {
                     onToggleMessage: { viewModel.toggleMessageExpansion($0) }
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private func statusActionDetail(_ message: ChatMessage, lastTranscriptID: String?, latestTurnCostID: String?) -> some View {
+        switch message {
+        case .command(_, let command, let output):
+            SessionDetailCommandCard(command: command, output: output, isExpanded: true,
+                                     allowsDisclosure: false, onToggle: {})
+        case .fileChange(_, let changes):
+            ForEach(Array(changes.enumerated()), id: \.offset) { _, change in
+                SessionDetailFileChangeCard(change: change, isExpanded: true, allowsDisclosure: false, onToggle: {})
+            }
+        default:
+            chatRow(for: message, lastTranscriptID: lastTranscriptID, latestTurnCostID: latestTurnCostID)
         }
     }
 
@@ -1105,10 +1132,11 @@ struct SessionDetailTranscriptSlice {
         hiddenCount > 0 ? visibleBlocks.first?.id : nil
     }
 
-    init(messages: [ChatMessage], window: TranscriptWindow) {
+    init(messages: [ChatMessage], window: TranscriptWindow, statusTranscript: MobileStatusTranscript? = nil) {
         let blockSlice = SessionDetailToolCallGrouping.visibleSlice(
             from: messages,
-            blockLimit: window.limit
+            blockLimit: window.limit,
+            statusTranscript: statusTranscript
         )
         visibleBlocks = blockSlice.blocks
         hiddenCount = blockSlice.hiddenBlockCount
@@ -1117,11 +1145,38 @@ struct SessionDetailTranscriptSlice {
             switch visible.content {
             case .single:
                 total + 1
+            case .statusCard(let card):
+                total + card.rows.reduce(0) { count, row in
+                    count + row.entries.reduce(0) { sum, entry in
+                        switch entry {
+                        case .message: sum + 1
+                        case .action(let action): sum + action.messageIDs.count
+                        }
+                    }
+                }
             case .commandGroup(_, let items):
                 total + items.count
             }
         }
-        visibleMessages = messages.suffix(visibleMessageCount)
+        if statusTranscript == nil {
+            visibleMessages = messages.suffix(visibleMessageCount)
+        } else {
+            let visibleIDs = Set(visibleBlocks.flatMap { block -> [String] in
+                switch block.content {
+                case .single(let message): [message.id]
+                case .commandGroup(_, let items): items.map(\.id)
+                case .statusCard(let card): card.rows.flatMap { row in
+                    row.entries.flatMap { entry -> [String] in
+                        switch entry {
+                        case .message(let id): [id]
+                        case .action(let action): action.messageIDs
+                        }
+                    }
+                }
+                }
+            })
+            visibleMessages = ArraySlice(messages.filter { visibleIDs.contains($0.id) })
+        }
     }
 }
 
@@ -1140,11 +1195,13 @@ enum SessionDetailTranscriptExpansionPolicy {
     static func expand(
         messages: [ChatMessage],
         window: TranscriptWindow,
-        scrollGeneration: Int
+        scrollGeneration: Int,
+        statusTranscript: MobileStatusTranscript? = nil
     ) -> SessionDetailTranscriptExpansionDecision {
         let anchorID = SessionDetailTranscriptSlice(
             messages: messages,
-            window: window
+            window: window,
+            statusTranscript: statusTranscript
         ).expansionAnchorID
         var expandedWindow = window
         expandedWindow.expand()

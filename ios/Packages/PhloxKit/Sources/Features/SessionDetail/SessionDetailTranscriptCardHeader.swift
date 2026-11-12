@@ -29,7 +29,7 @@ struct SessionDetailTranscriptCardHeader: View {
                 .accessibilityValue(isExpanded ? "展開中" : "折りたたみ中")
             } else {
                 headerContents
-                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isStaticText)
             }
         }
     }
@@ -76,6 +76,7 @@ struct SessionDetailTranscriptCardHeader: View {
         .padding(.vertical, isAccessibilitySize ? DSSpacing.chip : 0)
         .frame(maxWidth: .infinity, minHeight: DSTouch.minSize, alignment: .leading)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
     }
 

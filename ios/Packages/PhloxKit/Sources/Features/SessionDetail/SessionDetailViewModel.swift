@@ -77,6 +77,7 @@ public final class SessionDetailViewModel {
     public private(set) var chatMessages: [ChatMessage] = [] {
         didSet { reconcileAttachments() }
     }
+    public private(set) var statusTranscript: MobileStatusTranscript?
     public private(set) var attachmentPreviewsByMessageID: [String: [Data]]
     private var pendingAttachmentSends: [SessionAttachmentReconciler.Pending] = []
     /// reasoning / command / fileChange 行の展開状態（message.id キー。ポーリング差し替え後も保持）。
@@ -606,9 +607,7 @@ public final class SessionDetailViewModel {
         defer { isInitialLoading = false }
         guard !session.isPTY else { return }
         await loadModelSettings()
-        if !(await adoptNonEmptyMessages(updateOnlyIfChanged: false)) {
-            chatMessages = []
-        }
+        _ = await adoptMessagesFromDelta(updateOnlyIfChanged: false)
         if currentStatus != .running {
             await fetchTurnUsageIfAvailable()
         }
@@ -1219,8 +1218,8 @@ public final class SessionDetailViewModel {
         }
     }
 
-    /// messages 全量取得→非空なら採用。`load()` と delta フォールバック用。
-    private func adoptNonEmptyMessages(updateOnlyIfChanged: Bool) async -> Bool {
+    /// 旧サーバーの全量取得結果を採用する。
+    private func adoptFullMessages(updateOnlyIfChanged: Bool) async -> Bool {
         didFetchMessagesSuccessfully = false
         let messages: [ChatMessage]
         do {
@@ -1252,7 +1251,7 @@ public final class SessionDetailViewModel {
             didFetchMessagesSuccessfully = false
             return false
         }
-        guard !messages.isEmpty else { return false }
+        statusTranscript = nil
         if updateOnlyIfChanged {
             if chatMessages != messages { chatMessages = messages }
         } else {
@@ -1278,7 +1277,7 @@ public final class SessionDetailViewModel {
             }
             return false
         } catch let error as PhloxError where shouldFallbackToFullMessages(error) {
-            return await adoptNonEmptyMessages(updateOnlyIfChanged: updateOnlyIfChanged)
+            return await adoptFullMessages(updateOnlyIfChanged: updateOnlyIfChanged)
         } catch let error as PhloxError {
             if !showsChat { loadError = Self.messageFetchFailure(for: error) }
             didFetchMessagesSuccessfully = false
@@ -1302,6 +1301,7 @@ public final class SessionDetailViewModel {
     }
 
     private func applyMessagesDelta(_ delta: MessagesDelta, updateOnlyIfChanged: Bool) {
+        statusTranscript = delta.statusTranscript
         if delta.isSnapshot {
             applySnapshotMessages(delta.messages, updateOnlyIfChanged: updateOnlyIfChanged)
             return
@@ -1326,7 +1326,7 @@ public final class SessionDetailViewModel {
 
     private func applySnapshotMessages(_ messages: [ChatMessage], updateOnlyIfChanged: Bool) {
         if updateOnlyIfChanged {
-            guard !messages.isEmpty, chatMessages != messages else { return }
+            guard chatMessages != messages else { return }
             chatMessages = messages
         } else {
             chatMessages = messages

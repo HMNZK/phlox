@@ -6,12 +6,15 @@ import PhloxCore
 /// macOS の 2 件以上を集約する契約とは意図的に異なる。
 public enum SessionDetailChatBlock: Identifiable, Equatable, Sendable {
     case single(ChatMessage)
+    case statusCard(MobileStatusTranscript.Card)
     case commandGroup(id: String, items: [ChatMessage])
 
     public var id: String {
         switch self {
         case .single(let message):
             message.id
+        case .statusCard(let card):
+            card.id
         case .commandGroup(let id, _):
             id
         }
@@ -30,19 +33,53 @@ public struct SessionDetailTranscriptBlockSlice: Equatable, Sendable {
 
 /// 連続する 1 件以上の `.command` メッセージを 1 ブロックへ集約する純関数（task-1 契約）。
 public enum SessionDetailToolCallGrouping {
-    public static func blocks(from messages: [ChatMessage]) -> [SessionDetailChatBlock] {
-        makeBlocks(from: messages)
+    public static func blocks(from messages: [ChatMessage], statusTranscript: MobileStatusTranscript? = nil) -> [SessionDetailChatBlock] {
+        guard let statusTranscript else { return makeBlocks(from: messages) }
+        let byID = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        var referenced: Set<String> = []
+        var result: [SessionDetailChatBlock] = []
+        for block in statusTranscript.blocks {
+            switch block {
+            case .messages(let ids):
+                result += makeBlocks(from: ids.compactMap { id in
+                    guard referenced.insert(id).inserted else { return nil }
+                    return byID[id]
+                })
+            case .card(let card):
+                for row in card.rows {
+                    for entry in row.entries {
+                        switch entry {
+                        case .message(let id): referenced.insert(id)
+                        case .action(let action): referenced.formUnion(action.messageIDs)
+                        }
+                    }
+                }
+                result.append(.statusCard(card))
+            }
+        }
+        // 差分の到着順で投影より先に届いた本文も保持する。
+        result += makeBlocks(from: messages.filter { !referenced.contains($0.id) })
+        return result
     }
 
     /// 個別 message のジャンプ先を、実際にトップレベルへ描画される block identity に解決する。
-    public static func scrollTargetID(containing messageID: String, in messages: [ChatMessage]) -> String {
-        for block in blocks(from: messages) {
+    public static func scrollTargetID(containing messageID: String, in messages: [ChatMessage], statusTranscript: MobileStatusTranscript? = nil) -> String {
+        for block in blocks(from: messages, statusTranscript: statusTranscript) {
             switch block {
             case .single(let message) where message.id == messageID:
                 return block.id
             case .commandGroup(let id, let grouped)
                 where grouped.contains(where: { $0.id == messageID }):
                 return id
+            case .statusCard(let card) where card.rows.contains(where: { row in
+                row.entries.contains { entry in
+                    switch entry {
+                    case .message(let id): id == messageID
+                    case .action(let action): action.messageIDs.contains(messageID)
+                    }
+                }
+            }):
+                return card.id
             default:
                 continue
             }
@@ -58,9 +95,10 @@ public enum SessionDetailToolCallGrouping {
     /// 末尾の blockLimit ブロックを返す。窓境界は常に block 境界なので部分ブロックは生じない。
     public static func visibleSlice(
         from messages: [ChatMessage],
-        blockLimit: Int
+        blockLimit: Int,
+        statusTranscript: MobileStatusTranscript? = nil
     ) -> SessionDetailTranscriptBlockSlice {
-        let allBlocks = blocks(from: messages)
+        let allBlocks = blocks(from: messages, statusTranscript: statusTranscript)
         let visibleCount = min(allBlocks.count, max(0, blockLimit))
         let visibleBlocks = allBlocks.suffix(visibleCount).map { block in
             SessionDetailVisibleBlock(id: block.id, content: block)

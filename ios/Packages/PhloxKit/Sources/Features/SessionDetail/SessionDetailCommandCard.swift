@@ -27,30 +27,35 @@ struct SessionDetailCommandCard: View {
     let isExpanded: Bool
     let isRunning: Bool
     let onToggle: () -> Void
+    let allowsDisclosure: Bool
 
     init(
         command: String?,
         output: String,
         isExpanded: Bool,
         isRunning: Bool = false,
+        allowsDisclosure: Bool = true,
         onToggle: @escaping () -> Void
     ) {
         self.data = SessionDetailCommandCardData(command: command, output: output)
         self.isExpanded = isExpanded
         self.isRunning = isRunning
         self.onToggle = onToggle
+        self.allowsDisclosure = allowsDisclosure
     }
 
     init(
         data: SessionDetailCommandCardData,
         isExpanded: Bool,
         isRunning: Bool = false,
+        allowsDisclosure: Bool = true,
         onToggle: @escaping () -> Void
     ) {
         self.data = data
         self.isExpanded = isExpanded
         self.isRunning = isRunning
         self.onToggle = onToggle
+        self.allowsDisclosure = allowsDisclosure
     }
 
     var body: some View {
@@ -60,7 +65,7 @@ struct SessionDetailCommandCard: View {
                 summary: data.summary,
                 badges: headerBadges,
                 isExpanded: isExpanded,
-                allowsDisclosure: true,
+                allowsDisclosure: allowsDisclosure,
                 onToggle: onToggle
             )
         } content: {

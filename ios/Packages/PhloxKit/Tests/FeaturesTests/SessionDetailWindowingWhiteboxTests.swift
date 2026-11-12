@@ -83,6 +83,7 @@ struct SessionDetailWindowingWhiteboxTests {
             switch visible.content {
             case .single(let message): [message]
             case .commandGroup(_, let items): items
+            case .statusCard: []
             }
         }
 

@@ -101,16 +101,19 @@ struct SessionDetailFileChangeCard: View {
     let data: SessionDetailDiffCodeViewData
     let isExpanded: Bool
     let onToggle: () -> Void
+    let allowsDisclosure: Bool
     @ScaledMetric(relativeTo: .caption) private var monoAdvance: CGFloat = 8
 
     init(
         change: ChatFileChange,
         isExpanded: Bool,
+        allowsDisclosure: Bool = true,
         onToggle: @escaping () -> Void
     ) {
         data = SessionDetailDiffCodeViewData(change: change)
         self.isExpanded = isExpanded
         self.onToggle = onToggle
+        self.allowsDisclosure = allowsDisclosure
     }
 
     var body: some View {
@@ -128,7 +131,7 @@ struct SessionDetailFileChangeCard: View {
                     )
                 },
                 isExpanded: isExpanded,
-                allowsDisclosure: true,
+                allowsDisclosure: allowsDisclosure,
                 onToggle: onToggle
             )
         } content: {

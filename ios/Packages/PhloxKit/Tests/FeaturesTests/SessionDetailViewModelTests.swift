@@ -266,6 +266,21 @@ final class SessionDetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.chatMessages.map(\.id), ["m1", "m2"])
     }
 
+    func testEmptySnapshotClearsMessagesAfterRollback() async {
+        let api = MockAPI(messagesOutcome: .success([]))
+        await api.setMessagesDeltaScript([
+            .success(MessagesDelta(messages: [.agent(id: "old", text: "巻き戻し前")], cursor: "c1", isSnapshot: true)),
+            .success(MessagesDelta(messages: [], cursor: "c0", isSnapshot: true)),
+        ])
+        let vm = SessionDetailViewModel(session: session(.running), api: api)
+        await vm.refresh()
+        XCTAssertEqual(vm.chatMessages.map(\.id), ["old"])
+
+        await vm.refresh()
+
+        XCTAssertEqual(vm.chatMessages, [])
+    }
+
     func testDeltaAppendsAndCarriesCursor() async {
         let api = MockAPI(messagesOutcome: .success([]))
         let snapshot = MessagesDelta(messages: [.agent(id: "m1", text: "1")], cursor: "c1", isSnapshot: true)
@@ -327,7 +342,10 @@ final class SessionDetailViewModelTests: XCTestCase {
 
     func testRefreshKeepsChatOnTransientDeltaFailure() async {
         let api = MockAPI(messagesOutcome: .success([.agent(id: "m1", text: "hi")]))
-        await api.setMessagesDeltaScript([.failure(.unreachable)])
+        await api.setMessagesDeltaScript([
+            .success(MessagesDelta(messages: [.agent(id: "m1", text: "hi")], cursor: "c1", isSnapshot: true)),
+            .failure(.unreachable),
+        ])
         let vm = SessionDetailViewModel(session: session(.running), api: api)
         await vm.load()
         await vm.refresh()

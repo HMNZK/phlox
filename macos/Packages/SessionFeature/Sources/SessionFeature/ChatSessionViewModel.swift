@@ -5378,6 +5378,7 @@ extension ChatSessionViewModel {
 
     public func loadAllRuntimeContent() async throws {
         try await refreshRuntimeContent()
+        if usesRuntimeChatReadModel { try await loadRuntimeContentIfNeeded(includeTranscript: true) }
         while hasMoreRuntimeTranscript {
             try Task.checkCancellation()
             let cursor = runtimeOlderCursor

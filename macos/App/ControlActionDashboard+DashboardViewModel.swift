@@ -135,8 +135,8 @@ extension DashboardViewModel: @retroactive ControlActionDashboard {
         controlUsage(for: id)
     }
 
-    public func sessionChatMessagesDelta(for id: SessionID, since: String?) -> TranscriptDelta? {
-        controlMessagesDelta(for: id, since: since)
+    public func sessionChatMessagesDelta(for id: SessionID, since: String?) async throws -> TranscriptDelta? {
+        try await controlMessagesDelta(for: id, since: since, locale: Locale(identifier: controlLanguageCode))
     }
 
     public func sessionModelSettings(for id: SessionID) -> ControlSessionModelSettings? {

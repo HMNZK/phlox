@@ -107,7 +107,7 @@ public protocol ControlActionDashboard: AnyObject {
     /// `since == nil` は全量（isSnapshot=false）＋cursor。`since` 有効かつ append のみは差分、
     /// 編集/置換・不正/期限切れ cursor は全量（isSnapshot=true）。long-poll の待機はハンドラ層が行う
     /// （このメソッド自体は現時点のスナップショットを即時に返す純参照）。
-    func sessionChatMessagesDelta(for id: SessionID, since: String?) -> TranscriptDelta?
+    func sessionChatMessagesDelta(for id: SessionID, since: String?) async throws -> TranscriptDelta?
     func waitUntilReady(for id: SessionID, timeout: Duration) async -> DashboardViewModel.ReadinessResult
     func waitUntilDone(
         for id: SessionID,
@@ -610,42 +610,47 @@ public final class ControlActionHandler {
         since: String?,
         wait: Int?
     ) async -> ControlResponse {
-        guard var delta = dashboard.sessionChatMessagesDelta(for: id, since: since) else {
-            return .json(404, ErrorDTO(error: "session not found"))
-        }
-
-        // long-poll: since 指定かつ wait 指定時のみ。差分が空で snapshot でもない間だけ待つ。
-        // since 省略時は差分の基準が無いので wait を無視して即応答（＝従来挙動＋cursor）。
-        // snapshot（編集/置換の検出）が出たら待たずに即返す（変化を握りつぶさない）。
-        if let wait, let since, !since.isEmpty {
-            let clamped = min(max(wait, 1), 25)
-            let clock = ContinuousClock()
-            let deadline = clock.now.advanced(by: .seconds(clamped))
-            while delta.items.isEmpty, !delta.isSnapshot {
-                // 残り時間を超えて待たない（次の sleep を deadline で打ち切る）。
-                let remaining = deadline - clock.now
-                guard remaining > .zero else { break }
-                let nap = min(Self.messagesPollInterval, remaining)
-                do {
-                    // Task.sleep で MainActor を解放しながら待つ（他リクエスト・UI を巻き添えにしない）。
-                    try await Task.sleep(for: nap)
-                } catch {
-                    break
-                }
-                guard let next = dashboard.sessionChatMessagesDelta(for: id, since: since) else {
-                    // 待機中にセッションが消えた。
-                    return .json(404, ErrorDTO(error: "session not found"))
-                }
-                delta = next
+        do {
+            guard var delta = try await dashboard.sessionChatMessagesDelta(for: id, since: since) else {
+                return .json(404, ErrorDTO(error: "session not found"))
             }
-        }
 
-        return .json(200, MessagesDeltaDTO(
-            sessionId: id.rawValue.uuidString,
-            messages: delta.items.map(ChatMessageDTO.from),
-            cursor: delta.cursor,
-            snapshot: delta.isSnapshot ? true : nil
-        ))
+            // long-poll: since 指定かつ wait 指定時のみ。差分が空で snapshot でもない間だけ待つ。
+            // since 省略時は差分の基準が無いので wait を無視して即応答（＝従来挙動＋cursor）。
+            // snapshot（編集/置換の検出）が出たら待たずに即返す（変化を握りつぶさない）。
+            if let wait, let since, !since.isEmpty {
+                let clamped = min(max(wait, 1), 25)
+                let clock = ContinuousClock()
+                let deadline = clock.now.advanced(by: .seconds(clamped))
+                while delta.items.isEmpty, !delta.isSnapshot {
+                    // 残り時間を超えて待たない（次の sleep を deadline で打ち切る）。
+                    let remaining = deadline - clock.now
+                    guard remaining > .zero else { break }
+                    let nap = min(Self.messagesPollInterval, remaining)
+                    do {
+                        // Task.sleep で MainActor を解放しながら待つ（他リクエスト・UI を巻き添えにしない）。
+                        try await Task.sleep(for: nap)
+                    } catch {
+                        break
+                    }
+                    guard let next = try await dashboard.sessionChatMessagesDelta(for: id, since: since) else {
+                        // 待機中にセッションが消えた。
+                        return .json(404, ErrorDTO(error: "session not found"))
+                    }
+                    delta = next
+                }
+            }
+
+            return .json(200, MessagesDeltaDTO(
+                sessionId: id.rawValue.uuidString,
+                messages: delta.items.map(ChatMessageDTO.from),
+                cursor: delta.cursor,
+                snapshot: delta.isSnapshot ? true : nil,
+                statusTranscript: delta.statusTranscript
+            ))
+        } catch {
+            return .json(503, ErrorDTO(error: "messages temporarily unavailable"))
+        }
     }
 
     /// long-poll のポーリング間隔。短すぎると CPU を無駄に使い、長すぎると応答遅延が増える。
@@ -890,9 +895,10 @@ private struct MessagesDeltaDTO: Encodable {
     let messages: [ChatMessageDTO]
     let cursor: String
     let snapshot: Bool?
+    let statusTranscript: MobileStatusTranscript?
 
     enum CodingKeys: String, CodingKey {
-        case sessionId, messages, cursor, snapshot
+        case sessionId, messages, cursor, snapshot, statusTranscript
     }
 
     func encode(to encoder: Encoder) throws {
@@ -901,6 +907,7 @@ private struct MessagesDeltaDTO: Encodable {
         try container.encode(messages, forKey: .messages)
         try container.encode(cursor, forKey: .cursor)
         try container.encodeIfPresent(snapshot, forKey: .snapshot)
+        try container.encodeIfPresent(statusTranscript, forKey: .statusTranscript)
     }
 }
 

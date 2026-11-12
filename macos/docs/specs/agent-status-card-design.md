@@ -1,13 +1,13 @@
 ---
 status: active
-last-verified: 2026-11-07
+last-verified: 2026-11-12
 ---
 
 # エージェント状態カード（設計書）
 
 > **このファイルの役割**: [agent-status-card.md](agent-status-card.md)（要件）を満たす実装の設計。保存形式の変更、イベントの流れ、カードの組み立て規則、描画、テスト、実装の順番。
 > **書かないもの**: 何を満たすべきか（→ 要件書）、なぜこの方式か（→ [ADR 0226](../adr/0226-agent-status-card-derived-from-transcript.md)・[ADR 0227](../adr/0227-status-card-icons-inside-card-only.md)）。実装後の構成は architecture/ へ移す。
-> **状態**: 1 段目（Mac）を実装済み（2026-11-07、ブランチ `agent-status-card`）。2 段目（iOS）は未実装。行番号は 17cb2cae 時点のもので、実装後はずれている。実装で決めた規則は各節に反映した。
+> **状態**: Mac を実装済み（2026-11-07）、iOS も作業ブランチで実装済み（2026-11-12）。iOS の受入確認・統合品質は [実装記録](../../../ios/docs/delivery/0036-ios-agent-status-card-plan.md) を参照。行番号は 17cb2cae 時点のもので、実装後はずれている。
 
 パスは `macos/Packages/` からの相対。略称:
 
@@ -66,7 +66,7 @@ ChatTranscriptView → AgentStatusCardView（DisclosureCard は使わない）
 - `ChatItem.swift`: `==` / `init(from:)` / `encode(to:)` / `withTimestamp`
 - `SF/TranscriptDelta.swift` の `contentFields`
 - `AppBootstrap/Sources/AppBootstrap/SessionRuntimeSnapshotUpdate.swift` の `sameChatItem`（別ウィンドウ・リモートへの差分配信。入れ忘れると新フィールドだけの変化を捨てる）
-- `AppBootstrap/.../ControlActionHandler.swift:~1027` のモバイル DTO（2 段目で値を載せる。1 段目は今のまま送る）
+- `AppBootstrap/.../ControlActionHandler.swift` のモバイル DTO。iOS へは本文の生 DTO と、これらの値から組み立てた `statusTranscript` を送る（§6）。
 
 ### 2.4 互換
 
@@ -247,10 +247,12 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 
 - **グリッドの列**: `GridChatColumn` は `ChatTranscriptView` を使うので、カードが出る（`.gridTile` では窓が 16 ブロック）。
 - **小さいタイル**: `GridTileParts.swift:274-285` の「実行中」の行を、`AgentStatusHeader` の文言に置き換える。組み立てに使う関数は同じものを使う。
-- **iOS（2 段目）**:
-  - モバイルの DTO（`ControlActionHandler.swift:~985-1040`）に、`completedAt`・`intent`・`turnEnd`、`taskList` の構造化した中身を足す。
-  - iOS 側（`ios/Packages/PhloxKit`）に、同じ組み立て規則と、カードの部品を作る。
-  - 組み立て規則は Mac と iOS で共有できる場所に置くかを、2 段目の最初に決める。今は共有パッケージが無い。
+- **iOS（2 段目、2026-11-12 に方式確定）**:
+  - 既存 messages レスポンスに省略可能な `statusTranscript` を足す。生の messages・cursor・snapshot は保持する。
+  - Mac の builder の結果を、共有 `AgentDomain` の Foundation だけの値型 `MobileStatusTranscript` へ写す。本文は既存の message ID で参照する。
+  - ターン区切り、タスク帰属、作業集約、最終返答の配置は Mac の規則を共用し、iOS で再判定しない。終了時刻・説明はその投影へ載せる。
+  - iOS は既存 delta 取得で投影を保持し、表示と開閉を担当する。投影の無い旧 Mac・対象外エージェントは従来表示に戻す。
+  - 実装契約と検証範囲は [iOS 実装計画](../../../ios/docs/delivery/0036-ios-agent-status-card-plan.md) を参照。
 
 ## 7. テスト計画
 

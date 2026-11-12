@@ -5,6 +5,27 @@ import Testing
 @testable import SessionFeature
 
 @Suite @MainActor struct RuntimeChatProjectionTests {
+    @Test func mobileFullTranscriptLoadsReadModelHistoryAndReusesUnchangedRevision() async throws {
+        let items = (1...55).map { ChatItem.agentMessage(id: "mobile-\($0)", text: "回答 \($0)", timestamp: .distantPast) }
+        let source = ChatSessionViewModel(projection: chatSnapshot(items: items)) { _, _ in .none }
+        let projected = ChatSessionViewModel(projection: source.makeRuntimeOverview()) { _, _ in .none }
+        projected.runtimeSupportsChatReadModel = true
+        var transcriptReads = 0
+        projected.runtimeContentLoader = { request in
+            switch request.target {
+            case .chatTail, .chatTailChecking, .chatBefore: transcriptReads += 1
+            default: break
+            }
+            return try await source.runtimeChatReadContent(for: request)
+        }
+        try await projected.loadAllRuntimeContent()
+        #expect(projected.transcript.map(\.id) == items.map(\.id))
+        #expect(projected.hasCompleteRuntimeTranscript)
+        let reads = transcriptReads
+        try await projected.loadAllRuntimeContent()
+        #expect(transcriptReads == reads)
+    }
+
     @Test func overviewShowsPendingApprovalWithoutAllowingAReplyBeforeDetailArrives() async throws {
         let approvalID = UUID(uuidString: "DAF84EF4-C6BC-407F-905A-C81D7540284B")!
         var snapshot = chatSnapshot(items: [

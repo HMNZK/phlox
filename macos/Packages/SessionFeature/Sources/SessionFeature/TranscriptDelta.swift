@@ -1,4 +1,5 @@
 import Foundation
+import AgentDomain
 import StructuredChatKit
 
 /// `/sessions/{id}/messages` の差分取得（契約6）結果。
@@ -9,11 +10,13 @@ public struct TranscriptDelta: Equatable {
     public let items: [ChatItem]
     public let cursor: String
     public let isSnapshot: Bool
+    public let statusTranscript: MobileStatusTranscript?
 
-    public init(items: [ChatItem], cursor: String, isSnapshot: Bool) {
+    public init(items: [ChatItem], cursor: String, isSnapshot: Bool, statusTranscript: MobileStatusTranscript? = nil) {
         self.items = items
         self.cursor = cursor
         self.isSnapshot = isSnapshot
+        self.statusTranscript = statusTranscript
     }
 }
 

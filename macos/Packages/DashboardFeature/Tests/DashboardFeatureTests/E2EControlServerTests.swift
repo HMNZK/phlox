@@ -216,8 +216,8 @@ private final class E2EControlDashboard: ControlActionDashboard {
     dashboard.sessionOutput(for: id)
   }
 
-  func sessionChatMessagesDelta(for id: SessionID, since: String?) -> TranscriptDelta? {
-    dashboard.controlMessagesDelta(for: id, since: since)
+  func sessionChatMessagesDelta(for id: SessionID, since: String?) async throws -> TranscriptDelta? {
+    try await dashboard.controlMessagesDelta(for: id, since: since)
   }
 
   func waitUntilReady(for id: SessionID, timeout: Duration) async -> DashboardViewModel.ReadinessResult {

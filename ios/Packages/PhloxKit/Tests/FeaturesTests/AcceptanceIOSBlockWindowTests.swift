@@ -55,6 +55,7 @@ private func flatten(_ slice: SessionDetailTranscriptBlockSlice) -> [ChatMessage
         switch visible.content {
         case .single(let message): [message]
         case .commandGroup(_, let items): items
+        case .statusCard: []
         }
     }
 }
@@ -211,6 +212,7 @@ struct AcceptanceIOSBlockWindowTests {
                 switch visible.content {
                 case .single(let message): [message]
                 case .commandGroup(_, let items): items
+        case .statusCard: []
                 }
             }
             #expect(Array(slice.visibleMessages) == flattened, "件数=\(messages.count)")

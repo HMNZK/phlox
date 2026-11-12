@@ -46,6 +46,8 @@ import SessionFeature
         private(set) var renamedTo: (id: SessionID, name: String)?
         var outputText: String?
         var ansiScreen: AnsiScreen?
+        var messagesError = false
+        var statusTranscript: MobileStatusTranscript?
         var chatMessages: [ChatItem]?
         var readiness: DashboardViewModel.ReadinessResult = .ready
         var doneResult: DashboardViewModel.DoneResult = .done(output: "")
@@ -93,9 +95,10 @@ import SessionFeature
             ansiScreen
         }
 
-        func sessionChatMessagesDelta(for id: SessionID, since: String?) -> TranscriptDelta? {
+        func sessionChatMessagesDelta(for id: SessionID, since: String?) async throws -> TranscriptDelta? {
+            if messagesError { throw SessionRuntimeContentError.staleContent }
             guard let items = chatMessages else { return nil }
-            return TranscriptDelta(items: items, cursor: "test-cursor", isSnapshot: false)
+            return TranscriptDelta(items: items, cursor: "test-cursor", isSnapshot: false, statusTranscript: statusTranscript)
         }
 
         func waitUntilReady(for id: SessionID, timeout: Duration) async -> DashboardViewModel.ReadinessResult {
@@ -412,6 +415,33 @@ import SessionFeature
         #expect(ordered.map(\.id) == [3, 1, 4, 0, 2].map { sessions[$0].id })
         #expect(ControlSessionSummary.orderedForSidebar(sessions, sessionIDs: []).map(\.id) == sessions.map(\.id))
         #expect(ControlSessionSummary.orderedForSidebar([], sessionIDs: sessions.map(\.id)).isEmpty)
+    }
+
+    @Test func messagesReadFailureReturnsServiceUnavailableInsteadOfIncompleteSuccess() async throws {
+        let dashboard = DashboardStub()
+        dashboard.messagesError = true
+        let response = await makeHandler(dashboard).handle(request(.messages(id: SessionID(), since: nil, wait: nil)))
+        #expect(response.statusCode == 503)
+        #expect(try bodyJSON(response)["error"] as? String == "messages temporarily unavailable")
+    }
+
+    @Test func messagesIncludeStatusProjectionWithoutReplacingLegacyMessages() async throws {
+        let dashboard = DashboardStub()
+        dashboard.chatMessages = [.agentMessage(id: "answer", text: "本文", timestamp: .distantPast)]
+        dashboard.statusTranscript = MobileStatusTranscript(blocks: [.messages(ids: ["answer"])])
+        let response = await makeHandler(dashboard).handle(request(.messages(id: SessionID(), since: nil, wait: nil)))
+        #expect(response.statusCode == 200)
+        let body = try bodyJSON(response)
+        #expect(body["cursor"] as? String == "test-cursor")
+        #expect(body["snapshot"] == nil)
+        let messages = try #require(body["messages"] as? [[String: Any]])
+        #expect(messages.count == 1)
+        #expect(messages.first?["id"] as? String == "answer")
+        let encoded = try JSONSerialization.data(withJSONObject: #require(body["statusTranscript"]))
+        #expect(try JSONDecoder().decode(MobileStatusTranscript.self, from: encoded) == dashboard.statusTranscript)
+        dashboard.statusTranscript = nil
+        let legacy = await makeHandler(dashboard).handle(request(.messages(id: SessionID(), since: nil, wait: nil)))
+        #expect(try bodyJSON(legacy)["statusTranscript"] == nil)
     }
 
     // MARK: - messages（GET /sessions/{id}/messages）

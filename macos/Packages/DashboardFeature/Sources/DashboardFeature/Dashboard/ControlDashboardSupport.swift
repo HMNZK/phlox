@@ -98,11 +98,16 @@ extension DashboardViewModel {
 
     /// 契約6: 構造化セッションの差分/全量 transcript。非構造化/不在は nil（→404）。
     /// 差分の健全性判定は ChatSessionViewModel.transcriptDelta(since:) が担う。
-    public func controlMessagesDelta(for id: SessionID, since: String?) -> TranscriptDelta? {
+    public func controlMessagesDelta(for id: SessionID, since: String?, locale: Locale = .current) async throws -> TranscriptDelta? {
         guard let appServer = sessionNodes.first(where: { $0.id == id })?.appServer else {
             return nil
         }
-        return appServer.transcriptDelta(since: since)
+        if appServer.isRuntimeProjection, !appServer.hasCompleteRuntimeTranscript {
+            try await appServer.loadAllRuntimeContent()
+        }
+        let delta = appServer.transcriptDelta(since: since)
+        return TranscriptDelta(items: delta.items, cursor: delta.cursor, isSnapshot: delta.isSnapshot,
+            statusTranscript: appServer.mobileStatusTranscript(locale: locale))
     }
 
     public func controlModelSettings(for id: SessionID) -> DashboardControlModelSettings? {

@@ -348,13 +348,15 @@ struct MessagesDeltaDTO: Decodable {
     let messages: [ChatMessageDTO]
     let cursor: String?
     let snapshot: Bool?
+    let statusTranscript: MobileStatusTranscript?
 
     func toDomain(since: String?) -> MessagesDelta {
         let isSnapshot = since == nil || snapshot == true
         return MessagesDelta(
             messages: messages.compactMap { $0.toDomain() },
             cursor: cursor,
-            isSnapshot: isSnapshot
+            isSnapshot: isSnapshot,
+            statusTranscript: statusTranscript
         )
     }
 }

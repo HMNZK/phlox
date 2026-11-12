@@ -23,10 +23,12 @@ public struct MessagesDelta: Sendable, Equatable {
     public let messages: [ChatMessage]
     public let cursor: String?
     public let isSnapshot: Bool
+    public let statusTranscript: MobileStatusTranscript?
 
-    public init(messages: [ChatMessage], cursor: String?, isSnapshot: Bool) {
+    public init(messages: [ChatMessage], cursor: String?, isSnapshot: Bool, statusTranscript: MobileStatusTranscript? = nil) {
         self.messages = messages
         self.cursor = cursor
         self.isSnapshot = isSnapshot
+        self.statusTranscript = statusTranscript
     }
 }

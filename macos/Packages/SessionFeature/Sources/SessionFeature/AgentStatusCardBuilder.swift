@@ -21,6 +21,7 @@ struct AgentStatusCard: Identifiable, Equatable, Sendable {
     let header: AgentStatusHeader
     /// タスクの行とタスク外の作業の行。タスクは最新のスナップショットの順、タスク外は時系列の位置。
     let rows: [AgentStatusRow]
+    var changeCounts: ChatFileChangePresentation.Counts? = nil
     var totalRowCount: Int? = nil
     var hasTask: Bool? = nil
 }
@@ -180,6 +181,15 @@ public struct AgentStatusAction: Identifiable, Equatable, Sendable {
         case tool(String)
         case subAgent(description: String, type: String, status: SubAgentStatus)
 
+        static func subAgentStatusText(_ status: SubAgentStatus, locale: Locale, bundle: Bundle = .main) -> String {
+            switch status {
+            case .running: AppLocalizedString.string("実行中", locale: locale, bundle: bundle)
+            case .completed: AppLocalizedString.string("完了", locale: locale, bundle: bundle)
+            case .failed: AppLocalizedString.string("失敗", locale: locale, bundle: bundle)
+            case .stopped: AgentStatusText.keyed("subagent.status.stopped", japanese: "停止", locale: locale, bundle: bundle)
+            }
+        }
+
         private static func endsWithJapanese(_ text: String) -> Bool {
             guard let scalar = text.unicodeScalars.last else { return false }
             switch scalar.value {
@@ -217,10 +227,13 @@ public struct AgentStatusAction: Identifiable, Equatable, Sendable {
                 return running ? format("%@ を実行中", shown) : shown
             case .tool(let name):
                 return format(running ? "%@ を実行中" : "%@ を実行", name)
-            case .subAgent(let description, _, _):
-                return description.isEmpty
+            case .subAgent(let description, let type, let status):
+                let subject = description.isEmpty
                     ? UIWording.text(.missingSubAgentDescription, languageCode: locale.language.languageCode?.identifier ?? "ja")
                     : description
+                return [AppLocalizedString.string("サブエージェント", locale: locale, bundle: bundle), subject,
+                    type, Self.subAgentStatusText(status, locale: locale, bundle: bundle)]
+                    .filter { !$0.isEmpty }.joined(separator: " · ")
             }
         }
     }
@@ -291,6 +304,37 @@ enum AgentStatusText {
     static func keyed(_ key: String, japanese: String, locale: Locale, bundle: Bundle) -> String {
         let text = AppLocalizedString.string(key, locale: locale, bundle: bundle)
         return text == key ? japanese : text
+    }
+}
+
+/// 確定した項目ごとの寄与。再受信・差分置換で同じ作業を重複加算しない。
+struct AgentStatusChangeCounts {
+    private var contributions: [String: ChatFileChangePresentation.Counts] = [:]
+    private var additions = 0
+    private var deletions = 0
+
+    init<Items: Sequence>(items: Items) where Items.Element == ChatItem {
+        for item in items { update(item) }
+    }
+
+    var counts: ChatFileChangePresentation.Counts? {
+        contributions.isEmpty ? nil : .init(additions: additions, deletions: deletions)
+    }
+
+    mutating func update(_ item: ChatItem) {
+        if let previous = contributions.removeValue(forKey: item.id) {
+            additions -= previous.additions
+            deletions -= previous.deletions
+        }
+        guard case .fileChange(_, let changes, _, .some) = item,
+              !changes.isEmpty, changes.allSatisfy({ !$0.diff.isEmpty }) else { return }
+        let counts = changes.reduce(ChatFileChangePresentation.Counts(additions: 0, deletions: 0)) { total, change in
+            let next = ChatMessageRenderCache.diffCounts(change.diff)
+            return .init(additions: total.additions + next.additions, deletions: total.deletions + next.deletions)
+        }
+        contributions[item.id] = counts
+        additions += counts.additions
+        deletions += counts.deletions
     }
 }
 
@@ -378,14 +422,17 @@ enum AgentStatusCardBuilder {
         let body = items[(segment.range.lowerBound + 1)..<segment.range.upperBound]
         var boundary = body.endIndex
         var firstReply = body.endIndex
-        var hasWork = false
+        var hasActivity = false
         var hasSnapshot = false
         for index in body.indices {
             switch body[index] {
             case .fileChange(_, let changes, _, _) where changes.isEmpty:
                 continue
             case .commandExecution, .fileChange, .subAgentMarker:
-                hasWork = true
+                hasActivity = true
+                boundary = min(boundary, index)
+            case .reasoning where isNonEmptyReasoning(body[index]):
+                hasActivity = true
                 boundary = min(boundary, index)
             case .taskList:
                 hasSnapshot = true
@@ -396,34 +443,32 @@ enum AgentStatusCardBuilder {
                 break
             }
         }
-        let hasCard = hasWork || (segment.running && firstReply == body.endIndex)
+        let hasCard = hasActivity || (segment.running && firstReply == body.endIndex)
             || (hasSnapshot && !shownTasks(body.compactMap(Snapshot.init), baseline: segment.baseline).isEmpty)
         guard hasCard else { return groupedBlockCount(items[segment.range]) }
 
         var above = 0
         for index in body.indices[..<boundary] {
             switch body[index] {
-            case .agentMessage, .reasoning: above += 1
+            case .agentMessage: above += 1
             case .turnCost where index < firstReply: above += 1
             default: break
             }
         }
         var below = 0
-        if !segment.running {
-            var index = body.endIndex
-            scan: while index > boundary {
-                index -= 1
-                switch body[index] {
-                case .fileChange(_, let changes, _, _) where changes.isEmpty:
-                    continue
-                case .turnCost:
-                    below += 1
-                case .agentMessage:
-                    below += 1
-                    break scan
-                default:
-                    break scan
-                }
+        var index = body.endIndex
+        scan: while index > boundary {
+            index -= 1
+            switch body[index] {
+            case .fileChange(_, let changes, _, _) where changes.isEmpty:
+                continue
+            case .turnCost:
+                below += 1
+            case .agentMessage:
+                below += 1
+                break scan
+            default:
+                break scan
             }
         }
         // 起点の入力・上の文章・カード・下の返答と使用量（どれもコマンドではないので 1 件 1 ブロック）。
@@ -523,28 +568,29 @@ enum AgentStatusCardBuilder {
             let shown = AgentStatusCardBuilder.shownTasks(snapshots, baseline: baseline)
             self.shown = shown
 
-            // 作業もタスクも無ければカードを出さない。実行中は、返答が届き始めるまで見出しだけのカードを出す（FR-2）。
+            // 思考・作業・タスクがあれば完了後もカードに残す。実行中は返答前なら見出しだけ出す。
             let firstReply = body.firstIndex { if case .agentMessage = $0 { true } else { false } }
-            hasCard = !shown.isEmpty || body.contains(where: AgentStatusCardBuilder.isWork) || (running && firstReply == nil)
+            hasCard = !shown.isEmpty || body.contains {
+                AgentStatusCardBuilder.isWork($0) || AgentStatusCardBuilder.isNonEmptyReasoning($0)
+            } || (running && firstReply == nil)
 
-            // 上: 最初の作業・スナップショットより前の文章と思考。前の入力の使用量（superseded の後に
+            // 上: 最初の思考・作業・スナップショットより前の文章。前の入力の使用量（superseded の後に
             // 追記された turnCost）も、最初の返答より前ならカードの中に入れず上に出す（B3 指摘 8）。
-            let boundary = body.firstIndex { AgentStatusCardBuilder.isWork($0) || Snapshot($0) != nil } ?? body.endIndex
+            let boundary = body.firstIndex {
+                AgentStatusCardBuilder.isWork($0) || AgentStatusCardBuilder.isNonEmptyReasoning($0) || Snapshot($0) != nil
+            } ?? body.endIndex
             above = body.indices[..<boundary].filter { index in
                 switch body[index] {
-                case .agentMessage, .reasoning: true
+                case .agentMessage: true
                 case .turnCost: index < (firstReply ?? body.endIndex)
                 default: false
                 }
             }
 
-            // 下: 実行中でないカードの、末尾の使用量と、その直前の最後の返答（FR-18）。終わり方の記録が
-            // 無い入力（古い会話・アプリの終了）でも同じ（2026-11-07 ユーザー決定。返答を閉じたカードに隠さない）。
+            // 下: 末尾の返答候補と使用量は生成中からカード外へ出す。後続作業が来れば途中本文として戻る。
             var belowStart = body.endIndex
-            if !running {
-                while belowStart > boundary, case .turnCost = body[belowStart - 1] { belowStart -= 1 }
-                if belowStart > boundary, case .agentMessage = body[belowStart - 1] { belowStart -= 1 }
-            }
+            while belowStart > boundary, case .turnCost = body[belowStart - 1] { belowStart -= 1 }
+            if belowStart > boundary, case .agentMessage = body[belowStart - 1] { belowStart -= 1 }
             self.belowStart = belowStart
         }
 
@@ -621,7 +667,8 @@ enum AgentStatusCardBuilder {
                 current: lastWorkID.flatMap { lastAction(containing: $0, in: rows) }.flatMap { $0.isRunning ? $0.label : nil },
                 startedAt: startedAt, turnEnd: turnEnd, running: running, liveState: liveState
             ),
-            rows: rows
+            rows: rows,
+            changeCounts: AgentStatusChangeCounts(items: segment.dropFirst()).counts
         )
         return ChatTranscriptGrouping.blocks(from: [segment[segment.startIndex]] + plan.above.map { body[$0] })
             + [.statusCard(card)]
@@ -708,6 +755,13 @@ enum AgentStatusCardBuilder {
         }
     }
 
+    static func isNonEmptyReasoning(_ item: ChatItem) -> Bool {
+        if case .reasoning(_, let text, _) = item {
+            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return false
+    }
+
     static func isEmptyFileChange(_ item: ChatItem) -> Bool {
         if case .fileChange(_, let changes, _, _) = item { changes.isEmpty } else { false }
     }
@@ -778,6 +832,7 @@ enum AgentStatusCardBuilder {
         }
 
         func append(_ item: ChatItem) {
+            if positions[item.id] != nil { replace(item); return }
             positions[item.id] = items.count
             items.append(item)
             contribute(item, sign: 1)
@@ -841,7 +896,16 @@ enum AgentStatusCardBuilder {
         }
 
         func materialize(running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusAction {
-            AgentStatusAction(items: items, label: label, state: state(running: running, turnEnd: turnEnd), duration: duration)
+            AgentStatusAction(items: items, label: resolvedLabel(running: running, turnEnd: turnEnd),
+                state: state(running: running, turnEnd: turnEnd), duration: duration)
+        }
+
+        func resolvedLabel(running: Bool, turnEnd: ChatTurnEnd?) -> AgentStatusAction.Label {
+            if case .subAgent(let description, let type, .running) = label,
+               state(running: running, turnEnd: turnEnd) == .interrupted {
+                return .subAgent(description: description, type: type, status: .stopped)
+            }
+            return label
         }
 
         var duration: TimeInterval? {
@@ -872,6 +936,12 @@ enum AgentStatusCardBuilder {
             case .fileChange(_, let changes, _, _) where isWrite(changes):
                 return .write(file: fileName(changes[0].path))
             case .fileChange:
+                // 実行中の対象名は、完了済み編集との集約で失わない。
+                var activeFiles: [String] = []
+                for case .fileChange(_, let changes, _, nil) in items {
+                    for change in changes where !activeFiles.contains(change.path) { activeFiles.append(change.path) }
+                }
+                if !activeFiles.isEmpty { return .edit(file: activeFiles.map(fileName).joined(separator: ", ")) }
                 return files.count == 1 ? .edit(file: fileName(files.keys.first!)) : .editFiles(count: files.count)
             case .commandExecution(_, let command, _, _, _, let intent):
                 if let intent { return .run(intent: intent) }

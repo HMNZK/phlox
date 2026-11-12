@@ -7,7 +7,13 @@ import AppKit
 import UIKit
 #endif
 
-/// イタリック体の短いラベルに、明度帯が左→右へ流れるシマーをかけて表示する（macOS / iOS 共有）。
+public enum ShimmerTextStyle: Sendable {
+    case italicLabel
+    case command
+    case file
+}
+
+/// ラベルに、明度帯が左→右へ流れるシマーをかけて表示する（macOS / iOS 共有）。
 /// 帯の形状・周期は `ShimmerBandModel`（ADR 0067 の凍結仕様）から算出する。
 ///
 /// 駆動方式はプラットフォームで分ける:
@@ -24,32 +30,36 @@ public struct ShimmerTextView: View {
     private let pointSize: CGFloat
     private let color: Color
     private let isVisible: Bool
+    private let style: ShimmerTextStyle
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameters:
-    ///   - text: 表示文字列（イタリックは本ビューが付ける）。
+    ///   - text: 表示文字列（既定スタイルのイタリックは本ビューが付ける）。
     ///   - font: SwiftUI 経路（iOS / 静止時）で使うフォント。イタリック指定は不要。
     ///   - pointSize: Core Animation 経路（macOS）で `CATextLayer` に渡す実寸。`font` と同じ大きさを渡す。
     ///   - color: 帯の基準色。明度で不透明度を変調する。
     ///   - isVisible: false の間はアニメーションを止める（オフスクリーンで CPU/GPU を焼かない）。
+    ///   - style: 既定は斜体ラベル。カードのコマンド／ファイルは非斜体で表示する。
     public init(
         text: String,
         font: Font,
         pointSize: CGFloat,
         color: Color,
-        isVisible: Bool = true
+        isVisible: Bool = true,
+        style: ShimmerTextStyle = .italicLabel
     ) {
         self.text = text
         self.font = font
         self.pointSize = pointSize
         self.color = color
         self.isVisible = isVisible
+        self.style = style
     }
 
     public var body: some View {
         Group {
-            if reduceMotion {
+            if reduceMotion || !isVisible {
                 staticText
             } else {
                 animatedText
@@ -61,7 +71,7 @@ public struct ShimmerTextView: View {
 
     private var staticText: some View {
         Text(text)
-            .font(font.italic())
+            .font(style == .italicLabel ? font.italic() : font)
             .foregroundStyle(color)
     }
 
@@ -71,18 +81,19 @@ public struct ShimmerTextView: View {
             text: text,
             pointSize: pointSize,
             color: color,
-            isVisible: isVisible
+            isVisible: isVisible,
+            style: style
         )
-        .fixedSize()
+        .fixedSize(horizontal: style == .italicLabel, vertical: true)
     }
     #else
     private var animatedText: some View {
         TimelineView(ShimmerTimelineSchedule(isVisible: isVisible)) { context in
             Text(text)
-                .font(font.italic())
+                .font(style == .italicLabel ? font.italic() : font)
                 .foregroundStyle(
                     LinearGradient(
-                        stops: Self.gradientStops(date: context.date, color: color),
+                        stops: Self.gradientStops(date: context.date, color: color, style: style),
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -91,8 +102,18 @@ public struct ShimmerTextView: View {
     }
 
     /// 帯中心を画面外余白まで逃がしたうえで、21 stop の明度を凍結 falloff から作る。
-    static func gradientStops(date: Date, color: Color) -> [Gradient.Stop] {
-        let center = ShimmerBandModel.bandCenter(phase: ShimmerBandModel.phase(date: date))
+    static func gradientStops(
+        date: Date, color: Color, style: ShimmerTextStyle = .italicLabel
+    ) -> [Gradient.Stop] {
+        let phase: Double
+        if style == .italicLabel {
+            phase = ShimmerBandModel.phase(date: date)
+        } else {
+            let period = ShimmerBandModel.cardSweepDuration + ShimmerBandModel.cardPauseDuration
+            let remainder = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period)
+            phase = min((remainder < 0 ? remainder + period : remainder) / ShimmerBandModel.cardSweepDuration, 1)
+        }
+        let center = ShimmerBandModel.bandCenter(phase: phase)
         return (0...20).map { index in
             let position = Double(index) / 20
             let brightness = ShimmerBandModel.brightness(position: position, phase: center)
@@ -141,19 +162,27 @@ struct ShimmerTextCanvas: NSViewRepresentable {
     let pointSize: CGFloat
     let color: Color
     let isVisible: Bool
+    let style: ShimmerTextStyle
 
     func makeNSView(context: Context) -> ShimmerTextHostView {
         ShimmerTextHostView(
             text: text,
             pointSize: pointSize,
             color: NSColor(color),
-            visible: isVisible
+            visible: isVisible,
+            style: style
         )
     }
 
     func updateNSView(_ nsView: ShimmerTextHostView, context: Context) {
         // 離散的な入力だけを反映する。ここでアニメを追加し直さないことが重要。
-        nsView.update(text: text, pointSize: pointSize, color: NSColor(color), visible: isVisible)
+        nsView.update(text: text, pointSize: pointSize, color: NSColor(color), visible: isVisible, style: style)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: ShimmerTextHostView, context: Context) -> CGSize? {
+        guard style != .italicLabel else { return nil }
+        let intrinsic = nsView.intrinsicContentSize
+        return CGSize(width: min(intrinsic.width, proposal.width ?? intrinsic.width), height: intrinsic.height)
     }
 }
 
@@ -171,14 +200,19 @@ public final class ShimmerTextHostView: NSView {
     private var pointSize: CGFloat
     private var color: NSColor
     private var isVisible: Bool
+    private var style: ShimmerTextStyle
     private var textSize: NSSize = .zero
     private var brightnesses: [Double] = []
 
-    init(text: String, pointSize: CGFloat, color: NSColor, visible: Bool) {
+    init(
+        text: String, pointSize: CGFloat, color: NSColor, visible: Bool,
+        style: ShimmerTextStyle = .italicLabel
+    ) {
         self.text = text
         self.pointSize = pointSize
         self.color = color
         self.isVisible = visible
+        self.style = style
         super.init(frame: .zero)
         wantsLayer = true
         configureLayers()
@@ -203,12 +237,20 @@ public final class ShimmerTextHostView: NSView {
         )
     }
 
-    func update(text: String, pointSize: CGFloat, color: NSColor, visible: Bool) {
+    func update(
+        text: String, pointSize: CGFloat, color: NSColor, visible: Bool, style: ShimmerTextStyle
+    ) {
         if !self.color.isEqual(color) {
             self.color = color
             updateGradientColors()
         }
-        if self.text != text || self.pointSize != pointSize {
+        let styleChanged = self.style != style
+        if styleChanged {
+            self.style = style
+            addShimmerAnimation()
+            applyVisibility()
+        }
+        if self.text != text || self.pointSize != pointSize || styleChanged {
             self.text = text
             self.pointSize = pointSize
             updateTextMetrics()
@@ -239,13 +281,21 @@ public final class ShimmerTextHostView: NSView {
         gradientContainer.addSublayer(gradient)
 
         textMask.alignmentMode = .left
+        textMask.truncationMode = .end
+        textMask.isWrapped = false
         textMask.foregroundColor = NSColor.white.cgColor
         textMask.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         layer?.mask = textMask
     }
 
     private func updateTextMetrics() {
-        let font = italicSystemFont(size: pointSize)
+        let font: NSFont
+        switch style {
+        case .italicLabel: font = italicSystemFont(size: pointSize)
+        case .command: font = .monospacedSystemFont(ofSize: pointSize, weight: .regular)
+        case .file: font = .systemFont(ofSize: pointSize)
+        }
+        setContentCompressionResistancePriority(style == .italicLabel ? .defaultHigh : .defaultLow, for: .horizontal)
         textMask.string = text
         textMask.font = font
         textMask.fontSize = font.pointSize
@@ -280,10 +330,21 @@ public final class ShimmerTextHostView: NSView {
         // locations は常に [0, 1]。幅広い勾配を正規化座標で並進する。
         // 両端では勾配がホスト全域を覆ったまま帯の中心だけが画面外へ抜けるため、
         // 周期末の右端→左端への瞬間移動はテキスト内に現れない。
-        let shimmer = CABasicAnimation(keyPath: "position.x")
-        shimmer.fromValue = -ShimmerBandModel.margin
-        shimmer.toValue = 1 + ShimmerBandModel.margin
-        shimmer.duration = ShimmerBandModel.period
+        let shimmer: CAPropertyAnimation
+        if style == .italicLabel {
+            let sweep = CABasicAnimation(keyPath: "position.x")
+            sweep.fromValue = -ShimmerBandModel.margin
+            sweep.toValue = 1 + ShimmerBandModel.margin
+            sweep.duration = ShimmerBandModel.period
+            shimmer = sweep
+        } else {
+            let sweep = CAKeyframeAnimation(keyPath: "position.x")
+            let period = ShimmerBandModel.cardSweepDuration + ShimmerBandModel.cardPauseDuration
+            sweep.values = [-ShimmerBandModel.margin, 1 + ShimmerBandModel.margin, 1 + ShimmerBandModel.margin]
+            sweep.keyTimes = [0, NSNumber(value: ShimmerBandModel.cardSweepDuration / period), 1]
+            sweep.duration = period
+            shimmer = sweep
+        }
         shimmer.repeatCount = .infinity
         shimmer.timingFunction = CAMediaTimingFunction(name: .linear)
         shimmer.isRemovedOnCompletion = false
@@ -381,15 +442,15 @@ public extension ShimmerTextHostView {
     var maskFontPointSizeForTesting: CGFloat { textMask.fontSize }
 
     func setVisibleForTesting(_ visible: Bool) {
-        update(text: text, pointSize: pointSize, color: color, visible: visible)
+        update(text: text, pointSize: pointSize, color: color, visible: visible, style: style)
     }
 
     func updateColorForTesting(_ color: NSColor) {
-        update(text: text, pointSize: pointSize, color: color, visible: isVisible)
+        update(text: text, pointSize: pointSize, color: color, visible: isVisible, style: style)
     }
 
     func updateTextForTesting(_ text: String) {
-        update(text: text, pointSize: pointSize, color: color, visible: isVisible)
+        update(text: text, pointSize: pointSize, color: color, visible: isVisible, style: style)
     }
 
     var appliedTextColorForTesting: NSColor? { color }

@@ -56,6 +56,7 @@ final class ContentMemoCache<Value>: @unchecked Sendable {
 /// 各キャッシュはグローバルの `static let`（非観測）で、内容同一性をキーにする。
 enum ChatMessageRenderCache {
     static let markdownCache = ContentMemoCache<[ChatMarkdownBlock]>()
+    static let diffCountsCache = ContentMemoCache<ChatFileChangePresentation.Counts>()
     static let diffCache = ContentMemoCache<[ClassifiedDiffLine]>()
     static let highlightCache = ContentMemoCache<AttributedString>()
     static let diffCodeCache = ContentMemoCache<DiffCodeViewData>()
@@ -72,6 +73,12 @@ enum ChatMessageRenderCache {
     /// diff 行分類（`DiffLineClassifier.classify` をメモ化）。
     static func diffLines(_ diff: String) -> [ClassifiedDiffLine] {
         diffCache.value(for: diff) { DiffLineClassifier.classify($0) }
+    }
+
+    static func diffCounts(_ diff: String) -> ChatFileChangePresentation.Counts {
+        diffCountsCache.value(for: diff) {
+            ChatFileChangePresentation.counts(for: [ChatFilePatch(path: "", diff: $0, kind: nil)])
+        }
     }
 
     /// シンタックスハイライト（`ChatCodeHighlighter.computeHighlight` をメモ化）。

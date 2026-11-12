@@ -448,7 +448,7 @@ import os
         #expect(projected.runtimeChatRead.historyError == nil)
     }
 
-    @Test func aCardExternalReasoningJumpUsesTheReturnedBlockInsteadOfAnUnloadedInputHeader() async throws {
+    @Test func aReasoningJumpRevealsItsCardAndEntryInsteadOfAnUnloadedInputHeader() async throws {
         let reasoning = (0..<70).map { ChatItem.reasoning(id: "wide-reasoning-\($0)", text: "説明 \($0)", timestamp: .distantPast) }
         let source = source(items: [.userMessage(id: "input", text: "考えて実行", timestamp: .distantPast, attachments: [])]
             + reasoning + [.commandExecution(id: "work", command: "echo done", output: "結果", timestamp: .distantPast)], running: true)
@@ -458,8 +458,9 @@ import os
         try await projected.loadRuntimeChatRead(target: .chatReadAroundItem(itemID: "wide-reasoning-68"))
         let page = try #require(projected.runtimeChatRead.page)
 
-        #expect(page.revealTarget?.scrollTargetID == "wide-reasoning-68")
-        #expect(page.blocks.first?.id == "wide-reasoning-68")
+        #expect(page.revealTarget?.scrollTargetID == "status-card-input")
+        #expect(page.revealTarget?.entryID == "wide-reasoning-68")
+        #expect(page.blocks.first?.id == "status-card-input")
         #expect(!page.blocks.contains { $0.id == "input" })
     }
 

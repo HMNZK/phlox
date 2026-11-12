@@ -128,17 +128,17 @@ struct AgentStatusCardSegmentTests {
         #expect(blockShape(blocks) == ["u1", "a1", "c1"])
     }
 
-    @Test("実行中で返答がまだ無い入力には、見出しだけのカードを出す")
+    @Test("実行中の先頭思考はカード内に表示する")
     func runningWithoutReplyShowsHeaderOnlyCard() {
         let items = [user("u1", at: 0), thought("r1")]
 
         let blocks = AgentStatusCardBuilder.build(items: items, liveState: live(processing: true, activity: .thinking))
 
-        #expect(blockShape(blocks) == ["u1", "r1", "card"])
+        #expect(blockShape(blocks) == ["u1", "card"])
         let card = cards(blocks)[0]
         #expect(card.header.state == .running)
         #expect(card.header.activityState == .thinking)
-        #expect(card.rows.isEmpty)
+        #expect(rowShape(card) == ["o:r1"])
     }
 
     @Test("実行中でも、作業の無いまま返答が届き始めたらカードを出さない（FR-2）")
@@ -351,7 +351,7 @@ struct AgentStatusCardAssignmentTests {
 
 @Suite("状態カード: カードの上・中・下（FR-16〜FR-18）")
 struct AgentStatusCardPlacementTests {
-    @Test("最初の作業より前の文章と思考は上、最後の返答と使用量は終わったら下に出る")
+    @Test("導入文は上、思考と作業はカード内、最後の返答と使用量は下に出る")
     func finishedCardSplitsAboveInsideBelow() {
         let items = [
             user("u1", at: 0, end: ended(.completed, at: 13)),
@@ -364,12 +364,12 @@ struct AgentStatusCardPlacementTests {
 
         let blocks = AgentStatusCardBuilder.build(items: items, liveState: idle)
 
-        #expect(blockShape(blocks) == ["u1", "a0", "r0", "card", "a1", "k1"])
-        #expect(cards(blocks).map(rowShape) == [["o:c1"]])
+        #expect(blockShape(blocks) == ["u1", "a0", "card", "a1", "k1"])
+        #expect(cards(blocks).map(rowShape) == [["o:r0,c1"]])
     }
 
-    @Test("実行中は最後の返答もカードの中に出る")
-    func runningCardKeepsLatestReplyInside() {
+    @Test("実行中から最後の返答をカードの外に出す")
+    func runningCardKeepsLatestReplyOutside() {
         let items = [
             user("u1", at: 0),
             command("c1", "Read /p/a.swift", at: 1, done: 2),
@@ -378,12 +378,12 @@ struct AgentStatusCardPlacementTests {
 
         let blocks = AgentStatusCardBuilder.build(items: items, liveState: live(processing: true))
 
-        #expect(blockShape(blocks) == ["u1", "card"])
-        #expect(cards(blocks).map(rowShape) == [["o:c1,a1"]])
+        #expect(blockShape(blocks) == ["u1", "card", "a1"])
+        #expect(cards(blocks).map(rowShape) == [["o:c1"]])
     }
 
-    @Test("最新の入力が終わっていても、バックグラウンドが動いている間は返答をカードの中に残す")
-    func processingAfterTurnEndKeepsReplyInside() {
+    @Test("バックグラウンドが動いていても返答と使用量はカード外へ出す")
+    func processingAfterTurnEndKeepsReplyOutside() {
         let items = [
             user("u1", at: 0, end: ended(.completed, at: 13)),
             command("c1", "Read /p/a.swift", at: 1, done: 2),
@@ -393,7 +393,7 @@ struct AgentStatusCardPlacementTests {
 
         let blocks = AgentStatusCardBuilder.build(items: items, liveState: live(processing: true))
 
-        #expect(blockShape(blocks) == ["u1", "card"])
+        #expect(blockShape(blocks) == ["u1", "card", "a1", "k1"])
     }
 
     @Test("最後の item が返答でなければ、使用量だけを下に出し、作業はカードの中に残す")
@@ -449,7 +449,7 @@ struct AgentStatusCardPlacementTests {
 
         let blocks = AgentStatusCardBuilder.build(items: items, liveState: live(processing: true))
 
-        #expect(blockShape(blocks) == ["u1", "card", "a1", "u2", "card"])
+        #expect(blockShape(blocks) == ["u1", "card", "a1", "u2", "card", "a2"])
     }
 }
 
@@ -995,7 +995,7 @@ struct AgentStatusCardActionTextTests {
         let row = rows([marker]).first
 
         #expect(row?.label == .subAgent(description: "呼び出し元の洗い出し", type: "Explore", status: .completed))
-        #expect(row?.text(locale: ja) == "呼び出し元の洗い出し")
+        #expect(row?.text(locale: ja) == "サブエージェント · 呼び出し元の洗い出し · Explore · 完了")
     }
 
     @Test("英語の文言は xcstrings から引ける")
@@ -1099,19 +1099,21 @@ struct AgentStatusCardAfterAllTasksTests {
         agent("a1", "完了しました"),
     ]
 
-    @Test("作業が 0 件の文章は、見出しの無い文章として元の位置（ここでは一覧の末尾）に出す")
-    func replyAfterAllTasksIsTextOnlyAtTheEnd() throws {
-        let card = try #require(onlyCard(items, live(processing: true)))
+    @Test("全タスク後の末尾回答は生成中からカード外に出る")
+    func replyAfterAllTasksIsOutsideFromFirstDelta() throws {
+        let blocks = AgentStatusCardBuilder.build(items: items, liveState: live(processing: true))
+        let card = try #require(cards(blocks).first)
 
-        #expect(rowShape(card) == ["o:c1,c2", "t:A", "o:a1"])
-        #expect(card.rows.map(\.isTextOnly) == [false, false, true])
-        #expect(card.entryID(containing: "a1") == "a1")
+        #expect(blockShape(blocks) == ["u1", "card", "a1"])
+        #expect(rowShape(card) == ["o:c1,c2", "t:A"])
+        #expect(card.rows.map(\.isTextOnly) == [false, false])
+        #expect(card.entryID(containing: "a1") == nil)
     }
 
     @Test("前のタスク外の行は、タスクがある間は開き直さない。実行中の作業を含む行と進行中のタスクだけ開く")
     func autoExpansionDoesNotReopenEarlierOutsideRow() throws {
         let done = try #require(onlyCard(items, live(processing: true)))
-        #expect(done.rows.map { AgentStatusCardDisclosure.isAutoExpanded($0, in: done) } == [false, false, false])
+        #expect(done.rows.map { AgentStatusCardDisclosure.isAutoExpanded($0, in: done) } == [false, false])
 
         let running = try #require(onlyCard(
             Array(items.dropLast()) + [command("c3", "sleep 9", at: 9)], live(processing: true)
@@ -1175,7 +1177,8 @@ struct AgentStatusCardAfterAllTasksTests {
 
     @Test("文章だけの行の分は、描画の予算に足す")
     func textOnlyRowsAreCountedInTheRenderBudget() throws {
-        let card = try #require(onlyCard(items, live(processing: true)))
+        let progressItems = items + [snapshot("s3", [("A", "実装する", .completed)], at: 9)]
+        let card = try #require(onlyCard(progressItems, live(processing: true)))
         #expect(card.rows.map(\.isTextOnly) == [false, false, true])
 
         #expect(TranscriptRenderBudget.weight(of: .statusCard(card))
@@ -1184,8 +1187,8 @@ struct AgentStatusCardAfterAllTasksTests {
             + 1 * TranscriptRenderBudget.statusCardEntryUnits)
     }
 
-    @Test("終わった後は、返答がカードの下へ移る（今の動きのまま）")
-    func finishedCardMovesReplyBelow() throws {
+    @Test("終わった後も、返答はカードの下に残る")
+    func finishedCardKeepsReplyBelow() throws {
         var finished = items
         finished[0] = user("u1", at: 0, end: ended(.completed, at: 9))
         let blocks = AgentStatusCardBuilder.build(items: finished, liveState: idle)

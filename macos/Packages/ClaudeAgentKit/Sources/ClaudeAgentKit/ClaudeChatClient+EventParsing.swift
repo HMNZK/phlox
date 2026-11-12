@@ -145,6 +145,16 @@ extension ClaudeChatClient {
         case "content_block_start":
             guard let block = event["content_block"] as? [String: Any] else { return }
             guard let blockType = block["type"] as? String else { return }
+            let index = event["index"] as? Int ?? 0
+            let key = partialBlockKey(parentToolUseId, index: index)
+            partialFileChangesByKey.removeValue(forKey: key)
+            if parentToolUseId == nil,
+               blockType == "tool_use",
+               let toolUseId = block["id"] as? String,
+               let name = block["name"] as? String,
+               ["Edit", "Write", "MultiEdit"].contains(name) {
+                partialFileChangesByKey[key] = PartialFileChange(itemId: toolUseId, toolName: name)
+            }
             if parentToolUseId != nil,
                blockType == "tool_use",
                let toolUseId = block["id"] as? String,
@@ -157,6 +167,18 @@ extension ClaudeChatClient {
             let index = event["index"] as? Int ?? 0
             guard let delta = event["delta"] as? [String: Any] else { return }
             switch delta["type"] as? String {
+            case "input_json_delta":
+                let key = partialBlockKey(parentToolUseId, index: index)
+                guard let json = delta["partial_json"] as? String,
+                      var partial = partialFileChangesByKey.removeValue(forKey: key)
+                else { return }
+                if let path = partial.append(json) {
+                    eventContinuation.yield(.fileChange(itemId: partial.itemId, [
+                        FilePatchChange(path: path, diff: "", kind: partial.kind),
+                    ]))
+                } else {
+                    partialFileChangesByKey[key] = partial
+                }
             case "text_delta":
                 guard let text = delta["text"] as? String, !text.isEmpty else { return }
                 yieldPartialContent(
@@ -178,6 +200,9 @@ extension ClaudeChatClient {
             default:
                 break
             }
+        case "content_block_stop":
+            let index = event["index"] as? Int ?? 0
+            partialFileChangesByKey.removeValue(forKey: partialBlockKey(parentToolUseId, index: index))
         default:
             break
         }
@@ -244,6 +269,7 @@ extension ClaudeChatClient {
 
     func removePartialBlocks(for parentKey: String) {
         let prefix = "\(parentKey)|"
+        partialFileChangesByKey = partialFileChangesByKey.filter { !$0.key.hasPrefix(prefix) }
         let removedItemIds = partialItemIdsByKey
             .filter { $0.key.hasPrefix(prefix) }
             .map(\.value)

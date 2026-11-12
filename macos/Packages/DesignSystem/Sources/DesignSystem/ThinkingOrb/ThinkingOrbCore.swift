@@ -1,6 +1,17 @@
 import CoreGraphics
 import Foundation
 
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
+
+public enum ThinkingOrbColorStyle: Sendable {
+    case monochrome
+    case rainbow
+}
+
 // thinking-orbs (MIT, Copyright (c) 2026 Jakub Antalik) の描画エンジンを Swift へ移植したもの。
 // 原実装は Canvas 2D。ここでは同じ数式のまま CoreGraphics へ描く（THIRD_PARTY_NOTICES.md 参照）。
 
@@ -70,14 +81,31 @@ enum OrbMath {
 
 enum OrbPainter {
     /// 奥→手前に z ソートして塗る。暗い下地ではインク値を反転し、手前の点が明るく読めるようにする。
-    static func paint(_ dots: [OrbDot], into context: CGContext, dark: Bool, minRadius: Double) {
+    static func paint(
+        _ dots: [OrbDot], into context: CGContext, dark: Bool, minRadius: Double,
+        colorStyle: ThinkingOrbColorStyle, size: Double, time: Double
+    ) {
         for dot in dots.sorted(by: { $0.z < $1.z }) {
             let alpha = dot.alpha
             if alpha < 0.02 { continue }
             let w = min(1, max(0, dot.white))
             let g = (dark ? 1 - w : w)
             let radius = max(minRadius, dot.r)
-            context.setFillColor(red: g, green: g, blue: g, alpha: alpha)
+            switch colorStyle {
+            case .monochrome:
+                context.setFillColor(red: g, green: g, blue: g, alpha: alpha)
+            case .rainbow:
+                // 同じ色の帯が画面左上から右下へ進む。点の位置と深度は既存描画のまま保つ。
+                let phase = ((dot.x + dot.y) / (2 * size) - time * 0.1).truncatingRemainder(dividingBy: 1)
+                let hue = phase < 0 ? phase + 1 : phase
+                let brightness = dark ? 0.45 + 0.55 * g : 0.35 + 0.5 * g
+                #if canImport(AppKit)
+                let color = NSColor(calibratedHue: hue, saturation: 0.75, brightness: brightness, alpha: alpha)
+                #elseif canImport(UIKit)
+                let color = UIColor(hue: hue, saturation: 0.75, brightness: brightness, alpha: alpha)
+                #endif
+                context.setFillColor(color.cgColor)
+            }
             context.fillEllipse(
                 in: CGRect(
                     x: dot.x - radius,

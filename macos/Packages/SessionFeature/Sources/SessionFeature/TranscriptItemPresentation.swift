@@ -56,9 +56,9 @@ struct TranscriptItemPresentation: Equatable, Sendable {
             isVisible: visible,
             classification: .detail,
             heading: "思考",
-            subtitle: summary,
-            isCollapsible: true,
-            defaultExpanded: false,
+            subtitle: nil,
+            isCollapsible: false,
+            defaultExpanded: visible,
             semanticInk: .process,
             expandedBody: text
         )

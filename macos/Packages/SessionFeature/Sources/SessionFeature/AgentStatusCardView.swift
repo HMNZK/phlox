@@ -150,6 +150,7 @@ struct AgentStatusCardView: View, Equatable {
                 isAnimating: isTimelineVisible && !isStill,
                 isTimelineVisible: isTimelineVisible,
                 isNarrow: isNarrow,
+                changeCounts: card.changeCounts,
                 hangAssessment: hangAssessment,
                 onInterrupt: onInterrupt
             )

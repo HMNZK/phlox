@@ -359,7 +359,7 @@ import os
         #expect(projected.runtimeChatRead.page?.blocks.last?.id == "message-999")
     }
 
-    @Test func aLiveTaskBeyondTheFirstPageOpensAtItsLatestActivities() async throws {
+    @Test func aLiveLaterTaskOpensAtItsLatestActivitiesAmongEveryTaskRow() async throws {
         let tasks = (0..<12).map { number in
             AgentTaskItem(id: "task-\(number)", title: "工程 \(number)", status: number == 11 ? .inProgress : .pending)
         }
@@ -379,7 +379,7 @@ import os
         let cache = try #require(projected.runtimeChatRead.cards["input"])
         let presentation = RuntimeStatusCardPresentation(inputID: "input", cache: cache, viewModel: projected)
 
-        #expect(presentation.card.rows.first?.id == "task-task-11")
+        #expect(presentation.card.rows.map(\.id) == tasks.map { "task-" + $0.id })
         #expect(cache.entries["task-task-11"]?.entries.first?.id == "work-70")
         #expect(cache.entries["task-task-11"]?.entries.last?.id == "work-119")
         #expect(cache.rows.card.totalRowCount == 12)

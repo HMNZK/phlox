@@ -36,6 +36,7 @@ public struct SessionRuntimeContentRequest: Codable, Sendable {
         case chatReadAfter(cursor: SessionRuntimeChatReadCursor)
         case chatReadAround(inputID: String)
         case chatReadAroundItem(itemID: String)
+        /// 1.14.11 の画面が送るので実行サービスは受け付ける。今の画面は使わない（ADR 0234）。
         case chatCardRowsAround(inputID: String, rowID: String)
         case chatRowEntriesAround(inputID: String, rowID: String, entryID: String)
         case chatCardRows(inputID: String, cursor: SessionRuntimeChatReadCursor?)

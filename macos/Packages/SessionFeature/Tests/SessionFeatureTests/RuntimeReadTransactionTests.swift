@@ -201,7 +201,26 @@ import Testing
         #expect(pair.projected.runtimeChatRead.page?.blocks.last?.id == "status-card-input-90")
     }
 
-    @Test func aManualRowMoveWinsOverABackgroundTransactionThatIsStillReadingTheTimeline() async throws {
+    /// ADR 0234: 進行中のタスクが後ろにあっても、行ページをまたいで全タスクを表示する。
+    @Test func theCardShowsEveryTaskRowAcrossRowPages() async throws {
+        let tasks = (0..<80).map {
+            AgentTaskItem(id: "stage-\($0)", title: "工程 \($0)", status: $0 == 70 ? .inProgress : .pending)
+        }
+        let source = source(items: [
+            .userMessage(id: "input", text: "多数の工程", timestamp: .distantPast, attachments: []),
+            .taskList(id: "tasks", tasks: tasks, timestamp: .distantPast),
+        ])
+        let projected = projection(source)
+        try await projected.refreshRuntimeChatRead()
+        try await projected.loadRuntimeCardRows("input")
+
+        let cache = try #require(projected.runtimeChatRead.cards["input"])
+        let shown = RuntimeStatusCardPresentation(inputID: "input", cache: cache, viewModel: projected).card.rows
+        #expect(shown.map(\.id) == tasks.map { "task-" + $0.id })
+        #expect(cache.rows.nextCursor == nil)
+    }
+
+    @Test func anExplicitRowReadDuringABackgroundTransactionKeepsEveryTaskRow() async throws {
         let tasks = (0..<12).map {
             AgentTaskItem(id: "stage-\($0)", title: "工程 \($0)", status: $0 == 0 ? .inProgress : .pending)
         }
@@ -211,7 +230,6 @@ import Testing
         ])
         let projected = projection(source)
         try await projected.refreshRuntimeChatRead()
-        try await projected.loadRuntimeCardRows("input", navigation: .first)
         var changed = source.makeRuntimeSnapshot()
         changed.transcriptRevision = 8
         let updated = ChatSessionViewModel(projection: changed) { _, _ in .none }
@@ -231,14 +249,13 @@ import Testing
         await held.waitForRequest()
 
         let release = Task { held.release(reply) }
-        try await projected.loadRuntimeCardRows("input", navigation: .next)
+        try await projected.loadRuntimeCardRows("input")
         await release.value
         try await refreshing.value
         let deadline = ContinuousClock.now + .seconds(3)
         while projected.runtimeChatRead.page?.transcriptRevision != 8, ContinuousClock.now < deadline { await Task.yield() }
 
-        #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.first?.id == "task-stage-8")
-        #expect(projected.runtimeChatRead.cards["input"]?.isRowWindowManual == true)
+        #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.map(\.id) == tasks.map { "task-" + $0.id })
         #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
     }
 
@@ -263,7 +280,7 @@ import Testing
         await held.waitForRequest()
 
         let release = Task { held.release(reply) }
-        try await projected.loadRuntimeCardRows("input-127", navigation: .first)
+        try await projected.loadRuntimeCardRows("input-127")
         await release.value
         try await jumping.value
 
@@ -479,7 +496,7 @@ import Testing
         await held.waitForRequest()
 
         let release = Task { held.release(reply) }
-        try await projected.loadRuntimeCardRows("input-127", navigation: .first)
+        try await projected.loadRuntimeCardRows("input-127")
         await release.value
         try await moving.value
 
@@ -487,8 +504,8 @@ import Testing
         #expect(projected.runtimeChatRead.page?.blocks.first?.id == "input-78")
     }
 
-    @Test(arguments: [0, 1, 2])
-    func deletingTheFirstRowOfAManualWindowRecoversToExistingRows(mode: Int) async throws {
+    @Test(arguments: ["stage-0", "stage-8"])
+    func deletingALoadedRowKeepsEveryRemainingRow(removed: String) async throws {
         let tasks = (0..<12).map {
             AgentTaskItem(id: "stage-\($0)", title: "工程 \($0)", status: $0 == 0 ? .inProgress : .pending)
         }
@@ -498,14 +515,6 @@ import Testing
         ])
         let projected = projection(source)
         try await projected.refreshRuntimeChatRead()
-        switch mode {
-        case 0: try await projected.loadRuntimeCardRows("input", navigation: .first)
-        case 1: try await projected.loadRuntimeCardRows("input", navigation: .around("task-stage-8"))
-        default:
-            try await projected.loadRuntimeCardRows("input", navigation: .first)
-            try await projected.loadRuntimeCardRows("input", navigation: .next)
-        }
-        let removed = mode == 0 ? "stage-0" : "stage-8"
         try await projected.loadRuntimeCardEntries("input", rowID: "task-" + removed)
         var changed = source.makeRuntimeSnapshot()
         changed.transcript[1] = .taskList(id: "tasks", tasks: tasks.filter { $0.id != removed }, timestamp: .distantPast)
@@ -516,7 +525,8 @@ import Testing
         try await projected.refreshRuntimeChatRead()
 
         #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
-        #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.first?.id == (mode == 0 ? "task-stage-1" : "task-stage-0"))
+        #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.map(\.id)
+            == tasks.filter { $0.id != removed }.map { "task-" + $0.id })
         #expect(projected.runtimeChatRead.cards["input"]?.entries["task-" + removed] == nil)
         #expect(projected.runtimeChatRead.error == nil)
     }
@@ -532,7 +542,6 @@ import Testing
         ])
         let projected = projection(source)
         try await projected.refreshRuntimeChatRead()
-        try await projected.loadRuntimeCardRows("input", navigation: .around("task-stage-8"))
         var changed = source.makeRuntimeSnapshot()
         changed.transcript = [
             .userMessage(id: "input", text: "最後の更新", timestamp: started, attachments: [],
@@ -559,7 +568,7 @@ import Testing
 
         let release = Task { held.release(response) }
         await #expect(throws: SessionRuntimeContentError.staleContent) {
-            try await projected.loadRuntimeCardRows("input", navigation: .around("task-stage-8"))
+            try await projected.loadRuntimeCardRows("input")
         }
         await release.value
         try await background.value
@@ -568,8 +577,7 @@ import Testing
 
         #expect(projected.runtimeChatRead.page?.transcriptRevision == 8)
         #expect(projected.runtimeChatRead.cards["input"]?.rows.card.header.state == .completed)
-        #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.first?.id == "task-stage-8")
-        #expect(projected.runtimeChatRead.cards["input"]?.isRowWindowManual == true)
+        #expect(projected.runtimeChatRead.cards["input"]?.rows.rows.count == 12)
         #expect(projected.runtimeChatRead.error == nil)
     }
 
@@ -602,7 +610,7 @@ import Testing
         let failure = try #require(projected.runtimeChatRead.cards["input"]?.error)
         projected.runtimeContentLoader = { try await source.runtimeChatReadContent(for: $0) }
 
-        try await projected.loadRuntimeCardRows("input", navigation: .first)
+        try await projected.loadRuntimeCardRows("input")
         try await projected.refreshRuntimeChatRead()
 
         #expect(projected.runtimeChatRead.cards["input"]?.error == failure)

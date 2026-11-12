@@ -124,15 +124,9 @@ private struct RuntimeInputRecallRequest {
     let epoch: UUID
 }
 
-enum RuntimeCardRowNavigation {
-    case refresh, next, first, active, around(String)
-}
-
 struct RuntimeCardReadCache: Sendable, Equatable {
-    var isRowWindowManual = false
-    var startsAtBeginning = true
+    /// カードの全タスク行（続きカーソルをたどって集めたもの。`nextCursor` は常に nil。ADR 0234）。
     var rows: SessionRuntimeCardRowsPage
-    var rowOffset = 0
     var entryIsLatest: [String: Bool] = [:]
     var entryStartIDs: [String: String] = [:]
     var actionPageOffsets: [String: Int] = [:]
@@ -505,15 +499,13 @@ extension ChatSessionViewModel {
     }
 
     private func preparedRuntimeCard(_ summary: SessionRuntimeCardSummary, old: RuntimeCardReadCache?,
-                                     navigation: RuntimeCardRowNavigation = .refresh,
                                      force: Bool = false,
                                      context: RuntimeReadTransactionContext? = nil) async throws -> RuntimeCardReadCache {
         try validateRuntimeReadContext(context)
-        if !force, case .refresh = navigation, let old, old.rows.card.revision == summary.revision,
+        if !force, let old, old.rows.card.revision == summary.revision,
            old.rows.card.contentRevision >= summary.contentRevision { return old }
         let parents = context?.parents ?? RuntimeReadParentVerification()
-        var prepared = try await fetchedRuntimeCardRows(summary, old: old, navigation: navigation,
-            context: context, parents: parents)
+        var prepared = try await fetchedRuntimeCardRows(summary, old: old)
         prepared.failure = old?.failure
         try validateRuntimeReadContext(context)
         guard let old else { return prepared }
@@ -764,22 +756,14 @@ extension ChatSessionViewModel {
         }
     }
 
-    func loadRuntimeCardRows(_ inputID: String, navigation: RuntimeCardRowNavigation = .refresh) async throws {
+    func loadRuntimeCardRows(_ inputID: String) async throws {
         let old = runtimeChatRead.cards[inputID]
-        if case .next = navigation, old?.rows.nextCursor == nil,
-           (old?.rowOffset ?? 0) + 8 >= (old?.rows.rows.count ?? 0) { return }
         let summary = runtimeChatRead.page?.blocks.compactMap { block -> SessionRuntimeCardSummary? in
             if case .card(let value) = block.content, value.inputID == inputID { value } else { nil }
         }.first ?? old?.rows.card
         guard let summary else { throw SessionRuntimeContentError.notFound }
         try await performRuntimeCardRead(.rows(inputID), revision: summary.revision) { operation in
-            if case .next = navigation, let old, old.rowOffset + 8 < old.rows.rows.count {
-                runtimeChatRead.cards[inputID]?.rowOffset += 8
-                runtimeChatRead.cards[inputID]?.isRowWindowManual = true
-                runtimeChatRead.cards[inputID]?.version &+= 1
-                return
-            }
-            var prepared = try await preparedRuntimeCard(summary, old: old, navigation: navigation, force: true)
+            var prepared = try await preparedRuntimeCard(summary, old: old, force: true)
             guard isCurrentRuntimeCardOperation(operation) else { return }
             let targets = refreshedRuntimeCardTargets(inputID, old: old, new: prepared)
             if let current = runtimeChatRead.cards[inputID] {
@@ -819,57 +803,29 @@ extension ChatSessionViewModel {
         }
     }
 
-    private func fetchedRuntimeCardRows(_ summary: SessionRuntimeCardSummary, old: RuntimeCardReadCache?,
-                                       navigation: RuntimeCardRowNavigation,
-                                       context: RuntimeReadTransactionContext?, parents: RuntimeReadParentVerification) async throws -> RuntimeCardReadCache {
+    /// カードの全タスク行を、続きカーソルをたどって集める（ADR 0234）。
+    private func fetchedRuntimeCardRows(_ summary: SessionRuntimeCardSummary,
+                                       old: RuntimeCardReadCache?) async throws -> RuntimeCardReadCache {
         let inputID = summary.inputID
         let execution = executionID
-        let target: SessionRuntimeContentRequest.Target
-        let manual: Bool
-        let first: Bool
-        switch navigation {
-        case .next:
-            guard let cursor = old?.rows.nextCursor else { throw SessionRuntimeContentError.invalidRequest }
-            target = .chatCardRows(inputID: inputID, cursor: cursor)
-            manual = true; first = false
-        case .first:
-            target = .chatCardRows(inputID: inputID, cursor: nil)
-            manual = true; first = true
-        case .around(let rowID):
-            target = .chatCardRowsAround(inputID: inputID, rowID: rowID)
-            manual = true; first = false
-        case .refresh, .active:
-            let rowID: String?
-            if case .refresh = navigation, old?.isRowWindowManual == true {
-                rowID = old.flatMap { $0.rows.rows.dropFirst($0.rowOffset).first?.id }
-                manual = true
-            } else { rowID = summary.activeRowID; manual = false }
-            if let rowID {
-                target = .chatCardRowsAround(inputID: inputID, rowID: rowID); first = false
-            } else {
-                target = .chatCardRows(inputID: inputID, cursor: nil); first = true
+        var rows: [SessionRuntimeCardRow] = []
+        var cursor: SessionRuntimeChatReadCursor?
+        var last: SessionRuntimeCardRowsPage
+        repeat {
+            guard case .cardRowsPage(let page) = try await readRuntimeChat(.chatCardRows(inputID: inputID, cursor: cursor)),
+                  page.sessionID == id, page.executionID == execution, page.card.inputID == inputID,
+                  page.card.revision == summary.revision, page.card.contentRevision >= summary.contentRevision,
+                  cursor == nil || !page.rows.isEmpty else {
+                throw SessionRuntimeContentError.staleContent
             }
-        }
-        let response: SessionRuntimeContentResponse
-        var recoveredManualBoundary = false
-        do { response = try await readRuntimeChat(target) }
-        catch SessionRuntimeContentError.notFound {
-            guard case .refresh = navigation, old?.isRowWindowManual == true else { throw SessionRuntimeContentError.notFound }
-            try await verifyRuntimeCardParent(summary, execution: execution, context: context, parents: parents)
-            let fallback: SessionRuntimeContentRequest.Target = summary.activeRowID.map {
-                .chatCardRowsAround(inputID: inputID, rowID: $0)
-            } ?? .chatCardRows(inputID: inputID, cursor: nil)
-            response = try await readRuntimeChat(fallback)
-            recoveredManualBoundary = true
-        }
-        guard case .cardRowsPage(let page) = response, page.sessionID == id,
-              page.executionID == execution, page.card.inputID == inputID,
-              page.card.revision == summary.revision, page.card.contentRevision >= summary.contentRevision else {
-            throw SessionRuntimeContentError.staleContent
-        }
-        return RuntimeCardReadCache(isRowWindowManual: recoveredManualBoundary ? false : manual,
-            startsAtBeginning: recoveredManualBoundary ? summary.activeRowID == nil : first, rows: page,
-            version: (old?.version ?? 0) &+ 1, byteCounts: ["rows": try JSONEncoder().encode(page).count])
+            rows += page.rows
+            cursor = page.nextCursor
+            last = page
+        } while cursor != nil
+        let all = SessionRuntimeCardRowsPage(sessionID: last.sessionID, executionID: last.executionID,
+            card: last.card, rows: rows, nextCursor: nil)
+        return RuntimeCardReadCache(rows: all, version: (old?.version ?? 0) &+ 1,
+            byteCounts: ["rows": try JSONEncoder().encode(all).count])
     }
 
     func loadRuntimeCardEntries(_ inputID: String, rowID: String, next: Bool = false,
@@ -933,7 +889,7 @@ extension ChatSessionViewModel {
     }
 
     func revealRuntimeCardEntry(_ inputID: String, rowID: String, entryID: String?) async throws {
-        try await loadRuntimeCardRows(inputID, navigation: .around(rowID))
+        try await loadRuntimeCardRows(inputID)
         try await loadRuntimeCardEntries(inputID, rowID: rowID, aroundEntryID: entryID)
     }
 

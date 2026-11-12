@@ -131,7 +131,7 @@ import Testing
         #expect(visible)
     }
 
-    @Test func aRevealedActionKeepsItsManualDisclosureAcrossStreamingAndRowPageRoundTrips() async throws {
+    @Test func aRevealedActionKeepsItsManualDisclosureAcrossStreamingAndRowReloads() async throws {
         let started = Date(timeIntervalSince1970: 1_800_000_000)
         let tasks = (0..<9).map { AgentTaskItem(id: "stage-\($0)", title: "工程 \($0)", status: $0 == 0 ? .inProgress : .pending) }
         let pair = try await projected(items: [
@@ -154,15 +154,11 @@ import Testing
             try pair.projected.applyRuntimeOverview(updated.makeRuntimeOverview())
             try await pair.projected.refreshRuntimeContent()
             try #require(try await waitForLabel("更新された出力", in: hosting))
-            try await pair.projected.loadRuntimeCardRows("input", navigation: .next)
-            try #require(try await waitForAbsentIdentifier("AgentStatusCard.row.task-stage-0", in: hosting))
-            try await pair.projected.loadRuntimeCardRows("input", navigation: .first)
+            try await pair.projected.loadRuntimeCardRows("input")
             try #require(try await waitForLabel("更新された出力", in: hosting))
             try await press(label: "echo live", in: hosting)
             try #require(try await waitForAbsentLabel("更新された出力", in: hosting))
-            try await pair.projected.loadRuntimeCardRows("input", navigation: .next)
-            try #require(try await waitForAbsentIdentifier("AgentStatusCard.row.task-stage-0", in: hosting))
-            try await pair.projected.loadRuntimeCardRows("input", navigation: .first)
+            try await pair.projected.loadRuntimeCardRows("input")
             try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
             try #require(try await waitForLabel("echo live", role: NSAccessibility.Role.button.rawValue, in: hosting))
             return !elements(in: hosting).contains { $0.text.contains("更新された出力") }
@@ -888,7 +884,7 @@ import Testing
         projected.runtimeSupportsChatReadModel = true
         projected.runtimeContentLoader = { try await source.runtimeChatReadContent(for: $0) }
         try await projected.refreshRuntimeContent()
-        try await projected.loadRuntimeCardRows("input", navigation: .first)
+        try await projected.loadRuntimeCardRows("input")
         return projected
     }
 

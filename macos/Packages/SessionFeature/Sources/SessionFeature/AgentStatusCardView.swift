@@ -179,24 +179,6 @@ struct AgentStatusCardView: View, Equatable {
                 }
                 .padding(AgentStatusCardLayout.bodyPadding(isNarrow: isNarrow))
             }
-            if let runtime {
-                HStack {
-                    if runtime.hasMoreRows {
-                        Button("さらにタスクを表示") { runtime.loadRows(.next) }
-                            .accessibilityIdentifier("AgentStatusCard.moreRows")
-                    }
-                    if runtime.cache.rowOffset > 0 || !runtime.cache.startsAtBeginning {
-                        Button("先頭のタスクに戻る") { runtime.loadRows(.first) }
-                    }
-                    if let active = runtime.cache.rows.card.activeRowID, !card.rows.contains(where: { $0.id == active }) {
-                        Button("進行中の作業へ") { runtime.loadRows(.active) }
-                            .accessibilityIdentifier("AgentStatusCard.activeRow")
-                    }
-                }
-                .buttonStyle(.plain).font(DSFont.meta)
-                .foregroundStyle(DSColor.textTertiary)
-                .padding(.horizontal, DSSpacing.m).padding(.bottom, DSSpacing.s)
-            }
         }
         .background(DSColor.chatCard, in: RoundedRectangle(cornerRadius: DSRadius.l, style: .continuous))
         .overlay {

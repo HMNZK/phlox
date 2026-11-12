@@ -45,17 +45,6 @@
         }
       }
     },
-    "進行中の作業へ": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Go to active work"
-          }
-        }
-      }
-    },
     "以前の入力を読み込む": {
       "extractionState": "manual",
       "localizations": {
@@ -85,28 +74,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show full content"
-          }
-        }
-      }
-    },
-    "さらにタスクを表示": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show more tasks"
-          }
-        }
-      }
-    },
-    "先頭のタスクに戻る": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back to the first tasks"
           }
         }
       }

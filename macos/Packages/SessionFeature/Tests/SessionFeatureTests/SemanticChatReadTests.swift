@@ -239,9 +239,9 @@ struct SemanticChatReadTests {
         let around = try await source.runtimeChatReadContent(for: request(source, .chatCardRowsAround(inputID: "deep", rowID: "task-80")))
         guard case .cardRowsPage(let selected) = around else { Issue.record("タスクページではありません"); return }
         #expect(first.card.activeRowID == "task-80")
-        #expect(first.rows.count == 8)
-        #expect(first.rows.count <= SessionRuntimeChatReadLimits.maximumItemsPerPage)
-        #expect(first.rows.last?.id == "task-8")
+        #expect(first.rows.count == SessionRuntimeChatReadLimits.maximumItemsPerPage)
+        #expect(first.rows.last?.id == "task-50")
+        #expect(first.nextCursor != nil)
         #expect(selected.rows.map(\.id) == ["task-80"])
     }
 

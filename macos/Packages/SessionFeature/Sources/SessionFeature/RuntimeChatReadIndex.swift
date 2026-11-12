@@ -696,7 +696,7 @@ extension RuntimeChatReadIndex {
     }
 
     private func cardRows(_ request: SessionRuntimeContentRequest, inputID: String, card: Card, start: Int) throws -> SessionRuntimeContentResponse {
-        let rows = try page(from: start, count: card.rows.count, maximumItems: 8) { card.rows[$0].summary() }
+        let rows = try page(from: start, count: card.rows.count) { card.rows[$0].summary() }
         return .cardRowsPage(.init(sessionID: request.sessionID, executionID: executionID,
             card: card.summary(), rows: rows, nextCursor: nextCursor(scope: "rows:\(inputID)", revision: card.revision,
                 start: start, count: rows.count, total: card.rows.count, id: { card.rows[$0].id })))

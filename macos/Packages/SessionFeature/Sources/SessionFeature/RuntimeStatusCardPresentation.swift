@@ -67,12 +67,11 @@ struct RuntimeStatusCardPresentation: Sendable {
     var revealSerial = 0
     var itemActions: RuntimeChatItemActions? = nil
 
-    var hasMoreRows: Bool { cache.rowOffset + 8 < cache.rows.rows.count || cache.rows.nextCursor != nil }
     var contentVersion: String { "\(cache.rows.card.revision)-\(cache.rows.card.contentRevision)" }
 
     var card: AgentStatusCard {
         AgentStatusCard(id: cache.rows.card.id, header: cache.rows.card.header,
-            rows: cache.rows.rows.dropFirst(cache.rowOffset).prefix(8).map { row in
+            rows: cache.rows.rows.map { row in
                 let entries = cache.entries[row.id]?.entries.compactMap { entry -> AgentStatusEntry? in
                     switch entry {
                     case .action(let summary): .action(summary.action)
@@ -104,15 +103,10 @@ struct RuntimeStatusCardPresentation: Sendable {
     }
 
     @MainActor
-    func loadRows(_ navigation: RuntimeCardRowNavigation) {
-        Task { try? await viewModel.loadRuntimeCardRows(inputID, navigation: navigation) }
-    }
-
-    @MainActor
     func retry(_ rowID: String) {
         guard let target = cache.failure?.target else { loadEntries(rowID); return }
         switch target {
-        case .rows: loadRows(.refresh)
+        case .rows: Task { try? await viewModel.loadRuntimeCardRows(inputID) }
         case .entries(_, let failedRowID): loadEntries(failedRowID)
         case .action(_, let actionID): loadAction(actionID)
         }

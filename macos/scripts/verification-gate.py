@@ -883,6 +883,15 @@ def validate_distribution(dmg, sparkle_zip, build, evidence_root):
     mount.rmdir()
 
 
+def persistent_evidence_root(value):
+    path = Path(value)
+    require(path.is_absolute(), "--evidence-root must be absolute")
+    resolved = path.resolve(strict=True)
+    require(".verification" not in path.parts and ".verification" not in resolved.parts,
+            "Release evidence must be outside .verification; use persistent storage such as release-archives/evidence")
+    return resolved
+
+
 def release(args, *, physical=True):
     require(os.environ.get("GITFLOW_MERGE_CANDIDATE"), "Release requires the final merge candidate OID environment")
     head, before = candidate(), input_manifest(ROOT)
@@ -890,8 +899,7 @@ def release(args, *, physical=True):
     scenarios = validate_scenarios(ROOT)
     validate_reviews(os.environ["GITFLOW_MERGE_TO"], head, scenarios, ROOT)
     data = read_json(args.record)
-    require(Path(args.evidence_root).is_absolute(), "--evidence-root must be absolute")
-    evidence_root = Path(args.evidence_root).resolve(strict=True)
+    evidence_root = persistent_evidence_root(args.evidence_root)
     dmg = evidence_path(args.dmg, evidence_root)
     dmg_hash = digest(dmg.read_bytes())
     if physical:
@@ -934,7 +942,7 @@ def main():
         release_parser.add_argument("--record", default=RECORDS)
         release_parser.add_argument("--dmg", required=True, help="Exactly the DMG path passed to the preceding stapler validation")
         release_parser.add_argument("--zip", required=True, help="The distribution ZIP captured with the Mac build")
-        release_parser.add_argument("--evidence-root", required=True)
+        release_parser.add_argument("--evidence-root", required=True, help="Persistent evidence directory outside .verification")
     capture = sub.add_parser("capture-build")
     capture.add_argument("--platform", required=True, choices=["macos", "ios"])
     capture.add_argument("--evidence-root", required=True)

@@ -1529,6 +1529,50 @@
       ],
       "reviewedAt": "2026-11-11T16:24:11Z",
       "reason": "静的内容レビュー合格。dev基点と同一の正規化差分42件、未分類0、必須集合の減少0。既レビューの製品修正を維持し、ADR0231とシナリオrevision3の思考限定例外も整合する。Mac/iOS来歴の入力manifest、3成果物hash、appcast版・署名メタデータ・サイズ・英日ノート・protocol1〜1が一致。quality固定worktreeと最終候補の入力manifestおよびscenarioSHAも一致。ただし新qualityの合否は未確認。前版実機省略は流用せずdevices/executions空、必須実機5項目は未充足。本判定はquality・releaseゲート通過を意味しない。"
+    },
+    {
+      "independent": true,
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-review"
+      },
+      "baseOID": "d5d4ac380cac38162c0dc9a507b0a1a2b1df30d5",
+      "targetOID": "74c570e2602acf63a8daf8edf6f25d7faa1a77b7",
+      "diffSHA256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "semantic-chat-read",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reviewedAt": "2026-11-12T01:19:34Z",
+      "reason": "dev比較の正規化差分0件、版別文書2件を別途確認。独立した静的内容レビュー合格。承認票はhumanによる今回の固定sourceOID・3成果物への省略承認で、実機成功証言ではない。必須実機5項目not_run、devices/executions空を維持。scoped-release.pyは承認状態・human区分・固定sourceOID・3ハッシュ・例外文書を要求し、通常の版・ノート・feed・staple前段を残して正本distributionへ接続する。製品/シナリオ/配布物不変、新quality成功記録のハッシュと候補入力・シナリオ一致を確認した。確認済みscoped-release.py SHA256=dbacb8c59fbf7e78ad5a208cea8676cab153ba28ec9b5f74e82a734d313f8224。通常Git設定の実値一致を確認、一時切替後は成否に関わらず復元して照合する条件。テスト/ビルド/実機観測の追加実走はしていない。",
+      "decision": "pass"
+    },
+    {
+      "independent": true,
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex-independent-review"
+      },
+      "baseOID": "359a8a7b72ae908e944bd0a21dfa778623b3a1e0",
+      "targetOID": "74c570e2602acf63a8daf8edf6f25d7faa1a77b7",
+      "diffSHA256": "74b54fa31708a87fa78050a01a906e928e4aa3917f1f173621f0cdb29bed8f6b",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "semantic-chat-read",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume"
+      ],
+      "reviewedAt": "2026-11-12T01:19:34Z",
+      "reason": "main比較の正規化差分は既レビュー済み最終候補と同一。旧折畳み説明の訂正と今回限定の省略文書も整合。独立した静的内容レビュー合格。承認票はhumanによる今回の固定sourceOID・3成果物への省略承認で、実機成功証言ではない。必須実機5項目not_run、devices/executions空を維持。scoped-release.pyは承認状態・human区分・固定sourceOID・3ハッシュ・例外文書を要求し、通常の版・ノート・feed・staple前段を残して正本distributionへ接続する。製品/シナリオ/配布物不変、新quality成功記録のハッシュと候補入力・シナリオ一致を確認した。確認済みscoped-release.py SHA256=dbacb8c59fbf7e78ad5a208cea8676cab153ba28ec9b5f74e82a734d313f8224。通常Git設定の実値一致を確認、一時切替後は成否に関わらず復元して照合する条件。テスト/ビルド/実機観測の追加実走はしていない。",
+      "decision": "pass"
     }
   ]
 }

@@ -1616,6 +1616,35 @@
         "runtime-history-pull"
       ],
       "reason": "Codex要約のMac/iOS表示経路とClaude表示維持を独立レビューし、iOSの再表示漏れ修正を確認。semantic-chat-read revision4はClaude全文表示とCodex要約非表示に一致し、必須シナリオの削減なし。Mac1.14.11/build57、日英リリースノート、appcastのZIP署名・サイズ・URL、Mac/iOS来歴と3成果物の実測ハッシュが一致。ZIP署名はアプリ公開鍵で検証成功。保存先分離は既レビュー済み61e29d5eと同一。標準qualityの成功と実機5項目not_runは別に扱う。"
+    },
+    {
+      "baseOID": "232567dfa3b0fb6621af83cd24123ff7aef00689",
+      "targetOID": "c42dc6d4cfc996a9d90cf665f84152fd28a77caa",
+      "diffSHA256": "e8806dce7529ea9faa3a51fe9c8547d23abe1b0ff5219bcc4e36c9d0fcaa0e38",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/review_codex_summary_release"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-12T05:52:52.130770+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "physical-usage-preferences-refresh",
+        "physical-newchat-worktree-resume",
+        "semantic-chat-read",
+        "runtime-history-pull"
+      ],
+      "reason": "main差分49入力ファイルと8シナリオの本文を独立照合し、新たな要件不一致を確認しなかった。iOS状態カード、保存先分離、Codex思考要約非表示、Mac1.14.11/build57の統合を確認。固定3成果物の承認票・実測ハッシュ・限定スクリプトと通常ゲートの保持を確認。標準品質・配布物照合は別途成功、実機5項目はnot_runであり合格を主張しない。",
+      "userApproval": {
+        "kind": "human",
+        "id": "conversation-user",
+        "reason": "今回のDMG・ZIP・比較用IPAの3固定SHA-256に限る実機5項目の省略を承認。実機合格の証言ではない。",
+        "approvedAt": "2026-11-12T05:48:49.170025+00:00"
+      }
     }
   ]
 }

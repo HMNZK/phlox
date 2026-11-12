@@ -99,7 +99,7 @@ import Testing
         let source = source(items: [
             .userMessage(id: "input", text: "作業の記録", timestamp: .distantPast, attachments: []),
             .taskList(id: "tasks", tasks: [.init(id: "stage", title: "作業工程", status: .inProgress)], timestamp: .distantPast),
-        ] + reasoning)
+        ] + reasoning, agent: .claudeCode)
         let projected = projection(source)
         try await projected.refreshRuntimeChatRead()
         try await projected.loadRuntimeCardRows("input")
@@ -964,9 +964,9 @@ import Testing
         })
     }
 
-    private func source(items: [ChatItem]) -> ChatSessionViewModel {
+    private func source(items: [ChatItem], agent: AgentKind = .codex) -> ChatSessionViewModel {
         var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
-            agentRef: .builtin(.codex), workingDirectory: "/workspace")
+            agentRef: .builtin(agent), workingDirectory: "/workspace")
         snapshot.transcript = items
         snapshot.transcriptRevision = 7
         return ChatSessionViewModel(projection: snapshot) { _, _ in .none }

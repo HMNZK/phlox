@@ -292,7 +292,7 @@ struct SemanticChatReadTests {
     }
 
     @Test func anItemJumpStartsAtItsActualCardEvenWithMoreThanAPageOfReasoningBeforeIt() async throws {
-        let source = owner(items: wideInterval())
+        let source = owner(items: wideInterval(), agent: .claudeCode)
         let response = try await source.runtimeChatReadContent(for: request(source, .chatReadAroundItem(itemID: "deep-command")))
         guard case .chatReadPage(let page) = response else { Issue.record("会話ページではありません"); return }
         #expect(page.blocks.map(\.id) == ["status-card-wide", "wide-answer"])
@@ -303,7 +303,7 @@ struct SemanticChatReadTests {
     }
 
     @Test func anItemJumpToReasoningRevealsItsCardAndExactEntry() async throws {
-        let source = owner(items: wideInterval())
+        let source = owner(items: wideInterval(), agent: .claudeCode)
         let response = try await source.runtimeChatReadContent(for: request(source, .chatReadAroundItem(itemID: "wide-reasoning-68")))
         guard case .chatReadPage(let page) = response else { Issue.record("会話ページではありません"); return }
         #expect(page.blocks.map(\.id) == ["status-card-wide", "wide-answer"])
@@ -396,9 +396,9 @@ struct SemanticChatReadTests {
 
     private enum ReadError: Error { case unexpected }
 
-    private func owner(items: [ChatItem]) -> ChatSessionViewModel {
+    private func owner(items: [ChatItem], agent: AgentKind = .codex) -> ChatSessionViewModel {
         var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: Date(timeIntervalSince1970: 1_000),
-            agentRef: .builtin(.codex), workingDirectory: "/workspace")
+            agentRef: .builtin(agent), workingDirectory: "/workspace")
         snapshot.transcript = items
         snapshot.transcriptRevision = 7
         return ChatSessionViewModel(projection: snapshot) { _, _ in .none }

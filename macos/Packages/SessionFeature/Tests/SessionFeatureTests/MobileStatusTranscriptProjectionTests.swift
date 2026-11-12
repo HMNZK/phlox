@@ -8,6 +8,16 @@ struct MobileStatusTranscriptProjectionTests {
     private let time = Date(timeIntervalSince1970: 1_700_000_000)
     private let idle = AgentStatusLiveState(isProcessing: false, activityState: .thinking, hangAssessment: nil, isAwaitingReply: false)
 
+    @Test func codexProjectionOmitsReasoningOnlyCard() throws {
+        let items: [ChatItem] = [
+            .userMessage(id: "u", text: "依頼", timestamp: time, attachments: [], turnEnd: .init(outcome: .completed, at: time)),
+            .reasoning(id: "summary", text: "Reviewing gate results", timestamp: time),
+            .agentMessage(id: "answer", text: "完了しました", timestamp: time)
+        ]
+        let value = try #require(MobileStatusTranscriptProjection.build(items: items, agent: .codex, liveState: idle, locale: .current))
+        #expect(value.blocks == [.messages(ids: ["u"]), .messages(ids: ["answer"])])
+    }
+
     @Test func taskAndOutsideWorkKeepBuilderOrderingAndFinalAnswerOutsideCard() throws {
         let items: [ChatItem] = [
             .userMessage(id: "u", text: "依頼", timestamp: time, attachments: [], turnEnd: .init(outcome: .completed, at: time.addingTimeInterval(10))),

@@ -7,7 +7,7 @@ import Testing
 @Suite @MainActor
 struct SemanticChatReadStructureTests {
     @Test func replacingAnOldBlockInvalidatesTheTimelineEvenWhenThePageBoundarySurvives() async throws {
-        var snapshot = fixture(items: bareReplies())
+        var snapshot = fixture(items: bareReplies(), agent: .claudeCode)
         let source = owner(snapshot)
         let before = try await timeline(source)
         let historyBefore = try await history(source)
@@ -139,9 +139,9 @@ struct SemanticChatReadStructureTests {
         }
     }
 
-    private func fixture(items: [ChatItem]) -> SessionRuntimeChatSnapshot {
+    private func fixture(items: [ChatItem], agent: AgentKind = .codex) -> SessionRuntimeChatSnapshot {
         var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: at(0),
-            agentRef: .builtin(.codex), workingDirectory: "/workspace")
+            agentRef: .builtin(agent), workingDirectory: "/workspace")
         snapshot.status = .idle
         snapshot.transcript = items
         snapshot.transcriptRevision = 7

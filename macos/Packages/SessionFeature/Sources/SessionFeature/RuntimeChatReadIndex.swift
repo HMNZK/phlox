@@ -18,13 +18,15 @@ final class RuntimeChatReadIndexStore {
     }
 
     func response(items: [ChatItem], executionID: UUID, revision: Int, liveState: AgentStatusLiveState,
-                  usesCards: Bool, request: SessionRuntimeContentRequest, usage: [String: TurnUsage]) async throws -> SessionRuntimeContentResponse {
+                  usesCards: Bool, agent: AgentKind = .claudeCode, request: SessionRuntimeContentRequest, usage: [String: TurnUsage]) async throws -> SessionRuntimeContentResponse {
         let dirty = dirtyFrom
         let edits: Set<String>? = hasUnspecifiedEdits ? nil : dirtyItemIDs
         dirtyFrom = nil; dirtyItemIDs.removeAll(); hasUnspecifiedEdits = false
         indexedCount = items.count
-        return try await worker.response(items: items, executionID: executionID, revision: revision,
-            liveState: liveState, usesCards: usesCards, dirtyFrom: dirty, changedItemIDs: edits, request: request, usage: usage)
+        let visible = AgentStatusCardRouting.visibleItems(items, agent: agent)
+        let visibleDirty = dirty.map { AgentStatusCardRouting.visibleItems(Array(items.prefix($0)), agent: agent).count }
+        return try await worker.response(items: visible, executionID: executionID, revision: revision,
+            liveState: liveState, usesCards: usesCards, dirtyFrom: visibleDirty, changedItemIDs: edits, request: request, usage: usage)
     }
 }
 
@@ -855,7 +857,8 @@ extension ChatSessionViewModel {
         guard request.target.requiresChatReadModel else { return try runtimeContent(for: request) }
         let response = try await runtimeChatReadIndex.response(items: transcript, executionID: executionID,
             revision: transcriptRevision, liveState: statusCardLiveState,
-            usesCards: AgentStatusCardRouting.usesStatusCard(agentRef.builtinKind), request: request, usage: turnUsageByItemID)
+            usesCards: AgentStatusCardRouting.usesStatusCard(agentRef.builtinKind), agent: agentRef.builtinKind,
+            request: request, usage: turnUsageByItemID)
         guard request.executionID == executionID else { throw SessionRuntimeContentError.staleContent }
         return response
     }

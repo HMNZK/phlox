@@ -451,7 +451,7 @@ import os
     @Test func aReasoningJumpRevealsItsCardAndEntryInsteadOfAnUnloadedInputHeader() async throws {
         let reasoning = (0..<70).map { ChatItem.reasoning(id: "wide-reasoning-\($0)", text: "説明 \($0)", timestamp: .distantPast) }
         let source = source(items: [.userMessage(id: "input", text: "考えて実行", timestamp: .distantPast, attachments: [])]
-            + reasoning + [.commandExecution(id: "work", command: "echo done", output: "結果", timestamp: .distantPast)], running: true)
+            + reasoning + [.commandExecution(id: "work", command: "echo done", output: "結果", timestamp: .distantPast)], running: true, agent: .claudeCode)
         let projected = projection(source)
         try await projected.refreshRuntimeContent()
 
@@ -550,9 +550,9 @@ import os
         try #require(projected.runtimeChatRead.page?.transcriptRevision == revision)
     }
 
-    private func source(items: [ChatItem], running: Bool = false) -> ChatSessionViewModel {
+    private func source(items: [ChatItem], running: Bool = false, agent: AgentKind = .codex) -> ChatSessionViewModel {
         var snapshot = SessionRuntimeChatSnapshot(id: SessionID(), startedAt: .distantPast,
-            agentRef: .builtin(.codex), workingDirectory: "/workspace")
+            agentRef: .builtin(agent), workingDirectory: "/workspace")
         snapshot.transcript = items
         if running { snapshot.status = .running }
         snapshot.transcriptRevision = 7

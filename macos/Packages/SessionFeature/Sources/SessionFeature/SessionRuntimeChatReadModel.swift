@@ -1,4 +1,5 @@
 import AgentDomain
+import ChatRenderKit
 import Foundation
 import StructuredChatKit
 
@@ -30,6 +31,7 @@ public struct SessionRuntimeCardSummary: Codable, Sendable, Equatable {
     public let totalRowCount: Int
     public let hasTasks: Bool
     public var activeRowID: String? = nil
+    public var changeCounts: ChatFileChangePresentation.Counts? = nil
 }
 
 public struct SessionRuntimeCommandGroupSummary: Codable, Sendable, Equatable {

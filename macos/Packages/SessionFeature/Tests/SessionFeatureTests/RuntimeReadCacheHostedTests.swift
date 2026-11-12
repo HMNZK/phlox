@@ -394,6 +394,104 @@ import Testing
         }
     }
 
+    @Test("カード内の思考は1行要約へ置き換わらず末尾の段落まで表示する")
+    func inlineCardReasoningShowsItsLastParagraph() async throws {
+        let item = ChatItem.reasoning(id: "inline-thought",
+            text: "先頭の見出し\n\n" + String(repeating: "途中の説明が続きます。", count: 30) + "\n\nINLINE_THOUGHT_END", timestamp: .distantPast)
+        let view = AgentStatusItemEntry(item: item, scale: 1) {
+            ChatItemView(item: $0, isRunningCommand: false,
+                agentDescriptor: AgentRegistry.descriptor(for: .claudeCode))
+        }
+
+        let visible = try await withHosted(view) { hosting in
+            try #require(try await waitForLabel("先頭の見出し", in: hosting))
+            return try await waitForLabel("INLINE_THOUGHT_END", in: hosting)
+        }
+
+        #expect(visible)
+    }
+
+    @Test("複数の大きい思考が表示されても互いの全文を追い出さない")
+    func multipleDeferredReasoningBodiesStayVisibleWithoutDisclosure() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let pair = try await projected(items: [
+            .userMessage(id: "input", text: "思考を読む", timestamp: started, attachments: []),
+            .reasoning(id: "first-thought", text: String(repeating: "一つ目の思考本文。", count: 2_000) + "FIRST_THOUGHT_END", timestamp: started),
+            .reasoning(id: "second-thought", text: String(repeating: "二つ目の思考本文。", count: 2_000) + "SECOND_THOUGHT_END", timestamp: started),
+        ])
+        let page = try #require(pair.projected.runtimeChatRead.page)
+        let references = try await cardReasoningReferences(pair.source)
+        #expect(page.blocks.map(\.id) == ["input", "status-card-input"])
+        #expect(references.count == 2)
+
+        let bothVisible = try await withHosted(DeferredReasoningHost(viewModel: pair.projected, references: references)) { hosting in
+            try #require(try await waitForLabel("FIRST_THOUGHT_END", in: hosting))
+            try #require(try await waitForLabel("SECOND_THOUGHT_END", in: hosting))
+            let values = elements(in: hosting)
+            #expect(!values.contains { $0.role == NSAccessibility.Role.button.rawValue && $0.label == "全文を表示" })
+            return values.contains { $0.text.contains("FIRST_THOUGHT_END") }
+                && values.contains { $0.text.contains("SECOND_THOUGHT_END") }
+        }
+
+        #expect(bothVisible)
+    }
+
+    @Test("思考全文の取得中に内容が更新されても、最新の全文を自動表示する")
+    func digestChangeDuringReasoningLoadShowsTheLatestBody() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let pair = try await projected(items: [
+            .userMessage(id: "input", text: "更新中の思考を読む", timestamp: started, attachments: []),
+            .reasoning(id: "changing-thought", text: "OLD_THOUGHT_BEGIN " + String(repeating: "古い本文。", count: 2_000), timestamp: started),
+        ])
+        let oldReference = try #require(try await cardReasoningReferences(pair.source).first)
+        var changed = pair.source.makeRuntimeSnapshot()
+        changed.transcript[1] = .reasoning(id: "changing-thought",
+            text: "NEW_THOUGHT_BEGIN " + String(repeating: "更新された本文。", count: 2_000) + "LATEST_THOUGHT_END", timestamp: started)
+        changed.transcriptRevision = 8
+        let updated = ChatSessionViewModel(projection: changed) { _, _ in .none }
+        let newReference = try #require(try await cardReasoningReferences(updated).first)
+        var firstRequest = true
+        var held: CheckedContinuation<SessionRuntimeContentResponse, Error>?
+        var heldReply: SessionRuntimeContentResponse?
+        pair.projected.runtimeContentLoader = { request in
+            if firstRequest, case .itemChunk = request.target {
+                firstRequest = false
+                heldReply = try await pair.source.runtimeChatReadContent(for: request)
+                return try await withCheckedThrowingContinuation { held = $0 }
+            }
+            return try await updated.runtimeChatReadContent(for: request)
+        }
+
+        defer {
+            if let held, let heldReply { held.resume(returning: heldReply) }
+        }
+        let latest = try await withHosted(RuntimeChatItemReferenceView(reference: oldReference, viewModel: pair.projected)) { hosting in
+            let deadline = ContinuousClock.now + .seconds(3)
+            while held == nil, ContinuousClock.now < deadline { await Task.yield() }
+            let pending = try #require(held)
+            let response = try #require(heldReply)
+            hosting.rootView = RuntimeChatItemReferenceView(reference: newReference, viewModel: pair.projected)
+            try #require(try await waitForLabel("NEW_THOUGHT_BEGIN", in: hosting))
+            await Task.yield()
+            pending.resume(returning: response)
+            held = nil
+            return try await waitForLabel("LATEST_THOUGHT_END", in: hosting)
+        }
+        #expect(latest)
+    }
+
+    private struct DeferredReasoningHost: View {
+        @Bindable var viewModel: ChatSessionViewModel
+        let references: [SessionRuntimeChatItemReference]
+        var body: some View {
+            VStack {
+                ForEach(references, id: \.id) { reference in
+                    RuntimeChatItemReferenceView(reference: reference, viewModel: viewModel)
+                }
+            }
+        }
+    }
+
     @Test func aCompletedTaskOpensWhenTheJumpedReasoningBodyIsDeferred() async throws {
         let started = Date(timeIntervalSince1970: 1_800_000_000)
         let pair = try await projected(items: [
@@ -412,7 +510,7 @@ import Testing
             return elements(in: hosting).contains { $0.role == NSAccessibility.Role.button.rawValue && $0.label == "全文を表示" }
         }
 
-        #expect(visible)
+        #expect(!visible)
     }
 
     private struct CallbackHost: View {
@@ -467,6 +565,17 @@ import Testing
             context: .single, showsThinkingIndicator: true,
             itemActions: RuntimeChatItemActions(restart: nil, close: nil, isRestarting: false))
             .environment(\.locale, Locale(identifier: "ja"))
+    }
+
+    private func cardReasoningReferences(_ source: ChatSessionViewModel) async throws -> [SessionRuntimeChatItemReference] {
+        let rowsReply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatCardRows(inputID: "input", cursor: nil)))
+        guard case .cardRowsPage(let page) = rowsReply else { throw SessionRuntimeContentError.invalidRequest }
+        let row = try #require(page.rows.first)
+        let entriesReply = try await source.runtimeChatReadContent(for: .init(sessionID: source.id,
+            executionID: source.executionID, target: .chatRowEntries(inputID: "input", rowID: row.id, cursor: nil)))
+        guard case .cardEntriesPage(let entries) = entriesReply else { throw SessionRuntimeContentError.invalidRequest }
+        return entries.entries.compactMap { if case .item(let reference) = $0 { reference } else { nil } }
     }
 
     private func projected(items: [ChatItem], agent: AgentKind = .codex, running: Bool = false, sessionID: SessionID = SessionID())

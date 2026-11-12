@@ -89,7 +89,7 @@ struct RuntimeStatusCardPresentation: Sendable {
                         totalEntryCount: row.totalEntryCount, totalActionCount: row.totalActionCount,
                         aggregateState: state))
                 }
-            }, totalRowCount: cache.rows.card.totalRowCount, hasTask: cache.rows.card.hasTasks)
+            }, changeCounts: cache.rows.card.changeCounts, totalRowCount: cache.rows.card.totalRowCount, hasTask: cache.rows.card.hasTasks)
     }
 
     @MainActor
@@ -242,33 +242,56 @@ struct RuntimeChatItemReferenceView: View {
     var actions: RuntimeChatItemActions? = nil
     @State private var loading = false
     @State private var error: String?
+    @State private var openedReasoning: RuntimeOpenedItem?
 
     var body: some View {
-        switch reference {
-        case .inline(let item): itemView(item)
-        case .deferred(let marker):
-            if let opened = viewModel.runtimeChatRead.openedItems[marker.id], opened.digest == marker.digest {
-                itemView(opened.item)
-            } else {
-                VStack(alignment: .leading, spacing: DSSpacing.s) {
-                    Text(marker.preview.displayText)
-                        .font(DSFont.row)
-                        .foregroundStyle(DSColor.chatTextSecondary)
-                        .textSelection(.enabled)
-                    Button("全文を表示") {
-                        loading = true
-                        Task {
-                            defer { loading = false }
-                            do { _ = try await viewModel.openRuntimeItem(reference); error = nil }
-                            catch { self.error = error.localizedDescription }
+        Group {
+            switch reference {
+            case .inline(let item): itemView(item)
+            case .deferred(let marker):
+                if let opened = openedReasoning?.digest == marker.digest
+                    ? openedReasoning : viewModel.runtimeChatRead.openedItems[marker.id], opened.digest == marker.digest {
+                    itemView(opened.item)
+                } else {
+                    VStack(alignment: .leading, spacing: DSSpacing.s) {
+                        Text(marker.preview.displayText)
+                            .font(DSFont.row)
+                            .foregroundStyle(DSColor.chatTextSecondary)
+                            .textSelection(.enabled)
+                        if marker.itemKind != "reasoning" || error != nil {
+                            Button("全文を表示") { Task { await loadFullItem() } }
+                                .disabled(loading)
+                                .accessibilityIdentifier("ChatTranscript.showFullItem")
                         }
+                        if loading { ProgressView().controlSize(.small) }
+                        if let error { Text(error).font(DSFont.meta) }
                     }
-                    .disabled(loading)
-                    .accessibilityIdentifier("ChatTranscript.showFullItem")
-                    if loading { ProgressView().controlSize(.small) }
-                    if let error { Text(error).font(DSFont.meta) }
                 }
             }
+        }
+        .task(id: reasoningDigest) {
+            if reasoningDigest != nil { await loadFullItem() }
+        }
+    }
+
+    private var reasoningDigest: String? {
+        if case .deferred(let marker) = reference, marker.itemKind == "reasoning" { marker.digest }
+        else { nil }
+    }
+
+    private func loadFullItem() async {
+        loading = true
+        defer { if !Task.isCancelled { loading = false } }
+        do {
+            let item = try await viewModel.openRuntimeItem(reference)
+            try Task.checkCancellation()
+            if case .deferred(let marker) = reference, marker.itemKind == "reasoning" {
+                // 共通キャッシュは1件だけなので、表示中の思考は行の寿命まで保持する。
+                openedReasoning = RuntimeOpenedItem(digest: marker.digest, item: item)
+            }
+            error = nil
+        } catch {
+            if !Task.isCancelled { self.error = error.localizedDescription }
         }
     }
 

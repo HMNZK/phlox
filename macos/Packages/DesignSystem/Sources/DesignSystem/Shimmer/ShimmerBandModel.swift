@@ -7,6 +7,10 @@ public enum ShimmerBandModel {
     /// シマー1周期（秒）。ADR 0067 の 1.6 は実チャットでの目視で速すぎたため 2.0 へ緩めた（ADR 0143）。
     public static let period: TimeInterval = 2.0
 
+    /// カードのコマンド・ファイルは 1.4 秒で通過した後、1 秒静止する。
+    static let cardSweepDuration: TimeInterval = 1.4
+    static let cardPauseDuration: TimeInterval = 1.0
+
     /// 明度の下限（帯から最も遠い位置の明度倍率）。
     /// ADR 0067 の 0.45 はライトモードで薄すぎた（下限側の文字が背景に溶ける）ため 0.55 へ上げた（ADR 0143）。
     public static let minBrightness: Double = 0.55

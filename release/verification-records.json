@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "builds": [
     {
-      "buildID": "macos-1.14.9-55",
+      "buildID": "macos-1.14.10-56",
       "provenance": {
         "path": "distribution-candidate/macos-build.json",
-        "sha256": "535f2534bd2336395ad3b5f52516c372b22caba88eae676056ece05c4c8dc48f"
+        "sha256": "bbfc8b6fc33aa21bff476d18380869215c6cab576e81939c58693d1c7246c4d6"
       }
     },
     {
-      "buildID": "ios-1.0-24",
+      "buildID": "ios-1.0-25",
       "provenance": {
         "path": "distribution-ios/ios-build.json",
-        "sha256": "8fb5480b9f5ed7bd3c0bb8a0fe4b96983119b63ccb4ee9a11ea06a3870ed8b07"
+        "sha256": "2e408738de4b9753dfac953238ad81366f52469770b716d4138fd84ca0b29bfa"
       }
     }
   ],

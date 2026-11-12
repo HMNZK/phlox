@@ -260,42 +260,23 @@ struct ThinkingIndicatorCell: View {
 struct ReasoningSummaryView: View {
     let text: String
     let timestamp: Date
-    @State private var userOverride: Bool?
     @AppStorage(ThemeStore.themeKey) private var themeID = AppTheme.phlox.id
     @AppStorage(ChatFontSettings.scaleKey) private var chatScale = ChatFontSettings.defaultScale
 
     var body: some View {
         let _ = themeID
         let scale = ChatFontSettings.adjusted(from: chatScale, by: 0)
-        let presentation = TranscriptItemPresentation.reasoning(
-            text: text,
-            summary: TranscriptMarkdownPresentation.summary(text)
-        )
-        if presentation.isVisible {
-            TranscriptCard(
-                isExpanded: Binding(
-                    get: {
-                        TranscriptItemPresentation.isExpanded(
-                            userOverride: userOverride,
-                            defaultExpanded: presentation.defaultExpanded
-                        )
-                    },
-                    set: { userOverride = $0 }
-                ),
-                label: Text("思考"),
-                summary: presentation.subtitle
-            ) {
-                AgentMessageBody(text: text, bodyColor: DSColor.chatTextSecondary)
-                    .font(.system(size: 12.5 * scale))
-                    .foregroundStyle(DSColor.chatTextSecondary)
-                    .chatTextSelection()
-                    .lineSpacing(6 * scale)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 28)
-                    .padding(.trailing, 12)
-                    .padding(.top, 9)
-                    .padding(.bottom, 10)
-            }
+        if TranscriptItemPresentation.reasoning(text: text, summary: nil).isVisible {
+            AgentMessageBody(text: text, bodyColor: DSColor.chatTextSecondary)
+                .font(.system(size: 12.5 * scale))
+                .foregroundStyle(DSColor.chatTextSecondary)
+                .chatTextSelection()
+                .lineSpacing(6 * scale)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 28)
+                .padding(.trailing, 12)
+                .padding(.top, 9)
+                .padding(.bottom, 10)
         }
     }
 }

@@ -114,7 +114,7 @@ private final class RuntimeChatReadIndex {
         }
 
         func summary(running: Bool, turnEnd: ChatTurnEnd?) -> SessionRuntimeActionSummary {
-            var summary = SessionRuntimeActionSummary(id: id, label: accumulator.label.bounded,
+            var summary = SessionRuntimeActionSummary(id: id, label: accumulator.resolvedLabel(running: running, turnEnd: turnEnd).bounded,
                 state: accumulator.state(running: running, turnEnd: turnEnd),
                 startedAt: detailItems.first.flatMap { $0.value.timestamp == .distantPast ? nil : $0.value.timestamp },
                 duration: accumulator.duration, totalItemCount: detailItems.count)
@@ -191,6 +191,7 @@ private final class RuntimeChatReadIndex {
         var revision: UInt64
         var contentRevision: Int
         var header: AgentStatusHeader
+        var changeCounts = AgentStatusChangeCounts(items: [ChatItem]())
         var rows: [Row]
         var rowsByID: [String: Row]
         var rowPositions: [String: Int]
@@ -201,12 +202,10 @@ private final class RuntimeChatReadIndex {
         var lastAction: Action?
         var lastWorkRowID: String?
         let firstInProgressRowID: String?
-        var hasActivityBoundary: Bool
         init(_ card: AgentStatusCard, input: Item, effective: AgentStatusCardBuilder.Snapshot?,
-             seenOwnSnapshot: Bool, hasWork: Bool, revision: UInt64, contentRevision: Int, items: inout [String: Item], actions: inout [String: Action],
+             seenOwnSnapshot: Bool, revision: UInt64, contentRevision: Int, items: inout [String: Item], actions: inout [String: Action],
              actionByItem: inout [String: Action], rowByItem: inout [String: Row], liveState: AgentStatusLiveState) {
             id = card.id; self.input = input; self.revision = revision; self.contentRevision = contentRevision; header = card.header
-            hasActivityBoundary = seenOwnSnapshot || hasWork
             shownIndex = Dictionary(card.rows.compactMap { row -> String? in
                 if case .task(let task) = row { return task.id }; return nil
             }.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
@@ -219,6 +218,11 @@ private final class RuntimeChatReadIndex {
             firstInProgressRowID = rows.first { row in
                 if case .task(_, _, .inProgress, _, _) = row.kind { return true }; return false
             }?.id
+            for row in card.rows {
+                for case .action(let action) in row.entries {
+                    for item in action.items { changeCounts.update(item) }
+                }
+            }
             var position = 0
             for row in rows {
                 switch row.kind {
@@ -232,6 +236,7 @@ private final class RuntimeChatReadIndex {
         func summary() -> SessionRuntimeCardSummary {
             var summary = SessionRuntimeCardSummary(id: id, inputID: input.value.id, revision: revision,
                 contentRevision: contentRevision, header: header.bounded, totalRowCount: rows.count, hasTasks: !shownIndex.isEmpty)
+            summary.changeCounts = changeCounts.counts
             if header.isLive {
                 summary.activeRowID = lastAction?.accumulator.state(running: true, turnEnd: input.value.readTurnEnd) == .running
                     ? lastWorkRowID : firstInProgressRowID
@@ -431,7 +436,6 @@ private final class RuntimeChatReadIndex {
                 appendBlock(.init(id: id, inputID: inputID, content: .group(action)))
             case .statusCard(let value):
                 let record = Card(value, input: input, effective: effective, seenOwnSnapshot: lastSnapshot != nil,
-                    hasWork: values.contains { AgentStatusCardBuilder.isWork($0) && !AgentStatusCardBuilder.isEmptyFileChange($0) },
                     revision: nextRevision, contentRevision: transcriptRevision, items: &items, actions: &actions, actionByItem: &actionByItem,
                     rowByItem: &rowByItem, liveState: state)
                 nextRevision &+= 1
@@ -473,8 +477,10 @@ private final class RuntimeChatReadIndex {
                 let ownerCard = intervals[ownerIndex].card
                 let running = ownerIndex == intervals.count - 1 && nextLive.isProcessing
                 let end = ownerCard?.input.value.readTurnEnd
-                if ownerIndex == intervals.count - 1 { latestContentChanged = true }
-                ownerCard?.contentRevision = revision
+                if let ownerCard, itemBlockID[source[position].id] == ownerCard.id {
+                    if ownerIndex == intervals.count - 1 { latestContentChanged = true }
+                    ownerCard.contentRevision = revision
+                }
                 switch source[position] {
                 case .userMessage, .taskList: return false
                 case .commandExecution, .fileChange, .subAgentMarker:
@@ -486,6 +492,7 @@ private final class RuntimeChatReadIndex {
                     guard ownerCard == nil || AgentStatusCardBuilder.mergeKind(previous.value) == AgentStatusCardBuilder.mergeKind(source[position]) else { return false }
                     let oldSummary = action.summary(running: running, turnEnd: end)
                     let oldState = action.accumulator.state(running: running, turnEnd: end)
+                    ownerCard?.changeCounts.update(source[position])
                     action.accumulator.replace(source[position]); previous.replace(source[position]); action.cachedGroupSummary = nil
                     if oldSummary != action.summary(running: running, turnEnd: end), let ownerCard {
                         ownerCard.revision = nextRevision; nextRevision &+= 1
@@ -495,6 +502,10 @@ private final class RuntimeChatReadIndex {
                         row.actionStates[oldState, default: 0] -= 1
                         row.actionStates[action.accumulator.state(running: running, turnEnd: end), default: 0] += 1
                     }
+                case .reasoning:
+                    guard AgentStatusCardBuilder.isNonEmptyReasoning(previous.value)
+                        == AgentStatusCardBuilder.isNonEmptyReasoning(source[position]) else { return false }
+                    previous.replace(source[position])
                 default: previous.replace(source[position])
                 }
             }
@@ -503,26 +514,14 @@ private final class RuntimeChatReadIndex {
             if last.card == nil, !usesCards || last.inputID == nil {
                 return appendUngroupedInterval(source, revision: revision, liveState: nextLive)
             }
-            guard nextLive.isProcessing, let card = last.card else { return false }
+            guard nextLive.isProcessing, let card = last.card, blocks.last?.id == card.id else { return false }
             changedSemantics = true
             latestContentChanged = true
             for value in source[itemCount...] {
-                switch value { case .userMessage, .taskList, .turnCost: return false; default: break }
+                switch value { case .userMessage, .taskList, .turnCost, .agentMessage: return false; default: break }
                 if AgentStatusCardBuilder.isEmptyFileChange(value) { return false }
                 let item = Item(value)
-                if !card.hasActivityBoundary {
-                    if case .agentMessage = value { return false }
-                    if case .reasoning = value {
-                        items[value.id] = item
-                        let position = blocks.count - 1
-                        blocks.insert(.init(id: value.id, inputID: last.inputID, content: .item(item)), at: position)
-                        timelineStructureRevision &+= 1
-                        blockPositionByID[value.id] = position; blockPositionByID[card.id] = position + 1
-                        itemBlockID[value.id] = value.id
-                        itemPositionByID[value.id] = sourceIDs.count; sourceIDs.append(value.id)
-                        continue
-                    }
-                }
+                card.changeCounts.update(value)
                 items[value.id] = item
                 let row: Row
                 if let existing = card.appendRow { row = existing }
@@ -536,7 +535,6 @@ private final class RuntimeChatReadIndex {
                     card.revision = nextRevision; nextRevision &+= 1
                 }
                 if AgentStatusCardBuilder.isWork(value) {
-                    card.hasActivityBoundary = true
                     let action: Action
                     if let kind = AgentStatusCardBuilder.mergeKind(value), case .action(let previous)? = row.entries.last,
                        AgentStatusCardBuilder.mergeKind(previous.accumulator.items[0]) == kind {

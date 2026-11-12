@@ -13,7 +13,7 @@ public struct ChatFilePatch: Equatable, Sendable {
 }
 
 public enum ChatFileChangePresentation {
-    public struct Counts: Equatable, Sendable {
+    public struct Counts: Equatable, Codable, Sendable {
         public let additions: Int
         public let deletions: Int
 

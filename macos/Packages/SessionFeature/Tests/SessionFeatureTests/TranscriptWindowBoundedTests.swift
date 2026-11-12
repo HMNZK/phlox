@@ -330,7 +330,7 @@ struct TranscriptWindowBoundedTests {
             [.userMessage(id: "u\(index)", text: "入力", timestamp: Self.timestamp)]
                 + (0..<above).map { k in
                     k % 2 == 0
-                        ? ChatItem.reasoning(id: "r\(index)-\(k)", text: "考え", timestamp: Self.timestamp)
+                        ? ChatItem.agentMessage(id: "r\(index)-\(k)", text: "導入", timestamp: Self.timestamp)
                         : ChatItem.agentMessage(id: "t\(index)-\(k)", text: String(repeating: "あ", count: 2_000), timestamp: Self.timestamp)
                 }
                 + [
@@ -354,7 +354,7 @@ struct TranscriptWindowBoundedTests {
     /// 1 区間が窓より大きく区間の途中が終端になっても、窓は全体と同じブロックで、下端で引く前の最後が残る（独立レビューの再現例）。
     @Test func 区間の途中が終端になっても下端で引く前の最後が残る() throws {
         var items: [ChatItem] = [.userMessage(id: "u0", text: "入力", timestamp: Self.timestamp)]
-        items += (0..<60).map { .reasoning(id: "r\($0)", text: String(repeating: "考", count: 200), timestamp: Self.timestamp) }
+        items += (0..<60).map { .agentMessage(id: "r\($0)", text: String(repeating: "導", count: 200), timestamp: Self.timestamp) }
         items += [
             .commandExecution(id: "c0", command: "ls", output: "o", timestamp: Self.timestamp),
             .commandExecution(id: "c1", command: "ls", output: "o", timestamp: Self.timestamp),

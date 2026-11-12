@@ -160,6 +160,32 @@ private actor TranscriptOrderClient: StructuredAgentClient, CodexOrderedEventsPr
         await vm.terminate()
     }
 
+    @Test("失敗・拒否されたCodexのファイル変更は未適用の差分を残さない", arguments: ["failed", "declined"])
+    func failedFileChangeClearsUnappliedDiff(status: String) async throws {
+        let (vm, client, _, root) = try await fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        client.continuation.yield(.thread(.itemStarted(threadId: "thread", turnId: "turn", item: try item(
+            #"{"id":"failed-file","type":"fileChange","status":"inProgress","changes":[{"path":"Sources/Card.swift","diff":"-old\n+new","kind":"update"}]}"#))))
+        try await waitUntil { vm.transcript.contains { $0.id == "failed-file" } }
+
+        client.continuation.yield(.thread(.itemCompleted(threadId: "thread", turnId: "turn", item: try item(
+            #"{"id":"failed-file","type":"fileChange","status":"\#(status)","changes":[{"path":"Sources/Card.swift","diff":"-old\n+new","kind":"update"}]}"#))))
+        try await waitUntil {
+            if case .fileChange(_, _, _, .some)? = vm.transcript.first(where: { $0.id == "failed-file" }) { true }
+            else { false }
+        }
+        let result = vm.transcript.first { $0.id == "failed-file" }
+        guard case .fileChange(_, let changes, _, _) = result else {
+            Issue.record("ファイル変更の記録が必要")
+            await vm.terminate()
+            return
+        }
+
+        #expect(changes.map(\.path) == ["Sources/Card.swift"])
+        #expect(changes.map(\.diff) == [""])
+        await vm.terminate()
+    }
+
     private func item(_ json: String) throws -> ThreadItem {
         try JSONDecoder().decode(ThreadItem.self, from: Data(json.utf8))
     }

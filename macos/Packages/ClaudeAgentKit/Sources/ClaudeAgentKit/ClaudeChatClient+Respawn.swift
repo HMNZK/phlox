@@ -15,6 +15,8 @@ extension ClaudeChatClient {
         partialItemIdsByKey.removeAll()
         partialItemIds.removeAll()
         partialContentKeys.removeAll()
+        partialFileChangesByKey.removeAll()
+        pendingFileChangesByToolUseId.removeAll()
         completedSubAgentToolUseIds.removeAll()
         releaseStopTasks()
         await expirePendingUserQuestions()
@@ -70,6 +72,8 @@ extension ClaudeChatClient {
         // clobber the freshly spawned transport.
         // 起動し直しや close() が受信を止めたとき（タスクがキャンセル済み）も、終了として扱わない。
         guard !Task.isCancelled, generation == spawnGeneration else { return }
+        partialFileChangesByKey.removeAll()
+        pendingFileChangesByToolUseId.removeAll()
         // CLI プロセス終了後は stdin へ deny を送っても届かず、死因エラーにノイズを足すだけなので送信しない。
         await expirePendingUserQuestions(generation: generation, sendDeny: false)
         failAllPendingUsageRequests(ClaudeChatClientError.transportClosed)

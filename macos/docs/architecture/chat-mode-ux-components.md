@@ -63,7 +63,8 @@ composer 入力欄パネルは既定でコンパクト表示に戻され、**最
 ## 回答と処理詳細の描画（ADR 0175）
 
 `TranscriptItemPresentation` が回答、思考、コマンド、差分、タスク、エラーの表示上の意味を渡す。
-回答は primary 色の Markdown として常時表示する。思考と処理詳細は既定で閉じ、思考本文は secondary 色、
+回答は primary 色の Markdown として常時表示する。思考は開閉せず、受信済みの全文を secondary 色で表示する
+（2026-11-11 改訂。[状態カードの改訂要件](../specs/agent-status-card.md#2026-11-11-改訂-カードの担当と編集中の表示)）。処理詳細は既定で閉じ、
 エラーは error 色にする。回答本文だけが Markdown の `prepare`・要約・フェンス分割を通り、コード・
 コマンド出力・コピー原文にはその整形を流さない。Markdown の表セルも渡された本文色を使う。
 
@@ -184,7 +185,7 @@ ThinkingIndicatorCell の表示条件は `status == .running` ではなく **`Ch
 
 ## カードの装飾とファイル変更のコードビュー（chat-toolcall-view run, 2026-07-30）
 
-共通の `DisclosureCard` は**アイコンもステータスグリフも時刻も持たない**（`systemImage` / `accent` / `status` / `timestamp` 引数と `StatusGlyph` / `DisclosureRunningSpinner` / `ChatTimestampText` は削除済み。ADR 0144 → 0147）。枠・背景も持たず「見出し＋シェブロン＋展開状態」だけを担う。transcript に回転アニメーションは存在しない。ツールコール系カードの文字色は `DSColor.chatToolCallText`（半透明・無彩色）で、色の選択は純粋関数 `DisclosureCardPalette.title(isToolCall:)` / `.subtitle(isToolCall:)` に集約する。`AvatarMessageRow` はブランドアイコンを描かず本文を左端へ詰める。時刻はカードごとには出さず、**ホバーで現れるコピーボタン（`MessageCopyButton`。背景は透明、ホバー時のみ背景が付く）の右**に出す。Reasoning は見出しと本文（trim 後）が一致するとき `DisclosureCard` を使わず、半透明グレーの折りたためない 1 行として描く。
+共通の `DisclosureCard` は**アイコンもステータスグリフも時刻も持たない**（`systemImage` / `accent` / `status` / `timestamp` 引数と `StatusGlyph` / `DisclosureRunningSpinner` / `ChatTimestampText` は削除済み。ADR 0144 → 0147）。枠・背景も持たず「見出し＋シェブロン＋展開状態」だけを担う。transcript に回転アニメーションは存在しない。ツールコール系カードの文字色は `DSColor.chatToolCallText`（半透明・無彩色）で、色の選択は純粋関数 `DisclosureCardPalette.title(isToolCall:)` / `.subtitle(isToolCall:)` に集約する。`AvatarMessageRow` はブランドアイコンを描かず本文を左端へ詰める。時刻はカードごとには出さず、**ホバーで現れるコピーボタン（`MessageCopyButton`。背景は透明、ホバー時のみ背景が付く）の右**に出す。思考（`ReasoningSummaryView`）は `DisclosureCard` を使わず、見出し・開閉を持たない本文として既存の `AgentMessageBody` で受信済みの全文を secondary 色で描く。空白だけの思考は描かない（2026-11-11 改訂。それ以前は見出しと本文が一致するときだけ折りたためない 1 行、それ以外は既定で閉じたカードだった）。
 
 枠線・背景・角丸・`clipShape`・ホバー・右上のコピーボタンは共通コンポーネント **`ChatCodeCard<Header, Content>`**（`ChatCodeCard.swift`）が持ち、diff とコマンド実行の両方がこの器に入る（`DSColor.chatCard` / `DSColor.border` / `DSRadius.m`。`clipShape` は `overlay(strokeBorder)` より前）。markdown の fenced code block（`CodeBlockView`）は同じトークンを使うが独立したままで、挙動は不変（`ChatCodeBlockTests` で固定）。
 

@@ -140,6 +140,7 @@ extension ClaudeChatClient {
         guard let name = item["name"] as? String else { return }
         if let toolUseId = item["id"] as? String {
             toolUseItemIds[toolUseId] = itemId
+            partialFileChangesByKey = partialFileChangesByKey.filter { $0.value.itemId != toolUseId }
         }
         let input = item["input"] as? [String: Any] ?? [:]
 
@@ -194,6 +195,11 @@ extension ClaudeChatClient {
         }
 
         if let fileChange = fileChangeEvent(toolName: name, input: input, itemId: itemId) {
+            if case let .fileChange(_, changes) = fileChange {
+                pendingFileChangesByToolUseId[item["id"] as? String ?? itemId] = changes.map {
+                    FilePatchChange(path: $0.path, diff: "", kind: $0.kind)
+                }
+            }
             eventContinuation.yield(fileChange)
         } else {
             let intent = name == "Bash" ? (input["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } : nil
@@ -290,6 +296,10 @@ extension ClaudeChatClient {
                 command: nil,
                 outputDelta: toolResultText(from: item["content"])
             ))
+            if let changes = pendingFileChangesByToolUseId.removeValue(forKey: toolUseId),
+               item["is_error"] as? Bool == true {
+                eventContinuation.yield(.fileChange(itemId: itemId, changes))
+            }
             eventContinuation.yield(.itemCompleted(itemId: itemId))
         }
     }

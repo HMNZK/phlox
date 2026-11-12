@@ -307,6 +307,17 @@ enum AgentStatusCardSnapshotFixtures {
             id: "09b", name: "グリッド幅360ダーク完了", board: "09-GridNarrow", width: 360, height: 500, light: false,
             items: readmeItems(now: now), isProcessing: false, isNarrow: true
         ))
+        result.append(.init(
+            id: "10", name: "サブエージェント実行中の狭いカード", board: "09-GridNarrow",
+            width: 360, height: 440, light: false,
+            items: [
+                user("カードの担当と変更数を確認して", at: now.addingTimeInterval(-167)),
+                edit("edited", "/workspace/Card.swift", now.addingTimeInterval(-167), at: 1, done: 2),
+                .subAgentMarker(id: "child-review", subagentType: "general-purpose",
+                    description: "workflow cost investigation and dependency analysis", status: .running),
+            ],
+            isProcessing: true, isNarrow: true
+        ))
         return result
     }
 }

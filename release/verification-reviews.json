@@ -1645,6 +1645,23 @@
         "reason": "今回のDMG・ZIP・比較用IPAの3固定SHA-256に限る実機5項目の省略を承認。実機合格の証言ではない。",
         "approvedAt": "2026-11-12T05:48:49.170025+00:00"
       }
+    },
+    {
+      "baseOID": "63352ab1d8a862352230db55f3137bd0215bdc87",
+      "targetOID": "7b7e2ddb768750507273ac0c843ef15c40824966",
+      "diffSHA256": "ed1ca47409f17511aeeaa727da4e71000566e3ddc82d37089465379c660d6182",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude:subagent/reviewer-ae74170769d721c85"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-12T09:51:12.043242+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "semantic-chat-read"
+      ],
+      "reason": "コードは両シナリオの期待結果を満たす。行一覧を続きの位置までたどって全件をつなぎ、各ページで版を確かめ、別の版のページを混ぜない。行の要約が変わるときは必ずカードの版が上がるので、ページ境界でカードの所属・順序・状態は変わらない。品質gateはaef57105で合格し、新しいテストと必須の偽エージェントテスト13件も通った。隔離アプリの受入テストも2件OK。シナリオ一覧は変わらず、期待値も弱めていない。ADR 0231への追記と取得契約の一文で文書の食い違いを解消した。シナリオのXCUITest（RuntimeCardsAcceptanceTests、IsolatedLaunchOptionsTests）は未実行。"
     }
   ]
 }

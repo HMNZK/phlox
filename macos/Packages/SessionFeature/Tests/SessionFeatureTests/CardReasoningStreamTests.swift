@@ -12,6 +12,42 @@ struct CardReasoningStreamTests {
     private let live = AgentStatusLiveState(isProcessing: true, activityState: .thinking,
         hangAssessment: nil, isAwaitingReply: false)
 
+    @Test("Codex の思考要約だけを隠し、進捗文と作業は残す")
+    func codexHidesSummaryWithoutChangingStoredItems() throws {
+        let items: [ChatItem] = [input(completed: true), thought("summary", "Reviewing gate results"),
+            .agentMessage(id: "progress", text: "検査中です", timestamp: time),
+            .commandExecution(id: "work", command: "swift test", output: "ok", timestamp: time),
+            .agentMessage(id: "answer", text: "完了しました", timestamp: time)]
+        let idle = AgentStatusLiveState(isProcessing: false, activityState: .thinking,
+            hangAssessment: nil, isAwaitingReply: false)
+
+        let codex = AgentStatusCardRouting.blocks(items: items, agent: .codex, liveState: idle)
+        let claude = AgentStatusCardRouting.blocks(items: items, agent: .claudeCode, liveState: idle)
+        let codexCard = try #require(codex.compactMap { if case .statusCard(let card) = $0 { card } else { nil } }.first)
+        let claudeCard = try #require(claude.compactMap { if case .statusCard(let card) = $0 { card } else { nil } }.first)
+
+        #expect(codex.map(\.id) == ["input", "progress", "status-card-input", "answer"])
+        #expect(entryIDs(codexCard) == ["work"])
+        #expect(entryIDs(claudeCard) == ["summary", "progress", "work"])
+        #expect(codex.last?.id == "answer")
+        #expect(items.count == 5)
+    }
+
+    @Test("Codex の常駐読み取りは思考要約の追記後も進捗を表示する")
+    func codexRuntimeReadKeepsProgressAfterHiddenSummaryUpdate() async throws {
+        let store = RuntimeChatReadIndexStore()
+        let first = [input(), thought("summary", "Reviewing")]
+        _ = try await read(store, items: first, revision: 1, target: .chatReadTail, agent: .codex)
+        store.invalidate(from: 1, itemIDs: ["summary"])
+        let second = [input(), thought("summary", "Reviewing gate results"),
+            .agentMessage(id: "progress", text: "検査中です", timestamp: time),
+            .commandExecution(id: "work", command: "swift test", output: "ok", timestamp: time)]
+        let response = try await read(store, items: second, revision: 2, target: .chatReadTail, agent: .codex)
+        guard case .chatReadPage(let page) = response else { throw SessionRuntimeContentError.invalidRequest }
+        #expect(page.blocks.map(\.id) == ["input", "progress", "status-card-input"])
+        #expect(page.blocks.allSatisfy { $0.id != "summary" })
+    }
+
     @Test("先頭思考から途中本文と作業までカード内の受信順を保つ")
     func leadingThoughtStartsTheCardBeforeProgressAndWork() throws {
         let items: [ChatItem] = [input(),
@@ -114,9 +150,9 @@ struct CardReasoningStreamTests {
     }
 
     private func read(_ store: RuntimeChatReadIndexStore, items: [ChatItem], revision: Int,
-        target: SessionRuntimeContentRequest.Target) async throws -> SessionRuntimeContentResponse {
+        target: SessionRuntimeContentRequest.Target, agent: AgentKind = .claudeCode) async throws -> SessionRuntimeContentResponse {
         try await store.response(items: items, executionID: executionID, revision: revision,
-            liveState: live, usesCards: true,
+            liveState: live, usesCards: true, agent: agent,
             request: .init(sessionID: sessionID, executionID: executionID, target: target), usage: [:])
     }
 }

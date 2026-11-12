@@ -1019,6 +1019,11 @@ enum AgentStatusCardBuilder {
 /// どの会話でカードを使うか、使う会話のブロック列をどう作るか（設計 §4.1「適用範囲」）。
 /// Claude と Codex だけがカードの組み立てを使い、Cursor は今の `ChatTranscriptGrouping.blocks` のまま（AC-14）。
 enum AgentStatusCardRouting {
+    static func visibleItems(_ items: [ChatItem], agent: AgentKind) -> [ChatItem] {
+        guard agent == .codex else { return items }
+        return items.filter { if case .reasoning = $0 { false } else { true } }
+    }
+
     static func usesStatusCard(_ agent: AgentKind) -> Bool {
         switch agent {
         case .claudeCode, .codex: true
@@ -1028,7 +1033,7 @@ enum AgentStatusCardRouting {
 
     static func blocks(items: [ChatItem], agent: AgentKind, liveState: AgentStatusLiveState) -> [ChatTranscriptBlock] {
         usesStatusCard(agent)
-            ? AgentStatusCardBuilder.build(items: items, liveState: liveState)
+            ? AgentStatusCardBuilder.build(items: visibleItems(items, agent: agent), liveState: liveState)
             : ChatTranscriptGrouping.blocks(from: items)
     }
 }

@@ -7,7 +7,7 @@ enum MobileStatusTranscriptProjection {
     static func build(items: [ChatItem], agent: AgentKind, liveState: AgentStatusLiveState,
                       locale: Locale) -> MobileStatusTranscript? {
         guard AgentStatusCardRouting.usesStatusCard(agent) else { return nil }
-        let blocks = AgentStatusCardBuilder.build(items: items, liveState: liveState).map { block in
+        let blocks = AgentStatusCardBuilder.build(items: AgentStatusCardRouting.visibleItems(items, agent: agent), liveState: liveState).map { block in
             switch block {
             case .single(let item):
                 return MobileStatusTranscript.Block.messages(ids: [item.id])

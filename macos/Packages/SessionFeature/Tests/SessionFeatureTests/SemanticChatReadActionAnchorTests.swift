@@ -91,7 +91,7 @@ struct SemanticChatReadActionAnchorTests {
     }
 
     @Test func anAnchorCannotEscapeItsInputOrActionScope() async throws {
-        var snapshot = fixture(reads: 10)
+        var snapshot = fixture(reads: 10, agent: .claudeCode)
         snapshot.transcript += [.reasoning(id: "separator", text: "次の作業", timestamp: at(20)), read("other", number: 21)]
         let source = owner(snapshot)
 

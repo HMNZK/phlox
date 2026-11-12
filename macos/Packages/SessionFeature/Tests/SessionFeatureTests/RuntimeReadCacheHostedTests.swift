@@ -276,7 +276,7 @@ import Testing
         let pair = try await projected(items: [
             .userMessage(id: "input", text: "作業記録を表示", timestamp: started, attachments: []),
             .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "記録", status: .inProgress)], timestamp: started),
-        ] + reasoning)
+        ] + reasoning, agent: .claudeCode)
         try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
 
         let preserved = try await withHosted(EntriesHost(viewModel: pair.projected)) { hosting in
@@ -307,7 +307,7 @@ import Testing
         let pair = try await projected(items: [
             .userMessage(id: "input", text: "重い作業記録を表示", timestamp: started, attachments: []),
             .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "記録", status: .inProgress)], timestamp: started),
-        ] + reasoning)
+        ] + reasoning, agent: .claudeCode)
         try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
         try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0", next: true)
         try #require(pair.projected.runtimeChatRead.cards["input"]?.entries["task-stage-0"]?.entries.first?.id == "reason-20")
@@ -418,7 +418,7 @@ import Testing
             .userMessage(id: "input", text: "思考を読む", timestamp: started, attachments: []),
             .reasoning(id: "first-thought", text: String(repeating: "一つ目の思考本文。", count: 2_000) + "FIRST_THOUGHT_END", timestamp: started),
             .reasoning(id: "second-thought", text: String(repeating: "二つ目の思考本文。", count: 2_000) + "SECOND_THOUGHT_END", timestamp: started),
-        ])
+        ], agent: .claudeCode)
         let page = try #require(pair.projected.runtimeChatRead.page)
         let references = try await cardReasoningReferences(pair.source)
         #expect(page.blocks.map(\.id) == ["input", "status-card-input"])
@@ -442,7 +442,7 @@ import Testing
         let pair = try await projected(items: [
             .userMessage(id: "input", text: "更新中の思考を読む", timestamp: started, attachments: []),
             .reasoning(id: "changing-thought", text: "OLD_THOUGHT_BEGIN " + String(repeating: "古い本文。", count: 2_000), timestamp: started),
-        ])
+        ], agent: .claudeCode)
         let oldReference = try #require(try await cardReasoningReferences(pair.source).first)
         var changed = pair.source.makeRuntimeSnapshot()
         changed.transcript[1] = .reasoning(id: "changing-thought",
@@ -501,7 +501,7 @@ import Testing
             .reasoning(id: "giant-thought", text: "DEFERRED_REASONING_TOKEN " + String(repeating: "説明の本文。", count: 2_000), timestamp: started),
             .taskList(id: "tasks-end", tasks: [AgentTaskItem(id: "A", title: "説明する", status: .completed)],
                 timestamp: started.addingTimeInterval(20)),
-        ])
+        ], agent: .claudeCode)
         let request = SessionRuntimeChatReadRevealTarget(inputID: "input", cardID: "status-card-input",
             rowID: "task-A", entryID: "giant-thought", itemID: "giant-thought")
 

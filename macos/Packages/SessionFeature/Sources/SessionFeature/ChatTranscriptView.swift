@@ -498,7 +498,7 @@ struct ChatTranscriptView: View {
     }
 
     private var transcriptItems: [ChatItem] {
-        transcript ?? viewModel.transcript
+        AgentStatusCardRouting.visibleItems(transcript ?? viewModel.transcript, agent: viewModel.agentRef.builtinKind)
     }
 
     private var transcriptFollowSignal: TranscriptFollowSignal {

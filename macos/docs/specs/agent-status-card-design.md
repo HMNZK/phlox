@@ -140,6 +140,7 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
   - `now`
 - **出力**: `[ChatTranscriptBlock]`。今の `.single` / `.commandGroup` に `.statusCard(AgentStatusCard)` を足す。
 - **適用範囲**: Claude と Codex のセッションだけで使う。Cursor は今の `ChatTranscriptGrouping.blocks` のまま。
+- **Codex の表示入力**: 保存済み・新着を問わず、カードを組み立てる前に思考要約の `reasoning` item を除く。通常ログ、常駐実行のページ読み取り、iOS に渡すカード投影と iOS の表示用メッセージで同じ規則を使う。iOS の生成中プレビューにも要約を渡さない。元の会話ログは保持する。
 
 ### 4.2 区切り
 

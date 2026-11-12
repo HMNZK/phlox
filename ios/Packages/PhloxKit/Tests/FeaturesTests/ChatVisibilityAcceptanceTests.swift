@@ -25,13 +25,31 @@ private final class AcceptanceStubAPI: PhloxAPI, @unchecked Sendable {
     func respond(approvalID: String, decision: ApprovalDecision) async throws { throw StubUnusedError() }
 }
 
-private func makeSession(_ status: SessionStatus, id: String = "s1") -> Session {
-    Session(id: id, name: "Rose", agent: .claudeCode, status: status, subtitle: "", updatedAt: Date(timeIntervalSince1970: 0))
+private func makeSession(_ status: SessionStatus, id: String = "s1", agent: AgentKind = .claudeCode) -> Session {
+    Session(id: id, name: "Rose", agent: agent, status: status, subtitle: "", updatedAt: Date(timeIntervalSince1970: 0))
 }
 
 @Suite("チャット表示の受け入れ（空メッセージ除外・ライブ status・thinkingPreview）")
 @MainActor
 struct ChatVisibilityAcceptanceTests {
+
+    @Test("Codex の思考要約は iOS の会話・生成中プレビューに現れず、生データは残る")
+    func codexReasoningIsHiddenFromDisplay() async {
+        let api = AcceptanceStubAPI()
+        api.messagesResult = .success([
+            .user(id: "input", text: "調査"),
+            .agent(id: "progress", text: "調査しています"),
+            .reasoning(id: "summary", text: "Reviewing gate results"),
+        ])
+        let vm = SessionDetailViewModel(session: makeSession(.running, agent: .codex), api: api)
+        await vm.load()
+
+        #expect(vm.visibleMessages.map(\.id) == ["input", "progress"])
+        #expect(vm.chatMessages.map(\.id) == ["input", "progress", "summary"])
+        #expect(vm.thinkingPreview == nil)
+        #expect(vm.recap(now: vm.thinkingStartedAt!.addingTimeInterval(10)) == nil)
+        #expect(vm.activityState == .writing)
+    }
 
     // MARK: - visibleMessages（空メッセージ除外）
 

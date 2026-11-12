@@ -498,12 +498,15 @@ public final class SessionDetailViewModel {
         guard showsChat else { return nil }
         if let waiting = AgentActivityClassifier.waitingState(for: currentStatus) { return waiting }
         guard isAgentWorking else { return nil }
-        return ChatRecapIOS.deriveActivityState(messages: chatMessages, status: currentStatus)
+        return ChatRecapIOS.deriveActivityState(messages: visibleMessages, status: currentStatus)
     }
 
-    /// 描画対象メッセージ（空メッセージを除外した chatMessages）。
+    /// 描画対象メッセージ（空メッセージと Codex の思考要約を除外）。
     public var visibleMessages: [ChatMessage] {
-        chatMessages.filter(Self.isVisible)
+        chatMessages.filter { message in
+            if session.agent == .codex, case .reasoning = message { return false }
+            return Self.isVisible(message)
+        }
     }
 
     /// reasoning / command / fileChange / 回答済み質問の折りたたみトグル対象。
@@ -564,7 +567,7 @@ public final class SessionDetailViewModel {
     public func recap(now: Date) -> String? {
         let elapsed = now.timeIntervalSince(thinkingStartedAt ?? now)
         guard let summary = ChatRecapIOS.derive(
-            messages: chatMessages,
+            messages: visibleMessages,
             status: currentStatus,
             elapsed: elapsed
         ) else { return nil }

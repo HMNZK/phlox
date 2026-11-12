@@ -1595,6 +1595,27 @@
         "semantic-chat-read"
       ],
       "reason": "独立した読み取り専用レビューで阻害欠陥を検出しなかった。コード変更の分類漏れはなく、既存シナリオの要件・必須指定・方法・手順・期待結果の縮小もない。Mac側の最新カード改善は維持され、所属・状態・最終回答の配置は共有builderの投影へ追従する。投影、初回・差分・空snapshot・失敗時保持、旧Mac互換、表示順序・開閉・詳細表示を検証するテストが追加されている。最終候補の正規化diffハッシュを再計算し一致した。本判定はコードとシナリオ分類のレビューであり、品質ゲートや実機シナリオの実行成功を示さない。iOSの変更行数表示やMac改訂後の思考全文などの表示差は文書へ明記済み。"
+    },
+    {
+      "baseOID": "e5f90e10c9388ce439e3b4e649e0dccfe00f0f82",
+      "targetOID": "8cd4ff86299ee49e3c611dbef8826956f5b6e8db",
+      "diffSHA256": "39eb60596edb29a91854ff18c6405cf7414c11157ba35264caca40427a3c7e53",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/review_codex_summary_release"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-12T05:40:16.817124+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-session-activity",
+        "physical-history-follow",
+        "physical-activity-presentation",
+        "semantic-chat-read",
+        "runtime-history-pull"
+      ],
+      "reason": "Codex要約のMac/iOS表示経路とClaude表示維持を独立レビューし、iOSの再表示漏れ修正を確認。semantic-chat-read revision4はClaude全文表示とCodex要約非表示に一致し、必須シナリオの削減なし。Mac1.14.11/build57、日英リリースノート、appcastのZIP署名・サイズ・URL、Mac/iOS来歴と3成果物の実測ハッシュが一致。ZIP署名はアプリ公開鍵で検証成功。保存先分離は既レビュー済み61e29d5eと同一。標準qualityの成功と実機5項目not_runは別に扱う。"
     }
   ]
 }

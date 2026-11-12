@@ -55,7 +55,7 @@ capture-buildとreleaseへ同じ`--evidence-root`を明示し、記録中の相�
 
 ## macOS アプリをリリースする
 
-前提: DMG のビルド・Developer ID 署名・notarytool 公証・stapler は `swift-release` スキル（`sign_and_notarize.sh`）で行う。公証済み DMG は `stapler validate` 成功かつ `spctl -a -t open` が `accepted, source=Notarized Developer ID` になること。
+前提: DMG のビルド・Developer ID 署名・notarytool 公証・stapler は `swift-release` スキル（`sign_and_notarize.sh`）で行う。公証済み DMG は `stapler validate` 成功かつ `spctl -a -vvv -t open --context context:primary-signature <DMG>` が `accepted, source=Notarized Developer ID` になること。コンテキストを省くと、公証済みDMGでも`Insufficient Context`になる場合がある。
 
 ### DMG をビルドする（styled インストール画面つき）
 

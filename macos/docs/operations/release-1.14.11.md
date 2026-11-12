@@ -20,4 +20,4 @@ Macの署名・公証済みDMGと、同じstaple済みアプリから作るSpark
 | `distribution-candidate/Phlox-1.14.11.zip` | `044aa17f4548c5e1b13fdbd1526a26bdd34c642f346b84d727ab35af0ee2482f` |
 | `distribution-ios/PhloxMobile-1.0-26.ipa` | `e89221901b6b48668e7d608bdf4f9bb86650a7cd38f98c314a29f3207249afe3` |
 
-実機5項目は`not_run`。配布物・来歴・更新フィードの最終照合結果と公開状態は、実行後に追記する。
+実機5項目は`not_run`。今回の固定3成果物に限る[省略承認](physical-verification-exception-v1.14.11.md)を受けた。配布物・来歴・更新フィードの正本distribution照合は通過した。公開状態は実行後に追記する。

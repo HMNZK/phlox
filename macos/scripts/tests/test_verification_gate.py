@@ -283,6 +283,7 @@ class GateTests(unittest.TestCase):
         with self.assertRaises(gate.GateError):
             gate.validate_ios_artifact(path, "fixture.ios", "1", "2")
 
+    # Record fixtures isolate storage policy so synthetic data stays in .verification.
     def physical_fixture(self):
         self.git_repo()
         (self.root / ".gitignore").write_text("fixture-output/\n.verification/\n")
@@ -349,7 +350,7 @@ class GateTests(unittest.TestCase):
         self.saved_git = gate.git
         head = self.saved_git("rev-parse", "HEAD", root=self.root)
         args = SimpleNamespace(record=str(path), evidence_root=str(self.root), dmg="fixture-output/macos.bin", zip="fixture-output/Phlox-1.zip")
-        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution") as packaging, patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
+        with patch.object(gate, "persistent_evidence_root", return_value=Path(args.evidence_root)), patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution") as packaging, patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
             gate.distribution(args)
             self.assertEqual(packaging.call_count, 1)
             with self.assertRaisesRegex(gate.GateError, "Physical scenario not_run"):
@@ -567,7 +568,7 @@ class GateTests(unittest.TestCase):
         self.saved_git = gate.git
         head = self.saved_git("rev-parse", "HEAD", root=self.root)
         args = SimpleNamespace(record=str(path), evidence_root=str(self.root), dmg="fixture-output/macos.bin", zip="fixture-output/Phlox-1.zip")
-        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution") as packaging, patch.object(gate, "toolchain", side_effect=AssertionError("Current SDK must not invalidate a historical artifact")), patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
+        with patch.object(gate, "persistent_evidence_root", return_value=Path(args.evidence_root)), patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution") as packaging, patch.object(gate, "toolchain", side_effect=AssertionError("Current SDK must not invalidate a historical artifact")), patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
             gate.release(args)
             self.assertEqual(packaging.call_count, 1)
             copied_zip = self.root / "fixture-output/other.zip"
@@ -583,6 +584,79 @@ class GateTests(unittest.TestCase):
                 gate.release(args)
         with self.assertRaises(gate.GateError):
             gate.verify_file({"path": "/not-a-relative-proof", "sha256": "0" * 64}, self.root)
+
+    def test_verification_storage_checks_absolute_and_resolved_locations(self):
+        allowed = [
+            ("/repo/release-archives/evidence", "/repo/release-archives/evidence"),
+            ("/repo/evidence-alias", "/archives/release/evidence"),
+            ("/repo/.verification-archive/evidence", "/repo/.verification-archive/evidence"),
+        ]
+        refused = [
+            ("/repo/.verification/evidence", "/repo/.verification/evidence"),
+            ("/repo/.verification/clone/release-archives", "/repo/.verification/clone/release-archives"),
+            ("/repo/.verification/candidate/release-archives", "/repo/.verification/candidate/release-archives"),
+            ("/repo/.verification/durable-alias", "/archives/evidence"),
+            ("/repo/evidence-alias", "/repo/.verification/evidence"),
+        ]
+        for raw, resolved in allowed:
+            with self.subTest(raw=raw, resolved=resolved), patch.object(Path, "resolve", return_value=Path(resolved)):
+                self.assertEqual(gate.persistent_evidence_root(raw), Path(resolved))
+        for raw, resolved in refused:
+            with self.subTest(raw=raw, resolved=resolved), patch.object(Path, "resolve", return_value=Path(resolved)):
+                with self.assertRaisesRegex(gate.GateError, "outside .verification"):
+                    gate.persistent_evidence_root(raw)
+        with self.assertRaisesRegex(gate.GateError, "must be absolute"):
+            gate.persistent_evidence_root("relative/evidence")
+
+    def test_verification_storage_rejects_independent_repo_inside_temporary_storage(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        record = self.root / "fixture-output/records.json"
+        record.write_text(json.dumps(data))
+        self.saved_git = gate.git
+        head = self.saved_git("rev-parse", "HEAD", root=self.root)
+        args = SimpleNamespace(record=str(record), evidence_root=str(self.root), dmg="fixture-output/macos.bin", zip="fixture-output/Phlox-1.zip")
+        with patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution"), patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
+            for operation in (gate.release, gate.distribution):
+                with self.subTest(operation=operation.__name__), self.assertRaisesRegex(gate.GateError, "outside .verification"):
+                    operation(args)
+
+    def test_verification_storage_rejects_evidence_inside_disposable_merge_worktree(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        record = self.root / "fixture-output/records.json"
+        record.write_text(json.dumps(data))
+        candidate = self.root / ".verification/candidate"
+        candidate.parent.mkdir()
+        subprocess.run(["git", "worktree", "add", "--quiet", "--detach", str(candidate), "HEAD"], cwd=self.root, check=True)
+        (self.root / ".git/info/exclude").write_text("/release-archives/\n")
+        evidence = candidate / "release-archives/evidence"
+        shutil.copytree(self.root / "fixture-output", evidence / "fixture-output")
+        self.saved_git = gate.git
+        head = self.saved_git("rev-parse", "HEAD", root=candidate)
+        args = SimpleNamespace(record=str(record), evidence_root=str(evidence), dmg="fixture-output/macos.bin", zip="fixture-output/Phlox-1.zip")
+        def in_candidate(*args, **kwargs):
+            return self.saved_git(*args, root=kwargs.get("root", candidate))
+        with patch.object(gate, "ROOT", candidate), patch.object(gate, "git", side_effect=in_candidate), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution"), patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(gate.GateError, "outside .verification"):
+                gate.release(args)
+
+    def test_verification_storage_accepts_persistent_evidence_after_temporary_cleanup(self):
+        data, scenarios, manifest, tools = self.physical_fixture()
+        record = self.root / "fixture-output/records.json"
+        record.write_text(json.dumps(data))
+        temporary = self.root / ".verification/capture"
+        shutil.copytree(self.root / "fixture-output", temporary / "fixture-output")
+        persistent = self.root / "fixture-output/persistent-evidence"
+        temporary.rename(persistent)
+        (self.root / ".verification").rmdir()
+        self.saved_git = gate.git
+        head = self.saved_git("rev-parse", "HEAD", root=self.root)
+        args = SimpleNamespace(record=str(record), evidence_root=str(persistent), dmg="fixture-output/macos.bin", zip="fixture-output/Phlox-1.zip")
+        with patch.object(gate, "persistent_evidence_root", return_value=Path(args.evidence_root)), patch.object(gate, "ROOT", self.root), patch.object(gate, "git", side_effect=self.git_in_fixture), patch.object(gate, "validate_scenarios", return_value=scenarios), patch.object(gate, "validate_distribution") as packaging, patch.dict(os.environ, {"GITFLOW_MERGE_CANDIDATE": head, "GITFLOW_MERGE_TO": head}, clear=True), redirect_stdout(io.StringIO()):
+            gate.release(args)
+            gate.distribution(args)
+        self.assertEqual(packaging.call_count, 2)
+        self.assertFalse(temporary.exists())
+        self.assertTrue((persistent / "fixture-output/macos.bin").is_file())
 
     def distribution_app(self):
         app = self.root / "Phlox.app"

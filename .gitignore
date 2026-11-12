@@ -19,6 +19,8 @@ Signing.local.xcconfig
 # Release / distribution artifacts
 dist/
 release-archives/
+/.verification/
+/backups/
 
 # Secrets
 *.env

@@ -134,7 +134,9 @@ capture-buildには`--platform macos|ios`、`--artifact`、`--settings`、`--out
 
 端末上の版/buildと、記録した成果物の対応を確認できなければ未確認。画面の版番号だけからSHA-256一致を主張しない。同じbuild番号を別バイナリに使い回さない。成果物・証拠は`.verification/`の使い捨て領域を片付ける前に保存先を確保し、存在/ハッシュを照合する。秘密トークン・私的データをGitへ含めない。
 
-実機記録が有効な間は、統合を操作するリポジトリの`.verification/release-evidence/<版>/<buildID>/`を継続保管先とし、OWNERに用途・保持理由を記す。消えるcandidateや削除予定worktreeの内部へ最終証拠を置かない。既存配布DMGの実体も保持し、既存releaseCommandでstapler等を検査する**同じ実DMGパスをrelease照合へ渡す**。記録内のMac配布成果物のSHA-256と一致しない場合は拒否する。実機で試したAと実際に配るBを別々に検査して合格にしない。将来の保存先移動時は参照とハッシュを再照合する。
+`.verification/`は作業終了後に削除できる一時物に限定し、release/distributionの証拠基準に使わない。バックアップは`backups/`、文書の正本は既存docsへ分ける。配置と移管は[保管手順](../operations/verification-storage.md)に従う。
+
+実機記録が有効な間は、統合を操作するリポジトリの`release-archives/evidence/<版>/<buildID>/`を継続保管先とし、OWNERに用途・保持理由を記す。消えるcandidateや削除予定worktreeの内部へ最終証拠を置かない。既存配布DMGの実体も保持し、既存releaseCommandでstapler等を検査する**同じ実DMGパスをrelease照合へ渡す**。記録内のMac配布成果物のSHA-256と一致しない場合は拒否する。実機で試したAと実際に配るBを別々に検査して合格にしない。将来の保存先移動時は参照とハッシュを再照合する。
 
 capture-buildとreleaseの両方に証拠の明示基準`--evidence-root`を渡す。来歴・成果物・設定・端末/インストール証拠などの記録中の相対参照は、この基準から解決し、消えるcandidateや実行時cwd、記録JSONの置き場所を暗黙の基準にしない。基準は、継続保管する成果物と有効な外部設定を含む共通の親（例: 統合元リポジトリのルート）にする。capture時も同じ基準に沿って相対参照を記録し、別worktreeで照合しても同じ証拠を指すようにする。記録中の絶対パス・`..`・symlink等による基準外参照は許さない。実際の引数・保存形式の確定形は末尾のコード照合で記録する。
 

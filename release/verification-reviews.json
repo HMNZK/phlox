@@ -1683,6 +1683,27 @@
         "semantic-chat-read"
       ],
       "reason": "dev 68bcc092 から df874464 への正規化差分（71 件、ハッシュ 48fbdda2…ebd7eca）を、review-input で自分で計算して照合した。ce7c2be1 以降の 2 コミットは資料とコメントだけで、要件の意味は変わっていない。6 シナリオの手順と期待結果を、コードとテストで照合した。テストや GUI 直起動の経路では、holder・確定点・更新用の門が既定で無効なので、fake-session-lifecycle と physical-newchat-worktree-resume は dev と同じ経路を通る。semantic-chat-read の Codex 思考の非表示は、古いサービスからのデータにも及ぶよう強まった。runtime-history-pull は描画の絞り込みだけで、現行サービスの表示と挙動は変わらない。runtime-host-handover は ADR 0233 の A1〜A4・A6〜A9 を受入で確かめ、残りは単体テストに任せている。目録の変更は追加だけで、既存の必須性・方式・requirementIDs・期待値は弱めていない。lifecycle の期待値は holder を挟む形で検査が増えた。根拠として、pm21 の受入 4 本（planned・adoption-failure・lifecycle・stop-resume）、SessionFeature 1753 件、DashboardFeature の pass を使った。ただし必須 fake E2E の 13 関数は pm21 では skipped で、未実行である。semantic-chat の隔離受入と UI テスト、実機 2 シナリオ、実 CLI での確認も未実行。"
+    },
+    {
+      "baseOID": "68bcc092fcb128dbb12afebc22011f8fa08107da",
+      "targetOID": "97fe0a1770dbffa7821ca158a90073110d575d76",
+      "diffSHA256": "63532177365ea741b18ca94dcd5d721d6a66562094ae0c03ad60045ab2f610cd",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/scenario_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-13T07:23:56.028458+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-newchat-worktree-resume",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "runtime-host-handover",
+        "semantic-chat-read"
+      ],
+      "reason": "独立した読み取り専用レビューでdev 68bcc092から97fe0a17までの全差分を確認した。保存失敗と停滞時の取消し、記述子欠落・PTY不整合時の生存子保護、旧トークン再登録、復旧待ちのJSON投影と画面公開、未消費確定点の上書き防止、Control/Hook受付済み要求の排水を確認した。最終差分の同期受付会計と停止ゲートによりcallback後actor登録前の競合は閉じ、具体的な追加退行は見つからなかった。実装側の限定検査、旧方式への変種での失敗、verify-phlox60件とr2の隔離アプリ4受入は別途記録されている。レビュー側はテストを実行していない。実CLI更新と実機シナリオは未検証であり、この判定はローカルdev統合向けコードレビューである。"
     }
   ]
 }

@@ -1704,6 +1704,22 @@
         "semantic-chat-read"
       ],
       "reason": "独立した読み取り専用レビューでdev 68bcc092から97fe0a17までの全差分を確認した。保存失敗と停滞時の取消し、記述子欠落・PTY不整合時の生存子保護、旧トークン再登録、復旧待ちのJSON投影と画面公開、未消費確定点の上書き防止、Control/Hook受付済み要求の排水を確認した。最終差分の同期受付会計と停止ゲートによりcallback後actor登録前の競合は閉じ、具体的な追加退行は見つからなかった。実装側の限定検査、旧方式への変種での失敗、verify-phlox60件とr2の隔離アプリ4受入は別途記録されている。レビュー側はテストを実行していない。実CLI更新と実機シナリオは未検証であり、この判定はローカルdev統合向けコードレビューである。"
+    },
+    {
+      "baseOID": "b81710c865a940cd306a39c96215ad8231eacc80",
+      "targetOID": "effe4181711b2304c3752a82cb21e7062d06259d",
+      "diffSHA256": "203d85c7f39340cd185197f7c77f203462cbf104d65778512e4cbef479e08cd0",
+      "reviewer": {
+        "kind": "ai",
+        "id": "codex:/root/verify_retirement_review"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-13T08:18:34Z",
+      "scenarioIDs": [
+        "fake-session-lifecycle"
+      ],
+      "reason": "独立した読み取り専用レビューで、verify経由の表記をdev→mainへ整理した文書差分を確認した。fake-session-lifecycleの要件・手順・期待結果・必須性、fake E2E 13関数、macOS 19パッケージ、iOS検査、main前の実機記録照合は変更されていない。検証契約テスト16件は合格した。全体品質検査、fake 13関数の実走、実機観測と配布物照合はこのレビューでは実施していない。"
     }
   ]
 }

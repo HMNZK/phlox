@@ -155,8 +155,9 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var currentPermissionMode: String?
     var currentEffort: String?
     var settingsDirty = false
-    /// Writes: initialized here; incremented only by `spawn(sessionArgument:)`
-    /// after a new transport starts and before receive-loop generation capture.
+    /// Writes: initialized here; incremented by `spawn(sessionArgument:)` after a
+    /// new transport starts and before receive-loop generation capture, and by
+    /// `completeAdoption()` when it takes over a holder transport (ADR 0233).
     var spawnGeneration = 0
     var activeSpawnArgument: SpawnSessionArgument = .none
     var callerResumedSession = false

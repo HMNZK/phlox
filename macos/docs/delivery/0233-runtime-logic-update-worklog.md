@@ -9,7 +9,7 @@ date: 2026-11-12
 
 ## 状態
 
-段階0（旧サービス由来のCodex思考を画面で描画前に除く）を実装済み。変更は`SessionFeature`の`AgentStatusCardRouting.hidesReasoning`、`SessionRuntimeChatReadModel.swift`の判定拡張、`RuntimeChatTranscriptView`（ブロック）、`RuntimeStatusCardPresentation`（カード行・項目）。テストは`RuntimeReadCacheHostedTests`へ追加。ビルド・テストは未実行（checkerの担当）。段階1以降は未着手。ユーザー環境への導入は今回の権限に含まれない。
+段階0（旧サービス由来のCodex思考を画面で描画前に除く）を実装済み。変更は`SessionFeature`の`AgentStatusCardRouting.hidesReasoning`、`SessionRuntimeChatReadModel.swift`の判定拡張、`RuntimeChatTranscriptView`（ブロック）、`RuntimeStatusCardPresentation`（カード行・項目）。テストは`RuntimeReadCacheHostedTests`へ追加。段階1以降（holder・確定点・採用・新旧ホスト入れ替え、Codexを含む）も実装済みで、フェイクCLIの受入まで検査した。実CLIでの無停止更新は未検証。ユーザー環境への導入は今回の権限に含まれない。
 
 ## 調査で確認した事実（コード根拠）
 
@@ -37,8 +37,8 @@ date: 2026-11-12
 
 - 裁定: チェックポイントは採用に成功した項目だけを消費する。失敗・不明の項目は残して再試行できるようにし、残る項目のセッションは孤児回収の対象にしない。全体の削除は全項目が成功または明示的な放棄で外れたときだけ。失敗したセッションは`recoveryNeeded`として公開し、`resume`で子を再生成しない。
 - 実装: `HandoverCheckpointStore.consume(sessionIDs:directory:)`（残りがあれば原子的に書き直し、無くなればconsumed化）、`SessionRestoreCoordinator`が採用成功・失敗（`recoveryNeeded`）のセッションIDを記録し`DashboardViewModel`が公開、`CompositionRoot.finishHandoverAdoption`は成功したIDだけを`consume`、`resumeChat`は`recoveryNeeded`を拒否。残る項目は次の起動で`handoverAdoptions`に再び載るので、`reconcileOrphan`は呼ばれない（既存の`adoption == nil`の分岐）。
-- 追加した単体テスト（未実行）: `HandoverCheckpointTests`（部分消費・全消費・未知ID）、`DashboardFeatureTests/HandoverRecoveryRestoreTests`（失敗した採用は孤児回収せず`recoveryNeeded`、成功した採用は消費対象）。
-- 未対応（後続）: 放棄の画面操作、holderと子が無くなった項目の自動的な後始末、Codexの確定点/採用・scripts再試行。
+- 追加した単体テスト: `HandoverCheckpointTests`（部分消費・全消費・未知ID）、`DashboardFeatureTests/HandoverRecoveryRestoreTests`（失敗した採用は孤児回収せず`recoveryNeeded`、成功した採用は消費対象）。
+- 未対応（後続）: 放棄の画面操作、holderと子が無くなった項目の自動的な後始末。（Codexの確定点/採用・scripts再試行はその後に実装した。）
 
 ## holderの不安定性の修正（fdの再利用競合）
 

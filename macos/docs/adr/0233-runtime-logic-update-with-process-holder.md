@@ -5,7 +5,7 @@ date: 2026-11-12
 
 # 0233: 子プロセスの寿命を保持するholderと、更新できる実行サービスを分ける
 
-実装中（段階0は実装済み）。作業記録は[0233](../delivery/0233-runtime-logic-update-worklog.md)。この版はPM裁定（採用失敗時に生存実行を終了・再生成しない等）を反映した改訂で、初版の「採用失敗→従来の再生成」は撤回した。
+実装済み（フェイクCLIを使った新旧ホスト入れ替えの受入まで。実CLIでの無停止更新は未検証）。作業記録は[0233](../delivery/0233-runtime-logic-update-worklog.md)。この版はPM裁定（採用失敗時に生存実行を終了・再生成しない等）を反映した改訂で、初版の「採用失敗→従来の再生成」は撤回した。
 
 ## 問題
 
@@ -44,7 +44,7 @@ date: 2026-11-12
 
 holderは子の標準入力を閉じず、ホストの切断・入れ替えで子を終了しない。通常の更新はholderを終了しない。holderの停止は子の終了後か明示停止に限る。holderのプロセス自身が死ぬとパイプが閉じる。そのためSIGTERMを子へ伝播しないことでは継続を保証しない（holderは小さく固定し、SIGHUP/SIGPIPEを無視して`setsid`する）。保持はメモリのみ（ディスクへ出力を書かない）。holderのクラッシュ、OS再起動は対象外。
 
-holderの版は子の寿命と一致する。新しい子には最新のバンドルのholderを使い、旧holderは子の終了後に自分で終了する。holderのプロトコルは`HolderProtocol.version`で固定し、能力は`hello`の応答で広げる。接続は`session-runtime/holders/<id>/`（0700）のUnixドメインソケット（0600、同一ユーザー確認）。`holder.json`（セッションID・子PID・holder版・バンドル版・起動時刻）を原子的に書く。
+holderの版は子の寿命と一致する。新しい子には最新のバンドルのholderを使い、旧holderは子の終了後に自分で終了する。holderのプロトコルは`HolderProtocol.version`で固定し、能力は`hello`の応答で広げる。接続は`/tmp/phlox-holders-<uid>-<保存先パスのハッシュ>/`（0700）のUnixドメインソケット（0600、同一ユーザー確認）。`holder.json`（セッションID・子PID・holder版・バンドル版・起動時刻）は`session-runtime/holders/`へ原子的に書く。
 
 ### 2. 所有と移送の契約
 
@@ -101,7 +101,7 @@ holderの版は子の寿命と一致する。新しい子には最新のバン�
 
 ### 7. Codexの確定点と採用（実装済み。実CLIでの検証は未実施）
 
-現状、Codexの子もholder経由で起動するが（`AppEnvironment.defaultStructuredClientFactory`）、`HandoverCapableClient`に適合しないため、Codexが動いている間は更新が延期される。Claudeと同じ契約（確定点→フェンス→コミット→採用）でCodexも引き継ぐ。`HandoverCapableClient`・`HandoverPreparation`・`HandoverSession`・`HandoverCheckpoint`・`NormalizedChatEvent.handoverFence`はそのまま足りる（クライアント状態は不透明な`Data`、エージェント別の版は状態の中に持つ）。
+Codexの子もholder経由で起動し（`AppEnvironment.defaultStructuredClientFactory`）、Claudeと同じ契約（確定点→フェンス→コミット→採用）で引き継ぐ。`HandoverCapableClient`・`HandoverPreparation`・`HandoverSession`・`HandoverCheckpoint`・`NormalizedChatEvent.handoverFence`はそのまま足りる（クライアント状態は不透明な`Data`、エージェント別の版は状態の中に持つ）。
 
 **確定点の中身**（Claudeは1つのactorだが、Codexは`JSONRPCClient`→`CodexAppServerClient`→`CodexStructuredAgentClient`の3層。各層の状態を、フェンスがその層を通った時点で採取して1つの`CodexHandoverState`にまとめる）:
 - `JSONRPCClient`: `nextRequestID`（新ホストは続きの番号から。更新前の番号と衝突させない）、**未応答のサーバ要求の原文**（承認・質問。受信した行をそのまま、要求ID・状態つきで記録する。記録は受信ループで同期的に行い、ハンドラの起動を待たない）。`pending`（クライアントからの未応答リクエスト）は運べないので、空であることをゲートにする。

@@ -154,7 +154,7 @@ Codexの子もholder経由で起動し（`AppEnvironment.defaultStructuredClient
 - 採用時の連続性検査は、holderの保持行がチェックポイントの適用済み番号の続きから始まらない（最古番号が適用済み+1より大きい）場合、または最新番号が適用済み番号より小さい場合に採用失敗にする。欠落したまま続行しない（子は終了も再生成もされない）。
 - 実CLIでの検証は未実施。隔離したフェイクで成立を検証する。実CLIの確認が必要な場合の費用と環境はPMへ報告する。
 - 終了していないPTY・Cursorのセッションがある間は、更新を延期し続ける。PTY・Cursorはholderを持たず、切り替えると止まるため（契約どおりの延期）。Cursorはターンの合間にプロセスが無くても、セッションが終了（`processExit`）していなければ延期理由に残る。
-- 復旧待ちは専用の公開項目を持たず、画面へはセッションの`restoreState`（失敗）と`status`（エラー）の文言`handover recovery needed`で届く。採用の準備自体に失敗して置き換え用の表示（`makeRestoreErrorChatSession`）になった場合と、記述子にスレッドIDが無い場合は、この文言が付かない（ホスト内部の`handoverRecoveryNeededSessionIDs`には入るので、開き直し（`resumeChat`）は拒否される）。
+- 復旧待ちのID集合をsnapshot/overviewの`handoverRecoveryNeededSessionIDs`で公開し、画面に件数と自動更新の延期を表示する。記述子が欠落・不整合でセッション行を作れない場合も通知する。セッション行がある場合は`restoreState`（失敗）と`status`（エラー）も表示する。復旧待ちの開き直し（`resumeChat`）は拒否し、生きた子と確定点を保持する。
 - 復旧待ちのセッションへの送信は、いったん受け付けた後で失敗（`sendFailure`）として公開する（受付の時点では拒否しない。子へは届けず、新しい子も起動しない）。
 - 復旧待ちの「再試行で採用できる」は、隔離アプリの受入では検査していない（次の起動にはホストの停止が要り、明示停止が復旧待ちの子をどう扱うかを決めていないため）。単体では、失敗した項目が確定点に残ること（`HandoverCheckpointTests`の`consumingOnlyAdoptedSessionsKeepsTheFailedOnesForRetry`）と、失敗した採用が孤児回収しないこと（`HandoverRecoveryRestoreTests`）だけを確かめる。
 - 確定点（`checkpoint.json`）が読めない・不正なときは、ホストは起動しない（通常の復元へ進むと、記録PIDの孤児回収で生きた子を終了させ得るため）。利用者への案内や、確定点を退避して起動する逃げ道は無い。

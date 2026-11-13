@@ -15,12 +15,12 @@ last-verified: 2026-10-23
 
 App ターゲット（`App/`）が全体を束ね、機能は SPM パッケージへ分割している（ADR 0001: MVVM + @Observable + SPM マルチモジュール）。本番依存は循環のない DAG で、下層ほど依存されるリーフ、上層ほど合成側。
 
-同じ App ターゲットに GUI と常駐実行の入口がある。GUI の `DesktopCompositionRoot` は `AppBootstrap` の `SessionRuntimeClient` で別プロセスへ接続し、Dashboard・セッション・使用量を表示用 VM に反映する。`--session-runtime` で起動する `SessionRuntimeHost` は既存の `CompositionRoot` を生成し、PTY・provider client・実行状態・保存・hook/ControlServer・MobileProxy・使用量取得を所有する。下表のパッケージ依存はプロセス間の共有を意味せず、GUI からの実行操作は型付きコマンドで常駐側へ渡す。
+同じ App ターゲットに GUI と常駐実行の入口がある。GUI の `DesktopCompositionRoot` は `AppBootstrap` の `SessionRuntimeClient` で別プロセスへ接続し、Dashboard・セッション・使用量を表示用 VM に反映する。`--session-runtime` で起動する `SessionRuntimeHost` は既存の `CompositionRoot` を生成し、PTY・provider client・実行状態・保存・hook/ControlServer・MobileProxy・使用量取得を所有する。常駐側が起動する Claude/Codex の構造化チャットの子 CLI は、同じアプリを `--session-holder` で起動した子ごとの holder プロセス（`StructuredChatKit` の `ProcessHolder`）が親と標準入出力を持ち、常駐側は holder へ接続して読み書きする（ADR 0233。GUI 直起動・テストは従来どおり直接起動）。下表のパッケージ依存はプロセス間の共有を意味せず、GUI からの実行操作は型付きコマンドで常駐側へ渡す。
 
 | 層 | パッケージ | 本番依存先（同/下層のみ） | 役割 |
 |---|---|---|---|
 | L0（リーフ） | `AgentDomain` | なし | ドメイン値型・列挙（`SessionID`・`ApprovalDecision` 等の正本） |
-| L0 | `StructuredChatKit` | なし | 構造化チャットの共有 DTO（`FilePatchChange` 正本ほか） |
+| L0 | `StructuredChatKit` | なし | 構造化チャットの共有 DTO（`FilePatchChange` 正本ほか）、子プロセスの行単位トランスポート、子の寿命を保持する holder（`ProcessHolder`・`HolderTransport`）と計画的更新の確定点（`HandoverCheckpoint`。ADR 0233） |
 | L0 | `LocalHTTPServer` | なし | 汎用 HTTP サーバ土台（`HTTPStatusText` 正本） |
 | L0 | `TerminalUI` | なし | 端末描画コンポーネント |
 | L0 | `MobileProxy` | なし | モバイル連携プロキシ |

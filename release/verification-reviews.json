@@ -1662,6 +1662,27 @@
         "semantic-chat-read"
       ],
       "reason": "コードは両シナリオの期待結果を満たす。行一覧を続きの位置までたどって全件をつなぎ、各ページで版を確かめ、別の版のページを混ぜない。行の要約が変わるときは必ずカードの版が上がるので、ページ境界でカードの所属・順序・状態は変わらない。品質gateはaef57105で合格し、新しいテストと必須の偽エージェントテスト13件も通った。隔離アプリの受入テストも2件OK。シナリオ一覧は変わらず、期待値も弱めていない。ADR 0231への追記と取得契約の一文で文書の食い違いを解消した。シナリオのXCUITest（RuntimeCardsAcceptanceTests、IsolatedLaunchOptionsTests）は未実行。"
+    },
+    {
+      "baseOID": "68bcc092fcb128dbb12afebc22011f8fa08107da",
+      "targetOID": "df874464d81c6d739b51b29f3c7b3feb371d955f",
+      "diffSHA256": "48fbdda2c1a37368db9a8a4e9331a4171bb7d7de32ae995efc2948749ebd7eca",
+      "reviewer": {
+        "kind": "ai",
+        "id": "claude:subagent/reviewer-ad8dc03b50f309efb"
+      },
+      "independent": true,
+      "decision": "pass",
+      "reviewedAt": "2026-11-13T02:55:46.398777+00:00",
+      "scenarioIDs": [
+        "fake-session-lifecycle",
+        "physical-newchat-worktree-resume",
+        "physical-session-activity",
+        "runtime-history-pull",
+        "runtime-host-handover",
+        "semantic-chat-read"
+      ],
+      "reason": "dev 68bcc092 から df874464 への正規化差分（71 件、ハッシュ 48fbdda2…ebd7eca）を、review-input で自分で計算して照合した。ce7c2be1 以降の 2 コミットは資料とコメントだけで、要件の意味は変わっていない。6 シナリオの手順と期待結果を、コードとテストで照合した。テストや GUI 直起動の経路では、holder・確定点・更新用の門が既定で無効なので、fake-session-lifecycle と physical-newchat-worktree-resume は dev と同じ経路を通る。semantic-chat-read の Codex 思考の非表示は、古いサービスからのデータにも及ぶよう強まった。runtime-history-pull は描画の絞り込みだけで、現行サービスの表示と挙動は変わらない。runtime-host-handover は ADR 0233 の A1〜A4・A6〜A9 を受入で確かめ、残りは単体テストに任せている。目録の変更は追加だけで、既存の必須性・方式・requirementIDs・期待値は弱めていない。lifecycle の期待値は holder を挟む形で検査が増えた。根拠として、pm21 の受入 4 本（planned・adoption-failure・lifecycle・stop-resume）、SessionFeature 1753 件、DashboardFeature の pass を使った。ただし必須 fake E2E の 13 関数は pm21 では skipped で、未実行である。semantic-chat の隔離受入と UI テスト、実機 2 シナリオ、実 CLI での確認も未実行。"
     }
   ]
 }

@@ -34,6 +34,9 @@ extension DashboardViewModel {
     public func handoverDeferralReasons() async -> [String] {
         guard !isRuntimeProjection else { return ["画面側の投影です"] }
         var reasons: [String] = []
+        if handoverRecoveryNeededSessionIDs.contains(where: { id in !sessionNodes.contains(where: { $0.id == id && $0.appServer != nil }) }) {
+            reasons.append("保存されたセッションが見つからず復旧待ちです")
+        }
         for node in sessionNodes {
             switch node {
             case .pty(let pty):

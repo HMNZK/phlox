@@ -54,10 +54,20 @@ private final class RecordingHandoverClient: HandoverCapableClient, @unchecked S
 }
 
 @MainActor
-private func makeViewModel(_ client: RecordingHandoverClient) -> ChatSessionViewModel {
+private func makeViewModel(_ client: RecordingHandoverClient, transcriptStore: (any TranscriptStore)? = nil) -> ChatSessionViewModel {
     ChatSessionViewModel(
         id: SessionID(), agentRef: .builtin(.claudeCode), client: client,
-        approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/work")
+        approvalBroker: ChatApprovalBroker(), workingDirectory: "/tmp/work", transcriptStore: transcriptStore)
+}
+
+private actor FailingHandoverTranscriptStore: TranscriptStore {
+    func loadTranscript(for sessionID: SessionID) async throws -> [ChatItem] {
+        [.agentMessage(id: "saved", text: "conversation", timestamp: .now)]
+    }
+    func upsertTranscriptItems(_ items: [ChatItem], for sessionID: SessionID) async throws {}
+    func replaceTranscript(for sessionID: SessionID, with items: [ChatItem]) async throws {
+        throw CocoaError(.fileWriteNoPermission)
+    }
 }
 
 @Test @MainActor
@@ -157,4 +167,17 @@ func preparedHandover_refusesNewSendsUntilCancelled() async throws {
     #expect(client.count("cancelHandover") == 1)
     try await vm.sendText("hello", submit: true)
     #expect(client.count("turnStart") == 1)
+}
+
+@Test @MainActor
+func failedTranscriptSave_cancelsHandoverBeforeCommit() async throws {
+    let client = RecordingHandoverClient()
+    let vm = makeViewModel(client, transcriptStore: FailingHandoverTranscriptStore())
+    await vm.adoptHandover(threadId: "native-1")
+
+    await #expect(throws: HandoverError.self) {
+        _ = try await vm.prepareHandover()
+    }
+    #expect(client.count("cancelHandover") == 1)
+    #expect(client.count("commitHandover") == 0)
 }

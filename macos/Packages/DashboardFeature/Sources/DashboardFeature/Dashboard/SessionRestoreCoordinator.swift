@@ -87,6 +87,8 @@ final class SessionRestoreCoordinator {
                 logError(error, "Failed to persist orphaned remote session migration")
             }
         }
+        let restorableIDs = Set(persisted.filter { $0.backend == .appServer }.map(\.id))
+        handoverRecoveryNeededSessionIDs.formUnion(environment.handoverAdoptions.keys.filter { !restorableIDs.contains($0) })
         guard !persisted.isEmpty else { return }
 
         persistence.beginSessionRestore()

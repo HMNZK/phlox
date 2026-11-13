@@ -28,6 +28,7 @@ from pathlib import Path
 import plistlib
 import re
 import shutil
+import socket
 import stat
 import sys
 import time
@@ -309,11 +310,13 @@ class RuntimeHandoverAcceptance(lifecycle.SessionRuntimeLifecycleTests):
             self.observe("handover-discovery", **{key: latest.get(key) for key in (
                 "generation", "pid", "state", "runtimeBuild", "updateStatus", "failure")})
 
-    def request_handover(self, before):
+    def request_handover(self, before, before_wait=None):
         """画面が閉じた状態から新の画面を開き（新の画面が旧ホストへ切り替えを要求する）、新しい世代を検査対象にする。
         `before`は要求の直前に読んだdiscovery。戻り値は新しい世代のdiscovery（新の画面は開いたまま）。"""
         self.assertIsNone(self.gui, "Close the open GUI before requesting the handover")
         self.open_gui("new")
+        if before_wait is not None:
+            before_wait()
         new = self.wait_for_new_generation(before)
         old_runtime = self.runtime_identity
         self.adopt_runtime(new)
@@ -397,7 +400,28 @@ class RuntimeHandoverAcceptance(lifecycle.SessionRuntimeLifecycleTests):
         before = self.discovery()
         codex_counts = self.fake(codex["child"].pid)["methodCounts"]
         claude_counts = self.fake(claude["child"].pid)["methodCounts"]
-        new = self.request_handover(before)
+        with socket.create_connection(("127.0.0.1", self.api.port), timeout=10) as pending:
+            pending.settimeout(10)
+            pending.sendall((
+                "GET /sessions HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                f"Authorization: Bearer {self.api._token}\r\n"
+                f"X-Phlox-Runtime-Protocol: {self.api.protocol}\r\n"
+                f"X-Phlox-Runtime-Generation: {self.api.generation}\r\n"
+                "Connection: close\r\n"
+            ).encode())
+            time.sleep(0.25)  # 旧ホストが接続を受付け、ヘッダーの終わりを待つ。
+            old_runtime = self.runtime_identity
+
+            def finish_pending_request():
+                self.wait("the old host to commit the handover", lambda: self.discovery()["state"] == "stopping")
+                time.sleep(4.2)  # 旧実装の3秒の排水期限を越えても、受付済みの要求を切らない。
+                self.assertTrue(same_process(old_runtime), "The old host exited before answering an accepted request")
+                pending.sendall(b"\r\n")
+                status = pending.recv(4096).split(b"\r\n", 1)[0]
+                self.assertIn(b" 200 ", status, f"The accepted request did not complete: {status!r}")
+                self.observe("accepted-control-request-drained", status=status.decode())
+
+            new = self.request_handover(before, before_wait=finish_pending_request)
 
         self.set_stage("adopted")
         self.assert_same_children(codex, claude)

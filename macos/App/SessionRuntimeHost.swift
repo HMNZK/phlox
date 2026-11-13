@@ -223,6 +223,10 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
         let unmanaged = dashboard.unmanagedHolderSessions(excluding: entries)
         guard unmanaged.isEmpty else { await abort("準備中に起動した実行があるため中止しました"); return }
         await AppDelegate.flushChatTranscriptsForTermination(dashboard: dashboard, timeout: AppDelegate.transcriptFlushTimeout)
+        guard await dashboard.handoverDescriptorsPersisted(for: entries) else {
+            await abort("セッションの記録を保存できないため中止しました")
+            return
+        }
         // 子は環境のトークンでhook/Controlへ届くので、新ホストへ同じトークンを渡す（sessions.jsonには無い）。
         var sessions: [HandoverSession] = []
         for entry in entries {
@@ -240,6 +244,10 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
                 hookPort: root.environment.hookURL.port, controlPort: root.environment.controlURL.port,
                 sessions: sessions)
             let directory = try CompositionRoot.handoverDirectory()
+            if let pending = try HandoverCheckpointStore.read(directory: directory), !pending.sessions.isEmpty {
+                await abort("前回の引き継ぎが復旧待ちのため中止しました")
+                return
+            }
             try HandoverCheckpointStore.write(checkpoint, directory: directory)
             writtenCheckpointDirectory = directory
         } catch {
@@ -251,7 +259,10 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
         discovery.state = .stopping
         publishDiscovery()
         await dashboard.commitHandoverEntries(entries)
-        _ = await root.stopAcceptingForHandover(timeout: .seconds(3))
+        // 確定後は取り消せない。受付済みの要求に応答するまで旧ホストを終了しない。
+        while true {
+            if await root.stopAcceptingForHandover(timeout: .seconds(3)) { break }
+        }
         await desktopTransport?.stop()
         do {
             _ = try launcher.launchReplacement(ticket, releasing: lease)

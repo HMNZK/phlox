@@ -63,6 +63,47 @@ func failedAdoption_doesNotReapTheLiveChildAndIsPublishedAsRecoveryNeeded() asyn
     #expect(dashboard.handoverAdoptedSessionIDs.isEmpty)
 }
 
+@Test @MainActor
+func missingDescriptor_keepsHandoverSessionInRecoveryAndDefersUpdate() async throws {
+    let workspaceRoot = try makeTemporaryWorkspaceRoot()
+    defer { cleanupTemporaryWorkspaceRoot(workspaceRoot) }
+
+    let sessionID = SessionID()
+    let childPID: pid_t = 4345
+    let adoption = HandoverSession(
+        sessionID: sessionID.rawValue.uuidString, agent: "claudeCode",
+        holder: try makeHolderRecord(childPID: childPID), appliedSeq: 3, clientState: Data())
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = AppEnvironment(
+        pty: MockPTYManager(),
+        hook: MockHookServer(events: hookStream),
+        hookURL: URL(string: "http://127.0.0.1:8080/hook")!,
+        claudeSettingsURL: URL(fileURLWithPath: "/tmp/agent-dashboard-test-hooks.json"),
+        hookDispatcherPath: "/tmp/agent-dashboard-test-dispatcher.sh",
+        claudeBinaryPath: "/usr/local/bin/claude",
+        pathEnvironment: "/usr/local/bin:/usr/bin:/bin",
+        workspaceDirectory: workspaceRoot,
+        controlURL: URL(string: "http://127.0.0.1:9999")!,
+        tokenStore: SessionTokenStore(),
+        messages: MockMessageStore(),
+        sessions: InMemorySessionStore([]),
+        cliPath: "/tmp/agent-dashboard-test-cli",
+        handoverAdoptions: [sessionID: adoption])
+    let reaper = MockOrphanReaper(alivePIDs: [childPID])
+    let dashboard = DashboardViewModel(environment: environment, orphanReaper: reaper)
+
+    await dashboard.start()
+
+    #expect(dashboard.handoverRecoveryNeededSessionIDs == [sessionID])
+    #expect(dashboard.handoverAdoptedSessionIDs.isEmpty)
+    #expect(reaper.reapedPIDs.isEmpty)
+    #expect(await dashboard.handoverDeferralReasons().contains { $0.contains("復旧待ち") })
+    let entry = DashboardHandoverEntry(
+        sessionID: sessionID, agent: "claudeCode",
+        preparation: HandoverPreparation(holder: adoption.holder, appliedSeq: 3, clientState: Data(), fence: UUID()))
+    #expect(!(await dashboard.handoverDescriptorsPersisted(for: [entry])))
+}
+
 /// 採用先のクライアントの最小の代役。`completeAdoption`が進行中のターン（`turnStarted`）を流す。
 /// 採用は新しい子を作らず、`resume`も`close`も呼ばない。
 private final class AdoptedRunningClient: HandoverCapableClient, @unchecked Sendable {

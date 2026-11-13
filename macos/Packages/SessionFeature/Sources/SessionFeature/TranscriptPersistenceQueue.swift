@@ -11,9 +11,17 @@ final class TranscriptPersistenceQueue {
     private final class WriteFailure: @unchecked Sendable {
         private let lock = NSLock()
         private var failed = false
+        private var failures = 0
         var value: Bool {
             get { lock.withLock { failed } }
             set { lock.withLock { failed = newValue } }
+        }
+        var failureCount: Int { lock.withLock { failures } }
+        func recordFailure(affectsTranscript: Bool) {
+            lock.withLock {
+                failures += 1
+                if affectsTranscript { failed = true }
+            }
         }
     }
 
@@ -23,6 +31,7 @@ final class TranscriptPersistenceQueue {
     private var task: Task<Void, Never>?
     /// Identity token for the latest enqueued chain link (Task is a struct; cannot compare by ===).
     private var latestToken: ChainToken?
+    var failureCount: Int { transcriptWriteFailure.failureCount }
 
     init(sessionID: SessionID, store: any TranscriptStore) {
         self.sessionID = sessionID
@@ -39,7 +48,7 @@ final class TranscriptPersistenceQueue {
                 try await store.upsertTranscriptItems(items, for: sessionID)
                 failure.value = false
             } catch {
-                failure.value = true
+                failure.recordFailure(affectsTranscript: true)
                 let message = "Phlox: transcript persistence failed for \(sessionID): \(error)\n"
                 if let data = message.data(using: .utf8) {
                     FileHandle.standardError.write(data)
@@ -57,7 +66,7 @@ final class TranscriptPersistenceQueue {
                 try await store.replaceTranscript(for: sessionID, with: items)
                 failure.value = false
             } catch {
-                failure.value = true
+                failure.recordFailure(affectsTranscript: true)
                 let message = "Phlox: transcript replace failed for \(sessionID): \(error)\n"
                 if let data = message.data(using: .utf8) {
                     FileHandle.standardError.write(data)
@@ -76,6 +85,7 @@ final class TranscriptPersistenceQueue {
             do {
                 try await store.saveDisplayState(state, for: sessionID)
             } catch {
+                failure.recordFailure(affectsTranscript: false)
                 let message = "Phlox: display state persistence failed for \(sessionID): \(error)\n"
                 if let data = message.data(using: .utf8) {
                     FileHandle.standardError.write(data)

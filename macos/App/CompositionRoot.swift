@@ -180,7 +180,7 @@ public final class CompositionRoot {
     }
 
     /// 計画的な更新（ADR 0233）: Hook/Controlの新しい接続の受付を止め、処理中のものが終わるまで待つ。
-    /// 待ちきれなければfalse（長い待機中のリクエストは新ホストへの切替で切られる）。
+    /// 期限内に待ちきれなければfalse。不可逆な切替側はtrueになるまで待つ。
     func stopAcceptingForHandover(timeout: Duration) async -> Bool {
         async let hookDrained = hookServer.stopAcceptingAndDrain(timeout: timeout)
         async let controlDrained = controlServer.stopAcceptingAndDrain(timeout: timeout)

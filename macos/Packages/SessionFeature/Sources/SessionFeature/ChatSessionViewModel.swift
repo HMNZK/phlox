@@ -1665,7 +1665,13 @@ public final class ChatSessionViewModel: Identifiable {
             try? await Task.sleep(for: .milliseconds(10))
         }
         reachedHandoverFences.remove(fence)
+        let failuresBeforeFlush = transcriptPersistenceQueue?.failureCount
         await flushTranscriptNow()
+        if let failuresBeforeFlush, transcriptPersistenceQueue?.failureCount != failuresBeforeFlush {
+            await handover.cancelHandover()
+            handoverPreparing = false
+            throw HandoverError.notReady("会話ログを保存できません")
+        }
         return preparation
     }
 

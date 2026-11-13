@@ -141,6 +141,7 @@ Codex の計画は今、次の 2 つの経路で画面に出る（`CodexAppServe
 - **出力**: `[ChatTranscriptBlock]`。今の `.single` / `.commandGroup` に `.statusCard(AgentStatusCard)` を足す。
 - **適用範囲**: Claude と Codex のセッションだけで使う。Cursor は今の `ChatTranscriptGrouping.blocks` のまま。
 - **Codex の表示入力**: 保存済み・新着を問わず、カードを組み立てる前に思考要約の `reasoning` item を除く。通常ログ、常駐実行のページ読み取り、iOS に渡すカード投影と iOS の表示用メッセージで同じ規則を使う。iOS の生成中プレビューにも要約を渡さない。元の会話ログは保持する。
+- **旧サービス由来のページ**: 思考を除く前の常駐実行サービスが組み立てたページ・カード行・行内の項目参照も、画面が描画の直前に除く（inline の `reasoning` と、`itemKind == "reasoning"` の後取得の目印。全文の取得も始めない）。受信したページ、cursor、item ID、窓と「さらに表示」の位置計算は変えず、除いた項目の空白も作らない。旧サービスが確定したカード見出し・件数・行の総数は再計算しない（思考だけのカードは空に見える場合がある）。`itemKind` を持たない最古の目印は判別できない。新サービスは同じ規則を先に適用済みなので、能力フラグは使わない。これは画面側の互換であり、常駐実行サービスのコード更新ではない（[ADR 0233](../adr/0233-runtime-logic-update-with-process-holder.md) 段階0）。
 
 ### 4.2 区切り
 

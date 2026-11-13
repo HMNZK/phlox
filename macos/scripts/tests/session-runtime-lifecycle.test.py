@@ -42,6 +42,12 @@ SWIFT_EPOCH = 978307200
 OPTIONS = None
 
 
+def inherited_environment():
+    """起動するプロセスへ渡す継承環境。PHLOX_で始まる値（実行中のPhloxのセッションから起動された
+    シェルのPHLOX_API_URL・PHLOX_TOKEN等）は落とし、隔離用に自分で設定した値だけを渡す。"""
+    return {key: value for key, value in os.environ.items() if not key.startswith("PHLOX_")}
+
+
 def eventually(description, predicate, timeout=40):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -474,7 +480,7 @@ class SessionRuntimeLifecycleTests(unittest.TestCase):
             wrapper.write_text("#!/bin/sh\nexec " + " ".join(shlex.quote(value) for value in arguments + ["--"]) + ' "$@"\n')
             wrapper.chmod(0o700)
             self.agents[provider] = str(wrapper)
-        self.environment = dict(os.environ)
+        self.environment = inherited_environment()
         self.environment.update(PHLOX_TEST_AGENT_BINARY_PATHS=json.dumps(self.agents),
             PHLOX_TEST_EPHEMERAL_MOBILE_TOKEN="1", PHLOX_TEST_EPHEMERAL_MOBILE_PORT="1",
             PHLOX_DATA_DIR=str(self.store), PHLOX_DEFAULTS_SUITE="com.phlox.lifecycle." + self.run_id,
@@ -501,7 +507,8 @@ class SessionRuntimeLifecycleTests(unittest.TestCase):
         self.write_report()
 
     def run_helper(self, arguments, *, timeout, input_data=None, environment=None):
-        process = subprocess.Popen(arguments, env=environment, stdin=subprocess.PIPE,
+        process = subprocess.Popen(arguments, env=inherited_environment() if environment is None else environment,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         self.report["processes"].append(dict(role="transient-helper", pid=process.pid, executable=arguments[0]))
         self.write_report()
@@ -649,6 +656,16 @@ class SessionRuntimeLifecycleTests(unittest.TestCase):
             self.get_session(pty_id, "pty").get("activeTurnId") == turn_id)
         self.observe("retained-hook-and-control", authenticatedControl=True, hookDelivered=True)
 
+    def assert_held_by_runtime(self, child):
+        """Codex/Claudeの子は、常駐サービスと同じ実行ファイルのholder（--session-holder）の子（ADR 0233）。"""
+        holder = process_info(child[1])
+        self.assertIsNotNone(holder, "The structured child's holder is gone")
+        self.assertEqual(holder[0].executable, self.runtime_identity.executable,
+                         "The structured child is not held by this runtime's bundle")
+        self.assertEqual(holder[1], self.runtime_identity.pid, "The holder is not owned by this runtime")
+        self.remember(holder[0], "holder")
+        return holder[0]
+
     def assert_continues(self, pty_id, chat_id, pty_identity, chat_identity, phase):
         before_pty = self.fake_state("pty", pty_identity.pid)["heartbeat"]
         before_chat = self.fake_state("structured", chat_identity.pid)["heartbeat"]
@@ -709,11 +726,12 @@ class SessionRuntimeLifecycleTests(unittest.TestCase):
         self.assertIsNotNone(pty_process)
         self.assertIsNotNone(chat_process)
         self.assertEqual(pty_process[1], self.runtime_identity.pid)
-        self.assertEqual(chat_process[1], self.runtime_identity.pid)
+        self.assertEqual(pty_state["parent"], self.runtime_identity.pid, "Child is not owned by this runtime")
+        chat_holder = self.assert_held_by_runtime(chat_process)
+        self.assertEqual(chat_state["parent"], chat_holder.pid, "Child is not owned by this runtime's holder")
         pty_identity = pty_process[0]
         chat_identity = chat_process[0]
-        for identity, role, state in ((pty_identity, "pty", pty_state), (chat_identity, "structured", chat_state)):
-            self.assertEqual(state["parent"], self.runtime_identity.pid, "Child is not owned by this runtime")
+        for identity, role in ((pty_identity, "pty"), (chat_identity, "structured")):
             self.remember(identity, role)
         eventually("a terminal DSR response", lambda: self.fake_state("pty")["dsrResponses"] > 0)
         eventually("a terminal DA1 response", lambda: self.fake_state("pty")["daResponses"] > 0)
@@ -839,7 +857,10 @@ class SessionRuntimeLifecycleTests(unittest.TestCase):
             state = eventually("the active " + provider + " fixture", lambda: self.provider_state(provider))
             process = process_info(state["pid"])
             self.assertIsNotNone(process)
-            self.assertEqual(process[1], self.runtime_identity.pid)
+            if provider == "claudeCode":
+                self.assert_held_by_runtime(process)
+            else:
+                self.assertEqual(process[1], self.runtime_identity.pid)
             identities[provider] = process[0]
             self.remember(process[0], provider + "-structured")
         claude_state = self.provider_state("claudeCode", identities["claudeCode"].pid)

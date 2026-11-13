@@ -146,6 +146,9 @@ public final class DashboardViewModel {
         return ownedServices
     }
     private var environment: AppEnvironment { requiredOwnedServices.environment }
+    /// 計画的なホスト更新用（ADR 0233）。投影（画面側）では持たない。
+    var handoverGate: HandoverGate? { isRuntimeProjection ? nil : environment.handoverGate }
+    var processHolderRecordDirectory: String? { isRuntimeProjection ? nil : environment.processHolder?.recordDirectory }
     private var sessionHooks: SessionHookInstaller { requiredOwnedServices.sessionHooks }
     private var persistence: SessionPersistenceCoordinator { requiredOwnedServices.persistence }
     private var messaging: MessagingService { requiredOwnedServices.messaging }
@@ -181,6 +184,10 @@ public final class DashboardViewModel {
     /// アプリは `start()` の前に置く。nil なら確認しない。
     @ObservationIgnored public var worktreeRecreationConfirmer: (@MainActor (_ path: String, _ branchName: String, _ branchExists: Bool) -> Bool)?
     @ObservationIgnored private var restoreCoordinator: SessionRestoreCoordinator?
+    /// 起動時の復元で引き継ぎ（ADR 0233）に成功したセッション。確定点から外してよい。
+    public var handoverAdoptedSessionIDs: Set<SessionID> { restoreCoordinator?.handoverAdoptedSessionIDs ?? [] }
+    /// 引き継ぎ対象だが採用に失敗したセッション（復旧待ち）。子は生きたまま終了も再生成もしない。確定点にも残す。
+    public var handoverRecoveryNeededSessionIDs: Set<SessionID> { restoreCoordinator?.handoverRecoveryNeededSessionIDs ?? [] }
     /// 「この会話から再開」の処理中のセッション（続けて押しても 2 つ目のプロセスを作らない）。
     @ObservationIgnored private var resumingChatSessionIDs: Set<SessionID> = []
     @ObservationIgnored private var removingSessionIDs: Set<SessionID> = []
@@ -452,6 +459,8 @@ public final class DashboardViewModel {
             await performProjectedAction(.resumeChat(id))
             return
         }
+        // 引き継ぎに失敗したセッションは子が生きている。開き直すと二重の子になるので拒否する（ADR 0233）。
+        guard !handoverRecoveryNeededSessionIDs.contains(id) else { return }
         guard case .appServer(let ended) = sessionNode(id: id), ended.processExit != nil,
               resumingChatSessionIDs.insert(id).inserted else { return }
         lastViewedAt[id] = Date()

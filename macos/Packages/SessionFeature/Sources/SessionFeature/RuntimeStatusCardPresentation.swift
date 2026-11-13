@@ -70,11 +70,13 @@ struct RuntimeStatusCardPresentation: Sendable {
     var contentVersion: String { "\(cache.rows.card.revision)-\(cache.rows.card.contentRevision)" }
 
     var card: AgentStatusCard {
-        AgentStatusCard(id: cache.rows.card.id, header: cache.rows.card.header,
+        let agent = viewModel.agentRef.builtinKind
+        return AgentStatusCard(id: cache.rows.card.id, header: cache.rows.card.header,
             rows: cache.rows.rows.map { row in
                 let entries = cache.entries[row.id]?.entries.compactMap { entry -> AgentStatusEntry? in
                     switch entry {
                     case .action(let summary): .action(summary.action)
+                    case .item(let reference) where reference.isHiddenReasoning(agent: agent): nil
                     case .item(.inline(let item)): .item(item)
                     case .item(.deferred): nil
                     }
@@ -181,11 +183,16 @@ struct RuntimeCardEntriesView: View {
             defaultLimit: AgentStatusCardDisclosure.initialEntryLimit, minimumBlocks: 1)
         return Array(candidates.suffix(count))
     }
+    /// 「さらに表示」や先頭位置は受信した項目全体で決め、描画だけから表示しない思考を除く。
+    private var renderedEntries: [SessionRuntimeCardEntry] {
+        let agent = presentation.viewModel.agentRef.builtinKind
+        return visibleEntries.filter { !$0.isHiddenReasoning(agent: agent) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let page {
-                ForEach(visibleEntries, id: \.id) { entry in
+                ForEach(renderedEntries, id: \.id) { entry in
                     switch entry {
                     case .item(let reference):
                         RuntimeChatItemReferenceView(reference: reference, viewModel: presentation.viewModel, actions: presentation.itemActions)
@@ -239,6 +246,15 @@ struct RuntimeChatItemReferenceView: View {
     @State private var openedReasoning: RuntimeOpenedItem?
 
     var body: some View {
+        // 一覧側で除いたうえでの最後の防御。思考の全文取得（.task）も始めない。
+        if reference.isHiddenReasoning(agent: viewModel.agentRef.builtinKind) {
+            EmptyView()
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         Group {
             switch reference {
             case .inline(let item): itemView(item)

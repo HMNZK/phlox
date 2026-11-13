@@ -15,6 +15,31 @@ set -e
 
 # --- main ---
 
+# 接続拒否（curl 終了コード 7: 要求が届いていない）だけを、受付が再開するまでの短い間（既定 0.2 秒 × 25 回 ≒ 5 秒）再試行する。
+# タイムアウト(28)・HTTP エラー(22)など、要求が届いた可能性のある失敗は再試行しない（二重配送の防止）。
+hook_curl_retry_on_refused() {
+    local attempt=0 max="${PHLOX_CONNECT_RETRY_ATTEMPTS:-25}" rc
+    while :; do
+        rc=0
+        "$@" || rc=$?
+        [ "$rc" -eq 7 ] || return "$rc"
+        attempt=$((attempt + 1))
+        [ "$attempt" -lt "$max" ] || return "$rc"
+        sleep "${PHLOX_CONNECT_RETRY_INTERVAL:-0.2}"
+    done
+}
+
+hook_post_authenticated() {
+    local body="$1"
+    printf 'header = "Authorization: Bearer %s"\n' "$PHLOX_TOKEN" \
+        | curl -fsS --max-time 5 -K - -X POST -H "Content-Type: application/json" -d "$body" "$CLAUDE_HOOKS_URL"
+}
+
+hook_post_plain() {
+    local body="$1"
+    curl -fsS --max-time 5 -X POST -H "Content-Type: application/json" -d "$body" "$CLAUDE_HOOKS_URL"
+}
+
 hook_dispatcher_main() {
     local KIND="${1:-}"
 
@@ -101,11 +126,11 @@ hook_dispatcher_main() {
     # 認証: PHLOX_TOKEN があれば Authorization: Bearer を付与する（無認証 hook POST による偽 stop/idle
     # 注入対策・CWE-306）。トークンは curl の引数（argv=ps 露出・CWE-214）に載せず、-K -（config を
     # stdin 渡し）で送る。BODY は秘匿情報を含まない hook メタなので従来どおり -d 引数でよい。
+    # 実行サービスの更新中は受付が一時的に閉じるので、接続拒否だけを短く再試行する（hook_curl_retry_on_refused）。
     if [ -n "${PHLOX_TOKEN:-}" ]; then
-        printf 'header = "Authorization: Bearer %s"\n' "$PHLOX_TOKEN" \
-            | curl -fsS --max-time 5 -K - -X POST -H "Content-Type: application/json" -d "$BODY" "$CLAUDE_HOOKS_URL" >/dev/null 2>&1 || true
+        hook_curl_retry_on_refused hook_post_authenticated "$BODY" >/dev/null 2>&1 || true
     else
-        curl -fsS --max-time 5 -X POST -H "Content-Type: application/json" -d "$BODY" "$CLAUDE_HOOKS_URL" >/dev/null 2>&1 || true
+        hook_curl_retry_on_refused hook_post_plain "$BODY" >/dev/null 2>&1 || true
     fi
 
 }

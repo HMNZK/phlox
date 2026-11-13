@@ -36,6 +36,7 @@ public final class CompositionRoot {
     public let mobilePrivilegedRequesterSessionIDs: Set<SessionID>
 
     private let controlServer: ControlServer
+    private let hookServer: HookServer
     private let mobileProxy: MobileProxy
     private let actionHandler: ControlActionHandler
 
@@ -50,7 +51,10 @@ public final class CompositionRoot {
         if let reason = appSupportMigrationOutcome.startupFailureReason {
             throw CompositionError.migrationFailed(reason: reason)
         }
-        let hookInfra = try await Self.startHookInfrastructure()
+        // 計画的更新で旧ホストが残した確定点（ADR 0233）。読めない・不正なら起動を止める
+        // （通常復元は記録PIDの孤児回収で生きた子を終了させるため、続行してはならない）。
+        let handoverCheckpoint = try Self.loadHandoverCheckpoint()
+        let hookInfra = try await Self.startHookInfrastructure(exactPort: handoverCheckpoint?.hookPort)
         let claudeSettings = try Self.prepareClaudeSettings()
         let agents = try await Self.resolveAgentBinaries()
         let liveModelProvider = CachingAgentModelProvider(source: LiveAgentModelProvider(
@@ -91,6 +95,7 @@ public final class CompositionRoot {
             tokenStore: hookInfra.tokenStore,
             deviceTokenStore: deviceTokenStore,
             savedPorts: hookInfra.savedPorts,
+            exactPort: handoverCheckpoint?.controlPort,
             hookPort: hookInfra.port,
             mobileProvisioner: mobileDevices.provisioner,
             pairingRelay: pairingRelay
@@ -110,6 +115,7 @@ public final class CompositionRoot {
             tokenStore: hookInfra.tokenStore,
             mobilePrivilegedRequesterSessionIDs: mobileDevices.bootstrap.privilegedRequesters,
             remoteSessionNotifier: remoteSessionNotifier,
+            handoverAdoptions: handoverCheckpoint.map(Self.adoptions(from:)) ?? [:],
             onDashboardReady: onDashboardReady
         )
         let dashboard = started.dashboard
@@ -155,6 +161,7 @@ public final class CompositionRoot {
         self.mobileTokenViewModel = mobileTokenViewModel
         self.mobilePrivilegedRequesterSessionIDs = mobileDevices.bootstrap.privilegedRequesters
         self.controlServer = control.controlServer
+        self.hookServer = hookInfra.hook
         self.mobileProxy = mobileProxyResult.proxy
         self.actionHandler = control.actionHandler
         control.actionHandler.dashboard = started.dashboard
@@ -163,12 +170,22 @@ public final class CompositionRoot {
             WorktreeRecreationDialog.confirm(path: path, branchName: branchName, branchExists: branchExists)
         }
         await started.dashboard.start()
+        if handoverCheckpoint != nil { Self.finishHandoverAdoption(adopted: started.dashboard.handoverAdoptedSessionIDs) }
         started.router.tabs.migrateLegacy(
             sessionProjects: Dictionary(uniqueKeysWithValues: started.dashboard.sessionNodes.compactMap { node in node.projectID.map { (node.id, $0) } }),
             projects: started.dashboard.projects
         )
         Self.applyRemoteSessionNotifier(remoteSessionNotifier, to: started.dashboard)
         started.usage.start()
+    }
+
+    /// 計画的な更新（ADR 0233）: Hook/Controlの新しい接続の受付を止め、処理中のものが終わるまで待つ。
+    /// 待ちきれなければfalse（長い待機中のリクエストは新ホストへの切替で切られる）。
+    func stopAcceptingForHandover(timeout: Duration) async -> Bool {
+        async let hookDrained = hookServer.stopAcceptingAndDrain(timeout: timeout)
+        async let controlDrained = controlServer.stopAcceptingAndDrain(timeout: timeout)
+        let (hook, control) = await (hookDrained, controlDrained)
+        return hook && control
     }
 
     // MARK: - init フェーズ（監査 G の 9 区分）
@@ -183,7 +200,7 @@ public final class CompositionRoot {
     }
 
     /// フェーズ 2: Hook 基盤起動
-    private static func startHookInfrastructure() async throws -> (
+    private static func startHookInfrastructure(exactPort: Int? = nil) async throws -> (
         pty: PTYManager,
         tokenStore: SessionTokenStore,
         hook: HookServer,
@@ -197,7 +214,14 @@ public final class CompositionRoot {
         let tokenStore = SessionTokenStore()
         let hook = HookServer(tokenStore: tokenStore)
         let savedPorts = (try? Self.portsURL()).flatMap(SavedPorts.load(from:))
-        let port = try await hook.start(preferredPort: savedPorts?.hookPort ?? 0)
+        let port: Int
+        if let exactPort {
+            // 引き継ぐ子が環境変数に固定したポート。ランダムポートへは落とさない。
+            guard let exact = UInt16(exactly: exactPort) else { throw CompositionError.invalidHookURL }
+            port = try await hook.start(exactPort: exact)
+        } else {
+            port = try await hook.start(preferredPort: savedPorts?.hookPort ?? 0)
+        }
         guard let url = URL(string: "http://127.0.0.1:\(port)/hook") else {
             throw CompositionError.invalidHookURL
         }
@@ -270,6 +294,7 @@ public final class CompositionRoot {
         tokenStore: SessionTokenStore,
         deviceTokenStore: any DeviceTokenStore,
         savedPorts: SavedPorts?,
+        exactPort: Int? = nil,
         hookPort: Int,
         mobileProvisioner: MobileDeviceProvisioner,
         pairingRelay: MobileDevicePairingRelay
@@ -301,7 +326,13 @@ public final class CompositionRoot {
         ) { [actionHandler] req in
             await actionHandler.handle(req)
         }
-        let controlPort = try await controlServer.start(preferredPort: savedPorts?.controlPort ?? 0)
+        let controlPort: Int
+        if let exactPort {
+            guard let exact = UInt16(exactly: exactPort) else { throw CompositionError.invalidHookURL }
+            controlPort = try await controlServer.start(exactPort: exact)
+        } else {
+            controlPort = try await controlServer.start(preferredPort: savedPorts?.controlPort ?? 0)
+        }
         guard let controlURL = URL(string: "http://127.0.0.1:\(controlPort)") else {
             throw CompositionError.invalidHookURL
         }
@@ -422,6 +453,7 @@ public final class CompositionRoot {
         tokenStore: SessionTokenStore,
         mobilePrivilegedRequesterSessionIDs: Set<SessionID>,
         remoteSessionNotifier: any RemoteSessionNotifier,
+        handoverAdoptions: [SessionID: HandoverSession] = [:],
         onDashboardReady: (@MainActor (DashboardViewModel, PTYManager, ClaudeUsageProcess?) -> Void)?
     ) async throws -> (
         environment: AppEnvironment,
@@ -451,7 +483,9 @@ public final class CompositionRoot {
                     .appendingPathComponent("session-history-names.json")
             ),
             transcriptStore: FileTranscriptStore(),
-            cliPath: Self.cliPath
+            cliPath: Self.cliPath,
+            processHolder: try Self.processHolderPolicy(),
+            handoverAdoptions: handoverAdoptions
         )
         let dashboard = DashboardViewModel(
             environment: env,
@@ -696,6 +730,50 @@ public final class CompositionRoot {
     static let defaultRepositoryRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
+
+    static func handoverDirectory() throws -> URL {
+        try SessionRuntimeLease.resolvedStoreURL().appendingPathComponent("session-runtime/handover", isDirectory: true)
+    }
+
+    private static func loadHandoverCheckpoint() throws -> HandoverCheckpoint? {
+        guard SessionRuntimeLaunchRole(arguments: ProcessInfo.processInfo.arguments) == .sessionRuntime else { return nil }
+        return try HandoverCheckpointStore.read(directory: try handoverDirectory())
+    }
+
+    private static func adoptions(from checkpoint: HandoverCheckpoint) -> [SessionID: HandoverSession] {
+        var result: [SessionID: HandoverSession] = [:]
+        for session in checkpoint.sessions {
+            guard let uuid = UUID(uuidString: session.sessionID) else { continue }
+            result[SessionID(rawValue: uuid)] = session
+        }
+        return result
+    }
+
+    /// 復元が一巡したら、採用に成功したセッションの項目だけを確定点から外す（再起動で二重に採用しない）。
+    /// 失敗・不明の項目は確定点に残し、次の起動が採用を再試行する。残る項目のセッションは孤児回収の対象にならず、
+    /// 子は終了も再生成もされない。書き直しに失敗したら確定点全体を残す（子を終了させない側に倒す）。
+    private static func finishHandoverAdoption(adopted: Set<SessionID>) {
+        do {
+            try HandoverCheckpointStore.consume(
+                sessionIDs: Set(adopted.map { $0.rawValue.uuidString }), directory: try handoverDirectory())
+        } catch {
+            FileHandle.standardError.write(Data("Handover checkpoint update failed: \(error)\n".utf8))
+        }
+    }
+
+    /// 常駐プロセスだけ、子CLIの寿命をholder（別プロセス）へ分ける（ADR 0233）。GUI直起動・テストは従来どおり直接起動。
+    /// ソケットはパス長の上限（104バイト）のため短い固定場所に置く。他のストアと混ざらないようストアのパスで分ける。
+    private static func processHolderPolicy() throws -> ProcessHolderPolicy? {
+        guard SessionRuntimeLaunchRole(arguments: ProcessInfo.processInfo.arguments) == .sessionRuntime,
+              let executable = Bundle.main.executablePath else { return nil }
+        let store = try SessionRuntimeLease.resolvedStoreURL()
+        var hash: UInt32 = 2_166_136_261
+        for byte in store.path.utf8 { hash = (hash ^ UInt32(byte)) &* 16_777_619 }
+        return ProcessHolderPolicy(
+            executable: executable,
+            recordDirectory: store.appendingPathComponent("session-runtime/holders", isDirectory: true).path,
+            socketDirectory: "/tmp/phlox-holders-\(getuid())-\(String(hash, radix: 16))")
+    }
 
     /// scripts ディレクトリ内の実行ファイルパスを実行形態に応じて解決する。
     /// Debug ではリポジトリ内、Release ではアプリバンドル同梱リソース内を参照する。

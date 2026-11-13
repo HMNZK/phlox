@@ -20,6 +20,15 @@ public struct AppEnvironment: Sendable {
         _ approvalHandler: JSONRPCClient.ServerRequestHandler?
     ) async throws -> any StructuredAgentClient
     public typealias AppServerClientFactory = StructuredClientFactory
+    /// 旧ホストから引き継いだ実行（holder経由の子）へつなぐクライアントを作る。新しい子は作らない。
+    public typealias AdoptClientFactory = @Sendable (
+        _ agentRef: AgentRef,
+        _ session: HandoverSession,
+        _ command: String,
+        _ workingDirectory: String?,
+        _ environment: [String: String],
+        _ approvalHandler: JSONRPCClient.ServerRequestHandler?
+    ) async throws -> any StructuredAgentClient
 
     public let pty: any PTYManagerProtocol
     public let hook: any HookServerProtocol
@@ -73,6 +82,14 @@ public struct AppEnvironment: Sendable {
     public let cliPath: String
     public let isFullAccessEnabled: @Sendable (AgentRef) -> Bool
     public let structuredClientFactory: StructuredClientFactory
+    /// 子CLIの寿命を別プロセス（holder）へ分ける設定。常駐プロセスだけが指定する。nilなら従来どおり直接起動する。
+    public let processHolder: ProcessHolderPolicy?
+    /// 計画的なホスト更新で旧ホストが残した引き継ぎ対象（セッションID → 採用先）。復元走査はこれにあるセッションを
+    /// 再起動せず引き継ぐ。空なら従来どおり。
+    public let handoverAdoptions: [SessionID: HandoverSession]
+    public let adoptClientFactory: AdoptClientFactory
+    /// 計画的なホスト更新の間、新しいセッションの起動を止める門。
+    public let handoverGate: HandoverGate
 
     public init(
         pty: any PTYManagerProtocol,
@@ -100,7 +117,10 @@ public struct AppEnvironment: Sendable {
         cliPath: String,
         fullAccessProvider: (@Sendable (AgentRef) -> Bool)? = nil,
         structuredClientFactory: StructuredClientFactory? = nil,
-        appServerClientFactory: AppServerClientFactory? = nil
+        appServerClientFactory: AppServerClientFactory? = nil,
+        processHolder: ProcessHolderPolicy? = nil,
+        handoverAdoptions: [SessionID: HandoverSession] = [:],
+        adoptClientFactory: AdoptClientFactory? = nil
     ) {
         self.pty = pty
         self.hook = hook
@@ -126,9 +146,17 @@ public struct AppEnvironment: Sendable {
             BypassSettings.isEnabled(for: ref)
         }
         self.isFullAccessEnabled = resolvedFullAccessProvider
+        // holderを起動する入口にも同じ門を結びつける（計画時に開いていても、起動の直前に閉じていれば起動しない）。
+        let gate = HandoverGate()
+        self.handoverGate = gate
+        let gatedHolder = processHolder?.gated(by: gate)
+        self.processHolder = gatedHolder
+        self.handoverAdoptions = handoverAdoptions
+        self.adoptClientFactory = adoptClientFactory
+            ?? Self.defaultAdoptClientFactory(fullAccessProvider: resolvedFullAccessProvider, holder: gatedHolder)
         self.structuredClientFactory = structuredClientFactory
             ?? appServerClientFactory
-            ?? Self.defaultStructuredClientFactory(fullAccessProvider: resolvedFullAccessProvider)
+            ?? Self.defaultStructuredClientFactory(fullAccessProvider: resolvedFullAccessProvider, holder: gatedHolder)
     }
 
     /// 指定 CLI の実行ファイル絶対パス。claudeCode は既存の claudeBinaryPath を返す。
@@ -234,6 +262,68 @@ public struct AppEnvironment: Sendable {
         }
     }
 
+    private static func makeClaudeClient(
+        command: String, workingDirectory: String?, environment: [String: String], fullAccess: Bool,
+        holder: ProcessHolderPolicy?
+    ) -> ClaudeChatClient {
+        let permissionMode = fullAccess ? "bypassPermissions" : "auto"
+        guard let holder else {
+            return ClaudeChatClient(
+                command: command, workingDirectory: workingDirectory, environment: environment,
+                permissionMode: permissionMode)
+        }
+        let metadata = Self.holderMetadata(agent: "claudeCode", environment: environment)
+        return ClaudeChatClient(
+            command: command,
+            workingDirectory: workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) },
+            environment: environment,
+            permissionMode: permissionMode,
+            transportFactory: { command, arguments, environment, directory in
+                holder.transport(
+                    command: command, arguments: arguments, environment: environment,
+                    workingDirectory: directory?.path, metadata: metadata)
+            }
+        )
+    }
+
+    /// 引き継ぎ用のクライアント。holder経由の子へ接続するだけで、子は起動しない。Claudeのみ対応（Codexは未対応）。
+    private static func defaultAdoptClientFactory(
+        fullAccessProvider: @escaping @Sendable (AgentRef) -> Bool,
+        holder: ProcessHolderPolicy?
+    ) -> AdoptClientFactory {
+        { agentRef, session, command, workingDirectory, environment, handler in
+            guard holder != nil else {
+                throw HandoverError.adoptionFailed("この実行環境はholderを使いません")
+            }
+            switch agentRef {
+            case .builtin(.claudeCode):
+                let client = Self.makeClaudeClient(
+                    command: command, workingDirectory: workingDirectory, environment: environment,
+                    fullAccess: fullAccessProvider(agentRef), holder: holder)
+                let transport = HolderTransport(source: .adopt(record: session.holder, fromSeq: session.appliedSeq))
+                await client.prepareAdoption(state: session.clientState, transport: transport)
+                return client
+            case .builtin(.codex):
+                // 新しい子は作らない。initialize・thread/*・turn/startは再発行せず、holderの子へつなぐだけ（接続は`completeAdoption`）。
+                let transport = HolderTransport(source: .adopt(record: session.holder, fromSeq: session.appliedSeq))
+                let client = CodexStructuredAgentClient(client: CodexAppServerClient(
+                    transport: transport, serverRequestHandler: handler,
+                    additionalDeveloperInstructions: CodexQuestionPolicy.instructions))
+                await client.prepareAdoption(state: session.clientState, transport: transport)
+                return client
+            default:
+                throw HandoverError.adoptionFailed("このエージェントは実行の引き継ぎに未対応です")
+            }
+        }
+    }
+
+    /// holderの探索記録に残す、セッションとの対応づけ（新しい常駐プロセスが採用先を決める）。
+    static func holderMetadata(agent: String, environment: [String: String]) -> [String: String] {
+        var metadata = ["agent": agent]
+        if let session = environment["PHLOX_SESSION_ID"], !session.isEmpty { metadata["session"] = session }
+        return metadata
+    }
+
     /// Codex `app-server` 子プロセス起動時の arguments。
     /// `model_reasoning_summary=detailed` を config override で渡し、Reasoning サマリを有効化する。
     /// `tools.update_plan.enabled=true` で計画の道具 `update_plan` を使えるようにする（使用は強制しない。ADR 0228）。
@@ -245,17 +335,25 @@ public struct AppEnvironment: Sendable {
     }
 
     private static func defaultStructuredClientFactory(
-        fullAccessProvider: @escaping @Sendable (AgentRef) -> Bool
+        fullAccessProvider: @escaping @Sendable (AgentRef) -> Bool,
+        holder: ProcessHolderPolicy?
     ) -> StructuredClientFactory {
         { agentRef, command, workingDirectory, environment, handler in
             switch agentRef {
             case .builtin(.codex):
-                let transport = LineDelimitedProcessTransport(
-                    command: command,
-                    arguments: Self.codexAppServerProcessArguments(),
-                    environment: environment,
-                    workingDirectory: workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
-                )
+                let transport: any (LineDelimitedTransport & AppServerTransport)
+                if let holder {
+                    transport = holder.transport(
+                        command: command, arguments: Self.codexAppServerProcessArguments(), environment: environment,
+                        workingDirectory: workingDirectory, metadata: Self.holderMetadata(agent: "codex", environment: environment))
+                } else {
+                    transport = LineDelimitedProcessTransport(
+                        command: command,
+                        arguments: Self.codexAppServerProcessArguments(),
+                        environment: environment,
+                        workingDirectory: workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+                    )
+                }
                 try transport.start()
                 let client = CodexAppServerClient(
                     transport: transport,
@@ -264,13 +362,9 @@ public struct AppEnvironment: Sendable {
                 )
                 return CodexStructuredAgentClient(client: client)
             case .builtin(.claudeCode):
-                let fullAccess = fullAccessProvider(agentRef)
-                return ClaudeChatClient(
-                    command: command,
-                    workingDirectory: workingDirectory,
-                    environment: environment,
-                    permissionMode: fullAccess ? "bypassPermissions" : "auto"
-                )
+                return Self.makeClaudeClient(
+                    command: command, workingDirectory: workingDirectory, environment: environment,
+                    fullAccess: fullAccessProvider(agentRef), holder: holder)
             case .builtin(.cursor):
                 let fullAccess = fullAccessProvider(agentRef)
                 return CursorChatClient(

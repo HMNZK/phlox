@@ -990,7 +990,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// 選択した履歴から再開する（転写反映＋ client.resume・task-9 契約）。
     public func startFromHistory(_ entry: ClaudeSessionHistoryEntry) async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.startFromHistory(entry)); return }
-        guard historyTranscriptLoader != nil else { return }
+        guard historyTranscriptLoader != nil, !isHandoverRecoveryNeeded else { return }
         do {
             try await resumeHistory(entry, initialSettings: nil, approvalPolicy: nil, sandbox: nil, startsClient: false)
         } catch {
@@ -1416,7 +1416,7 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     public var isReadyForInput: Bool {
-        guard launchFailure == nil else { return false }
+        guard launchFailure == nil, !isHandoverRecoveryNeeded else { return false }
         guard !isApplyingSpawnAgentPermission else { return false }
         return switch status {
         case .starting:
@@ -1590,6 +1590,157 @@ public final class ChatSessionViewModel: Identifiable {
         }
     }
 
+    // MARK: - 計画的なホスト更新（ADR 0233）
+
+    @ObservationIgnored private var reachedHandoverFences: Set<UUID> = []
+    /// 確定点の作成中〜コミット後。新しい操作（送信・回答・休止）は未受付にし、停止・終了は結果が出るまで待つ。
+    @ObservationIgnored private var handoverPreparing = false
+    /// 承認への応答を処理中の件数。0になるまで確定点を作らない（応答済みの要求を新ホストで再提示しないため）。
+    @ObservationIgnored private var respondingApprovalCount = 0
+    /// 引き継ぎに失敗して復旧待ち。元の子は生きているが、この画面状態からは操作しない（送信・設定変更・再開で新しい子を起動しない）。
+    public private(set) var isHandoverRecoveryNeeded = false
+
+    private func rejectIfHandoverRecoveryNeeded() throws {
+        if isHandoverRecoveryNeeded {
+            throw HandoverError.adoptionFailed("実行の引き継ぎが完了していないため、操作できません（元の実行は終了していません）。")
+        }
+    }
+
+    private func waitForHandoverToSettle() async {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while handoverPreparing, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(20)) }
+    }
+
+    /// 実行の引き継ぎに対応するクライアント（holder経由のClaude）を持つか。
+    public var isHandoverParticipant: Bool { !isRuntimeProjection && ownedClient is any HandoverCapableClient }
+
+    /// 子が既に終了していれば`.childEnded`（引き継ぎの対象外。延期理由にも確定点にも載せない）。
+    public func handoverParticipation() async -> HandoverParticipation {
+        guard !isRuntimeProjection, let handover = ownedClient as? any HandoverCapableClient else { return .participant }
+        return await handover.handoverParticipation()
+    }
+
+    /// 更新できない理由。nilなら可（PTY・非holder・応答待ちの操作・結果不明の送信などは理由を返す）。
+    public func handoverGateReason() async -> String? {
+        guard !isRuntimeProjection, let handover = ownedClient as? any HandoverCapableClient else {
+            return "このセッションは実行の引き継ぎに対応していません"
+        }
+        guard restoreState == .restored || restoreState == .notRestored, processExit == nil,
+              launchFailure == nil, !isTerminating else { return "セッションが起動中・復元中・終了済みです" }
+        return await handover.handoverGateReason()
+    }
+
+    /// 確定点を作る: クライアントの送受信を止めて状態を確定し、フェンスを画面状態が処理し終えるまで待ち、
+    /// 会話ログを永続化する。失敗時は送受信を再開してから投げる。
+    public func prepareHandover(fenceTimeout: Duration = .seconds(10)) async throws -> HandoverPreparation {
+        guard let handover = ownedClient as? any HandoverCapableClient else {
+            throw HandoverError.notReady("このセッションは実行の引き継ぎに対応していません")
+        }
+        guard !handoverPreparing else { throw HandoverError.notReady("既に更新の準備中です") }
+        // 新しい操作を断ち、受付済みの操作は確定点の前に終わらせる（終わらなければ中止して何も変えない）。
+        handoverPreparing = true
+        let settleDeadline = ContinuousClock.now + .seconds(5)
+        while !respondingUserQuestionIds.isEmpty || respondingApprovalCount > 0 || activeInterruptTask != nil || runtimeSendInFlight
+                || runtimeAcceptedSendTask != nil || isPreparingImageSend || isApplyingSpawnAgentPermission
+                || firstTurnInput != nil {
+            if ContinuousClock.now >= settleDeadline {
+                handoverPreparing = false
+                throw HandoverError.notReady("受付済みの操作が完了していません")
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        let fence = UUID()
+        let preparation: HandoverPreparation
+        do { preparation = try await handover.prepareHandover(fence: fence) } catch {
+            handoverPreparing = false
+            throw error
+        }
+        let deadline = ContinuousClock.now + fenceTimeout
+        while !reachedHandoverFences.contains(fence) {
+            if ContinuousClock.now >= deadline {
+                await handover.cancelHandover()
+                handoverPreparing = false
+                throw HandoverError.timedOut
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        reachedHandoverFences.remove(fence)
+        await flushTranscriptNow()
+        return preparation
+    }
+
+    public func cancelHandover() async {
+        await (ownedClient as? any HandoverCapableClient)?.cancelHandover()
+        handoverPreparing = false
+    }
+
+    public func commitHandover(confirmedThrough: UInt64) async {
+        await (ownedClient as? any HandoverCapableClient)?.commitHandover(confirmedThrough: confirmedThrough)
+    }
+
+    /// 旧ホストから引き継いだ実行（子は同じプロセスのまま）をこの画面状態へ載せる。新しい子は作らない。
+    /// 失敗しても子を終了・再生成しない。復旧待ちとして残す。
+    public func adoptHandover(threadId: String, persistedSettings: CodexAppServerSessionSettings? = nil) async {
+        guard !isRuntimeProjection, let handover = ownedClient as? any HandoverCapableClient else {
+            isHandoverRecoveryNeeded = true
+            markRestoreFailed("handover recovery needed: クライアントが引き継ぎに対応していません")
+            return
+        }
+        restoreState = .restoring
+        codexRestoreGeneration += 1
+        clearRunningBackgroundTasks()
+        startEventTasks()
+        await restoreTurnUsageFromStore()
+        do {
+            let restoredFromStore = try await restoreTranscriptFromStore()
+            await loadSpawnAgentSettings(persistedSettings: persistedSettings, restoring: true)
+            updateNativeSessionId(threadId)
+            status = .idle
+            // 進行中のターン・未回答の承認/質問は、ここから流れるイベントと、再投入された要求で状態へ戻る。
+            try await handover.completeAdoption()
+            if let codexClient {
+                await adoptCodexReadState(
+                    codexClient, threadId: threadId, persistedSettings: persistedSettings, restoredFromStore: restoredFromStore)
+            }
+            restoreState = .restored
+        } catch {
+            isHandoverRecoveryNeeded = true
+            status = .error(message: "handover recovery needed: \(error)")
+            restoreState = .failed(message: "handover recovery needed: \(String(describing: error))")
+            if transcript.isEmpty {
+                appendOrReplace(.error(id: "restore-error-\(id.rawValue)", message: "handover recovery needed: \(error)", timestamp: Date()))
+            }
+            logRestoreFailure(error)
+        }
+    }
+
+    /// Codexの採用後の読み取り（受信の開始後に行う）。`thread/resume`を呼べないので、設定は記述子の永続値から戻し、
+    /// 進行中のターンのIDと状態は`thread/read`（読み取りのみ）から戻す。読めなくても採用は済んでいるので失敗にしない。
+    private func adoptCodexReadState(
+        _ codexClient: any CodexSettingsProviding, threadId: String,
+        persistedSettings: CodexAppServerSessionSettings?, restoredFromStore: Bool
+    ) async {
+        await loadAvailableSettings(persistedSettings: persistedSettings)
+        do {
+            let read = try await codexClient.threadRead(ThreadReadParams(threadId: threadId, includeTurns: true))
+            if restoredFromStore { restoreCodexQuestionNotifications(from: read.thread) } else { rebuildTranscript(from: read.thread) }
+            let restoredTurnID = codexEventTurnId
+            updateNativeSessionId(read.thread.id)
+            codexEventTurnId = restoredTurnID
+            // 再投入した未応答の要求による待ち状態は、読み取りの状態（質問待ちも`active`）で上書きしない。
+            let waitingStatus = status
+            applyRestoredThreadStatus(read.thread.status?.sessionStatus ?? .idle)
+            switch waitingStatus {
+            case .awaitingUserQuestion, .awaitingApproval:
+                if !codexUserInputRequestIDs.isEmpty || !pendingApprovals.isEmpty { status = waitingStatus }
+            default:
+                break
+            }
+        } catch {
+            logRestoreFailure(error)
+        }
+    }
+
     public func markRestoreFailed(_ message: String) {
         status = .error(message: message)
         restoreState = .failed(message: message)
@@ -1599,6 +1750,8 @@ public final class ChatSessionViewModel: Identifiable {
 
     public func turnInterrupt() async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.interrupt); return }
+        // 確定点の作成中は、その結果（中止なら続行、確定なら新ホスト）が出るまで待ってから止める。
+        await waitForHandoverToSettle()
         cancelRuntimeAcceptedSend()
         flushPendingStreamDeltasBarrier()
         // 利用者が止めたので、届く中断は今の入力の終わり（前の入力の遅れた終了を待たない）。
@@ -1773,6 +1926,7 @@ public final class ChatSessionViewModel: Identifiable {
     /// - 戻り値は当該ユーザーメッセージの本文（View が composer 入力欄へ復元する）。
     /// - 事前条件: 該当 id の userMessage が存在し、status が .running でないこと。満たさなければ nil。
     public func revert(toUserMessageID id: String) async -> String? {
+        guard !isHandoverRecoveryNeeded else { return nil }
         if let runtimeCommandHandler {
             do {
                 guard case .draft(let text, let attachments) = try await runtimeCommandHandler(executionID, .revert(userMessageID: id)) else {
@@ -1832,7 +1986,11 @@ public final class ChatSessionViewModel: Identifiable {
 
     public func respondToApproval(_ approvalID: UUID, decision: ApprovalDecision) async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.approval(approvalID, decision: decision)); return }
+        // 確定点の作成中は未受付（承認カードを残す）。
+        guard !handoverPreparing else { return }
         pendingApprovals.removeAll { $0.id == approvalID }
+        respondingApprovalCount += 1
+        defer { respondingApprovalCount -= 1 }
         await approvalBroker.respond(to: approvalID, decision: decision)
         if pendingApprovals.isEmpty, case .awaitingApproval = status {
             status = .running
@@ -1857,7 +2015,8 @@ public final class ChatSessionViewModel: Identifiable {
     @discardableResult
     public func declineUserQuestion(requestId: String) async -> Bool {
         if isRuntimeProjection { return await forwardRuntimeBool(.declineQuestion(requestId: requestId)) }
-        guard let index = userQuestionCardIndex(requestId: requestId),
+        guard !handoverPreparing,
+              let index = userQuestionCardIndex(requestId: requestId),
               case .userQuestion(_, _, _, _, .pending, _) = transcript[index]
         else {
             return false
@@ -1878,7 +2037,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     public func respondToUserQuestion(requestId: String, answers: [String: [String]]) async -> Bool {
         if isRuntimeProjection { return await forwardRuntimeBool(.question(requestId: requestId, answers: answers)) }
-        guard !respondingUserQuestionIds.contains(requestId),
+        guard !handoverPreparing, !respondingUserQuestionIds.contains(requestId),
               let index = userQuestionCardIndex(requestId: requestId),
               case .userQuestion(let id, let rid, let questions, _, .pending, let timestamp) = transcript[index]
         else {
@@ -1920,8 +2079,12 @@ public final class ChatSessionViewModel: Identifiable {
         }
 
         guard codexClient == nil else { return false }
-        // 既知の制約: answered 表示と actor の実送信がずれうるが、未承認ツールは実行されず表示上のずれに留まる。
-        await client.respondToUserQuestion(requestId: requestId, answers: answers)
+        // 送信が確定しなかった回答（引き継ぎ準備中・書込権の喪失・通信失敗）は「回答済み」にしない。カードは未回答のまま残る。
+        if let acknowledging = ownedClient as? any UserQuestionAnswerAcknowledging {
+            guard await acknowledging.respondToUserQuestionAcknowledged(requestId: requestId, answers: answers) else { return false }
+        } else {
+            await client.respondToUserQuestion(requestId: requestId, answers: answers)
+        }
         let persistedAnswers = ChatUserQuestion.persistedAnswers(from: answers, for: questions)
         appendOrReplace(.userQuestion(
             id: id,
@@ -2042,6 +2205,7 @@ public final class ChatSessionViewModel: Identifiable {
     private var codexSettingsRequestsInFlight = 0
 
     public func setModel(model: String, effort: String?) async throws {
+        try rejectIfHandoverRecoveryNeeded()
         if let runtimeCommandHandler { _ = try await runtimeCommandHandler(executionID, .model(model, effort: effort)); return }
         guard let threadId else { throw ChatSettingsUpdateError.threadNotStarted }
         guard let codexClient else { throw ChatSettingsUpdateError.codexSettingsUnavailable }
@@ -2489,7 +2653,7 @@ public final class ChatSessionViewModel: Identifiable {
 
     /// 選択中の model/permission(mode) を毎回そろえて actor へ渡し、永続コールバックを叩く。
     private func applySpawnAgentSettings(clearBackgroundTasksOnNextTurnStart: Bool = true) async {
-        guard let controller = spawnSettingsClient else { return }
+        guard let controller = spawnSettingsClient, !isHandoverRecoveryNeeded else { return }
         let effectivePermissionOrMode = isPlanMode ? "plan" : selectedPermissionProfile
         let effort: String? = agentRef == .builtin(.claudeCode)
             && Self.claudeModelSupportsEffort(selectedModel)
@@ -2857,6 +3021,12 @@ public final class ChatSessionViewModel: Identifiable {
     }
 
     private func handle(_ event: NormalizedChatEvent) async {
+        if case .handoverFence(let fence) = event {
+            // 保留中の差分を確定してから、ここまでの全イベントが反映済みだと知らせる（ADR 0233）。
+            flushPendingStreamDeltasBarrier()
+            reachedHandoverFences.insert(fence)
+            return
+        }
         if case .rateLimitsUpdated(let snapshot) = event {
             guard !isTerminating, processExit == nil, launchFailure == nil else { return }
             rateLimitsDidChange?(snapshot)
@@ -2886,6 +3056,8 @@ public final class ChatSessionViewModel: Identifiable {
             break
         case .rateLimitsUpdated:
             break // 上で会話状態へ影響させず処理済み。
+        case .handoverFence:
+            break // 上で処理済み。
         case .taskListUpdated(let tasks):
             appendTaskListSnapshot(tasks, at: eventDate)
             touchOutput()
@@ -4556,6 +4728,9 @@ extension ChatSessionViewModel: ControllableSession {
     }
 
     private func sendText(_ text: String, submit: Bool, controlSkill: SkillIdentity?) async throws {
+        // 引き継ぎの確定点を作っている間は未受付として断る（受け付けて失う・二重に送ることを避ける）。
+        if handoverPreparing { throw HandoverError.notReady("実行サービスの更新準備中です。少し待ってからもう一度送ってください") }
+        try rejectIfHandoverRecoveryNeeded()
         if let runtimeCommandHandler {
             guard !runtimeSendInFlight, inFlightText == nil else { throw ControlImageSendError.imageSendInProgress }
             runtimeSendInFlight = true
@@ -4883,6 +5058,7 @@ extension ChatSessionViewModel: ControllableSession {
 
     public func terminate() async {
         if isRuntimeProjection { await forwardRuntimeCommandAndWait(.terminate); return }
+        await waitForHandoverToSettle()
         await stopProcess()
         status = .completed(exitCode: 0)
     }
@@ -4903,7 +5079,8 @@ extension ChatSessionViewModel: ControllableSession {
               sendFailure == nil, runtimeDraftRecovery == nil,
               // 受け付け済みでまだ始まっていない送信（Control API・スマホ）を消さない。
               !runtimeSendInFlight, runtimeAcceptedSendTask == nil, firstTurnInput == nil,
-              activeInterruptTask == nil, !isPreparingImageSend, !isApplyingSpawnAgentPermission
+              activeInterruptTask == nil, !isPreparingImageSend, !isApplyingSpawnAgentPermission,
+              !handoverPreparing
         else { return false }
         switch status {
         case .idle, .completed: return true

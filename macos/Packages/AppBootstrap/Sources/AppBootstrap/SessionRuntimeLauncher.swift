@@ -164,7 +164,7 @@ public final class SessionRuntimeLauncher {
         }
     }
 
-    private func spawn() throws -> pid_t {
+    private func verifiedExecutable() throws -> URL {
         guard let bundle = Bundle(url: runtimeBundleURL), let executable = bundle.executableURL,
               bundle.bundleIdentifier == Bundle.main.bundleIdentifier else {
             throw SessionRuntimeConnectionError.runtimeUnavailable("実行サービスのアプリが一致しません。")
@@ -174,6 +174,46 @@ public final class SessionRuntimeLauncher {
               let code, SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), nil) == errSecSuccess else {
             throw SessionRuntimeConnectionError.runtimeUnavailable("実行サービスの署名を確認できません。")
         }
+        return executable
+    }
+
+    /// 計画的なホスト更新（ADR 0233）で、旧ホストが新版を起動するための事前確認済みの権利。
+    /// 起動の直列化ロックを保持するので、更新中に画面側が別のホストを起動することはない。
+    public struct ReplacementTicket {
+        fileprivate let lockDescriptor: Int32
+        fileprivate let executable: URL
+    }
+
+    /// 取り消せる段階で、新版の署名・同一アプリ・起動ロックを確認する。失敗なら何も変えない。
+    public func prepareReplacement() throws -> ReplacementTicket {
+        let executable = try verifiedExecutable()
+        return ReplacementTicket(lockDescriptor: try acquireLaunchLock(), executable: executable)
+    }
+
+    public func abandonReplacement(_ ticket: ReplacementTicket) { close(ticket.lockDescriptor) }
+
+    /// 不可逆: 所有権を手放して新版を起動する。失敗時は起動の記録を消す（既存の確定点は残り、次のホスト起動が採用する）。
+    public func launchReplacement(_ ticket: ReplacementTicket, releasing lease: SessionRuntimeLease) throws -> pid_t {
+        defer { close(ticket.lockDescriptor) }
+        lease.release()
+        let attempt = LaunchAttempt(id: UUID(), pid: nil)
+        try writeAttempt(attempt)
+        let pid: pid_t
+        do {
+            pid = try spawn(executable: ticket.executable)
+        } catch {
+            unlink(attemptURL.path)
+            throw error
+        }
+        try writeAttempt(LaunchAttempt(id: attempt.id, pid: pid))
+        return pid
+    }
+
+    private func spawn() throws -> pid_t {
+        try spawn(executable: try verifiedExecutable())
+    }
+
+    private func spawn(executable: URL) throws -> pid_t {
         var actions: posix_spawn_file_actions_t?
         var attributes: posix_spawnattr_t?
         var result = posix_spawn_file_actions_init(&actions)

@@ -5,12 +5,15 @@
 fake-state/<PID>.json の controlDirectory 配下へ、ターンごとに次を置く。
 turn-N.approval / turn-N.question は Claude の control_request を各一度送る。
 turn-N.release は保留回答が無ければ成功完了、turn-N.fail は失敗完了する。
-stop はプロセスを終了する。マーカーは読み取るだけで、削除・実行しない。
+stop はプロセスを終了する。control-check-<名前> は、受け継いだ PHLOX_API_URL・PHLOX_TOKEN で
+Control API（GET /sessions）を一度だけ呼び、結果の HTTP 状態を controlChecks に記録する（loopback のみ）。
+マーカーは読み取るだけで、削除・実行しない。
 Claude は完了後も stdin の次ターンを待つ。Cursor は完了後に終了する。
 """
 
 import argparse
 from datetime import datetime, timezone
+import http.client
 import json
 import os
 from pathlib import Path
@@ -19,6 +22,7 @@ import signal
 import stat
 import sys
 import time
+import urllib.parse
 import uuid
 
 
@@ -93,7 +97,8 @@ class StructuredFakeAgent:
                           runID=self.run_id, sessionID=self.session_id,
                           startedAt=datetime.now(timezone.utc).isoformat(), heartbeat=0,
                           turn=0, active=False, running=True, phase="starting", emittedLines=0,
-                          inputMarkers=[], methods=[], approvalReplies=[], questionReplies=[],
+                          inputMarkers=[], methods=[], methodCounts={}, controlChecks=[],
+                          approvalReplies=[], questionReplies=[],
                           duplicateReplies=[], pendingRequest=None, signals=[], exitCode=None)
         if not usage_only:
             private_directory(root / "fake-state")
@@ -211,6 +216,8 @@ class StructuredFakeAgent:
         if not isinstance(message, dict):
             raise ValueError("stdin protocol message is not an object")
         kind = message.get("type")
+        name = kind if kind != "control_request" else message.get("request", {}).get("subtype")
+        self.state["methodCounts"][str(name)] = self.state["methodCounts"].get(str(name), 0) + 1
         if kind == "user":
             if self.usage_only:
                 raise ValueError("usage fixture does not accept user turns")
@@ -259,7 +266,32 @@ class StructuredFakeAgent:
             self.running = False
         self.save()
 
+    def check_control(self, marker):
+        result = dict(marker=marker)
+        try:
+            endpoint = urllib.parse.urlsplit(os.environ["PHLOX_API_URL"])
+            if endpoint.scheme != "http" or endpoint.hostname != "127.0.0.1" or not endpoint.port:
+                raise ValueError("The fixture only permits loopback services")
+            connection = http.client.HTTPConnection("127.0.0.1", endpoint.port, timeout=5)
+            try:
+                connection.request("GET", "/sessions", headers={"Authorization": "Bearer " + os.environ["PHLOX_TOKEN"]})
+                response = connection.getresponse()
+                response.read(1024 * 1024)
+                result["status"] = response.status
+            finally:
+                connection.close()
+        except (OSError, ValueError, KeyError, http.client.HTTPException) as error:
+            # 型だけを残す（例外の文言に秘密が含まれ得るため）。
+            result["error"] = type(error).__name__
+        self.state["controlChecks"] = (self.state["controlChecks"] + [result])[-16:]
+        self.save()
+
     def tick(self):
+        if self.control_directory is not None:
+            done = {check["marker"] for check in self.state["controlChecks"]}
+            for name in sorted(os.listdir(self.control_directory)):
+                if name.startswith("control-check-") and name not in done and self.has_marker(name):
+                    self.check_control(name)
         if self.has_marker("stop"):
             self.state["phase"] = "marker-stop"
             self.running = False

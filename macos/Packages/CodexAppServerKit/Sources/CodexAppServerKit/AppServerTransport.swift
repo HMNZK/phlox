@@ -23,3 +23,6 @@ public extension AppServerTransport {
 
 /// Codex app-server も Claude と同じ行区切りトランスポートで動かす（ADR 0220）。
 extension LineDelimitedProcessTransport: AppServerTransport {}
+
+/// holder経由の子プロセス（ADR 0233）。更新で常駐側が入れ替わっても子は同じプロセスのまま続く。
+extension HolderTransport: AppServerTransport {}

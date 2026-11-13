@@ -140,6 +140,43 @@
       "expected": "本文の履歴読込ボタンは再導入しない。60ptで22pt Cometが進捗として現れ、保持中は読込/拡張せず、releaseで一回だけ追加して既存の先頭を保持する。cancel/離脱/切替では追加しない。VoiceOverアクションはジェスチャーなしで追加でき、Reduce Motionでは静止リングになる。旧経路だけのgreenを新経路の合格としない。",
       "method": "automatic",
       "required": true
+    },
+    {
+      "scenarioID": "runtime-host-handover",
+      "revision": 1,
+      "requirement": "macos/docs/adr/0233-runtime-logic-update-with-process-holder.md#受入条件",
+      "codePaths": [
+        "macos/App/SessionRuntimeHost.swift",
+        "macos/App/DesktopCompositionRoot.swift",
+        "macos/App/CompositionRoot.swift",
+        "macos/Packages/StructuredChatKit/Sources/StructuredChatKit/Holder*.swift",
+        "macos/Packages/StructuredChatKit/Sources/StructuredChatKit/ProcessHolder.swift",
+        "macos/Packages/StructuredChatKit/Sources/StructuredChatKit/Handover*.swift",
+        "macos/Packages/ClaudeAgentKit/Sources/ClaudeAgentKit/ClaudeChatClient+Handover.swift",
+        "macos/Packages/CodexAppServerKit/Sources/CodexAppServerKit/CodexStructuredAgentClient+Handover.swift",
+        "macos/Packages/CodexAppServerKit/Sources/CodexAppServerKit/JSONRPCClient.swift",
+        "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/DashboardViewModel+Handover.swift",
+        "macos/Packages/DashboardFeature/Sources/DashboardFeature/Dashboard/SessionRestoreCoordinator.swift",
+        "macos/Packages/AppBootstrap/Sources/AppBootstrap/SessionRuntimeLauncher.swift",
+        "macos/Packages/AppBootstrap/Sources/AppBootstrap/HostUpdateRetry.swift",
+        "macos/Packages/SessionFeature/Sources/SessionFeature/ChatApprovalBroker.swift",
+        "macos/scripts/tests/session-runtime-handover.test.py",
+        "macos/scripts/tests/session-runtime-*fake-agent.py"
+      ],
+      "testIDs": [
+        "macos/scripts/tests/session-runtime-handover.test.py::RuntimeHandoverAcceptance",
+        "macos/Packages/StructuredChatKit/Tests/StructuredChatKitTests/HandoverCheckpointTests.swift::checkpointRoundTripsEveryField",
+        "macos/Packages/ClaudeAgentKit/Tests/ClaudeAgentKitTests/ClaudeHandoverIntegrationTests.swift::handoverCarriesAnUnansweredQuestionAndAnswersItExactlyOnceOnTheNewHost",
+        "macos/Packages/CodexAppServerKit/Tests/CodexAppServerKitTests/CodexHandoverTests.swift::adoptionWithAnUnknownSendFailsAndLeavesTheChildAlone",
+        "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/HandoverRecoveryRestoreTests.swift::successfulAdoption_restoresTheRunningTurnAndDoesNotReapTheLiveChild",
+        "macos/Packages/SessionFeature/Tests/SessionFeatureTests/HandoverQuestionReinjectionTests.swift::adoptedCodexQuestion_isPresentedOnceWithTheOriginalIDAndStaysAwaiting",
+        "macos/Packages/StructuredChatKit/Tests/StructuredChatKitTests/HandoverCheckpointTests.swift::consumingRemovesTokensOnlyOnceEveryItemIsAdopted",
+        "macos/Packages/DashboardFeature/Tests/DashboardFeatureTests/HandoverRecoveryRestoreTests.swift::adoption_registersTheCheckpointTokenSoTheRetainedChildStaysAuthenticated"
+      ],
+      "procedure": "CFBundleVersionだけが違う同じ固有bundle IDの署名済みDebugビルド2つとフェイクCLIで、session-runtime-handover.test.pyを--scenario plannedと--scenario adoption-failureの各1回、新しいwork-dirで実行する。plannedはPTY・Cursorが動く間の更新要求の延期を確かめてからそれらを外し、Codex（質問待ち・出力中）とClaude（承認待ち）を保ったまま旧の画面を閉じて新の画面を開く。adoption-failureはClaudeのholderのソケットだけを接続不能にしてから同じ手順で切り替える。",
+      "expected": "planned: 延期中は世代・ホスト・全ての子・確定点が変わらない。切り替え後はCodex/Claudeの子とholderが同じプロセスで、旧ホストは終了し、新ホストは新ビルド。Codexの出力の連番に欠落・重複がなく、質問・承認は同じ要求IDで1件だけ再提示され子へ1回だけ届き、Codexは質問待ち（awaitingUserQuestion）のまま残る。initialize・thread/start・turn/startは再発行されず、旧世代の操作は409、受け継いだトークンでControl APIが200、切り替え後の送信は同じ子へ届き、新規チャットは新ホストのholderで動く。adoption-failure: Claudeの子とholderは生存し、復旧待ちが公開され、確定点にはClaudeの項目だけが残り、送信・resumeChatで新しいCLIもholderも起動しない。Codexは採用される。",
+      "method": "automatic",
+      "required": true
     }
   ]
 }

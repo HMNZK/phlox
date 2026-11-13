@@ -74,6 +74,9 @@ public enum LocalHTTPListener: Sendable {
     ) throws -> NWListener {
         let parameters = NWParameters.tcp
         parameters.acceptLocalOnly = true
+        // 固定ポートの再束縛（計画的なホスト更新で、旧ホストが閉じた同じポートを新ホストが束縛する）が、
+        // 閉じた接続のTIME_WAITで失敗しないように。ランダムポート（0）では不要。
+        if port != 0 { parameters.allowLocalEndpointReuse = true }
         parameters.requiredLocalEndpoint = NWEndpoint.hostPort(
             host: NWEndpoint.Host("127.0.0.1"),
             port: NWEndpoint.Port(rawValue: port)!

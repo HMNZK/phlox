@@ -5,9 +5,16 @@ import Foundation
 public enum SessionRuntimeLaunchRole: Equatable, Sendable {
     case graphical
     case sessionRuntime
+    /// 子のCLI1つの寿命だけを保持する小さなプロセス（ADR 0233）。更新対象の論理を含まない。
+    case sessionHolder
 
     public init(arguments: [String]) {
-        self = arguments.dropFirst().contains("--session-runtime") ? .sessionRuntime : .graphical
+        let rest = arguments.dropFirst()
+        if rest.contains("--session-holder") {
+            self = .sessionHolder
+        } else {
+            self = rest.contains("--session-runtime") ? .sessionRuntime : .graphical
+        }
     }
 }
 
@@ -31,6 +38,12 @@ public struct SessionRuntimeDiscovery: Codable, Equatable, Sendable {
     public var desktopURL: URL?
     public var failure: String?
     public var interactionFailure: String?
+    /// この実行サービスのビルド識別（CFBundleVersion）。画面側が自分の版と比べて更新を要求する。
+    public var runtimeBuild: String?
+    /// 計画的な更新（実行を止めずに新版へ切り替え）に対応するか。nil/falseは未対応（1.14.x等）で、そのまま互換接続する。
+    public var supportsHandover: Bool?
+    /// 直近の更新要求の結果（延期・中止の理由）。画面側が利用者へ伝える。
+    public var updateStatus: String?
 
     public init(generation: UUID = UUID(), pid: Int32 = getpid(), storeURL: URL, assetsRoot: URL) {
         self.generation = generation
@@ -54,7 +67,7 @@ public final class SessionRuntimeLease {
     public let storeURL: URL
     public let directoryURL: URL
     public var discoveryURL: URL { directoryURL.appendingPathComponent("discovery.json") }
-    private let descriptor: Int32
+    private var descriptor: Int32
 
     public static func resolvedStoreURL(
         environment: [String: String] = ProcessInfo.processInfo.environment
@@ -94,7 +107,14 @@ public final class SessionRuntimeLease {
     }
 
     deinit {
+        if descriptor >= 0 { close(descriptor) }
+    }
+
+    /// 所有権を手放す（計画的なホスト更新で、新ホストが取得できるようにする。ADR 0233）。以後は`publish`できない。
+    public func release() {
+        guard descriptor >= 0 else { return }
         close(descriptor)
+        descriptor = -1
     }
 
     public func publish(_ discovery: SessionRuntimeDiscovery) throws {

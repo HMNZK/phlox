@@ -23,12 +23,21 @@ class FakeAgent:
         self.output_lock = threading.Lock()
         self.state = dict(pid=os.getpid(), parent=os.getppid(), provider=provider,
                           role=role, heartbeat=0, dsrResponses=0, daResponses=0,
-                          inputMarkers=[], approvalReplies=[], questionReplies=[], methods=[])
+                          inputMarkers=[], approvalReplies=[], questionReplies=[], methods=[],
+                          methodCounts={}, streamed={})
         self.thread_id = f"runtime-thread-{os.getpid()}"
-        self.turn_id = "runtime-turn-1"
+        self.select_turn(1)
         self.active = False
+        self.waiting = None  # 本物のthread/readの待ちの印（waitingOnApproval / waitingOnUserInput）
         self.running = True
         self.save()
+
+    def select_turn(self, number):
+        # 1ターン目は従来のID（lifecycle受入が7001/7002を使う）。以降はターンごとに分ける。
+        self.turn_id = f"runtime-turn-{number}"
+        self.item_id = "runtime-answer" if number == 1 else f"runtime-answer-{number}"
+        self.approval_id = 7001 + 10 * (number - 1)
+        self.question_id = self.approval_id + 1
 
     def save(self):
         with self.lock:
@@ -47,10 +56,11 @@ class FakeAgent:
 
     def delta(self, text):
         self.notify("item/agentMessage/delta", dict(threadId=self.thread_id,
-                    turnId=self.turn_id, itemId="runtime-answer", delta=text))
+                    turnId=self.turn_id, itemId=self.item_id, delta=text))
 
     def question(self):
-        self.emit(dict(jsonrpc="2.0", id=7002, method="item/tool/requestUserInput",
+        self.waiting = "waitingOnUserInput"
+        self.emit(dict(jsonrpc="2.0", id=self.question_id, method="item/tool/requestUserInput",
             params=dict(threadId=self.thread_id, turnId=self.turn_id, itemId="runtime-question",
                 questions=[dict(id="runtime-choice", header="Lifecycle", question="Continue?",
                     options=[dict(label="Continue", description="Continue the isolated fixture")],
@@ -66,8 +76,13 @@ class FakeAgent:
             if terminal:
                 with self.output_lock:
                     os.write(1, f"runtime-heartbeat:{counter}\r\n\x1b[6n\x1b[c".encode())
-            elif self.active:
-                self.delta(f" runtime-stream:{counter}")
+            else:
+                # 出力と記録を同じロックで行い、ターン完了の後に出力が混ざらないようにする。
+                with self.lock:
+                    if self.active:
+                        self.delta(f" runtime-stream:{counter}")
+                        self.state["streamed"].setdefault(self.turn_id, []).append(counter)
+                        self.save()
 
     def terminal(self):
         tty.setraw(0)
@@ -153,20 +168,26 @@ class FakeAgent:
             method = message.get("method")
             if method is None:
                 with self.lock:
-                    if message.get("id") == 7001:
+                    if message.get("id") == self.approval_id:
                         self.state["approvalReplies"].append(message.get("result"))
                         self.save()
                         self.question()
-                    elif message.get("id") == 7002:
+                    elif message.get("id") == self.question_id:
                         self.state["questionReplies"].append(message.get("result"))
                         self.save()
                         self.delta(" runtime-question-answered")
                         self.active = False
+                        self.waiting = None
                         self.notify("turn/completed", dict(threadId=self.thread_id,
                             turn=dict(id=self.turn_id, status="completed", items=[])))
+                    else:
+                        # 応答済み・別ターンの要求への応答（重複応答）も数える。
+                        self.state.setdefault("unexpectedReplies", []).append(message.get("id"))
+                        self.save()
                 continue
             with self.lock:
                 self.state["methods"] = (self.state["methods"] + [method])[-32:]
+                self.state["methodCounts"][method] = self.state["methodCounts"].get(method, 0) + 1
                 self.save()
             if "id" not in message:
                 continue
@@ -178,6 +199,11 @@ class FakeAgent:
             elif method in ("thread/start", "thread/resume", "thread/read"):
                 result = dict(thread=dict(id=self.thread_id, status=dict(type="idle"),
                                           cwd=str(self.root / "project"), turns=[]))
+                with self.lock:
+                    if method == "thread/read" and self.active:
+                        # 本物（0.147.0のスキーマ）と同じく、進行中は`active`と待ちの印、進行中のターンを返す。
+                        result["thread"].update(status=dict(type="active", activeFlags=[self.waiting] if self.waiting else []),
+                                                turns=[dict(id=self.turn_id, status="inProgress", items=[])])
             elif method == "model/list":
                 result = dict(data=[dict(id="fake-model", model="fake-model", displayName="Fixture",
                     supportedReasoningEfforts=[dict(reasoningEffort="medium", description="Fixture")],
@@ -199,12 +225,16 @@ class FakeAgent:
                 continue
             self.emit(dict(jsonrpc="2.0", id=message["id"], result=result))
             if method == "turn/start":
+                with self.lock:
+                    if self.state["methodCounts"]["turn/start"] > 1:
+                        self.select_turn(self.state["methodCounts"]["turn/start"])
                 self.notify("turn/started", dict(threadId=self.thread_id,
                     turn=dict(id=self.turn_id, status="inProgress", items=[])))
                 self.notify("item/started", dict(threadId=self.thread_id, turnId=self.turn_id,
-                    item=dict(type="agentMessage", id="runtime-answer", text="")))
+                    item=dict(type="agentMessage", id=self.item_id, text="")))
                 self.active = True
-                self.emit(dict(jsonrpc="2.0", id=7001, method="item/commandExecution/requestApproval",
+                self.waiting = "waitingOnApproval"
+                self.emit(dict(jsonrpc="2.0", id=self.approval_id, method="item/commandExecution/requestApproval",
                     params=dict(threadId=self.thread_id, turnId=self.turn_id, itemId="runtime-approval",
                         startedAtMs=int(time.time() * 1000), command="runtime-fixture-only", cwd=str(self.root))))
         self.running = False

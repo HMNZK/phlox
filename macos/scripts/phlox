@@ -118,7 +118,26 @@ http_request() {
         curl_args+=(-d "@$bodyfile")
     fi
 
-    HTTP_STATUS=$(printf 'header = "Authorization: Bearer %s"\n' "$PHLOX_TOKEN" | curl "${curl_args[@]}" "$url")
+    # 実行サービスの更新中は受付が一時的に閉じる。接続拒否（curl 終了コード 7: 要求が届いていない）だけを、
+    # 既定 0.2 秒 × 25 回（約 5 秒）再試行する。タイムアウト(28)や応答を受けた後の失敗・HTTP エラーは再試行しない
+    # （要求が届いた可能性があり、受付済みの操作を二重に実行しないため）。
+    local errtmp attempt=0 max="${PHLOX_CONNECT_RETRY_ATTEMPTS:-25}" rc
+    errtmp=$(mktemp)
+    while :; do
+        rc=0
+        HTTP_STATUS=$(printf 'header = "Authorization: Bearer %s"\n' "$PHLOX_TOKEN" | curl "${curl_args[@]}" "$url" 2>"$errtmp") || rc=$?
+        [ "$rc" -eq 7 ] || break
+        attempt=$((attempt + 1))
+        [ "$attempt" -lt "$max" ] || break
+        sleep "${PHLOX_CONNECT_RETRY_INTERVAL:-0.2}"
+    done
+    # 途中の失敗の stderr は出さず、最後の結果だけを従来どおり出す。
+    [ -s "$errtmp" ] && cat "$errtmp" >&2
+    rm -f "$errtmp"
+    if [ "$rc" -ne 0 ]; then
+        rm -f "$tmp" ${bodyfile:+"$bodyfile"}
+        exit "$rc"
+    fi
     HTTP_BODY=$(cat "$tmp")
     rm -f "$tmp"
     if [ -n "$bodyfile" ]; then

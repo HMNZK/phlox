@@ -11,6 +11,7 @@ extension ClaudeChatClient {
                 eventContinuation.yield(.error(message: "Failed to parse Claude stream-json line"))
                 return
             }
+            recordControlRequestLine(event, line: data)
             await handleEvent(event, generation: generation)
         } catch {
             eventContinuation.yield(.error(message: "Failed to parse Claude stream-json line"))

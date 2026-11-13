@@ -211,6 +211,9 @@ public enum NormalizedChatEvent: Equatable, Sendable {
     /// Claude Code stream-json の system/init の slash_commands に対応する利用可能コマンド名の
     /// 全量スナップショット。名前は先頭の `/` を含まない素の名前で、受け取った順序のまま運ぶ。
     case availableCommandsUpdated(commands: [String])
+    /// 計画的なホスト更新の確定点（ADR 0233）。このイベントより前の全イベントが、受け取り側で反映済みになった印。
+    /// 状態を持たず、画面の履歴にも出ない。
+    case handoverFence(UUID)
 }
 
 /// サブエージェントを 1 つだけ止められるクライアント（Claude の stop_task）。
@@ -248,4 +251,11 @@ public extension StructuredAgentClient {
 
     /// 既定は no-op（AskUserQuestion 非対応クライアント向け）。
     func respondToUserQuestion(requestId: String, answers: [String: [String]]) async {}
+}
+
+/// 回答の返送が確定したかを返せるクライアント。確定しなかった回答（拒否・書込権の喪失・通信失敗）を
+/// 呼び出し側が「回答済み」として保存しないために使う。
+public protocol UserQuestionAnswerAcknowledging: StructuredAgentClient {
+    /// 回答を子へ書き込めたときだけtrue。送られなかった（保留のまま残る）ならfalse。
+    func respondToUserQuestionAcknowledged(requestId: String, answers: [String: [String]]) async -> Bool
 }

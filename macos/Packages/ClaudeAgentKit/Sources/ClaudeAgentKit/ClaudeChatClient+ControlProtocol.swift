@@ -59,12 +59,19 @@ extension ClaudeChatClient {
         requestId: String,
         answers: [String: [String]]
     ) async {
+        _ = await respondToUserQuestionAcknowledged(requestId: requestId, answers: answers)
+    }
+
+    public func respondToUserQuestionAcknowledged(
+        requestId: String,
+        answers: [String: [String]]
+    ) async -> Bool {
         guard var pending = pendingUserQuestions[requestId],
               pending.generation == spawnGeneration,
               !pending.isResponding,
               !expiringUserQuestionIDs.contains(requestId),
               let transport
-        else { return }
+        else { return false }
 
         let generation = pending.generation
         pending.isResponding = true
@@ -106,31 +113,32 @@ extension ClaudeChatClient {
         } catch {
             markUserQuestionResponseFailed(requestId: requestId, generation: generation)
             eventContinuation.yield(.error(message: "Failed to encode Claude user-question response: \(error)"))
-            return
+            return false
         }
 
         do {
-            guard generation == spawnGeneration else { return }
+            guard generation == spawnGeneration else { return false }
             try await transport.send(line)
         } catch {
             guard markUserQuestionResponseFailed(requestId: requestId, generation: generation) else {
-                return
+                return false
             }
             eventContinuation.yield(.error(message: "Failed to send Claude user-question response: \(error)"))
-            return
+            return false
         }
 
         guard generation == spawnGeneration,
               let current = pendingUserQuestions[requestId],
               current.generation == generation,
               current.isResponding
-        else { return }
+        else { return true }
 
         pendingUserQuestions.removeValue(forKey: requestId)
         eventContinuation.yield(.userQuestionResolved(
             requestId: requestId,
             outcome: .answered(answers: answers)
         ))
+        return true
     }
 
     func expirePendingUserQuestions(

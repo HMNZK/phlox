@@ -536,6 +536,8 @@ final class SessionSpawnService {
         isolationOverride: Bool? = nil,
         worktreeStartPoint: WorktreeStartPoint = .head
     ) async throws -> AgentLaunchPlan {
+        // ホスト更新の確定中は新しい子を作らない（確定後に作ると、新ホストが把握できない子が残る）。
+        guard !environment.handoverGate.isClosed else { throw HolderError.handoverInProgress }
         let codexUserHooksEnabled = codexUserHooksEnabledProvider()
         let sanitizedPlan = try makeSanitizedLaunchPlan(
             ref: ref,
@@ -695,17 +697,24 @@ final class SessionSpawnService {
         titleState: SessionTitleState? = nil,
         initialSettings: CodexAppServerSessionSettings? = nil,
         sessionOriginForWrite: (@MainActor () -> SessionOrigin)? = nil,
-        registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil
+        registerSessionForWrite: (@MainActor (ChatSessionViewModel) -> Void)? = nil,
+        adoption: HandoverSession? = nil
     ) async throws -> ChatSessionViewModel {
         let projectWasRegistered = projectID.map { id in projectsSnapshot().contains { $0.id == id } } ?? false
         let broker = ChatApprovalBroker()
-        let client = try await environment.structuredClientFactory(
-            plan.descriptor.ref,
-            plan.command,
-            plan.workingDirectory,
-            plan.env,
-            broker.serverRequestHandler
-        )
+        let client: any StructuredAgentClient
+        if let adoption {
+            client = try await environment.adoptClientFactory(
+                plan.descriptor.ref, adoption, plan.command, plan.workingDirectory, plan.env, broker.serverRequestHandler)
+        } else {
+            client = try await environment.structuredClientFactory(
+                plan.descriptor.ref,
+                plan.command,
+                plan.workingDirectory,
+                plan.env,
+                broker.serverRequestHandler
+            )
+        }
         if registerSessionForWrite != nil, let projectID,
            (projectWasRegistered && !projectsSnapshot().contains(where: { $0.id == projectID }))
             || FileTabDocumentRegistry.shared.isChangingProject(projectID) {

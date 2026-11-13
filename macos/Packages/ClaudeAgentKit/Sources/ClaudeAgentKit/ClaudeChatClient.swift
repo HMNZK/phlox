@@ -154,7 +154,7 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var currentModel: String?
     var currentPermissionMode: String?
     var currentEffort: String?
-    private var settingsDirty = false
+    var settingsDirty = false
     /// Writes: initialized here; incremented only by `spawn(sessionArgument:)`
     /// after a new transport starts and before receive-loop generation capture.
     var spawnGeneration = 0
@@ -177,6 +177,13 @@ public actor ClaudeChatClient: StructuredAgentClient {
     var pendingPermissionRequest: PendingPermissionRequest?
     var permissionRequestTimeout: Duration = .seconds(10)
     var pendingUserQuestions: [String: PendingUserQuestion] = [:]
+    /// 未回答の承認・質問の原文（can_use_toolのcontrol_request）。計画的なホスト更新で新ホストへ渡し、通常の受信経路へ再投入する。
+    var controlRequestLines: [String: Data] = [:]
+    /// 引き継ぎ待ちの状態と接続（`completeAdoption`で使う）。
+    var pendingAdoption: (state: Data, transport: HolderTransport)?
+    /// 立っている間は`spawn`しない（新しい子を作らない）。採用の準備から成功まで、所有権の喪失後、手放した後。
+    /// 採用に失敗した実行は、元の子が生きたまま復旧待ちになる。送信や再開で2つ目のCLIを起動してはならない。
+    var spawnForbiddenReason: String?
     var expiringUserQuestionIDs: Set<String> = []
     var interruptingControlGeneration: Int?
     /// 中断で CLI を止めた世代。この世代の終了は次の送信で再開する前提なので「終了」として知らせない（04 B3）。

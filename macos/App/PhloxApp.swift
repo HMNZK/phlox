@@ -129,6 +129,13 @@ struct PhloxApp: App {
                             .padding(8)
                             .background(.regularMaterial)
                             .accessibilityElement(children: .contain)
+                        } else if let notice = composition.updateNotice {
+                            Text(notice)
+                                .font(.callout)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(8)
+                                .background(.regularMaterial)
+                                .accessibilityElement(children: .contain)
                         }
                     }
                 } else if let initFailure {

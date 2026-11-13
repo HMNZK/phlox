@@ -43,6 +43,11 @@ struct RuntimeChatTranscriptView: View {
         return renderingWindow.slice(of: blocks)
     }
     private var visibleBlocks: [SessionRuntimeChatReadBlock] { slice.blocks }
+    /// 窓・cursor・位置の計算は受信したブロック全体で行い、描画だけから表示しない思考を除く（空の間隔を作らない）。
+    private var renderedBlocks: [SessionRuntimeChatReadBlock] {
+        let agent = viewModel.agentRef.builtinKind
+        return visibleBlocks.filter { !$0.isHiddenReasoning(agent: agent) }
+    }
 
     var body: some View {
         let control = viewModel.runtimeChatRead.control
@@ -57,7 +62,7 @@ struct RuntimeChatTranscriptView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: TranscriptTypography.itemGap) {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(visibleBlocks.enumerated()), id: \.element.id) { index, block in
+                        ForEach(Array(renderedBlocks.enumerated()), id: \.element.id) { index, block in
                             blockView(block)
                                 .padding(.top, index == 0 ? 0 : TranscriptTypography.itemGap)
                                 .id(block.id)

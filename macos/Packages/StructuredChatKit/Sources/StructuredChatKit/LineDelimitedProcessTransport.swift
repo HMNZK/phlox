@@ -60,8 +60,14 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
     private let stderrTailLimit = 64 * 1024
     private let maxLineBytes: Int
     private var lineLimitExceeded = false
+    private var readingPaused = false
 
     public let receivedLines: AsyncStream<Data>
+
+    /// 起動済みの子のPID。未起動・終了後はnil。
+    public var processIdentifier: Int32? {
+        lock.withLock { process.map { $0.processIdentifier } }
+    }
 
     public init(
         command: String,
@@ -96,6 +102,10 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
             process.currentDirectoryURL = workingDirectory
 
             let stdinPipe = Pipe()
+            // 子が先に終了・stdinを閉じた後の書き込みは、SIGPIPE（既定ではプロセス終了）でなくEPIPEにする。
+            guard fcntl(stdinPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
+                throw LineDelimitedProcessTransportError.processLaunchFailed("F_SETNOSIGPIPE failed (errno \(errno))")
+            }
             let stdoutPipe = Pipe()
             let stderrPipe = Pipe()
             process.standardInput = stdinPipe
@@ -176,12 +186,24 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
         }
     }
 
+    /// 標準出力の読み取りを止める/再開する。止めると子はパイプが満杯になった時点で書き込みに詰まり、進行が止まる
+    /// （保持側が出力を捨てずに済ませるための背圧。ADR 0233）。
+    public func setReadingPaused(_ paused: Bool) {
+        lock.withLock {
+            guard let source = stdoutSource, paused != readingPaused else { return }
+            readingPaused = paused
+            if paused { source.suspend() } else { source.resume() }
+        }
+    }
+
     public func interrupt() async {
         let process = lock.withLock { self.process }
         process?.interrupt()
     }
 
     public func close() async {
+        // 読み取りを止めたままだと終了（EOF）を読めず、停止した状態のまま残る。
+        setReadingPaused(false)
         let process = lock.withLock { self.process }
         process?.terminate()
         if let process {
@@ -289,6 +311,8 @@ public final class LineDelimitedProcessTransport: LineDelimitedTransport, @unche
             stdinPipe = nil
             stdoutPipe = nil
             stderrPipe = nil
+            // 停止中のsourceは破棄できないので、先に再開する。
+            if readingPaused { stdoutSource?.resume(); readingPaused = false }
             stdoutSource = nil
             stderrSource = nil
             readGroup = nil

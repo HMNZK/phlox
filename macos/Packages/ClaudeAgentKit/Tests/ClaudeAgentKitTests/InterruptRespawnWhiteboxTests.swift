@@ -210,3 +210,27 @@ private func waitUntilInterruptRespawn(
     #expect(await events.next() == .turnStarted)
     await client.close()
 }
+
+/// 中断でCLIが終わり、`transport`が無くなった実行は、引き継ぐ子が無い（更新を延期し続けない）。
+@Test func aSessionWhoseCLIEndedAfterAnInterruptIsNotAHandoverParticipant() async throws {
+    let recorder = InterruptRespawnRecorder()
+    let sessionID = "c3c3c3c3-3333-4333-8333-333333333333"
+    let client = ClaudeChatClient(
+        environment: ["PHLOX_SESSION_ID": sessionID],
+        transportFactory: recorder.makeTransport
+    )
+    try await client.start()
+    var events = client.events.makeAsyncIterator()
+    // 動作中の子は対象のまま。
+    #expect(await client.handoverParticipation() == .participant)
+
+    try await client.turnStart([.text("interrupted turn")])
+    #expect(await events.next() == .turnStarted)
+    try await client.interrupt()
+    #expect(await events.next() == .turnInterrupted(nativeSessionId: sessionID))
+    try await waitUntilInterruptRespawn { await client.transport == nil }
+
+    // CLIが終わった後は、新ホストが通常の復元で戻す（確定点にも延期理由にも載せない）。
+    #expect(await client.handoverParticipation() == .childEnded)
+    await client.close()
+}

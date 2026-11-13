@@ -71,6 +71,8 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoadsInWebContent: true
         SUFeedURL: https://phlox.cc/appcast.xml
+        # 計画的な実行サービス更新（ADR 0233）の引き継ぎ形式。旧ホストが書く確定点の版と一致する新版にだけ切り替える。
+        PhloxHandoverFormat: 1
         SUPublicEDKey: SxwucM1aQ79y8oB0XjN2HDmBBs75LpX8nlOcYQHKXqo=
     postBuildScripts:
       # Debug ビルド後に LaunchServices へ強制再登録し、Dock 表示名を最新の

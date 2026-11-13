@@ -13,6 +13,7 @@ last-verified: 2026-11-09
 | 番号 | 決定 | ステータス |
 |---|---|---|
 | 0234 | [エージェント状態カードはタスク行を全部表示する](0234-status-card-shows-all-task-rows.md) | accepted（0231 の手動の行位置を置換） |
+| 0233 | [子プロセスの寿命を保持するholderと、更新できる実行サービスを分ける](0233-runtime-logic-update-with-process-holder.md) | accepted（実装中。independent-session-runtime の「対象外」のうち常駐側の無停止更新を置き換える） |
 | 0232 | [本文参照の失効と取得結果の寿命を通信後も保持する](0232-runtime-content-reference-recovery.md) | accepted（0231 の消失・失効の契約を HTTP 通信境界と画面の復旧まで明文化） |
 | 0231 | [会話の意味を実行サービスで確定し、本文と入力履歴を有限取得する](0231-semantic-chat-read-model.md) | accepted（0226 の「表示のたびに組み立てる」を再構築可能な派生索引へ改める。カード行の有限表示は 0234 で置換） |
 | 0230 | [起動状態とセッション内容を分けて取得する](0230-bounded-runtime-overview-and-session-content.md) | active（起動・定期更新を容量制限付き状態一覧へ移行） |

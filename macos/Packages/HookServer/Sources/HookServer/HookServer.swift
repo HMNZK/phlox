@@ -56,6 +56,37 @@ public actor HookServer: HookServerProtocol {
         }
     }
 
+    private var activeRequests = 0
+
+    private func beginRequest() { activeRequests += 1 }
+    private func endRequest() { activeRequests -= 1 }
+
+    /// 計画的なホスト更新（ADR 0233）用。ポートを他へずらさず、子が環境変数に固定した同じポートを束縛する。
+    /// 旧ホストの解放待ちで一時的に使用中なので、`retryFor`の間だけ再試行する。ランダムポートへは落とさない。
+    public func start(exactPort: UInt16, retryFor: Duration = .seconds(5)) async throws -> Int {
+        if listener != nil { throw HookServerError.alreadyStarted }
+        let deadline = ContinuousClock.now + retryFor
+        while true {
+            do { return try await startListener(port: exactPort) }
+            catch {
+                if ContinuousClock.now >= deadline { throw error }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    /// 新しい接続の受付を止め、処理中のリクエストが終わる（または`timeout`）まで待つ。待ちきれなければfalse。
+    public func stopAcceptingAndDrain(timeout: Duration) async -> Bool {
+        listener?.cancel()
+        listener = nil
+        let deadline = ContinuousClock.now + timeout
+        while activeRequests > 0 {
+            if ContinuousClock.now >= deadline { return false }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return true
+    }
+
     private func startListener(port: UInt16) async throws -> Int {
         let listener: NWListener
         do {
@@ -76,7 +107,9 @@ public actor HookServer: HookServerProtocol {
                     return
                 }
                 Task {
+                    await self.beginRequest()
                     await self.handle(connection: connection)
+                    await self.endRequest()
                 }
             }
         } catch {

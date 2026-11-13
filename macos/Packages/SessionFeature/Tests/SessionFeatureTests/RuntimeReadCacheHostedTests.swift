@@ -971,4 +971,144 @@ import Testing
         } catch { print("Hosted診断の保存に失敗: \(error)") }
     }
 
+
+    // MARK: - 旧サービス由来の Codex 思考（描画だけから除く）
+
+    @MainActor private final class ContentRecorder {
+        var targets: [SessionRuntimeContentRequest.Target] = []
+        var chunkRequestCount: Int { targets.filter { if case .itemChunk = $0 { true } else { false } }.count }
+    }
+
+    /// 思考を除く前の実行サービス（Claude と同じ無加工のカード組立）が返す内容を、`clientAgent` の画面が受け取る状態。
+    private func legacyServiceProjection(items: [ChatItem], clientAgent: AgentKind, recorder: ContentRecorder)
+        async throws -> (projected: ChatSessionViewModel, source: ChatSessionViewModel) {
+        let id = SessionID()
+        let execution = UUID()
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        func snapshot(_ agent: AgentKind) -> SessionRuntimeChatSnapshot {
+            var value = SessionRuntimeChatSnapshot(id: id, startedAt: started, agentRef: .builtin(agent), workingDirectory: "/workspace")
+            value.executionID = execution
+            value.transcript = items
+            value.transcriptRevision = 7
+            value.status = .idle
+            return value
+        }
+        let source = ChatSessionViewModel(projection: snapshot(.claudeCode)) { _, _ in .none }
+        let shown = ChatSessionViewModel(projection: snapshot(clientAgent)) { _, _ in .none }
+        let projected = ChatSessionViewModel(projection: shown.makeRuntimeOverview()) { _, _ in .none }
+        projected.runtimeSupportsChatReadModel = true
+        projected.runtimeContentLoader = { request in
+            recorder.targets.append(request.target)
+            return try await source.runtimeChatReadContent(for: request)
+        }
+        try await projected.refreshRuntimeContent()
+        return (projected, source)
+    }
+
+    private func legacyCardItems(thought: ChatItem) -> [ChatItem] {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        return [
+            .userMessage(id: "input", text: "作業を表示", timestamp: started, attachments: []),
+            .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "記録", status: .inProgress)], timestamp: started),
+            thought,
+            .commandExecution(id: "work", command: "echo kept", output: "完了", timestamp: started, completedAt: nil, intent: nil),
+        ]
+    }
+
+    @Test("旧サービスのカードでも Codex の思考だけを描画から除き、受信した項目と他の作業は残す", arguments: [AgentKind.codex, .claudeCode])
+    func legacyCardEntriesHideCodexReasoningOnly(agent: AgentKind) async throws {
+        let recorder = ContentRecorder()
+        let pair = try await legacyServiceProjection(
+            items: legacyCardItems(thought: .reasoning(id: "legacy-thought", text: "LEGACY_THOUGHT_BODY", timestamp: .distantPast)),
+            clientAgent: agent, recorder: recorder)
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
+        let received = try #require(pair.projected.runtimeChatRead.cards["input"]?.entries["task-stage-0"]).entries
+        #expect(received.map(\.id).contains("legacy-thought"), "受信したページの項目は保持する")
+
+        let thoughtVisible = try await withHosted(EntriesHost(viewModel: pair.projected)) { hosting in
+            try #require(try await waitForLabel("echo kept", in: hosting))
+            if agent == .claudeCode { return try await waitForLabel("LEGACY_THOUGHT_BODY", in: hosting) }
+            return elements(in: hosting).contains { $0.text.contains("LEGACY_THOUGHT_BODY") }
+        }
+
+        #expect(thoughtVisible == (agent == .claudeCode))
+    }
+
+    @Test("旧サービスが後取得にした大きな Codex の思考は表示せず、全文も取得しない", arguments: [AgentKind.codex, .claudeCode])
+    func legacyDeferredReasoningIsNotShownNorFetchedForCodex(agent: AgentKind) async throws {
+        let recorder = ContentRecorder()
+        let pair = try await legacyServiceProjection(
+            items: legacyCardItems(thought: .reasoning(id: "legacy-giant",
+                text: "DEFERRED_THOUGHT " + String(repeating: "説明の本文。", count: 2_000) + "DEFERRED_THOUGHT_END", timestamp: .distantPast)),
+            clientAgent: agent, recorder: recorder)
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
+        let received = try #require(pair.projected.runtimeChatRead.cards["input"]?.entries["task-stage-0"]).entries
+        let markers = received.compactMap { entry -> SessionRuntimeContentMarker? in
+            if case .item(.deferred(let marker)) = entry { marker } else { nil }
+        }
+        #expect(markers.map(\.itemKind) == ["reasoning"], "旧サービスの目印は保持する")
+
+        let thoughtVisible = try await withHosted(EntriesHost(viewModel: pair.projected)) { hosting in
+            try #require(try await waitForLabel("echo kept", in: hosting))
+            // 先頭の文字は目印のプレビューにも出るので、全文取得の完了は本文の末尾（プレビューに入らない）で待つ。
+            if agent == .claudeCode { return try await waitForLabel("DEFERRED_THOUGHT_END", in: hosting) }
+            // Codex は取得を始めないことを見るので、取得が始まり得る時間を置いてから確かめる。
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(!elements(in: hosting).contains { $0.role == NSAccessibility.Role.button.rawValue && $0.label == "全文を表示" })
+            return elements(in: hosting).contains { $0.text.contains("DEFERRED_THOUGHT") }
+        }
+
+        #expect(thoughtVisible == (agent == .claudeCode))
+        #expect((recorder.chunkRequestCount > 0) == (agent == .claudeCode), "Codex の思考は全文取得を始めない")
+    }
+
+    @Test("思考だけが並ぶ旧サービスのカードでも、続きの読み込み操作が残り先へ進める")
+    func legacyReasoningOnlyEntriesStillAllowLoadingEarlier() async throws {
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let reasoning = (0..<120).map { ChatItem.reasoning(id: "reason-\($0)", text: "作業記録 \($0)", timestamp: started) }
+        let recorder = ContentRecorder()
+        let pair = try await legacyServiceProjection(items: [
+            .userMessage(id: "input", text: "思考だけ", timestamp: started, attachments: []),
+            .taskList(id: "tasks", tasks: [.init(id: "stage-0", title: "記録", status: .inProgress)], timestamp: started),
+        ] + reasoning, clientAgent: .codex, recorder: recorder)
+        try await pair.projected.loadRuntimeCardEntries("input", rowID: "task-stage-0")
+        let cache = try #require(pair.projected.runtimeChatRead.cards["input"])
+        let before = (cache.entryStartIDs["task-stage-0"], cache.entries["task-stage-0"]?.entries.count, recorder.targets.count)
+
+        let advanced = try await withHosted(EntriesHost(viewModel: pair.projected)) { hosting in
+            try #require(try await waitForIdentifier("AgentStatusCard.showMore", in: hosting))
+            #expect(!elements(in: hosting).contains { $0.text.contains("作業記録") }, "思考本文は描画しない")
+            try await press(identifier: "AgentStatusCard.showMore", in: hosting)
+            let deadline = ContinuousClock.now + .seconds(3)
+            while ContinuousClock.now < deadline {
+                let current = pair.projected.runtimeChatRead.cards["input"]
+                let after = (current?.entryStartIDs["task-stage-0"], current?.entries["task-stage-0"]?.entries.count, recorder.targets.count)
+                if after != before { return true }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            return false
+        }
+
+        #expect(advanced, "表示する項目が無くても、窓の位置か取得が先へ進む")
+    }
+
+    @Test("表示しない思考の判定は Codex の inline と後取得の目印だけに当たり、他の項目・他の CLI には当たらない")
+    func hiddenReasoningClassification() {
+        let thought = ChatItem.reasoning(id: "t", text: "思考", timestamp: .distantPast)
+        let message = ChatItem.agentMessage(id: "m", text: "回答", timestamp: .distantPast)
+        let thoughtMarker = SessionRuntimeContentMarker(kind: .chatItem, id: "t2", digest: "d", totalBytes: 9_000, preview: "思考", itemKind: "reasoning")
+        let messageMarker = SessionRuntimeContentMarker(kind: .chatItem, id: "m2", digest: "d", totalBytes: 9_000, preview: "回答", itemKind: "agentMessage")
+        let unknownMarker = SessionRuntimeContentMarker(kind: .chatItem, id: "u", digest: "d", totalBytes: 9_000, preview: "不明")
+        let hidden: [SessionRuntimeChatItemReference] = [.inline(thought), .deferred(thoughtMarker)]
+        let shown: [SessionRuntimeChatItemReference] = [.inline(message), .deferred(messageMarker), .deferred(unknownMarker)]
+
+        #expect(hidden.allSatisfy { $0.isHiddenReasoning(agent: .codex) })
+        #expect(shown.allSatisfy { !$0.isHiddenReasoning(agent: .codex) })
+        #expect((hidden + shown).allSatisfy { !$0.isHiddenReasoning(agent: .claudeCode) && !$0.isHiddenReasoning(agent: .cursor) })
+        let blocks = (hidden + shown).enumerated().map {
+            SessionRuntimeChatReadBlock(id: "b\($0.offset)", ownerInputID: nil, content: .item($0.element))
+        }
+        #expect(blocks.filter { !$0.isHiddenReasoning(agent: .codex) }.map(\.id) == ["b2", "b3", "b4"], "順序を保ったまま思考だけを除く")
+        #expect(blocks.filter { !$0.isHiddenReasoning(agent: .claudeCode) }.count == blocks.count)
+    }
 }

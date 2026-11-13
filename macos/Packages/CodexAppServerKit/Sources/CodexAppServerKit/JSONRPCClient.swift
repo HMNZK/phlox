@@ -1,4 +1,5 @@
 import Foundation
+import StructuredChatKit
 
 public enum JSONRPCClientError: LocalizedError, Equatable, Sendable {
     case transportClosed
@@ -6,6 +7,8 @@ public enum JSONRPCClientError: LocalizedError, Equatable, Sendable {
     case invalidResponse(String)
     case serverError(code: Int, message: String)
     case unsupportedServerRequest(String)
+    /// サーバ要求への応答を書き込めなかった、または書き込めたか確認できない。同じIDへは再送しない（二重応答になる）。
+    case responseNotDelivered(String)
 
     public var errorDescription: String? {
         switch self {
@@ -14,6 +17,7 @@ public enum JSONRPCClientError: LocalizedError, Equatable, Sendable {
         case .invalidResponse(let reason): "Invalid Codex response: \(reason)"
         case .serverError(_, let message): message
         case .unsupportedServerRequest(let method): "Codex requested an unsupported operation: \(method)"
+        case .responseNotDelivered(let detail): "A response to Codex could not be delivered: \(detail)"
         }
     }
 }
@@ -27,6 +31,18 @@ public struct JSONRPCErrorObject: Codable, Equatable, Sendable {
         self.code = code
         self.message = message
         self.data = data
+    }
+}
+
+/// 計画的なホスト更新で運ぶ、`JSONRPCClient`の状態（ADR 0233）。
+public struct JSONRPCHandoverState: Codable, Equatable, Sendable {
+    public var nextRequestID: Int
+    /// 確定点の時点で未応答のサーバ要求（承認・質問）の原文。受信順。
+    public var pendingServerRequests: [Data]
+
+    public init(nextRequestID: Int, pendingServerRequests: [Data]) {
+        self.nextRequestID = nextRequestID
+        self.pendingServerRequests = pendingServerRequests
     }
 }
 
@@ -47,6 +63,8 @@ public enum ServerNotification: Equatable, Sendable {
     case threadSettingsUpdated(ThreadSettingsUpdatedNotification)
     case error(ErrorNotification)
     case warning(WarningNotification)
+    /// 計画的なホスト更新（ADR 0233）のフェンス。通知の流れの順序を保って、各層が「ここまで処理した」時点を知る。
+    case handoverFence(UUID)
     case unknown(method: String, params: JSONValue?)
 }
 
@@ -90,6 +108,19 @@ public actor JSONRPCClient {
     private var pending: [Int: PendingRequest] = [:]
     private var receiveTask: Task<Void, Never>?
     private var serverRequestHandler: ServerRequestHandler
+    /// 未応答のサーバ要求の原文（ADR 0233）。受信ループで同期的に記録し、応答の書き込みが終わったら消す。
+    private enum ServerRequestState: Sendable { case pending, responding }
+    private struct ServerRequestRecord: Sendable {
+        let line: Data
+        let order: Int
+        var state: ServerRequestState
+        /// 確実に未送信のまま失敗した応答（確定点の準備で送信が止まっていた等）。中止されたら送り直す。
+        var undelivered: JSONRPCResponseMessage?
+    }
+    private var serverRequests: [RequestID: ServerRequestRecord] = [:]
+    private var nextServerRequestOrder = 0
+    /// 計画的更新で手放した。以後の入力の途切れを終了として扱わず、ストリームも閉じない。
+    private var detached = false
 
     private let notificationContinuation: AsyncStream<ServerNotification>.Continuation
     public let notifications: AsyncStream<ServerNotification>
@@ -120,6 +151,9 @@ public actor JSONRPCClient {
         errorContinuation.finish()
     }
 
+    /// holder経由の子なら、そのトランスポート（計画的更新の対象かの判定と、配送の停止・確認に使う）。
+    public nonisolated var holderTransport: HolderTransport? { transport as? HolderTransport }
+
     public func start() {
         guard receiveTask == nil else { return }
         let lines = transport.receivedLines
@@ -127,10 +161,13 @@ public actor JSONRPCClient {
             for await line in lines {
                 await self?.handle(line: line)
             }
+            guard await self?.isDetached() == false else { return }
             await self?.failAllPending(JSONRPCClientError.transportClosed)
             await self?.finishStreams()
         }
     }
+
+    private func isDetached() -> Bool { detached }
 
     public func setServerRequestHandler(_ handler: @escaping ServerRequestHandler) {
         self.serverRequestHandler = handler
@@ -176,22 +213,43 @@ public actor JSONRPCClient {
         finishStreams()
     }
 
+    // MARK: - 計画的なホスト更新（ADR 0233）
+
+    /// 更新できない理由。nilなら可。クライアントからの未応答リクエストと、応答の書き込み中のサーバ要求は運べない。
+    public func handoverGateReason() -> String? {
+        if !pending.isEmpty { return "Codexへの応答待ちのリクエストがあります" }
+        if serverRequests.values.contains(where: { $0.state == .responding }) { return "承認・質問への応答を送信中です" }
+        return nil
+    }
+
+    public func captureHandoverState() -> JSONRPCHandoverState {
+        let lines = serverRequests.values.filter { $0.state == .pending }.sorted { $0.order < $1.order }.map(\.line)
+        return JSONRPCHandoverState(nextRequestID: nextRequestID, pendingServerRequests: lines)
+    }
+
+    /// 引き継ぎ側: 要求IDを続きの番号から始める。受信を始める前に呼ぶ。
+    public func applyHandoverState(_ state: JSONRPCHandoverState) {
+        nextRequestID = max(nextRequestID, state.nextRequestID)
+    }
+
+    /// 引き継ぎ側: 未応答だった要求の原文を、通常の受信経路へ再投入する（応答は新ホストが同じIDで一度だけ返す）。
+    public func reinjectServerRequests(_ lines: [Data]) {
+        for line in lines { handle(line: line) }
+    }
+
+    public func emitHandoverFence(_ id: UUID) {
+        notificationContinuation.yield(.handoverFence(id))
+    }
+
+    /// 受信を止める。`transport.close()`は呼ばない（子は新ホストが引き継ぐ）。ストリームも閉じない。
+    public func detachForHandover() {
+        detached = true
+        receiveTask?.cancel()
+        receiveTask = nil
+    }
+
     private func sendRequest(id: Int, method: String, params: JSONValue) async throws {
         let message = JSONRPCRequestMessage(id: .int(id), method: method, params: params)
-        var data = try encoder.encode(message)
-        data.append(0x0A)
-        try await transport.send(data)
-    }
-
-    private func sendResponse(id: RequestID, result: JSONValue) async throws {
-        let message = JSONRPCResponseMessage(id: id, result: result, error: nil)
-        var data = try encoder.encode(message)
-        data.append(0x0A)
-        try await transport.send(data)
-    }
-
-    private func sendErrorResponse(id: RequestID, error: JSONRPCErrorObject) async throws {
-        let message = JSONRPCResponseMessage(id: id, result: nil, error: error)
         var data = try encoder.encode(message)
         data.append(0x0A)
         try await transport.send(data)
@@ -205,6 +263,10 @@ public actor JSONRPCClient {
                 // await すると後続の response/notification が全て停止する（I10 deadlock）。
                 // Task 化してループを解放する。response はここでは処理せず順序を保つ。
                 let request = raw
+                if let id = raw.id {
+                    serverRequests[id] = ServerRequestRecord(line: line, order: nextServerRequestOrder, state: .pending)
+                    nextServerRequestOrder += 1
+                }
                 Task { [weak self] in
                     await self?.handleServerRequest(request)
                 }
@@ -244,20 +306,61 @@ public actor JSONRPCClient {
     private func handleServerRequest(_ raw: RawJSONRPCMessage) async {
         guard let id = raw.id, let method = raw.method else { return }
         let request = decodeServerRequest(method: method, params: raw.params)
+        // 応答はハンドラの結果で1つだけ決め、送るのは1回だけ。送信に失敗した・結果不明のときに
+        // 同じIDへ別の応答（エラー応答）を送り直すと、二重応答になる（ADR 0233）。
+        let response: JSONRPCResponseMessage
         do {
-            let result = try await serverRequestHandler(request)
-            try await sendResponse(id: id, result: result)
+            response = JSONRPCResponseMessage(id: id, result: try await serverRequestHandler(request), error: nil)
         } catch JSONRPCClientError.unsupportedServerRequest {
-            try? await sendErrorResponse(
-                id: id,
-                error: JSONRPCErrorObject(code: -32601, message: "Unsupported server request: \(request.method)")
-            )
+            response = JSONRPCResponseMessage(
+                id: id, result: nil,
+                error: JSONRPCErrorObject(code: -32601, message: "Unsupported server request: \(request.method)"))
         } catch {
-            try? await sendErrorResponse(
-                id: id,
-                error: JSONRPCErrorObject(code: -32000, message: String(describing: error))
-            )
+            response = JSONRPCResponseMessage(
+                id: id, result: nil, error: JSONRPCErrorObject(code: -32000, message: String(describing: error)))
         }
+        serverRequests[id]?.state = .responding
+        await deliver(response, id: id, method: method)
+    }
+
+    /// 応答を1回だけ送る。確実に未送信の失敗（送信が止まっている）なら、記録を`.pending`へ戻して応答を保持する
+    /// （確定点に載せて新ホストで再提示するか、中止後に送り直す）。結果不明・書き込み失敗は、二重応答を避けるため再送も再提示もしない。
+    private func deliver(_ response: JSONRPCResponseMessage, id: RequestID, method: String) async {
+        do {
+            try await send(response)
+            serverRequests.removeValue(forKey: id)
+        } catch {
+            if Self.isCertainlyUnsent(error), serverRequests[id] != nil {
+                serverRequests[id]?.state = .pending
+                serverRequests[id]?.undelivered = response
+            } else {
+                serverRequests.removeValue(forKey: id)
+            }
+            report(.responseNotDelivered("\(method): \(error)"))
+        }
+    }
+
+    private static func isCertainlyUnsent(_ error: Error) -> Bool {
+        guard let holder = error as? HolderError else { return false }
+        return holder == .handoverInProgress || holder == .notWriter
+    }
+
+    /// 更新が中止された。確実に未送信だった応答を、同じIDで送り直す（利用者の答えを失わない）。
+    public func resendUndeliveredResponses() async {
+        let targets = serverRequests.filter { $0.value.state == .pending && $0.value.undelivered != nil }
+            .sorted { $0.value.order < $1.value.order }
+        for (id, record) in targets {
+            guard let response = record.undelivered else { continue }
+            serverRequests[id]?.state = .responding
+            serverRequests[id]?.undelivered = nil
+            await deliver(response, id: id, method: "resend")
+        }
+    }
+
+    private func send(_ message: JSONRPCResponseMessage) async throws {
+        var data = try encoder.encode(message)
+        data.append(0x0A)
+        try await transport.send(data)
     }
 
     private func resumePending(id: Int, result: Result<JSONValue, Error>) {
@@ -370,7 +473,7 @@ public actor JSONRPCClient {
     }
 }
 
-public enum RequestID: Codable, Equatable, Sendable {
+public enum RequestID: Codable, Hashable, Sendable {
     case int(Int)
     case string(String)
 

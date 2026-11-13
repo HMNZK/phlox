@@ -18,6 +18,22 @@ public enum ThreadEvent: Equatable, Sendable {
     case threadSettingsUpdated(threadId: String, threadSettings: ThreadSettings)
     case error(threadId: String?, turnId: String?, message: String, willRetry: Bool?)
     case warning(threadId: String?, message: String)
+    /// 計画的なホスト更新（ADR 0233）のフェンス。この前に流れたイベントは全て処理済み。
+    case handoverFence(UUID)
+}
+
+/// 計画的なホスト更新で運ぶ、`CodexAppServerClient`の状態（ADR 0233）。
+public struct CodexClientHandoverState: Codable, Equatable, Sendable {
+    public struct Turn: Codable, Equatable, Sendable {
+        public var threadId: String
+        public var activeTurnId: String?
+        public var closedTurnIds: [String]
+        public var hasObservedLifecycle: Bool
+    }
+
+    public var turns: [Turn]
+    public var nextTurnStartGeneration: UInt64
+    public var rpc: JSONRPCHandoverState
 }
 
 /// Codex の wire event と正規化 event を同じ順序で配送するための共有ストリーム項目。
@@ -55,6 +71,9 @@ public actor CodexAppServerClient {
     private var turnStates: [String: TurnState] = [:]
     private var nextTurnStartGeneration: UInt64 = 0
     private var closeRequested = false
+    /// 計画的更新で手放した。入力の途切れを終了として扱わない。
+    private var detached = false
+    private var fenceStates: [UUID: CodexClientHandoverState] = [:]
     /// close() を呼ばずに app-server の出力が途切れた（プロセスが自分で終了した）。
     public private(set) var exitedUnexpectedly = false
     private let eventContinuation: AsyncStream<ThreadEvent>.Continuation
@@ -94,6 +113,10 @@ public actor CodexAppServerClient {
         let notifications = rpc.notifications
         notificationTask = Task { [weak self] in
             for await notification in notifications {
+                if case .handoverFence(let id) = notification {
+                    await self?.passFence(id)
+                    continue
+                }
                 guard let event = Self.threadEvent(from: notification) else { continue }
                 await self?.yield(event)
             }
@@ -261,7 +284,71 @@ public actor CodexAppServerClient {
         eventContinuation.yield(event)
     }
 
+    // MARK: - 計画的なホスト更新（ADR 0233）
+
+    /// holder経由の子なら、そのトランスポート。
+    public nonisolated var holderTransport: HolderTransport? { rpc.holderTransport }
+
+    /// 更新できない理由。nilなら可。
+    public func handoverGateReason() async -> String? {
+        if detached || closeRequested || exitedUnexpectedly { return "Codexの子が終了しているか、既に手放しています" }
+        if turnStates.values.contains(where: { $0.pendingStartGeneration != nil }) { return "ターンの開始の応答待ちです" }
+        return await rpc.handoverGateReason()
+    }
+
+    /// フェンスを通知ストリームの先頭から流す。各層は、フェンスが通った時点で状態を採取する。
+    public func beginHandoverFence(_ id: UUID) async {
+        await rpc.emitHandoverFence(id)
+    }
+
+    /// 通知の流れでフェンスに達した。ここまでのイベントは全て処理済みなので、状態を採取して上位へ通す。
+    private func passFence(_ id: UUID) async {
+        let rpcState = await rpc.captureHandoverState()
+        fenceStates[id] = CodexClientHandoverState(
+            turns: turnStates.map { threadId, state in
+                CodexClientHandoverState.Turn(
+                    threadId: threadId, activeTurnId: state.activeTurnId,
+                    closedTurnIds: state.closedTurnIds.sorted(), hasObservedLifecycle: state.hasObservedLifecycle)
+            }.sorted { $0.threadId < $1.threadId },
+            nextTurnStartGeneration: nextTurnStartGeneration, rpc: rpcState)
+        eventContinuation.yield(.handoverFence(id))
+    }
+
+    public func takeFenceState(_ id: UUID) -> CodexClientHandoverState? {
+        fenceStates.removeValue(forKey: id)
+    }
+
+    /// 引き継ぎ側: 状態を適用する。受信を始める前に呼ぶ。
+    public func applyHandoverState(_ state: CodexClientHandoverState) async {
+        turnStates = Dictionary(uniqueKeysWithValues: state.turns.map { turn in
+            (turn.threadId, TurnState(
+                activeTurnId: turn.activeTurnId, closedTurnIds: Set(turn.closedTurnIds),
+                pendingStartGeneration: nil, hasObservedLifecycle: turn.hasObservedLifecycle))
+        })
+        nextTurnStartGeneration = state.nextTurnStartGeneration
+        await rpc.applyHandoverState(state.rpc)
+    }
+
+    /// 更新が中止された。確実に未送信だった承認・質問への応答を送り直す。
+    public func resendUndeliveredResponses() async {
+        await rpc.resendUndeliveredResponses()
+    }
+
+    /// 引き継ぎ側: 未応答だったサーバ要求の原文を再投入する（受信を始める前）。
+    public func reinjectServerRequests(_ lines: [Data]) async {
+        await rpc.reinjectServerRequests(lines)
+    }
+
+    /// 旧ホスト側: 受信を止めて手放す。`transport.close()`は呼ばない（子は新ホストが引き継ぐ）。ストリームは閉じない。
+    public func detachForHandover() async {
+        detached = true
+        notificationTask?.cancel()
+        notificationTask = nil
+        await rpc.detachForHandover()
+    }
+
     private func notificationStreamDidFinish() async {
+        guard !detached else { return }
         // 通知の流れが閉じた時点で stderr は読み切っている。app-server はログも stderr に出すため、最後の 1 行だけ添える。
         let stderrLastLine = await rpc.transportStderrTail()?
             .split(whereSeparator: \.isNewline).last.map { $0.trimmingCharacters(in: .whitespaces) }
@@ -446,34 +533,40 @@ public actor CodexAppServerClient {
             )
         case .warning(let value):
             return .warning(threadId: value.threadId, message: value.message)
-        case .unknown:
+        case .handoverFence, .unknown:
             return nil
         }
     }
 }
 
 public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEventsProviding {
-    private let client: CodexAppServerClient
-    private var bridgeTask: Task<Void, Never>?
-    private var currentThreadId: String?
+    let client: CodexAppServerClient
+    /// 引き継ぎ側: 旧ホストの状態と、つなぎ先のholder（`prepareAdoption`で預かり、`completeAdoption`で使う）。
+    var pendingAdoption: (state: Data, transport: HolderTransport)?
+    /// 計画的更新のフェンスが最上層に届くのを待つ継続（ADR 0233）。
+    var fenceWaiters: [UUID: CheckedContinuation<Data?, Never>] = [:]
+    /// 子を新ホストへ手放した。以後の`close()`は子にも画像ディレクトリにも触れない。
+    var handedOver = false
+    var bridgeTask: Task<Void, Never>?
+    var currentThreadId: String?
     /// 切替中に `currentThreadId` を nil にしても、失敗時に戻せる最後の確定 identity。
-    private var committedThreadId: String?
+    var committedThreadId: String?
     /// 初回 thread 確立前は wire event を観測できる既存契約を保ち、確立後の切替中は fail closed にする。
-    private var hasEstablishedThread = false
+    var hasEstablishedThread = false
     /// 複数の resume/start が同時に返っても、最後に開始した操作だけが active thread を commit する。
-    private var threadIdentityGeneration = 0
+    var threadIdentityGeneration = 0
     /// 子 thread 停止を要求済みで、親 thread の filter を越えてよい完了だけを保持する。
-    private var pendingChildInterrupts: [String: String] = [:]
-    private var nativeImageInputEnabled = false
+    var pendingChildInterrupts: [String: String] = [:]
+    var nativeImageInputEnabled = false
     /// 画像を含む turn/start の await 中は、モデル変更を受け付けない。
     /// actor は await 中に再入されるため、UI 側の再チェックだけではこの窓を塞げない。
-    private var imageTurnInFlight = false
-    private var modelChangeInFlight = false
+    var imageTurnInFlight = false
+    var modelChangeInFlight = false
     private var imageInputWriter: (@Sendable (Data, URL) throws -> Void)?
     /// materialize 済み画像ディレクトリ（セッション全体。履歴参照のため turn 終了では保持する）。
-    private var materializedImageDirectories: Set<URL> = []
+    var materializedImageDirectories: Set<URL> = []
     /// resetConversation で新規 thread を開始し直すために、直近の thread/start 引数を保持する。
-    private var lastThreadStartParams: ThreadStartParams?
+    var lastThreadStartParams: ThreadStartParams?
     /// threadResume 単体で一時的に切り替えた active identity を read 失敗時に戻すための状態。
     private var pendingResumeRollback: (
         threadID: String,
@@ -481,11 +574,11 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         previousThreadStartParams: ThreadStartParams?,
         generation: Int
     )?
-    private let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
+    let eventContinuation: AsyncStream<NormalizedChatEvent>.Continuation
     public nonisolated let events: AsyncStream<NormalizedChatEvent>
     private let threadEventContinuation: AsyncStream<ThreadEvent>.Continuation
     public nonisolated let threadEvents: AsyncStream<ThreadEvent>
-    private let orderedEventContinuation: AsyncStream<CodexStructuredEvent>.Continuation
+    let orderedEventContinuation: AsyncStream<CodexStructuredEvent>.Continuation
     public nonisolated let orderedEvents: AsyncStream<CodexStructuredEvent>
 
     public init(client: CodexAppServerClient) {
@@ -516,6 +609,10 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
         let source = client.events
         bridgeTask = Task { [weak self] in
             for await event in source {
+                if case .handoverFence(let id) = event {
+                    await self?.fencePassed(id)
+                    continue
+                }
                 await self?.yield(event)
             }
             await self?.bridgeDidFinish()
@@ -524,6 +621,8 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
 
     /// app-server が自分で終了したら、終了コードを最後のイベントとして流してから閉じる（04 B3）。
     private func bridgeDidFinish() async {
+        // 手放した（計画的更新）後の取消しは、終了ではない。ストリームを閉じない。
+        guard !handedOver else { return }
         if await client.exitedUnexpectedly {
             let exited = NormalizedChatEvent.processExited(exitCode: await client.transportTerminationStatus())
             orderedEventContinuation.yield(.normalized(exited))
@@ -801,6 +900,11 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
     public func close() async {
         bridgeTask?.cancel()
         bridgeTask = nil
+        if handedOver {
+            // 子と画像ディレクトリは新ホストへ引き継いだ。ここでは何も終了・削除しない。
+            finish()
+            return
+        }
         releaseAllImageDirectories()
         await client.close()
         finish()
@@ -864,7 +968,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
             return turnId
         case .error(_, let turnId, _, _):
             return turnId
-        case .threadStatusChanged, .threadSettingsUpdated, .warning, .skillsChanged:
+        case .threadStatusChanged, .threadSettingsUpdated, .warning, .skillsChanged, .handoverFence:
             return nil
         }
     }
@@ -887,7 +991,7 @@ public actor CodexStructuredAgentClient: StructuredAgentClient, CodexOrderedEven
             return threadId
         case .planUpdated(let threadId, _, _, _):
             return threadId
-        case .skillsChanged:
+        case .skillsChanged, .handoverFence:
             return nil
         case .error(let threadId, _, _, _):
             return threadId
@@ -1230,7 +1334,7 @@ extension CodexStructuredAgentClient {
                 }
                 return AgentTaskItem(id: "codex-plan-\(index)-\(step.step)", title: step.step, status: status)
             })
-        case .skillsChanged:
+        case .skillsChanged, .handoverFence:
             nil
         case .error(_, _, let message, let willRetry):
             willRetry == true ? .warning(message: message) : .error(message: message)

@@ -1,6 +1,7 @@
 import Foundation
 import AgentDomain
 import SessionFeature
+import StructuredChatKit
 
 // 隠している秘密: 復元ゲート中に永続 descriptor を再 plan・reap・再 spawn し、遅延 pid 書き戻しを行う詳細。
 
@@ -17,6 +18,10 @@ final class SessionRestoreCoordinator {
     private let orphanReaper: any OrphanReaper
     private let codexNow: @Sendable () -> Date
     private let livePIDProvider: @MainActor @Sendable (SessionID) async -> pid_t?
+    /// 計画的なホスト更新（ADR 0233）の引き継ぎ結果。採用に成功したものだけが確定点から外れる。
+    private(set) var handoverAdoptedSessionIDs: Set<SessionID> = []
+    /// 引き継ぎ対象だが採用に失敗したもの。子は生きたまま、終了も再生成もしない。
+    private(set) var handoverRecoveryNeededSessionIDs: Set<SessionID> = []
     private let appendPTYSession: @MainActor (SessionViewModel) -> Void
     private let appendAppServerSession: @MainActor (ChatSessionViewModel) -> Void
     private let refreshUnseenCompletionCount: @MainActor () -> Void
@@ -129,17 +134,20 @@ final class SessionRestoreCoordinator {
 
     private func restoreSession(_ descriptor: PersistedSessionDescriptor) async {
         let sessionID = descriptor.id
-        let token = descriptor.token ?? SessionSpawnService.makeToken()
+        // 計画的なホスト更新で引き継ぐ実行は、生きている子を終了せずにつなぎ直す。孤児として扱って reap しない。
+        let adoption = descriptor.backend == .appServer ? environment.handoverAdoptions[sessionID] : nil
+        // 引き継ぐ子は旧ホストのトークンを環境に持ち続けるので、確定点のトークンを再登録する（ADR 0233）。
+        let token = adoption?.token ?? descriptor.token ?? SessionSpawnService.makeToken()
 
         // 前回プロセスの生存孤児（クラッシュ/強制終了の生き残り）を reap してから再 spawn する。
         // master fd を失った孤児は再アタッチ不能のため、reap → cold-restart 再 spawn が正しい。
-        reconcileOrphan(for: descriptor)
+        if adoption == nil { reconcileOrphan(for: descriptor) }
 
         // 保存済みトークンを再登録することで ControlServer への認証を復元する。
         await environment.tokenStore.register(token, for: sessionID)
 
         if descriptor.backend == .appServer {
-            await restoreChatSession(descriptor, token: token)
+            await restoreChatSession(descriptor, token: token, adoption: adoption)
             return
         }
 
@@ -230,7 +238,8 @@ final class SessionRestoreCoordinator {
     private func restoreChatSession(
         _ descriptor: PersistedSessionDescriptor,
         token: String,
-        install: (@MainActor (ChatSessionViewModel) -> Void)? = nil
+        install: (@MainActor (ChatSessionViewModel) -> Void)? = nil,
+        adoption: HandoverSession? = nil
     ) async {
         let install = install ?? appendAppServerSession
         do {
@@ -252,12 +261,26 @@ final class SessionRestoreCoordinator {
                 name: descriptor.name,
                 plan: plan,
                 launchContext: descriptor.launchContext,
-                titleState: descriptor.titleState
+                titleState: descriptor.titleState,
+                adoption: adoption
             )
             install(vm)
             guard let threadId = descriptor.chatNativeSessionId ?? descriptor.codexThreadId ?? descriptor.resumeID else {
                 vm.markRestoreFailed("chat restore failed: missing thread id")
+                if adoption != nil { handoverRecoveryNeededSessionIDs.insert(descriptor.id) }
                 refreshUnseenCompletionCount()
+                return
+            }
+            if adoption != nil {
+                // 失敗しても子は終了・再生成しない（復旧待ちとして残す）。
+                await vm.adoptHandover(threadId: threadId, persistedSettings: descriptor.codexSettings)
+                if vm.restoreState == .restored {
+                    handoverAdoptedSessionIDs.insert(descriptor.id)
+                } else {
+                    handoverRecoveryNeededSessionIDs.insert(descriptor.id)
+                }
+                refreshUnseenCompletionCount()
+                pendingRestorePIDUpdates.append((descriptor.id, await livePIDProvider(descriptor.id)))
                 return
             }
             await vm.restore(
@@ -281,6 +304,7 @@ final class SessionRestoreCoordinator {
                 message: "chat restore failed: \(Self.restoreFailureDetail(error))"
             )
             install(placeholder)
+            if adoption != nil { handoverRecoveryNeededSessionIDs.insert(descriptor.id) }
             refreshUnseenCompletionCount()
             logError(error, "Failed to restore chat session \(descriptor.id)")
         }

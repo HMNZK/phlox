@@ -22,6 +22,32 @@ public enum SessionRuntimeChatItemReference: Codable, Sendable, Equatable {
     }
 }
 
+extension SessionRuntimeChatItemReference {
+    /// 実行サービスが組み立てたページに含まれる、表示しない思考か。旧サービス（思考を除く前の版）が返す
+    /// inline の思考と、大きさで後取得にされた思考の目印（`itemKind == "reasoning"`）の両方を判定する。
+    /// 受信したページ・cursor・item ID は変えない。`itemKind` を持たない最古の目印は判別できない。
+    func isHiddenReasoning(agent: AgentKind) -> Bool {
+        guard AgentStatusCardRouting.hidesReasoning(agent) else { return false }
+        switch self {
+        case .inline(.reasoning): return true
+        case .inline: return false
+        case .deferred(let marker): return marker.kind == .chatItem && marker.itemKind == "reasoning"
+        }
+    }
+}
+
+extension SessionRuntimeChatReadBlock {
+    func isHiddenReasoning(agent: AgentKind) -> Bool {
+        if case .item(let reference) = content { reference.isHiddenReasoning(agent: agent) } else { false }
+    }
+}
+
+extension SessionRuntimeCardEntry {
+    func isHiddenReasoning(agent: AgentKind) -> Bool {
+        if case .item(let reference) = self { reference.isHiddenReasoning(agent: agent) } else { false }
+    }
+}
+
 public struct SessionRuntimeCardSummary: Codable, Sendable, Equatable {
     public let id: String
     public let inputID: String

@@ -256,6 +256,67 @@ mock_body='{"sessions":[{"id":"11111111-2222-3333-4444-555555555555","name":"a\u
 output=$(cmd_list)
 assert_not_contains "cmd_list output has no ESC byte" "$output" $'\x1b'
 
+# === 接続拒否の再試行（ADR 0233）: 終了コード7だけを再試行し、タイムアウト・HTTPエラーは再試行しない ===
+
+RETRY_RC_FILE=$(mktemp)
+RETRY_CALLS_FILE=$(mktemp)
+trap 'cleanup; rm -f "$RETRY_RC_FILE" "$RETRY_CALLS_FILE"' EXIT
+export PHLOX_CONNECT_RETRY_INTERVAL=0
+export PHLOX_CONNECT_RETRY_ATTEMPTS=4
+
+# 呼び出しごとの終了コードを先頭から消費する（尽きたら0。成功時は mock_status を出力する）。
+curl() {
+    echo 1 >> "$RETRY_CALLS_FILE"
+    local rc=0 prev="" out_file="" a
+    if [ -s "$RETRY_RC_FILE" ]; then
+        rc="$(head -n 1 "$RETRY_RC_FILE")"
+        tail -n +2 "$RETRY_RC_FILE" > "$RETRY_RC_FILE.next"; mv "$RETRY_RC_FILE.next" "$RETRY_RC_FILE"
+    fi
+    for a in "$@"; do
+        [ "$prev" = "-o" ] && out_file="$a"
+        prev="$a"
+    done
+    cat > /dev/null
+    if [ "$rc" -ne 0 ]; then
+        echo "curl: ($rc) mock failure" >&2
+        return "$rc"
+    fi
+    [ -n "$out_file" ] && printf '%s' "$mock_body" > "$out_file"
+    printf '%s' "$mock_status"
+}
+
+retry_calls() { wc -l < "$RETRY_CALLS_FILE" | tr -d ' '; }
+
+# 終了コード列を与えて http_request を別シェルで実行し、終了コードと呼び出し回数を返す。
+run_request_with() {
+    : > "$RETRY_CALLS_FILE"; printf '%s' "$1" > "$RETRY_RC_FILE"
+    request_rc=0
+    ( http_request POST "/send" '{"text":"x"}' ) > /dev/null 2> "$RETRY_CALLS_FILE.err" || request_rc=$?
+}
+
+mock_status=200
+mock_body='{"ok":true}'
+
+run_request_with $'7\n7\n'
+assert_eq "refused twice then success: exit 0" "0" "$request_rc"
+assert_eq "refused twice then success: 3 calls" "3" "$(retry_calls)"
+assert_eq "retries print no intermediate curl error" "" "$(cat "$RETRY_CALLS_FILE.err")"
+
+run_request_with $'7\n7\n7\n7\n7\n'
+assert_eq "always refused: exits with curl's code 7" "7" "$request_rc"
+assert_eq "always refused: stops at the attempt limit (4)" "4" "$(retry_calls)"
+assert_contains "always refused: final curl error is shown" "$(cat "$RETRY_CALLS_FILE.err")" "curl: (7)"
+
+run_request_with $'28\n'
+assert_eq "timeout (28) is NOT retried: exit code" "28" "$request_rc"
+assert_eq "timeout (28) is NOT retried: 1 call" "1" "$(retry_calls)"
+
+mock_status=500
+run_request_with $''
+assert_eq "HTTP 500 response is NOT retried (accepted operation)" "1" "$(retry_calls)"
+mock_status=200
+rm -f "$RETRY_CALLS_FILE.err"
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then

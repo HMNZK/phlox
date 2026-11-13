@@ -27,6 +27,8 @@ extension DashboardViewModel {
 
     func suspendIdleChatSessions(now: Date) async {
         guard !isRuntimeProjection else { return }
+        // 計画的更新の間は、休止で子を終了させない（ADR 0233）。
+        guard handoverGate?.isClosed != true else { return }
         let cutoff = now.addingTimeInterval(-Self.idleSuspendAfter)
         for node in sessionNodes {
             guard case .appServer(let chat) = node, chat.canSuspendForIdle,

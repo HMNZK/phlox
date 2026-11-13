@@ -25,11 +25,17 @@ struct SessionRuntimeModelProvider: AgentModelListProviding {
 enum SessionRuntimeApplicationCommand: Codable, Sendable {
     case mobile(MobileRuntimeCommand)
     case preferences([String: SessionRuntimePreference])
+    /// 実行サービスを、`bundlePath`の新版へ実行を止めずに切り替える（ADR 0233）。
+    case handover(bundlePath: String)
 }
 
 enum SessionRuntimeApplicationReply: Codable, Sendable {
     case mobile(MobileRuntimeReply)
     case preferencesApplied
+    /// 切り替えを始めた。画面側は新しい実行サービスへ再接続する。
+    case handoverStarted
+    /// 更新を延期した（未対応の実行が動いている等）。実行中のものには何もしていない。
+    case handoverDeferred([String])
 }
 
 enum SessionRuntimePreference: Codable, Equatable, Sendable {

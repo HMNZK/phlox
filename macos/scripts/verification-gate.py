@@ -487,6 +487,8 @@ def quality_worker(args):
     run_stage([compact, "--full", "ios-ad-hoc-unit", "python3", "-B", "-m", "unittest", "discover", "-s", "ios/scripts", "-p", "test_prepare_ad_hoc.py"], out / "ios-ad-hoc-unit.log", env=env)
     run_stage([compact, "--full", "standard-entry-regression", "bash", "macos/scripts/tests/run-swift-tests-output.test.sh"], out / "standard-entry.log", env=env)
     run_stage([compact, "--full", "runtime-api-retry", "python3", "-B", "-m", "unittest", "discover", "-s", "macos/scripts/tests", "-p", "test_session_runtime_lifecycle_api.py"], out / "runtime-api-retry.log", env=env)
+    run_stage([compact, "--full", "hook-dispatcher-retry", "bash", "macos/scripts/tests/hook-dispatcher.test.sh"], out / "hook-dispatcher.log", env=env)
+    run_stage([compact, "--full", "phlox-cli-retry", "bash", "macos/scripts/tests/phlox.test.sh"], out / "phlox-cli.log", env=env)
     run_stage([compact, "--full", "macos-packages", *command], out / "macos.log", env=env)
     results["macos"] = check_test_log(out / "macos.log")
     results["macos"].update(check_regular_events(regular_event_paths(out / "macos-events", MACOS_PACKAGES)))

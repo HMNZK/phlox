@@ -132,6 +132,49 @@ run_hook "stop" '{"exit_code":"abc"}'
 assert_eq "stop with non-numeric exit_code still posts" "$CLAUDE_HOOKS_URL" "$(captured_url)"
 assert_eq "stop non-numeric exit_code falls back to 0" "0" "$(json_field '.exitCode')"
 
+# --- 接続拒否の再試行（ADR 0233）: 終了コード7だけを再試行し、タイムアウト・HTTPエラーは再試行しない ---
+# 呼び出し回数と、呼び出しごとの終了コード（先頭から消費。尽きたら0）をファイルで持つ（curl はパイプ右辺で呼ばれ得るため）。
+RC_FILE="$CAP_DIR/rc"
+CALLS_FILE="$CAP_DIR/calls"
+export PHLOX_CONNECT_RETRY_INTERVAL=0
+export PHLOX_CONNECT_RETRY_ATTEMPTS=4
+
+curl() {
+    echo 1 >> "$CALLS_FILE"
+    local rc=0
+    if [ -s "$RC_FILE" ]; then
+        rc="$(head -n 1 "$RC_FILE")"
+        tail -n +2 "$RC_FILE" > "$RC_FILE.next"; mv "$RC_FILE.next" "$RC_FILE"
+    fi
+    # -K - の設定は読み捨てる（パイプの書き手が SIGPIPE にならないように）。
+    case " $* " in *" -K "*) cat > /dev/null ;; esac
+    return "$rc"
+}
+
+curl_calls() { wc -l < "$CALLS_FILE" | tr -d ' '; }
+
+run_with_rcs() {
+    : > "$CALLS_FILE"; printf '%s' "$1" > "$RC_FILE"
+    run_hook "sessionStart" '{}'
+}
+
+run_with_rcs $'7\n7\n'
+assert_eq "refused twice then success: 3 calls" "3" "$(curl_calls)"
+
+run_with_rcs $'7\n7\n7\n7\n7\n'
+assert_eq "always refused: stops at the attempt limit (4)" "4" "$(curl_calls)"
+
+run_with_rcs $'28\n'
+assert_eq "timeout (28) is NOT retried" "1" "$(curl_calls)"
+
+run_with_rcs $'22\n'
+assert_eq "HTTP error (22) is NOT retried" "1" "$(curl_calls)"
+
+export PHLOX_TOKEN="secret-token-xyz"
+run_with_rcs $'7\n'
+assert_eq "authenticated post is retried on refusal" "2" "$(curl_calls)"
+unset PHLOX_TOKEN
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then

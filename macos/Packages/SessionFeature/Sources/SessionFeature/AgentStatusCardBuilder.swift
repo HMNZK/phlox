@@ -1019,8 +1019,11 @@ enum AgentStatusCardBuilder {
 /// どの会話でカードを使うか、使う会話のブロック列をどう作るか（設計 §4.1「適用範囲」）。
 /// Claude と Codex だけがカードの組み立てを使い、Cursor は今の `ChatTranscriptGrouping.blocks` のまま（AC-14）。
 enum AgentStatusCardRouting {
+    /// Codex の思考要約は会話に表示しない。保存・取得・cursor・item ID は変えず、描画の入力から除く。
+    static func hidesReasoning(_ agent: AgentKind) -> Bool { agent == .codex }
+
     static func visibleItems(_ items: [ChatItem], agent: AgentKind) -> [ChatItem] {
-        guard agent == .codex else { return items }
+        guard hidesReasoning(agent) else { return items }
         return items.filter { if case .reasoning = $0 { false } else { true } }
     }
 

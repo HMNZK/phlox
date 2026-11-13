@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import CodexAppServerKit
 import StructuredChatKit
@@ -257,9 +258,19 @@ public actor ChatApprovalBroker {
         return String(data: data, encoding: .utf8)
     }
 
+    /// 質問のIDは要求の3つ組から導く（ADR 0233）。ホストの更新で再投入した同じ要求が、会話ログに保存した
+    /// カードと同じIDになる。未回答の同じ3つ組が重なったときだけ乱数にする（待ちの上書き・取り違えを防ぐ）。
+    static func userInputID(threadId: String, turnId: String, itemId: String) -> UUID {
+        var bytes = Array(SHA256.hash(data: Data("\(threadId)\u{0}\(turnId)\u{0}\(itemId)".utf8)).prefix(16))
+        bytes[6] = bytes[6] & 0x0F | 0x50
+        bytes[8] = bytes[8] & 0x3F | 0x80
+        return UUID(uuid: bytes.withUnsafeBytes { $0.load(as: uuid_t.self) })
+    }
+
     private func makeUserInputRequest(from request: ToolRequestUserInputRequest) -> ChatUserInputRequest {
-        ChatUserInputRequest(
-            id: UUID(),
+        let stableID = Self.userInputID(threadId: request.threadId, turnId: request.turnId, itemId: request.itemId)
+        return ChatUserInputRequest(
+            id: pendingUserInputs[stableID] == nil ? stableID : UUID(),
             threadId: request.threadId,
             turnId: request.turnId,
             itemId: request.itemId,

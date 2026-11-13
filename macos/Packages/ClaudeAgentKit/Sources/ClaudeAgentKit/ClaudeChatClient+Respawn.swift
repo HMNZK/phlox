@@ -4,6 +4,7 @@ import StructuredChatKit
 // 隠している秘密: モデル/権限変更や resume 失敗をいつ・どの引数（`--session-id`/`--resume`）で respawn するか、および ping-pong を1回に抑える上限ロジック
 extension ClaudeChatClient {
     func spawn(sessionArgument: SpawnSessionArgument) async throws {
+        if let reason = spawnForbiddenReason { throw HandoverError.adoptionFailed(reason) }
         failPendingPermissionRequest(ClaudeChatClientError.transportClosed)
         currentTurnLatestContextTokens = nil
         if case .fork = sessionArgument {

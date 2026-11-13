@@ -8,6 +8,7 @@ import Testing
         #expect(SessionRuntimeLaunchRole(arguments: ["Phlox"]) == .graphical)
         #expect(SessionRuntimeLaunchRole(arguments: ["Phlox", "--session-runtime"]) == .sessionRuntime)
         #expect(SessionRuntimeLaunchRole(arguments: ["Phlox", "--session-runtime-other"]) == .graphical)
+        #expect(SessionRuntimeLaunchRole(arguments: ["Phlox", "--session-holder"]) == .sessionHolder)
     }
 
     @Test func locatorUsesTheExplicitStore() throws {

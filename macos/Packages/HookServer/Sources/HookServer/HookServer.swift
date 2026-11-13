@@ -2,6 +2,7 @@ import AgentDomain
 import Foundation
 import LocalHTTPServer
 import Network
+import os
 
 public enum HookServerError: Error, Sendable {
     case listenerFailed(Error)
@@ -56,10 +57,21 @@ public actor HookServer: HookServerProtocol {
         }
     }
 
-    private var activeRequests = 0
+    private nonisolated let requests = OSAllocatedUnfairLock(initialState: (accepting: false, active: 0))
 
-    private func beginRequest() { activeRequests += 1 }
-    private func endRequest() { activeRequests -= 1 }
+    // actorへのTaskが実行される前に、受付と停止を同じロックで会計する。
+    nonisolated func acceptConnection(_ connection: NWConnection) {
+        let accepted = requests.withLock { state in
+            guard state.accepting else { return false }
+            state.active += 1
+            return true
+        }
+        guard accepted else { connection.cancel(); return }
+        Task {
+            await self.handle(connection: connection)
+            requests.withLock { $0.active -= 1 }
+        }
+    }
 
     /// 計画的なホスト更新（ADR 0233）用。ポートを他へずらさず、子が環境変数に固定した同じポートを束縛する。
     /// 旧ホストの解放待ちで一時的に使用中なので、`retryFor`の間だけ再試行する。ランダムポートへは落とさない。
@@ -77,10 +89,11 @@ public actor HookServer: HookServerProtocol {
 
     /// 新しい接続の受付を止め、処理中のリクエストが終わる（または`timeout`）まで待つ。待ちきれなければfalse。
     public func stopAcceptingAndDrain(timeout: Duration) async -> Bool {
+        requests.withLock { $0.accepting = false }
         listener?.cancel()
         listener = nil
         let deadline = ContinuousClock.now + timeout
-        while activeRequests > 0 {
+        while requests.withLock({ $0.active > 0 }) {
             if ContinuousClock.now >= deadline { return false }
             try? await Task.sleep(for: .milliseconds(20))
         }
@@ -96,6 +109,7 @@ public actor HookServer: HookServerProtocol {
         }
 
         self.listener = listener
+        requests.withLock { $0.accepting = true }
 
         do {
             return try await LocalHTTPListener.startAndWaitUntilReady(
@@ -106,15 +120,12 @@ public actor HookServer: HookServerProtocol {
                     connection.cancel()
                     return
                 }
-                Task {
-                    await self.beginRequest()
-                    await self.handle(connection: connection)
-                    await self.endRequest()
-                }
+                self.acceptConnection(connection)
             }
         } catch {
             // 失敗した listener を残すと以後の start() が恒久的に alreadyStarted になるため、
             // ここで必ず後始末して再 start 可能にする
+            requests.withLock { $0.accepting = false }
             listener.cancel()
             if self.listener === listener {
                 self.listener = nil

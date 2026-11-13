@@ -317,3 +317,10 @@ ADR 0233「PMが決める事項」の4点。特に初回移行（案A/B）と段
 - **秘密の扱い**: 確定点は既存の0600・所有者確認つきのファイル。受入の診断は項目を選んで出す（トークンは出さない）。`discovery.json`は確定点を含まない。確定点の読み書きの失敗のログは中身を出さない。
 - **テスト**: `HandoverCheckpointTests`（トークンの往復、消費後の`consumed.json`にトークンが無い、一部消費で残る項目はトークンを保つ、旧形式はトークン無しで読める）。`SessionRestoreCoordinator`の採用で、確定点のトークンで認証でき、別のトークンでは認証できないこと（`HandoverRecoveryRestoreTests`）。受入は、同じControl APIの検査を切り替えの前にも行い（前は200、後も200）、`consumed.json`にトークンが無いこと、`adoption-failure`で残る項目がトークンを保つこと（値は出さない）を確かめる。hookの検査は足さない（構造化チャットの子は`CLAUDE_HOOKS_URL`を持たない）。
 - **他の「旧ホストの起動時の値」の点検（切り替え後の段）**: `PHLOX_API_URL`は確定点の`controlPort`で同じポートを厳密に束縛する。`PHLOX_SESSION_ID`は同じ。holderのソケットはholderの記録（確定点）で解決し、置き場はストアのパスから決まる（同じストアなので同じ）。`PHLOX_CLI`は旧バンドルのコピー（`session-runtime-bundles/<ハッシュ>.app/Contents/Resources/scripts/phlox`）を指す。コピーを消す処理は無い（`SessionRuntimeBundleStore`が消すのは作りかけの`staging`だけ）ので、旧バンドルのコピーは残り、パスは有効（planned-3でも両方のコピーが残り、記述子の`PHLOX_CLI`が存在することを確認）。ただし旧版の`phlox`は接続拒否の再試行を持たない（ADRの既知の制限）。hookの設定（`--settings`）と`CLAUDE_HOOKS_URL`は構造化チャットには無い。Codexの子も同じ`PHLOX_TOKEN`を持つので、今回の直しで同じく通る。
+
+## abc 引き継ぎ後の検査（2026-11-13）
+
+- `StructuredChatKit`の全66テストは合格。SIGPIPEテストの再試行は、読み手が消えなければ2秒で失敗し、`stdinClosed`以外のエラーも通さない。
+- `verify-phlox`段1は送信・停止・再開・復元の6パッケージで対象60件すべて合格（`.verification/abc-handoff-20261113/fixed-source/.verification/unit/result.json`）。段2は隔離した署名済みDebugアプリでlifecycleとClaudeの中断→再送が各1件合格。両方の`ownership.json`は起動した全プロセスの終了を記録した。
+- セッション状態モデルは、引き継ぎを行わないClaude直結経路についてhuman・anyの両モードが既知一覧どおり合格した。`no-terminate-final-write`変種では`terminate-is-final`の新しい違反を検出した。引き継ぎ処理自体はこのモデルの対象外で、上記の受入検査で別に確かめた。
+- 計画的な切り替えと採用失敗の受入は、最終製品変更後に実行した`handover-planned-5`・`handover-failure-5`（各1件合格）を使用した。今回の製品コード変更は無く、後続の変更は文書とSIGPIPEテストのみ。

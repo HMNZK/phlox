@@ -187,7 +187,11 @@ public final class DashboardViewModel {
     /// 起動時の復元で引き継ぎ（ADR 0233）に成功したセッション。確定点から外してよい。
     public var handoverAdoptedSessionIDs: Set<SessionID> { restoreCoordinator?.handoverAdoptedSessionIDs ?? [] }
     /// 引き継ぎ対象だが採用に失敗したセッション（復旧待ち）。子は生きたまま終了も再生成もしない。確定点にも残す。
-    public var handoverRecoveryNeededSessionIDs: Set<SessionID> { restoreCoordinator?.handoverRecoveryNeededSessionIDs ?? [] }
+    public var handoverRecoveryNeededSessionIDs: Set<SessionID> {
+        if isRuntimeProjection { return projectedHandoverRecoveryNeededSessionIDs }
+        return restoreCoordinator?.handoverRecoveryNeededSessionIDs ?? []
+    }
+    public private(set) var projectedHandoverRecoveryNeededSessionIDs: Set<SessionID> = []
     /// 「この会話から再開」の処理中のセッション（続けて押しても 2 つ目のプロセスを作らない）。
     @ObservationIgnored private var resumingChatSessionIDs: Set<SessionID> = []
     @ObservationIgnored private var removingSessionIDs: Set<SessionID> = []
@@ -424,9 +428,15 @@ public final class DashboardViewModel {
     }
 
     /// 確定点に載せる実行の記述子が、保存キューの完了後に復元可能な形で読めることを確かめる。
-    public func handoverDescriptorsPersisted(for entries: [DashboardHandoverEntry]) async -> Bool {
-        await persistence.waitForPendingWrites()
-        let saved = await environment.sessions.load()
+    public func handoverDescriptorsPersisted(for entries: [DashboardHandoverEntry], timeout: Duration = .seconds(5)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        guard await persistence.waitForPendingWrites(timeout: timeout) else { return false }
+        var saved: [PersistedSessionDescriptor] = []
+        let load = Task { @MainActor in saved = await environment.sessions.load() }
+        guard await TerminationFlushRace.race(timeout: max(.zero, ContinuousClock.now.duration(to: deadline)), against: load) else {
+            load.cancel()
+            return false
+        }
         return entries.allSatisfy { entry in
             guard sessionNode(id: entry.sessionID)?.appServer != nil,
                   let descriptor = saved.first(where: { $0.id == entry.sessionID }),
@@ -2394,7 +2404,8 @@ extension DashboardViewModel {
             }), workspaceRoot: runtimeProjectionSnapshot?.workspaceRoot ?? ownedServices?.environment.workspaceDirectory,
             workspaceCleanupWarning: workspaceCleanupWarning, workspaceCleanupFailureReason: workspaceCleanupFailureReason,
             discardedSessionCount: discardedSessionCountNotice, worktreeCreationPath: worktreeCreationPath,
-            restoredSessionPresentation: restoredSessionPresentation)
+            restoredSessionPresentation: restoredSessionPresentation,
+            handoverRecoveryNeededSessionIDs: handoverRecoveryNeededSessionIDs)
     }
 
     public func makeRuntimeOverview() -> DashboardRuntimeOverview {
@@ -2429,7 +2440,8 @@ extension DashboardViewModel {
             workspaceCleanupFailureReason: workspaceCleanupFailureReason.map { SessionRuntimeTextPreview($0).displayText },
             discardedSessionCount: discardedSessionCountNotice,
             worktreeCreationPath: worktreeCreationPath,
-            restoredSessionPresentation: restoredSessionPresentation)
+            restoredSessionPresentation: restoredSessionPresentation,
+            handoverRecoveryNeededSessionIDs: handoverRecoveryNeededSessionIDs)
     }
 
     public func runtimeContent(for request: SessionRuntimeContentRequest) throws -> SessionRuntimeContentResponse {
@@ -2510,6 +2522,7 @@ extension DashboardViewModel {
         let addedIDs = Set(updated.map(\.id)).subtracting(sessionNodeIndex.keys)
         runtimeProjectionSnapshot = nil
         runtimeProjectionOverview = overview
+        projectedHandoverRecoveryNeededSessionIDs = overview.handoverRecoveryNeededSessionIDs ?? []
         projects = overview.projects
         sessionNodes = updated
         sessions = updated.compactMap(\.pty)
@@ -2602,6 +2615,7 @@ extension DashboardViewModel {
         let addedIDs = Set(updated.map(\.id)).subtracting(sessionNodeIndex.keys)
         runtimeProjectionOverview = nil
         runtimeProjectionSnapshot = snapshot
+        projectedHandoverRecoveryNeededSessionIDs = snapshot.handoverRecoveryNeededSessionIDs ?? []
         projects = snapshot.projects
         sessionNodes = updated
         sessions = updated.compactMap(\.pty)

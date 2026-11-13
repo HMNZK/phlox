@@ -34,6 +34,30 @@ private final class Stage8SnapshotClients: @unchecked Sendable {
 extension ThemeRenderingTests {
 @Suite @MainActor
 struct DesignSnapshotRenderTests {
+    @Test func handoverRecoveryNoticeSnapshot() async throws {
+        guard ProcessInfo.processInfo.environment["PHLOX_DESIGN_SNAPSHOTS"] == "1" else { return }
+        _ = NSApplication.shared
+        let getter = NSSelectorFromString("accessibilityAttributeValue:")
+        let setter = NSSelectorFromString("accessibilitySetValue:forAttribute:")
+        let previous = NSApp.perform(getter, with: "AXEnhancedUserInterface")?.takeUnretainedValue()
+        NSApp.perform(setter, with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        defer { NSApp.perform(setter, with: previous, with: "AXEnhancedUserInterface") }
+        let dashboard = try DashboardViewModel(projection: .init(
+            projects: [], sessions: [], availableAgentKinds: [], handoverRecoveryNeededSessionIDs: [SessionID()])) { _ in .none }
+        let monitor = UsageMonitor(projection: .init(usages: [:], failures: [:])) { _ in }
+        let view = DashboardView(viewModel: dashboard, router: AppRouter(), usageMonitor: monitor)
+            .environment(\.locale, Locale(identifier: "ja"))
+            .environment(\.colorScheme, .dark)
+        let window = makeSnapshotWindow(view, id: "handover-recovery-notice", width: 1100, height: 720)
+        let host = try #require(window.contentView)
+        defer { window.contentViewController = nil; window.contentView = nil; window.close() }
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(snapshotAccessibilityElement("handoverRecoveryNeededNotice", in: host) != nil)
+        let output = try snapshotOutputDirectory()
+        try saveBitmap(host, bounds: host.bounds, to: output.appendingPathComponent("handover-recovery-notice.png"))
+    }
+
     @Test(arguments: [5, 6])
     func automaticGridFullHD(count: Int) async throws {
         _ = NSApplication.shared

@@ -222,7 +222,10 @@ final class SessionRuntimeHost: NSObject, NSApplicationDelegate {
         }
         let unmanaged = dashboard.unmanagedHolderSessions(excluding: entries)
         guard unmanaged.isEmpty else { await abort("準備中に起動した実行があるため中止しました"); return }
-        await AppDelegate.flushChatTranscriptsForTermination(dashboard: dashboard, timeout: AppDelegate.transcriptFlushTimeout)
+        guard await AppDelegate.flushChatTranscriptsForTermination(dashboard: dashboard, timeout: AppDelegate.transcriptFlushTimeout) else {
+            await abort("会話ログの保存が時間内に終わらないため中止しました")
+            return
+        }
         guard await dashboard.handoverDescriptorsPersisted(for: entries) else {
             await abort("セッションの記録を保存できないため中止しました")
             return

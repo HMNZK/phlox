@@ -89,6 +89,9 @@ final class SessionRestoreCoordinator {
         }
         let restorableIDs = Set(persisted.filter { $0.backend == .appServer }.map(\.id))
         handoverRecoveryNeededSessionIDs.formUnion(environment.handoverAdoptions.keys.filter { !restorableIDs.contains($0) })
+        for (id, adoption) in environment.handoverAdoptions {
+            if let token = adoption.token { await environment.tokenStore.register(token, for: id) }
+        }
         guard !persisted.isEmpty else { return }
 
         persistence.beginSessionRestore()
@@ -97,6 +100,7 @@ final class SessionRestoreCoordinator {
         defer { persistence.completeSessionRestore() }
         pendingRestorePIDUpdates.removeAll(keepingCapacity: true)
         for descriptor in persisted {
+            if environment.handoverAdoptions[descriptor.id] != nil && descriptor.backend != .appServer { continue }
             await restoreSession(descriptor)
         }
         persistence.completeSessionRestore()

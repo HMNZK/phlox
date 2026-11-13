@@ -16,13 +16,15 @@ public struct DashboardRuntimeSnapshot: Codable, Sendable {
     public var worktreeCreationPath: String?
     public var usage: UsageRuntimeSnapshot?
     public var restoredSessionPresentation: RestoredSessionPresentation?
+    public var handoverRecoveryNeededSessionIDs: Set<SessionID>?
 
     public init(projects: [Project], sessions: [SessionRuntimeSessionSnapshot], availableAgentKinds: [AgentKind],
                 hasRestoredSessions: Bool = true, immovableSessionIDs: Set<SessionID> = [],
                 worktreeBranches: [SessionID: String] = [:], workspaceRoot: URL? = nil,
                 workspaceCleanupWarning: WorkspaceCleanupWarning? = nil, workspaceCleanupFailureReason: String? = nil,
                 discardedSessionCount: Int? = nil, worktreeCreationPath: String? = nil, usage: UsageRuntimeSnapshot? = nil,
-                restoredSessionPresentation: RestoredSessionPresentation? = nil) {
+                restoredSessionPresentation: RestoredSessionPresentation? = nil,
+                handoverRecoveryNeededSessionIDs: Set<SessionID>? = nil) {
         self.projects = projects
         self.sessions = sessions
         self.availableAgentKinds = availableAgentKinds
@@ -36,6 +38,7 @@ public struct DashboardRuntimeSnapshot: Codable, Sendable {
         self.worktreeCreationPath = worktreeCreationPath
         self.usage = usage
         self.restoredSessionPresentation = restoredSessionPresentation
+        self.handoverRecoveryNeededSessionIDs = handoverRecoveryNeededSessionIDs
     }
 }
 
@@ -53,6 +56,7 @@ public struct DashboardRuntimeOverview: Codable, Sendable {
     public var worktreeCreationPath: String?
     public var usage: UsageRuntimeSnapshot?
     public var restoredSessionPresentation: RestoredSessionPresentation?
+    public var handoverRecoveryNeededSessionIDs: Set<SessionID>?
 
     public init(projects: [Project], sessions: [SessionRuntimeSessionOverview], availableAgentKinds: [AgentKind],
                 hasRestoredSessions: Bool = true, immovableSessionIDs: Set<SessionID> = [],
@@ -60,7 +64,8 @@ public struct DashboardRuntimeOverview: Codable, Sendable {
                 workspaceCleanupWarning: WorkspaceCleanupWarning? = nil,
                 workspaceCleanupFailureReason: String? = nil, discardedSessionCount: Int? = nil,
                 worktreeCreationPath: String? = nil, usage: UsageRuntimeSnapshot? = nil,
-                restoredSessionPresentation: RestoredSessionPresentation? = nil) {
+                restoredSessionPresentation: RestoredSessionPresentation? = nil,
+                handoverRecoveryNeededSessionIDs: Set<SessionID>? = nil) {
         self.projects = projects
         self.sessions = sessions
         self.availableAgentKinds = availableAgentKinds
@@ -74,6 +79,7 @@ public struct DashboardRuntimeOverview: Codable, Sendable {
         self.worktreeCreationPath = worktreeCreationPath
         self.usage = usage
         self.restoredSessionPresentation = restoredSessionPresentation
+        self.handoverRecoveryNeededSessionIDs = handoverRecoveryNeededSessionIDs
     }
 }
 

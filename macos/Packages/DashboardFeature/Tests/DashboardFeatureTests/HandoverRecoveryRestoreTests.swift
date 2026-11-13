@@ -31,7 +31,7 @@ func failedAdoption_doesNotReapTheLiveChildAndIsPublishedAsRecoveryNeeded() asyn
         backend: .appServer, chatNativeSessionId: "native-1", token: "token", pid: childPID)
     let adoption = HandoverSession(
         sessionID: sessionID.rawValue.uuidString, agent: "claudeCode",
-        holder: try makeHolderRecord(childPID: childPID), appliedSeq: 3, clientState: Data())
+        holder: try makeHolderRecord(childPID: childPID), appliedSeq: 3, clientState: Data(), token: "child-token")
 
     let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
     let environment = AppEnvironment(
@@ -72,7 +72,7 @@ func missingDescriptor_keepsHandoverSessionInRecoveryAndDefersUpdate() async thr
     let childPID: pid_t = 4345
     let adoption = HandoverSession(
         sessionID: sessionID.rawValue.uuidString, agent: "claudeCode",
-        holder: try makeHolderRecord(childPID: childPID), appliedSeq: 3, clientState: Data())
+        holder: try makeHolderRecord(childPID: childPID), appliedSeq: 3, clientState: Data(), token: "child-token")
     let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
     let environment = AppEnvironment(
         pty: MockPTYManager(),
@@ -97,11 +97,121 @@ func missingDescriptor_keepsHandoverSessionInRecoveryAndDefersUpdate() async thr
     #expect(dashboard.handoverRecoveryNeededSessionIDs == [sessionID])
     #expect(dashboard.handoverAdoptedSessionIDs.isEmpty)
     #expect(reaper.reapedPIDs.isEmpty)
+    #expect(await environment.tokenStore.session(forToken: "child-token") == sessionID)
+    let snapshot = try JSONDecoder().decode(DashboardRuntimeSnapshot.self, from: JSONEncoder().encode(dashboard.makeRuntimeSnapshot()))
+    let screen = try DashboardViewModel(projection: snapshot) { _ in .none }
+    #expect(screen.handoverRecoveryNeededSessionIDs == [sessionID])
+    let overview = try JSONDecoder().decode(DashboardRuntimeOverview.self, from: JSONEncoder().encode(dashboard.makeRuntimeOverview()))
+    try screen.applyRuntimeSnapshot(.init(projects: [], sessions: [], availableAgentKinds: []))
+    #expect(screen.handoverRecoveryNeededSessionIDs.isEmpty)
+    try screen.applyRuntimeOverview(overview)
+    #expect(screen.handoverRecoveryNeededSessionIDs == [sessionID])
+    try screen.applyRuntimeOverview(.init(projects: [], sessions: [], availableAgentKinds: []))
+    #expect(screen.handoverRecoveryNeededSessionIDs.isEmpty)
     #expect(await dashboard.handoverDeferralReasons().contains { $0.contains("復旧待ち") })
     let entry = DashboardHandoverEntry(
         sessionID: sessionID, agent: "claudeCode",
         preparation: HandoverPreparation(holder: adoption.holder, appliedSeq: 3, clientState: Data(), fence: UUID()))
     #expect(!(await dashboard.handoverDescriptorsPersisted(for: [entry])))
+}
+
+@Test @MainActor
+func mismatchedPTYDescriptor_preservesCheckpointChildAndDefersUpdate() async throws {
+    let workspaceRoot = try makeTemporaryWorkspaceRoot()
+    defer { cleanupTemporaryWorkspaceRoot(workspaceRoot) }
+
+    let sessionID = SessionID()
+    let childPID: pid_t = 4346
+    let descriptor = PersistedSessionDescriptor(
+        id: sessionID, kind: .claudeCode, workingDirectory: workspaceRoot.path, name: "wrong-backend",
+        projectID: nil, startedAt: Date(), command: "/usr/local/bin/claude", args: [], env: [:],
+        backend: .pty, token: "stale-token", pid: childPID)
+    let adoption = HandoverSession(
+        sessionID: sessionID.rawValue.uuidString, agent: "claudeCode",
+        holder: try makeHolderRecord(childPID: childPID), appliedSeq: 3, clientState: Data(), token: "child-token")
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = AppEnvironment(
+        pty: MockPTYManager(), hook: MockHookServer(events: hookStream),
+        hookURL: URL(string: "http://127.0.0.1:8080/hook")!,
+        claudeSettingsURL: URL(fileURLWithPath: "/tmp/agent-dashboard-test-hooks.json"),
+        hookDispatcherPath: "/tmp/agent-dashboard-test-dispatcher.sh",
+        claudeBinaryPath: "/usr/local/bin/claude", pathEnvironment: "/usr/local/bin:/usr/bin:/bin",
+        workspaceDirectory: workspaceRoot, controlURL: URL(string: "http://127.0.0.1:9999")!,
+        tokenStore: SessionTokenStore(), messages: MockMessageStore(), sessions: InMemorySessionStore([descriptor]),
+        cliPath: "/tmp/agent-dashboard-test-cli", handoverAdoptions: [sessionID: adoption])
+    let reaper = MockOrphanReaper(alivePIDs: [childPID])
+    let dashboard = DashboardViewModel(environment: environment, orphanReaper: reaper)
+
+    await dashboard.start()
+
+    #expect(reaper.reapedPIDs.isEmpty)
+    #expect(dashboard.sessionNodes.isEmpty)
+    #expect(dashboard.handoverRecoveryNeededSessionIDs == [sessionID])
+    #expect(await environment.tokenStore.session(forToken: "child-token") == sessionID)
+    #expect(await dashboard.handoverDeferralReasons().contains { $0.contains("復旧待ち") })
+}
+
+private actor StalledSaveSessionStore: SessionStoreProtocol {
+    private var pending: CheckedContinuation<Void, Never>?
+    private(set) var started = false
+
+    func load() async -> [PersistedSessionDescriptor] { [] }
+    func save(_ sessions: [PersistedSessionDescriptor]) async throws {
+        started = true
+        await withCheckedContinuation { pending = $0 }
+    }
+    func release() { pending?.resume(); pending = nil }
+}
+
+@Test @MainActor
+func stalledDescriptorSave_timesOutBeforeHandoverCommit() async {
+    let store = StalledSaveSessionStore()
+    let persistence = SessionPersistenceCoordinator(
+        sessionStore: store, projectStore: NoOpProjectStore(), logError: { _, _ in })
+    persistence.enqueue { try? await store.save([]) }
+
+    #expect(!(await persistence.waitForPendingWrites(timeout: .milliseconds(100))))
+    #expect(await store.started)
+    await store.release()
+    await persistence.waitForPendingWrites()
+    #expect(await persistence.waitForPendingWrites(timeout: .milliseconds(100)))
+}
+
+private actor StalledLoadSessionStore: SessionStoreProtocol {
+    private var pending: CheckedContinuation<[PersistedSessionDescriptor], Never>?
+    private(set) var started = false
+    func load() async -> [PersistedSessionDescriptor] {
+        started = true
+        return await withCheckedContinuation { pending = $0 }
+    }
+    func save(_ sessions: [PersistedSessionDescriptor]) async throws {}
+    func release() { pending?.resume(returning: []); pending = nil }
+}
+
+@Test @MainActor
+func stalledDescriptorLoad_timesOutBeforeHandoverCommit() async throws {
+    let workspaceRoot = try makeTemporaryWorkspaceRoot()
+    defer { cleanupTemporaryWorkspaceRoot(workspaceRoot) }
+    let store = StalledLoadSessionStore()
+    let (hookStream, _) = AsyncStream<(SessionID, HookEvent)>.makeStream()
+    let environment = AppEnvironment(
+        pty: MockPTYManager(),
+        hook: MockHookServer(events: hookStream),
+        hookURL: URL(string: "http://127.0.0.1:8080/hook")!,
+        claudeSettingsURL: URL(fileURLWithPath: "/tmp/agent-dashboard-test-hooks.json"),
+        hookDispatcherPath: "/tmp/agent-dashboard-test-dispatcher.sh",
+        claudeBinaryPath: "/usr/local/bin/claude",
+        pathEnvironment: "/usr/local/bin:/usr/bin:/bin",
+        workspaceDirectory: workspaceRoot,
+        controlURL: URL(string: "http://127.0.0.1:9999")!,
+        tokenStore: SessionTokenStore(),
+        messages: MockMessageStore(),
+        sessions: store,
+        cliPath: "/tmp/agent-dashboard-test-cli")
+    let dashboard = DashboardViewModel(environment: environment)
+    #expect(!(await dashboard.handoverDescriptorsPersisted(for: [], timeout: .milliseconds(100))))
+    #expect(await store.started)
+    await store.release()
 }
 
 /// 採用先のクライアントの最小の代役。`completeAdoption`が進行中のターン（`turnStarted`）を流す。

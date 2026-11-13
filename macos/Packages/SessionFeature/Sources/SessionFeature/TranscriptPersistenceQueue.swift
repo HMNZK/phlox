@@ -221,31 +221,32 @@ final class MidTurnPersistenceGate {
 /// On timeout the flush Task may keep running (process exit reclaims it); reply is not blocked
 /// by a stalled non-throwing `Task.value` await inside the FIFO write chain.
 public enum TerminationFlushRace {
+    @discardableResult
     public static func race(
         timeout: Duration,
         against task: Task<Void, Never>
-    ) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+    ) async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             let finished = OSAllocatedUnfairLock(initialState: false)
-            let resumeOnce: @Sendable () -> Void = {
+            let resumeOnce: @Sendable (Bool) -> Void = { completed in
                 let shouldResume = finished.withLock { state -> Bool in
                     if state { return false }
                     state = true
                     return true
                 }
                 if shouldResume {
-                    continuation.resume()
+                    continuation.resume(returning: completed)
                 }
             }
 
             // Unstructured: abandoned after resume; must not be a TaskGroup child.
             Task {
                 await task.value
-                resumeOnce()
+                resumeOnce(true)
             }
             Task {
                 try? await Task.sleep(for: timeout)
-                resumeOnce()
+                resumeOnce(false)
             }
         }
     }
@@ -256,10 +257,11 @@ public enum TerminationFlushRace {
     /// Uses unstructured child Tasks (not `withTaskGroup`) so that after timeout wins,
     /// callers do not get stuck on TaskGroup's implicit await of remaining children.
     @MainActor
+    @discardableResult
     public static func raceAllParallel(
         timeout: Duration,
         bodies: [() async -> Void]
-    ) async {
+    ) async -> Bool {
         let flushTask = Task { @MainActor in
             let children = bodies.map { body in
                 Task { @MainActor in
@@ -270,6 +272,6 @@ public enum TerminationFlushRace {
                 await child.value
             }
         }
-        await race(timeout: timeout, against: flushTask)
+        return await race(timeout: timeout, against: flushTask)
     }
 }

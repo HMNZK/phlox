@@ -27,6 +27,8 @@ final class SessionPersistenceCoordinator {
     private let logError: @MainActor @Sendable (Error, String) -> Void
     var liveTitleState: @MainActor @Sendable (SessionID) -> SessionTitleState?
     private var chain: Task<Void, Never> = Task {}
+    private var enqueuedWrite = 0
+    private var completedWrite = 0
     /// codex native resumeID を保存済みのセッション（多重保存ガード）。
     private var persistedCodexNativeResumeIDs: Set<SessionID> = []
     private var persistedSessionIDs: Set<SessionID> = []
@@ -69,9 +71,12 @@ final class SessionPersistenceCoordinator {
     /// 永続化作業を直列チェーンの末尾に連結する。書き込み順 = enqueue 順を保証する。
     func enqueue(_ work: @escaping @MainActor @Sendable () async -> Void) {
         let previous = chain
+        enqueuedWrite += 1
+        let sequence = enqueuedWrite
         chain = Task { @MainActor in
             await previous.value
             await work()
+            completedWrite = sequence
         }
     }
 
@@ -96,6 +101,17 @@ final class SessionPersistenceCoordinator {
     /// 直列チェーン上の保留作業がすべて完了するまで待つ（検証と切り替え前の保存確認に使う）。
     func waitForPendingWrites() async {
         await chain.value
+    }
+
+    /// 保存先が止まっていても、確定前の切り替えを取り消せるようにする。
+    func waitForPendingWrites(timeout: Duration) async -> Bool {
+        let target = enqueuedWrite
+        let deadline = ContinuousClock.now + timeout
+        while completedWrite < target {
+            if ContinuousClock.now >= deadline { return false }
+            do { try await Task.sleep(for: .milliseconds(20)) } catch { return false }
+        }
+        return true
     }
 
     /// descriptor を upsert する（同一 id の既存エントリは置き換え）。

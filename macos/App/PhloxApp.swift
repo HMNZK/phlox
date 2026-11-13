@@ -481,15 +481,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// 全体完了を `TerminationFlushRace` で timeout と競わせる。timeout 勝利後は flush
     /// 側を await しない（`withTaskGroup` の暗黙 await で reply がハングするのを避ける）。
     @MainActor
+    @discardableResult
     static func flushChatTranscriptsForTermination(
         dashboard: DashboardViewModel?,
         timeout: Duration
-    ) async {
-        guard let dashboard else { return }
+    ) async -> Bool {
+        guard let dashboard else { return true }
         let sessions = dashboard.sessionNodes.compactMap(\.appServer)
-        guard !sessions.isEmpty else { return }
+        guard !sessions.isEmpty else { return true }
 
-        await TerminationFlushRace.raceAllParallel(
+        return await TerminationFlushRace.raceAllParallel(
             timeout: timeout,
             bodies: sessions.map { session in
                 { await session.flushTranscriptNow() }

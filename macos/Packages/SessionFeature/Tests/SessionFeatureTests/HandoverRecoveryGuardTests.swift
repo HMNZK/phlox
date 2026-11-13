@@ -70,6 +70,18 @@ private actor FailingHandoverTranscriptStore: TranscriptStore {
     }
 }
 
+private actor StalledHandoverTranscriptStore: TranscriptStore {
+    private var pending: CheckedContinuation<Void, Never>?
+    func loadTranscript(for sessionID: SessionID) async throws -> [ChatItem] {
+        [.agentMessage(id: "saved", text: "conversation", timestamp: .now)]
+    }
+    func upsertTranscriptItems(_ items: [ChatItem], for sessionID: SessionID) async throws {}
+    func replaceTranscript(for sessionID: SessionID, with items: [ChatItem]) async throws {
+        await withCheckedContinuation { pending = $0 }
+    }
+    func release() { pending?.resume(); pending = nil }
+}
+
 @Test @MainActor
 func failedAdoption_marksRecoveryNeededAndDisablesInput() async throws {
     let client = RecordingHandoverClient(adoptionError: HandoverError.adoptionFailed("holder unreachable"))
@@ -180,4 +192,19 @@ func failedTranscriptSave_cancelsHandoverBeforeCommit() async throws {
     }
     #expect(client.count("cancelHandover") == 1)
     #expect(client.count("commitHandover") == 0)
+}
+
+@Test @MainActor
+func stalledTranscriptSave_cancelsHandoverBeforeCommit() async throws {
+    let client = RecordingHandoverClient()
+    let store = StalledHandoverTranscriptStore()
+    let vm = makeViewModel(client, transcriptStore: store)
+    await vm.adoptHandover(threadId: "native-1")
+
+    await #expect(throws: HandoverError.self) {
+        _ = try await vm.prepareHandover()
+    }
+    #expect(client.count("cancelHandover") == 1)
+    #expect(client.count("commitHandover") == 0)
+    await store.release()
 }

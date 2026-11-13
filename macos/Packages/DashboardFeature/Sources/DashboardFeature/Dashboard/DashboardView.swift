@@ -151,6 +151,17 @@ public struct DashboardView: View {
             }
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
+                    if !viewModel.handoverRecoveryNeededSessionIDs.isEmpty {
+                        Text("復旧待ちのセッションが \(viewModel.handoverRecoveryNeededSessionIDs.count) 件あります。自動更新を延期しています。")
+                            .font(DSFont.dense)
+                            .foregroundStyle(DSColor.textPrimary)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 38)
+                            .background(DSColor.popoverBackground, in: Capsule())
+                            .dsShadow(DSShadow.popover)
+                            .padding(.bottom, 20)
+                            .accessibilityIdentifier("handoverRecoveryNeededNotice")
+                    }
                     if let count = discardedSessionCountNotice {
                         discardedSessionsToast(count: count)
                     }

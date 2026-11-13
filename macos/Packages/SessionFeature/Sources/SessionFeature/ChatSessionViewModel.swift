@@ -1666,7 +1666,13 @@ public final class ChatSessionViewModel: Identifiable {
         }
         reachedHandoverFences.remove(fence)
         let failuresBeforeFlush = transcriptPersistenceQueue?.failureCount
-        await flushTranscriptNow()
+        let flush = Task { @MainActor in await flushTranscriptNow() }
+        guard await TerminationFlushRace.race(timeout: .seconds(5), against: flush) else {
+            flush.cancel()
+            await handover.cancelHandover()
+            handoverPreparing = false
+            throw HandoverError.notReady("会話ログの保存が時間内に終わりません")
+        }
         if let failuresBeforeFlush, transcriptPersistenceQueue?.failureCount != failuresBeforeFlush {
             await handover.cancelHandover()
             handoverPreparing = false

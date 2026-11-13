@@ -200,7 +200,7 @@ last-verified: 2026-10-12
 
 ### 5.1 実行入口
 
-dev/verify/mainへの反映前に`macos/scripts/verification-gate.py quality`から、文書保守後の同じ候補でmacOS全19パッケージを既存標準入口へ明示して検査し、iOS lint/単体/build、指定した13関数のfake E2Eも実行する。新パッケージの検査漏れと親環境による対象/並行性の変更も検出する。入口は [統合前検証契約](merge-verification-gates.md)で合意した接続先であり、本書により実装済み・実行成功とは主張しない。CLI引数とJSONの正本は実装コードとし、同書の監査基準OIDとは区別する。
+dev/mainへの反映前に`macos/scripts/verification-gate.py quality`から、文書保守後の同じ候補でmacOS全19パッケージを既存標準入口へ明示して検査し、iOS lint/単体/build、指定した13関数のfake E2Eも実行する。新パッケージの検査漏れと親環境による対象/並行性の変更も検出する。入口は [統合前検証契約](merge-verification-gates.md)で合意した接続先であり、本書により実装済み・実行成功とは主張しない。CLI引数とJSONの正本は実装コードとし、同書の監査基準OIDとは区別する。
 
 fake E2Eは関数IDを明示して`--no-parallel`で実行し、`PHLOX_E2E=1`はその子プロセスだけに渡す。広い`--filter E2E`や通常検査全体への一括exportは実CLI依存テストまで選び得るため使わない。テストは`~/.agents/scripts/compact-test`、ビルドを伴う検査は`managed-build`に従う。exit 0だけでなく必須IDごとの実行・成功を確認し、0件・必須skip・検査不能は非0とする。
 
@@ -226,7 +226,7 @@ fake E2Eは関数IDを明示して`--no-parallel`で実行し、`PHLOX_E2E=1`は
 
 ### 5.4 CI への組み込み
 
-- dev/verify/main反映前: 既存品質入口に接続した必須自動検査を実行する。mainは実機記録の照合も必要
+- dev/main反映前: 既存品質入口に接続した必須自動検査を実行する。mainは実機記録の照合も必要
 - S10（実CLI）・人操作/ACK待ちは自動ゲートから一括起動せず、必要に応じて別途明示実行する
 - XCUITestは自動ゲートに含めず、手元で`~/.agents/scripts/xcuitest-run`経由で実行する。ローカルゲートを設けても、サーバー側の必須チェックや保護が設定済みとは扱わない
 

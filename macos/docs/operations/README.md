@@ -17,7 +17,7 @@ last-verified: 2026-07-16
 
 - [`site-deploy-and-release.md`](site-deploy-and-release.md) — phlox.cc サイト配信（GitHub Actions Pages）と macOS アプリ配布（DMG ダウンロード・Sparkle 自動更新）の運用手順
 - [`verification-storage.md`](verification-storage.md) — 一時検証物（`.verification/`）・継続保管する配布物と証拠（`release-archives/`）・復旧用バックアップ（`backups/`）の置き分け、作業終了時の片付け、既存証拠の移管手順
-- [`統合前検証契約`](../specs/merge-verification-gates.md) — dev/verify/main反映前の検査と、mainで必要な実機記録・シナリオ鮮度の判定。入口の実装・検証状況も同書を参照
+- [`統合前検証契約`](../specs/merge-verification-gates.md) — dev/main反映前の検査と、mainで必要な実機記録・シナリオ鮮度の判定。入口の実装・検証状況も同書を参照
 - `release-<版>.md`（例: [`release-1.14.0.md`](release-1.14.0.md)） — 各版のリリース記録（検証結果・配布物・公開後の確認）。手順の正本は `site-deploy-and-release.md`
 - `physical-verification-exception-v<版>.md`（例: [`physical-verification-exception-v1.14.7.md`](physical-verification-exception-v1.14.7.md)） — 特定版に限り必須実機検証を未実施で公開した例外の承認記録（対象配布物・未実施項目・一時的なゲート設定と復元条件）。次版以降の実機検証要件は変えない
 - [`mobile-per-device-token-migration.md`](mobile-per-device-token-migration.md) — 端末別モバイルトークン移行（既存端末の再ペアリング）と Data Protection Keychain の署名要件

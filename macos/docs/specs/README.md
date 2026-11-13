@@ -20,7 +20,7 @@ last-verified: 2026-08-01
 | [glossary.md](glossary.md) | active | ドメイン用語集（タスク・タスクリスト・作業・タスク外の作業・サブエージェント） |
 | [agent-status-card.md](agent-status-card.md) | active | エージェント状態カード（入力ごとにタスクと作業を整理して見せるカード）の要件・受け入れ基準 |
 | [agent-status-card-design.md](agent-status-card-design.md) | active | 同カードの設計書（保存形式・イベント・組み立て規則・描画・テスト・実装順） |
-| [merge-verification-gates.md](merge-verification-gates.md) | active | dev/verify/main反映前の自動検査、実機記録とビルド入力の照合、シナリオ差分の独立レビュー契約 |
+| [merge-verification-gates.md](merge-verification-gates.md) | active | dev/main反映前の自動検査、実機記録とビルド入力の照合、シナリオ差分の独立レビュー契約 |
 | [mobile-skill-suggestions.md](mobile-skill-suggestions.md) | active | スマホのスキル候補取得・選択・Codex native送信と互換性 |
 | [ui-feature-inventory.md](ui-feature-inventory.md) | active | macOS アプリの UI 機能の画面別一覧（View を含む 97 ファイルを網羅）（UI 再構築・モック作成の入力。根拠は現行コードの file:line） |
 | [embedded-ios-simulator.md](embedded-ios-simulator.md) | completed | iOS シミュレーターをウィンドウ内の子タブに表示・操作する設計書（実装済み。現行構成は architecture/embedded-ios-simulator.md。方式調査・非公開部品の隔離・許可リスト・テスト計画） |

@@ -10,11 +10,16 @@ import Testing
         command: "/bin/sh", arguments: ["-c", "exec 0<&-; echo ready; exec sleep 30"])
     try transport.start()
     var lines = transport.receivedLines.makeAsyncIterator()
-    // 子が標準入力を閉じた後にだけ書く（読み手がいない状態を確実にする）。
+    // 子が標準入力を閉じたことを確認する。
     #expect(await lines.next().map { String(decoding: $0, as: UTF8.self) } == "ready")
 
+    // 並走する spawn が読み端を exec まで一時継承し得るので、EPIPE になるまで短く再試行する。
+    let input = Data("x\n".utf8)
     await #expect(throws: LineDelimitedProcessTransportError.stdinClosed) {
-        try await transport.send(Data("x\n".utf8))
+        for _ in 0..<200 {
+            try await transport.send(input)
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
     await transport.close()
 }

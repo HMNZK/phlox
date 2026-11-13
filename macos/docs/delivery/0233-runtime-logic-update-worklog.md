@@ -188,6 +188,12 @@ ADR 0233「PMが決める事項」の4点。特に初回移行（案A/B）と段
 - **テスト**（`StructuredChatKit`）: ①終了済みの子への書き込みが`stdinClosed`で失敗し、プロセスが落ちない。②パイプが満杯でブロックした書き込みが、子の終了で`stdinClosed`になり、プロセスが落ちない（今回の落ち方そのもの）。
 - 結合テスト`adoptionWithAnUnknownSend…`は、後片付けで子を強制終了しても、ブロック中の書き込みがEPIPEで終わるので落ちなくなる（テスト側の期待は変えていない）。
 
+### SIGPIPE テストの並走時の失敗（引き継ぎ後）
+
+`writingToAChildThatClosedItsStdinFailsWithoutRaisingSIGPIPE`が統合ゲートで「最初の送信が成功した」として失敗した。並走するパッケージ検査を135回行うと1回再現した。失敗時の診断では、子の標準入力は閉じており、約17ms後の再送はEPIPEだった。書き込み側と読み取り側のパイプ識別子は一致し、後の確認では読み手が消えていた。並走する別の`posix_spawn`が`exec`まで読み端を一時的に持つことが、最初の送信成功の原因と考えられる。最初の送信で必ずEPIPEになるというテストの同期条件は成立しない。
+
+テストは最大200回の短い再試行で`stdinClosed`が返ることを確かめ、別のエラー・再試行上限・SIGPIPEによるテストプロセス終了を失敗とする。製品側の`F_SETNOSIGPIPE`と「読み手がいなくなればEPIPEを`stdinClosed`として返す」契約は変えない。診断のために作った`inspawn`は、FIFOの読み手待ちとプロセス一覧取得が重なって停止したため、再実行しない。
+
 ## Appビルドエラー（`DesktopCompositionRoot`の再試行Task）
 
 - `updateRetryTask = Task { [weak self] in await HostUpdateRetry.run { guard let self … } }`は、外側の`[weak self]`（可変の弱参照）を内側のSendableクロージャが捕まえるので、Swift 6で`reference to captured var 'self'`になる。直し: `self`がlet扱いの`startUpdateRetry`の中で、`[weak self]`のSendableクロージャ`step`を先に作り、`Task { await HostUpdateRetry.run(attempt: step) }`へ渡す（入れ子で弱参照を捕まえない）。同ファイルの他のTask（`reconnectTask`・`settingsTask`）は既存でビルドを通っており、入れ子のSendableクロージャで弱参照を捕まえる形は無い。

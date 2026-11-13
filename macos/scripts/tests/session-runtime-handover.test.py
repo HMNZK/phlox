@@ -400,13 +400,12 @@ class RuntimeHandoverAcceptance(lifecycle.SessionRuntimeLifecycleTests):
         before = self.discovery()
         codex_counts = self.fake(codex["child"].pid)["methodCounts"]
         claude_counts = self.fake(claude["child"].pid)["methodCounts"]
-        with socket.create_connection(("127.0.0.1", self.api.port), timeout=10) as pending:
+        control_port = int(before["controlURL"].rsplit(":", 1)[1])
+        with socket.create_connection(("127.0.0.1", control_port), timeout=10) as pending:
             pending.settimeout(10)
             pending.sendall((
                 "GET /sessions HTTP/1.1\r\nHost: 127.0.0.1\r\n"
-                f"Authorization: Bearer {self.api._token}\r\n"
-                f"X-Phlox-Runtime-Protocol: {self.api.protocol}\r\n"
-                f"X-Phlox-Runtime-Generation: {self.api.generation}\r\n"
+                "Authorization: Bearer invalid-test-token\r\n"
                 "Connection: close\r\n"
             ).encode())
             time.sleep(0.25)  # 旧ホストが接続を受付け、ヘッダーの終わりを待つ。
@@ -415,11 +414,11 @@ class RuntimeHandoverAcceptance(lifecycle.SessionRuntimeLifecycleTests):
             def finish_pending_request():
                 self.wait("the old host to commit the handover", lambda: self.discovery()["state"] == "stopping")
                 time.sleep(4.2)  # 旧実装の3秒の排水期限を越えても、受付済みの要求を切らない。
-                self.assertTrue(same_process(old_runtime), "The old host exited before answering an accepted request")
+                self.assertTrue(same_process(old_runtime), "The old host exited with an in-flight Control request")
                 pending.sendall(b"\r\n")
                 status = pending.recv(4096).split(b"\r\n", 1)[0]
-                self.assertIn(b" 200 ", status, f"The accepted request did not complete: {status!r}")
-                self.observe("accepted-control-request-drained", status=status.decode())
+                self.assertIn(b" 401 ", status, f"The in-flight Control request did not complete: {status!r}")
+                self.observe("in-flight-control-request-drained", status=status.decode())
 
             new = self.request_handover(before, before_wait=finish_pending_request)
 

@@ -93,7 +93,7 @@ final class SessionPersistenceCoordinator {
         }
     }
 
-    /// 直列チェーン上の保留作業がすべて完了するまで待つ（テスト用。production の終了経路からは呼ばれない）。
+    /// 直列チェーン上の保留作業がすべて完了するまで待つ（検証と切り替え前の保存確認に使う）。
     func waitForPendingWrites() async {
         await chain.value
     }

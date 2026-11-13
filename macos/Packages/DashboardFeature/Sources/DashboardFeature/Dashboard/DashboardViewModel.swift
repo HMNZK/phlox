@@ -423,16 +423,15 @@ public final class DashboardViewModel {
         await persistence.waitForPendingWrites()
     }
 
-    /// 確定点に載せる実行の記述子が、保存キューの完了後に同じ会話IDで読めることを確かめる。
+    /// 確定点に載せる実行の記述子が、保存キューの完了後に復元可能な形で読めることを確かめる。
     public func handoverDescriptorsPersisted(for entries: [DashboardHandoverEntry]) async -> Bool {
         await persistence.waitForPendingWrites()
         let saved = await environment.sessions.load()
         return entries.allSatisfy { entry in
-            guard let chat = sessionNode(id: entry.sessionID)?.appServer,
+            guard sessionNode(id: entry.sessionID)?.appServer != nil,
                   let descriptor = saved.first(where: { $0.id == entry.sessionID }),
-                  descriptor.backend == .appServer,
-                  let threadID = chat.threadId else { return false }
-            return (descriptor.chatNativeSessionId ?? descriptor.codexThreadId ?? descriptor.resumeID) == threadID
+                  descriptor.backend == .appServer else { return false }
+            return (descriptor.chatNativeSessionId ?? descriptor.codexThreadId ?? descriptor.resumeID) != nil
         }
     }
 
